@@ -1,10 +1,10 @@
 # PleromaNet
 
-PleromaNet is a new frontend for Pleroma focused on a reduced, refined interface. The visual design source file will be added later and should become the reference for UI implementation.
+PleromaNet is a new frontend for Pleroma focused on a reduced, refined interface. The visual design source file is now represented by the implementation plan in `meta/issues.md`.
 
 ## Status
 
-This repository is at the project setup stage. The application scaffold, test suite, and integration-test environment have not been created yet.
+This repository contains the initial SvelteKit TypeScript scaffold, configured as an SPA/static frontend without SSR.
 
 ## Development Principles
 
@@ -17,14 +17,60 @@ This repository is at the project setup stage. The application scaffold, test su
 - Small, topical commits. Large features are split into smaller commits.
 - Detailed contributor and agent rules live in `AGENTS.md`.
 
-## Testing Strategy
+## Developing
 
-- Use Playwright for headless browser tests.
-- Default tests should be fast, deterministic, and not require Docker or a live Pleroma instance.
-- Mock Pleroma backend behavior in regular tests when needed.
-- Maintain dockerized integration tests that run against an ephemeral dockerized Pleroma backend.
-- Do not run dockerized integration tests by default; keep them behind explicit mise tasks once those commands exist.
-- Run dockerized integration tests after larger changes.
+Install dependencies:
+
+```sh
+pnpm install
+```
+
+Start a development server:
+
+```sh
+pnpm dev
+
+# or start the server and open the app in a new browser tab
+pnpm dev -- --open
+```
+
+## Testing
+
+Default tests are Playwright headless browser tests with mocked/local data only. They do not require Docker or a live Pleroma instance.
+
+```sh
+pnpm test
+```
+
+Run type checks:
+
+```sh
+pnpm check
+```
+
+Equivalent mise tasks are available:
+
+```sh
+mise run test
+mise run check
+mise run build
+```
+
+Dockerized integration tests against an ephemeral Pleroma backend will be added later and kept behind explicit mise tasks.
+
+## Building
+
+To create a production version of your app:
+
+```sh
+pnpm build
+```
+
+Preview the production build:
+
+```sh
+pnpm preview
+```
 
 ## API Reference
 

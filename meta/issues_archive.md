@@ -1,0 +1,1 @@
+- [x] [01 Scaffold SvelteKit SPA baseline](issues/01-scaffold-sveltekit-spa-baseline.md)

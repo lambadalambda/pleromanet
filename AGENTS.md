@@ -1,8 +1,16 @@
+## Project Configuration
+
+- **Language**: TypeScript
+- **Package Manager**: pnpm
+- **Add-ons**: playwright, sveltekit-adapter
+
+---
+
 # AGENTS.md
 
 ## Project
 
-PleromaNet is a new frontend for Pleroma with a reduced, refined visual style. Design references will be added later and should guide UI work once available.
+PleromaNet is a new frontend for Pleroma with a reduced, refined visual style. The current design handoff is captured as implementation issues under `meta/issues.md` and should guide UI work.
 
 ## Core Rules
 
