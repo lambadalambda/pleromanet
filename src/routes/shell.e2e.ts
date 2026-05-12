@@ -10,7 +10,7 @@ const expectNoHorizontalOverflow = async (page: Page) => {
 
 test('renders the authenticated desktop shell', async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 900 });
-	await page.goto('/');
+	await page.goto('/mockup');
 
 	await expect(page.getByTestId('app-header')).toBeVisible();
 	await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible();
@@ -31,7 +31,7 @@ test('renders the authenticated desktop shell', async ({ page }) => {
 
 test('right rail changes by view and hides on medium widths', async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 900 });
-	await page.goto('/');
+	await page.goto('/mockup');
 
 	await expect(page.getByTestId('right-rail')).toContainText('Trends & Activity');
 	await page.getByRole('button', { name: 'Explore' }).first().click();
@@ -44,7 +44,7 @@ test('right rail changes by view and hides on medium widths', async ({ page }) =
 
 test('user menu supports theme switching and keyboard dismissal', async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 900 });
-	await page.goto('/');
+	await page.goto('/mockup');
 
 	await page.getByRole('button', { name: 'dreambyte account menu' }).click();
 	await expect(page.getByTestId('user-menu')).toBeVisible();
@@ -57,7 +57,7 @@ test('user menu supports theme switching and keyboard dismissal', async ({ page 
 
 test('mobile shell opens drawer, sheet, and bottom navigation without overflow', async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
-	await page.goto('/');
+	await page.goto('/mockup');
 
 	await expect(page.getByTestId('mobile-bottom-nav')).toBeVisible();
 	await expect(page.getByTestId('left-sidebar')).toBeHidden();

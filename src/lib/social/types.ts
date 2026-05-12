@@ -12,8 +12,6 @@ export type SocialPost = {
 	time: string;
 	body: string;
 	avatar: AvatarVariant;
-	avatarUrl?: string;
-	url?: string;
 	media?: MediaVariant;
 	replies: number;
 	boosts: number;

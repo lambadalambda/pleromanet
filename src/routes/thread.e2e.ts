@@ -23,7 +23,7 @@ const federatedTimelinesThreadButton = (page: Page) =>
 		.getByRole('button', { name: /Federated timelines feel best/ });
 
 const openSoftCssThread = async (page: Page) => {
-	await page.goto('/');
+	await page.goto('/mockup');
 	await softCssThreadButton(page).click();
 };
 

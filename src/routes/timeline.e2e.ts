@@ -10,7 +10,7 @@ const expectNoHorizontalOverflow = async (page: Page) => {
 
 test('composer starts empty, posts text, and prepends the new post', async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 900 });
-	await page.goto('/');
+	await page.goto('/mockup');
 
 	const composer = page.getByRole('textbox', { name: 'Post text' });
 	const postButton = page.getByRole('button', { name: 'Post', exact: true });
@@ -31,7 +31,7 @@ test('composer starts empty, posts text, and prepends the new post', async ({ pa
 
 test('post actions update reply, boost, and favorite state locally', async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 900 });
-	await page.goto('/');
+	await page.goto('/mockup');
 
 	const post = page.getByTestId('timeline-post').filter({ hasText: 'quiet CSS can still be expressive' });
 	const reply = post.getByRole('button', { name: /Reply/ });
@@ -59,7 +59,7 @@ test('post actions update reply, boost, and favorite state locally', async ({ pa
 
 test('right rail cards render and suggestion handles do not overflow', async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 900 });
-	await page.goto('/');
+	await page.goto('/mockup');
 
 	await expect(page.getByTestId('right-rail')).toContainText('Trends');
 	await expect(page.getByTestId('right-rail')).toContainText('Who to follow');
@@ -89,7 +89,7 @@ test('composer toolbar and post button remain usable across viewport sizes', asy
 		{ width: 390, height: 844 }
 	]) {
 		await page.setViewportSize(viewport);
-		await page.goto('/');
+		await page.goto('/mockup');
 		const composerForm = page.getByRole('form', { name: 'Composer' });
 		const composer = page.getByRole('textbox', { name: 'Post text' });
 		const postButton = composerForm.getByRole('button', { name: 'Post', exact: true });

@@ -4,21 +4,18 @@ PleromaNet is a new frontend for Pleroma focused on a reduced, refined interface
 
 ## Status
 
-This repository contains a SvelteKit TypeScript SPA/static frontend without SSR. It is currently a mix of design prototype work and one small real app slice.
+This repository contains a SvelteKit TypeScript SPA/static frontend without SSR. It is currently mostly design prototype work; real Pleroma-backed app flows have not landed yet.
 
 ### Real App Surface
 
-- `/public` is the first real, non-logged-in app surface.
-- It fetches the public timeline from a Pleroma API, defaulting to `https://lain.com`.
-- The API target can be changed with `PUBLIC_PLEROMA_API_BASE_URL`.
-- It supports Local and Federated public timeline tabs, loading state, empty state, and recoverable error state.
-- Its Playwright tests mock network responses so the default test suite remains deterministic and does not depend on `lain.com` being online.
+- `/` is a small coming-soon landing page that links to the mocked surfaces.
+- There is currently no real Pleroma API-backed app surface.
 
 ### Prototype / Fake Surfaces
 
-- `/` is still mostly a signed-in design prototype with mocked profile, timeline, composer, thread, navigation, right rail, settings placeholder, and interaction state.
+- `/mockup` is the signed-in design prototype with mocked profile, timeline, composer, thread, navigation, right rail, settings placeholder, and interaction state.
 - `/design-system` is a component/design showcase with mocked content.
-- Timeline posts, composer publishing, thread replies, follow buttons, trends, suggestions, settings, notifications, messages, bookmarks, lists, and instance status outside `/public` are mocked UI behavior.
+- Timeline posts, composer publishing, thread replies, follow buttons, trends, suggestions, settings, notifications, messages, bookmarks, lists, and instance status are mocked UI behavior.
 - No OAuth flow, token storage, authenticated account state, real posting, real follow actions, real thread fetching, or real profile/settings writes exist yet.
 - Dockerized/live Pleroma integration tests have not been added yet.
 

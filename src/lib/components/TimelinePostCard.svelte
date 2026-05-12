@@ -20,7 +20,7 @@
 </script>
 
 <article class="timeline-post" data-testid={testId}>
-	<TimelineAvatar variant={post.avatar} src={post.avatarUrl} />
+	<TimelineAvatar variant={post.avatar} />
 	<div class="post-content">
 		<div class="post-head">
 			<span class="post-name">{post.name}</span>
@@ -51,7 +51,6 @@
 				type="button"
 				aria-label={`Reply ${actionCount('reply')}`}
 				aria-pressed={post.actions.reply}
-				disabled={!onAction}
 				onclick={() => onAction?.(post.id, 'reply')}
 			>
 				<span class="post-action-icon" data-testid="post-action-reply-icon"><PnIcon name="reply" /></span>
@@ -63,7 +62,6 @@
 				type="button"
 				aria-label={`Boost ${actionCount('boost')}`}
 				aria-pressed={post.actions.boost}
-				disabled={!onAction}
 				onclick={() => onAction?.(post.id, 'boost')}
 			>
 				<span class="post-action-icon" data-testid="post-action-boost-icon"><PnIcon name="boost" /></span>
@@ -75,7 +73,6 @@
 				type="button"
 				aria-label={`Favorite ${actionCount('favorite')}`}
 				aria-pressed={post.actions.favorite}
-				disabled={!onAction}
 				onclick={() => onAction?.(post.id, 'favorite')}
 			>
 				<span class="post-action-icon" data-testid="post-action-favorite-icon"><PnIcon name="favorite" /></span>
@@ -241,16 +238,6 @@
 	.post-action.active {
 		background: var(--accent-soft-2);
 		color: var(--accent-ink);
-	}
-
-	.post-action:disabled {
-		cursor: default;
-		opacity: 0.64;
-	}
-
-	.post-action:disabled:hover {
-		background: transparent;
-		color: var(--muted);
 	}
 
 	.post-action--boost.active {
