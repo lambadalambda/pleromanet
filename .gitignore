@@ -1,0 +1,17 @@
+node_modules/
+.svelte-kit/
+build/
+dist/
+coverage/
+
+test-results/
+playwright-report/
+blob-report/
+
+.mise.local.toml
+.DS_Store
+*.local
+
+.env
+.env.*
+!.env.example
