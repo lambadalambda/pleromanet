@@ -1,0 +1,196 @@
+export type PleromaScope = 'read' | 'write' | 'follow' | 'push' | `read:${string}` | `write:${string}`;
+
+export type PleromaField = {
+	name: string;
+	value: string;
+	verified_at?: string | null;
+};
+
+export type PleromaRelationship = {
+	id: string;
+	following: boolean;
+	followed_by: boolean;
+	blocking: boolean;
+	muting: boolean;
+	muting_notifications: boolean;
+	requested: boolean;
+	domain_blocking: boolean;
+	showing_reblogs: boolean;
+	endorsed: boolean;
+	notifying?: boolean;
+	subscribing?: boolean;
+	blocked_by?: boolean;
+};
+
+export type PleromaAccount = {
+	id: string;
+	username: string;
+	acct: string;
+	display_name: string;
+	note: string;
+	url: string;
+	avatar: string;
+	avatar_static: string;
+	header: string;
+	header_static: string;
+	locked: boolean;
+	bot: boolean;
+	discoverable?: boolean;
+	created_at: string;
+	followers_count: number;
+	following_count: number;
+	statuses_count: number;
+	fields: PleromaField[];
+	emojis?: unknown[];
+	pleroma: {
+		ap_id?: string;
+		favicon?: string;
+		is_admin?: boolean;
+		is_moderator?: boolean;
+		relationship?: PleromaRelationship;
+		tags?: string[];
+		[key: string]: unknown;
+	};
+	[key: string]: unknown;
+};
+
+export type PleromaStatus = {
+	id: string;
+	uri: string;
+	url: string;
+	account: PleromaAccount;
+	content: string;
+	created_at: string;
+	emojis: unknown[];
+	favourited: boolean;
+	favourites_count: number;
+	in_reply_to_account_id: string | null;
+	in_reply_to_id: string | null;
+	language: string | null;
+	media_attachments: unknown[];
+	mentions: unknown[];
+	muted: boolean;
+	pinned: boolean;
+	pleroma: {
+		content?: Record<string, string>;
+		conversation_id?: number;
+		local?: boolean;
+		spoiler_text?: Record<string, string>;
+		[key: string]: unknown;
+	};
+	reblog: PleromaStatus | null;
+	reblogged: boolean;
+	reblogs_count: number;
+	replies_count: number;
+	sensitive: boolean;
+	spoiler_text: string;
+	tags: PleromaTag[];
+	visibility: 'public' | 'unlisted' | 'private' | 'direct' | string;
+	[key: string]: unknown;
+};
+
+export type PleromaStatusContext = {
+	ancestors: PleromaStatus[];
+	descendants: PleromaStatus[];
+};
+
+export type PleromaTag = {
+	name: string;
+	url: string;
+	history?: Array<{ day: string; uses: string; accounts: string }>;
+};
+
+export type PleromaSearchResult = {
+	accounts: PleromaAccount[];
+	statuses: PleromaStatus[];
+	hashtags: PleromaTag[];
+};
+
+export type PleromaInstance = {
+	domain: string;
+	title: string;
+	version: string;
+	source_url?: string;
+	description: string;
+	usage?: { users?: { active_month?: number } };
+	pleroma: {
+		metadata: {
+			features: string[];
+			[key: string]: unknown;
+		};
+		[key: string]: unknown;
+	};
+	[key: string]: unknown;
+};
+
+export type TimelineQuery = {
+	limit?: number;
+	maxId?: string;
+	minId?: string;
+	sinceId?: string;
+	onlyMedia?: boolean;
+};
+
+export type SearchQuery = {
+	q: string;
+	type?: 'accounts' | 'hashtags' | 'statuses';
+	resolve?: boolean;
+	limit?: number;
+	offset?: number;
+	following?: boolean;
+};
+
+export type ProfileUpdate = {
+	displayName?: string;
+	note?: string;
+	locked?: boolean;
+	bot?: boolean;
+	discoverable?: boolean;
+	fields?: PleromaField[];
+};
+
+export type PleromaOAuthApp = {
+	id?: string;
+	name: string;
+	website?: string | null;
+	redirectUri: string;
+	clientId: string;
+	clientSecret: string;
+	vapidKey?: string;
+};
+
+export type PleromaToken = {
+	accessToken: string;
+	tokenType: string;
+	scope: string;
+	createdAt?: number;
+};
+
+export type PendingPleromaOAuth = {
+	instanceUrl: string;
+	clientId: string;
+	clientSecret: string;
+	redirectUri: string;
+	scopes: readonly PleromaScope[];
+	state: string;
+	createdAt: number;
+};
+
+export type PleromaSession = {
+	instanceUrl: string;
+	accessToken: string;
+	tokenType: string;
+	scope: string;
+	createdAt: number;
+	account?: PleromaAccount;
+};
+
+export type PleromaAuthState =
+	| { status: 'unauthenticated' }
+	| { status: 'authenticating'; pending: PendingPleromaOAuth }
+	| { status: 'authenticated'; session: PleromaSession };
+
+export type PleromaOAuthCallback =
+	| { status: 'success'; code: string; state?: string }
+	| { status: 'error'; error: string; description?: string; state?: string }
+	| { status: 'missing_code'; state?: string };

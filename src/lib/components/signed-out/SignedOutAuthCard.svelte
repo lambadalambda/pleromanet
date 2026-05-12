@@ -1,4 +1,9 @@
 <script lang="ts">
+	import { normalizeInstanceUrl, toPleromaClientError } from '$lib/pleroma/http';
+	import { buildAuthorizationUrl, createOAuthState, registerOAuthApp } from '$lib/pleroma/oauth';
+	import { clearPendingOAuth, storePendingOAuth } from '$lib/pleroma/session';
+	import type { PleromaScope } from '$lib/pleroma/types';
+
 	type AuthMode = 'signin' | 'signup';
 	type AuthStep = 'enter' | 'redirect';
 	type RecentServer = {
@@ -14,12 +19,17 @@
 		{ domain: 'kolektiva.social', theme: 'Mutual aid / Curated', color: '#e7a8c9' },
 		{ domain: 'spacebear.net', theme: 'Astronomy / Friendly', color: '#e0b97a' }
 	];
+	const oauthScopes = ['read', 'write', 'follow'] satisfies PleromaScope[];
 
 	let mode = $state<AuthMode>('signin');
 	let instance = $state('pleromanet.social');
 	let showInstancePicker = $state(false);
 	let agree = $state(false);
 	let authStep = $state<AuthStep>('enter');
+	let authorizationUrl = $state('');
+	let authError = $state('');
+	let isPreparingAuth = $state(false);
+	let authAttempt = 0;
 	const selectedInstance = $derived(instance.trim() || 'server');
 
 	const selectMode = (nextMode: AuthMode) => {
@@ -33,15 +43,64 @@
 		showInstancePicker = false;
 	};
 
-	const beginAuth = () => {
+	const beginAuth = async () => {
 		if (!instance.trim()) return;
 		if (mode === 'signup' && !agree) return;
+		const attempt = authAttempt + 1;
+		authAttempt = attempt;
 
 		authStep = 'redirect';
 		showInstancePicker = false;
+		authorizationUrl = '';
+		authError = '';
+		isPreparingAuth = true;
+
+		try {
+			const instanceOrigin = normalizeInstanceUrl(instance);
+			const redirectUri = `${window.location.origin}/auth/callback`;
+			const state = createOAuthState();
+			const app = await registerOAuthApp({
+				instanceUrl: instanceOrigin,
+				clientName: 'PleromaNet',
+				redirectUri,
+				scopes: oauthScopes,
+				website: window.location.origin,
+				fetch: window.fetch.bind(window)
+			});
+			if (attempt !== authAttempt) return;
+
+			storePendingOAuth(window.sessionStorage, {
+				instanceUrl: instanceOrigin,
+				clientId: app.clientId,
+				clientSecret: app.clientSecret,
+				redirectUri,
+				scopes: oauthScopes,
+				state,
+				createdAt: Date.now()
+			});
+
+			authorizationUrl = buildAuthorizationUrl({
+				instanceUrl: instanceOrigin,
+				clientId: app.clientId,
+				redirectUri,
+				scopes: oauthScopes,
+				state
+			});
+		} catch (error) {
+			if (attempt !== authAttempt) return;
+			const clientError = toPleromaClientError(error);
+			authError = clientError.message;
+		} finally {
+			if (attempt === authAttempt) isPreparingAuth = false;
+		}
 	};
 
 	const cancelRedirect = () => {
+		authAttempt += 1;
+		clearPendingOAuth(window.sessionStorage);
+		authorizationUrl = '';
+		authError = '';
+		isPreparingAuth = false;
 		authStep = 'enter';
 	};
 </script>
@@ -215,6 +274,13 @@
 			<p class="so-redirect-sub">
 				Your server will ask you to authorize PleromaNet. We will bring you right back.
 			</p>
+			{#if isPreparingAuth}
+				<p class="so-redirect-status" role="status">Preparing secure OAuth handoff.</p>
+			{:else if authError}
+				<p class="so-redirect-error" role="alert">{authError}</p>
+			{:else if authorizationUrl}
+				<a class="so-redirect-link" href={authorizationUrl}>Open {selectedInstance} authorization</a>
+			{/if}
 			<div class="so-redirect-bar" aria-hidden="true"><span></span></div>
 			<button class="so-link-button" type="button" aria-label="Cancel redirect" onclick={cancelRedirect}>Cancel</button>
 		</div>
@@ -706,6 +772,41 @@
 		color: var(--muted);
 		font-size: 13px;
 		line-height: 1.55;
+	}
+
+	.so-redirect-status,
+	.so-redirect-error {
+		max-width: 320px;
+		margin: 14px auto 0;
+		font-size: 12px;
+		line-height: 1.45;
+	}
+
+	.so-redirect-status {
+		color: var(--accent-ink);
+	}
+
+	.so-redirect-error {
+		color: var(--bad);
+	}
+
+	.so-redirect-link {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		margin-top: 16px;
+		border: 1px solid var(--accent-ink);
+		border-radius: var(--radius);
+		background: var(--accent-ink);
+		color: var(--panel);
+		padding: 9px 13px;
+		font-size: 12.5px;
+		font-weight: 700;
+	}
+
+	.so-redirect-link:hover {
+		border-color: var(--ink);
+		background: var(--ink);
 	}
 
 	.so-redirect-bar {
