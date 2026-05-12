@@ -1,36 +1,14 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import Composer from '$lib/components/Composer.svelte';
+	import TimelinePostCard from '$lib/components/TimelinePostCard.svelte';
 	import PnIcon from '$lib/PnIcon.svelte';
+	import type { ActionState, PostAction, ReplySort, ThreadPost, TimelinePost, TimelineView } from '$lib/social/types';
 	import { onMount, tick } from 'svelte';
 
 	type View = 'home' | 'local' | 'federated' | 'thread' | 'explore' | 'settings' | 'about';
 	type Theme = 'cream' | 'dusk' | 'drive' | 'simoun';
 	type SidebarIcon = 'home' | 'users' | 'globe' | 'bell' | 'message' | 'bookmark' | 'list' | 'gear';
-	type TimelineView = 'home' | 'local' | 'federated';
-	type PostAction = 'reply' | 'boost' | 'favorite';
-	type ReplySort = 'top' | 'newest';
-	type ActionState = Record<PostAction, boolean>;
-	type TimelinePost = {
-		id: string;
-		timelines: TimelineView[];
-		name: string;
-		handle: string;
-		time: string;
-		body: string;
-		avatar: 'grad-1' | 'grad-2' | 'grad-3' | 'orb' | 'pc';
-		media?: 'sunset' | 'city' | 'space';
-		replies: number;
-		boosts: number;
-		favorites: number;
-		actions: ActionState;
-	};
-	type ThreadPost = Omit<TimelinePost, 'timelines'> & {
-		fullTime?: string;
-		source?: string;
-		views?: string;
-		bookmarks?: number;
-		nestedReplies?: ThreadPost[];
-	};
 	type FollowSuggestion = {
 		id: string;
 		name: string;
@@ -691,70 +669,24 @@
 							</button>
 						</div>
 
-						<form class="composer" aria-label="Composer" onsubmit={(event) => { event.preventDefault(); publishPost(); }}>
-							<div class="composer-avatar timeline-avatar timeline-avatar--grad-1" aria-hidden="true"></div>
-							<div class="composer-content">
-								<textarea
-									class="composer-input"
-									aria-label="Post text"
-									placeholder="What's on your mind?"
-									maxlength="500"
-									bind:value={composerText}
-								></textarea>
-								<div class="composer-row">
-									<button class="composer-tool" type="button" aria-label="Image">
-										<span aria-hidden="true">IMG</span>
-									</button>
-									<button class="composer-tool composer-tool--gif" type="button" aria-label="GIF">GIF</button>
-									<button class="composer-tool" type="button" aria-label="Poll">
-										<span aria-hidden="true">POL</span>
-									</button>
-									<button class="composer-tool" type="button" aria-label="Emoji">
-										<span aria-hidden="true">:)</span>
-									</button>
-									<button class="composer-tool composer-tool--cw" type="button" aria-label="Content warning">CW</button>
-									<div class="privacy-control">
-										<button
-											class="composer-tool composer-tool--privacy"
-											type="button"
-											aria-label={`Privacy ${composerPrivacy}`}
-											aria-haspopup="listbox"
-											aria-expanded={privacyMenuOpen}
-											onclick={() => (privacyMenuOpen = !privacyMenuOpen)}
-										>
-											<span aria-hidden="true">●</span>
-											<span>{composerPrivacy}</span>
-										</button>
-										{#if privacyMenuOpen}
-											<div class="privacy-menu" role="listbox" aria-label="Privacy options">
-												{#each privacyOptions as option}
-													<button
-														type="button"
-														role="option"
-														aria-selected={composerPrivacy === option}
-														onclick={() => {
-															composerPrivacy = option;
-															privacyMenuOpen = false;
-														}}
-													>
-														{option}
-													</button>
-												{/each}
-											</div>
-										{/if}
-									</div>
-									<span class="composer-spacer"></span>
-									<span
-										class="composer-count"
-										class:warn={remainingCharacters < 50}
-										data-testid="composer-count"
-									>
-										{remainingCharacters}
-									</span>
-									<button class="composer-submit" type="submit" disabled={!canPost}>Post</button>
-								</div>
-							</div>
-						</form>
+						<Composer
+							label="Composer"
+							textareaLabel="Post text"
+							placeholder="What's on your mind?"
+							submitLabel="Post"
+							value={composerText}
+							submitEnabled={canPost}
+							privacy={composerPrivacy}
+							privacyOptions={privacyOptions}
+							privacyMenuOpen={privacyMenuOpen}
+							onValueChange={(value) => (composerText = value)}
+							onPrivacyMenuOpenChange={(open) => (privacyMenuOpen = open)}
+							onPrivacyChange={(value) => {
+								composerPrivacy = value;
+								privacyMenuOpen = false;
+							}}
+							onSubmit={publishPost}
+						/>
 
 						<div
 							id="timeline-panel"
@@ -764,67 +696,7 @@
 							aria-label={`${activeTimeline} posts`}
 						>
 							{#each visibleTimelinePosts as post (post.id)}
-								<article class="timeline-post" data-testid="timeline-post">
-									<div class={`timeline-avatar timeline-avatar--${post.avatar}`} aria-hidden="true"></div>
-									<div class="post-content">
-										<div class="post-head">
-											<span class="post-name">{post.name}</span>
-											<span class="post-handle">{post.handle}</span>
-											<span class="post-time">{post.time}</span>
-										</div>
-										<button
-											id={`thread-opener-${post.id}`}
-											class="post-body post-body-button"
-											type="button"
-											aria-describedby={`thread-link-${post.id}`}
-											onclick={() => openThread(post.id)}
-										>
-											{post.body}
-											<span id={`thread-link-${post.id}`} class="sr-only">Open thread</span>
-										</button>
-										{#if post.media}
-											<div class={`post-media post-media--${post.media}`} role="img" aria-label="Attached media"></div>
-										{/if}
-										<div class="post-actions">
-											<button
-												class="post-action"
-												class:active={post.actions.reply}
-												type="button"
-												aria-label={`Reply ${actionCount(post, 'reply')}`}
-												aria-pressed={post.actions.reply}
-												onclick={() => togglePostAction(post.id, 'reply')}
-											>
-												<span class="post-action-icon" data-testid="post-action-reply-icon"><PnIcon name="reply" /></span>
-												<span>{actionCount(post, 'reply')}</span>
-											</button>
-											<button
-												class="post-action post-action--boost"
-												class:active={post.actions.boost}
-												type="button"
-												aria-label={`Boost ${actionCount(post, 'boost')}`}
-												aria-pressed={post.actions.boost}
-												onclick={() => togglePostAction(post.id, 'boost')}
-											>
-												<span class="post-action-icon" data-testid="post-action-boost-icon"><PnIcon name="boost" /></span>
-												<span>{actionCount(post, 'boost')}</span>
-											</button>
-											<button
-												class="post-action post-action--favorite"
-												class:active={post.actions.favorite}
-												type="button"
-												aria-label={`Favorite ${actionCount(post, 'favorite')}`}
-												aria-pressed={post.actions.favorite}
-												onclick={() => togglePostAction(post.id, 'favorite')}
-											>
-												<span class="post-action-icon" data-testid="post-action-favorite-icon"><PnIcon name="favorite" /></span>
-												<span>{actionCount(post, 'favorite')}</span>
-											</button>
-											<button class="post-more" type="button" aria-label="More actions">
-												<span class="post-action-icon"><PnIcon name="more" /></span>
-											</button>
-										</div>
-									</div>
-								</article>
+								<TimelinePostCard post={post} onAction={togglePostAction} onOpenThread={openThread} />
 							{/each}
 						</div>
 					</div>
@@ -935,30 +807,22 @@
 							</div>
 						</article>
 
-						<form class="thread-reply-composer" aria-label="Reply composer" onsubmit={(event) => { event.preventDefault(); submitThreadReply(); }}>
-							<div class="timeline-avatar reply-avatar timeline-avatar--grad-1" aria-hidden="true"></div>
-							<div class="thread-reply-content">
-								<textarea
-									class="composer-input thread-reply-input"
-									aria-label="Reply text"
-									placeholder={`Reply to ${focusedThreadPost.handle}...`}
-									maxlength="500"
-									bind:value={replyDraft}
-								></textarea>
-								<div class="composer-row thread-reply-row">
-									<button class="composer-tool" type="button" aria-label="Image"><span aria-hidden="true">IMG</span></button>
-									<button class="composer-tool" type="button" aria-label="Emoji"><span aria-hidden="true">:)</span></button>
-									<button class="composer-tool composer-tool--cw" type="button" aria-label="Content warning">CW</button>
-									<button class="composer-tool composer-tool--privacy" type="button" aria-label="Reply visibility">
-										<span class="post-action-icon"><PnIcon name="reply" /></span>
-										<span>Reply</span>
-									</button>
-									<span class="composer-spacer"></span>
-									<span class="composer-count" class:warn={replyRemainingCharacters < 50} data-testid="reply-composer-count">{replyRemainingCharacters}</span>
-									<button class="composer-submit" type="submit" disabled={!canReply}>Reply</button>
-								</div>
-							</div>
-						</form>
+						<Composer
+							variant="reply"
+							label="Reply composer"
+							textareaLabel="Reply text"
+							placeholder={`Reply to ${focusedThreadPost.handle}...`}
+							submitLabel="Reply"
+							value={replyDraft}
+							submitEnabled={canReply}
+							countTestId="reply-composer-count"
+							showGif={false}
+							showPoll={false}
+							privacyMode="button"
+							privacyButtonLabel="Reply visibility"
+							onValueChange={(value) => (replyDraft = value)}
+							onSubmit={submitThreadReply}
+						/>
 
 						<div class="thread-reply-head">
 							<div class="thread-reply-count" data-testid="thread-reply-count">
@@ -1905,56 +1769,6 @@
 		border-top: 2px solid currentColor;
 	}
 
-	.composer {
-		display: grid;
-		grid-template-columns: 44px minmax(0, 1fr);
-		gap: 12px;
-		border-bottom: 1px solid var(--border);
-		padding: 18px 20px 14px;
-	}
-
-	.composer-content {
-		min-width: 0;
-	}
-
-	.composer-avatar {
-		width: 44px;
-		height: 44px;
-	}
-
-	.composer-input {
-		display: block;
-		width: 100%;
-		min-height: 64px;
-		border: 0;
-		background: transparent;
-		color: var(--ink);
-		outline: 0;
-		padding: 6px 0 12px;
-		font-size: 15px;
-		resize: none;
-	}
-
-	.composer-input::placeholder {
-		color: var(--muted-2);
-	}
-
-	.composer-input:focus {
-		box-shadow: inset 0 -1px 0 var(--accent);
-	}
-
-	.composer-row {
-		display: flex;
-		align-items: center;
-		gap: 2px;
-		flex-wrap: wrap;
-		margin-top: 4px;
-		border-top: 1px solid var(--border);
-		padding-top: 10px;
-	}
-
-	.composer-tool,
-	.composer-submit,
 	.post-action,
 	.post-more,
 	.trend-item,
@@ -1963,126 +1777,6 @@
 	.shortcut {
 		border: 0;
 		background: transparent;
-	}
-
-	.composer-tool {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 4px;
-		width: 32px;
-		height: 32px;
-		border-radius: var(--radius);
-		color: var(--muted);
-		font-size: 10px;
-		font-family: var(--mono);
-		font-weight: 600;
-		letter-spacing: 0.08em;
-		flex: 0 0 auto;
-	}
-
-	.composer-tool:hover {
-		background: var(--bg);
-		color: var(--accent-ink);
-	}
-
-	.composer-tool--cw {
-		width: auto;
-		border: 1px solid var(--border);
-		padding: 0 10px;
-	}
-
-	.composer-tool--cw:hover {
-		border-color: var(--accent);
-	}
-
-	.composer-tool--privacy {
-		width: auto;
-		max-width: 130px;
-		padding: 0 10px;
-		gap: 6px;
-		color: var(--ink-2);
-		font-family: var(--sans);
-		font-size: 12.5px;
-		font-weight: 500;
-		letter-spacing: 0;
-	}
-
-	.privacy-control {
-		position: relative;
-		display: inline-flex;
-		flex: 0 0 auto;
-	}
-
-	.privacy-menu {
-		position: absolute;
-		left: 0;
-		top: calc(100% + 6px);
-		z-index: 25;
-		min-width: 120px;
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		background: var(--panel);
-		box-shadow: 0 10px 26px rgba(28, 32, 70, 0.16);
-		padding: 4px;
-	}
-
-	.privacy-menu button {
-		display: block;
-		width: 100%;
-		border: 0;
-		border-radius: var(--radius);
-		background: transparent;
-		padding: 7px 8px;
-		color: var(--ink-2);
-		font-size: 12.5px;
-		text-align: left;
-	}
-
-	.privacy-menu button:hover,
-	.privacy-menu button[aria-selected='true'] {
-		background: var(--accent-soft-2);
-		color: var(--accent-ink);
-	}
-
-	.composer-spacer {
-		flex: 1 1 12px;
-	}
-
-	.composer-count {
-		margin-right: 10px;
-		font-family: var(--mono);
-		font-size: 12px;
-		font-variant-numeric: tabular-nums;
-		color: var(--muted);
-	}
-
-	.composer-count.warn {
-		color: var(--bad);
-	}
-
-	.composer-submit {
-		border: 1px solid var(--accent);
-		border-radius: var(--radius);
-		background: var(--accent-soft);
-		color: var(--accent-ink);
-		padding: 7px 22px;
-		font-size: 13px;
-		font-weight: 600;
-		white-space: nowrap;
-		flex: 0 0 auto;
-	}
-
-	.composer-submit:hover:not(:disabled) {
-		background: var(--accent);
-		color: white;
-	}
-
-	.composer-submit:disabled {
-		border-color: var(--border);
-		background: var(--panel-2);
-		color: var(--muted-2);
-		cursor: not-allowed;
 	}
 
 	.timeline-list {
@@ -2175,20 +1869,6 @@
 		color: var(--ink-2);
 		font-size: 14px;
 		white-space: pre-wrap;
-	}
-
-	.post-body-button {
-		display: block;
-		width: 100%;
-		border: 0;
-		background: transparent;
-		padding: 0;
-		text-align: left;
-		cursor: pointer;
-	}
-
-	.post-body-button:hover {
-		color: var(--ink);
 	}
 
 	.post-media {
@@ -2503,33 +2183,6 @@
 	.focused-action.active {
 		background: var(--accent-soft-2);
 		color: var(--accent-ink);
-	}
-
-	.thread-reply-composer {
-		display: flex;
-		gap: 12px;
-		border-bottom: 1px solid var(--border);
-		background: var(--panel);
-		padding: 14px 16px;
-	}
-
-	.reply-avatar {
-		width: 40px;
-		height: 40px;
-		flex: 0 0 auto;
-	}
-
-	.thread-reply-content {
-		min-width: 0;
-		flex: 1 1 auto;
-	}
-
-	.thread-reply-input {
-		min-height: 44px;
-	}
-
-	.thread-reply-row {
-		border-top: 1px solid var(--border);
 	}
 
 	.thread-reply-head {
@@ -3072,40 +2725,6 @@
 			display: none;
 		}
 
-		.composer {
-			grid-template-columns: 36px minmax(0, 1fr);
-			gap: 10px;
-			padding: 14px;
-		}
-
-		.composer-avatar {
-			width: 36px;
-			height: 36px;
-		}
-
-		.composer-input {
-			min-height: 56px;
-			padding-top: 4px;
-		}
-
-		.composer-row {
-			padding-top: 8px;
-		}
-
-		.composer-tool {
-			width: 30px;
-			height: 30px;
-		}
-
-		.composer-tool--cw,
-		.composer-tool--privacy {
-			width: auto;
-		}
-
-		.composer-submit {
-			padding: 6px 16px;
-		}
-
 		.timeline-post {
 			grid-template-columns: 40px minmax(0, 1fr);
 			gap: 10px;
@@ -3167,10 +2786,6 @@
 			display: none;
 		}
 
-		.thread-reply-composer {
-			padding: 14px;
-		}
-
 		.nested-replies {
 			margin-left: 14px;
 			padding-left: 28px;
@@ -3202,14 +2817,6 @@
 		.pn-tab {
 			padding-inline: 10px;
 			font-size: 0.82rem;
-		}
-
-		.composer-spacer {
-			flex-basis: 100%;
-		}
-
-		.composer-count {
-			margin-left: auto;
 		}
 
 		.post-time {

@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import Composer from '$lib/components/Composer.svelte';
+	import TimelinePostCard from '$lib/components/TimelinePostCard.svelte';
+	import type { PostAction, TimelinePost } from '$lib/social/types';
 	import { onMount } from 'svelte';
 
 	type Theme = 'cream' | 'dusk' | 'drive' | 'simoun';
@@ -10,6 +13,24 @@
 		{ id: 'drive', label: 'Drive' },
 		{ id: 'simoun', label: 'Simoun' }
 	];
+	const privacyOptions = ['Public', 'Unlisted', 'Followers'] as const;
+	let componentComposerText = $state('component seams make real data easier to wire.');
+	let componentPrivacy = $state<(typeof privacyOptions)[number]>('Public');
+	let componentPrivacyMenuOpen = $state(false);
+	let componentPost = $state<TimelinePost>({
+		id: 'design-system-post',
+		timelines: ['home'],
+		name: 'component.bot',
+		handle: '@component@pleromanet.social',
+		time: 'now',
+		body: 'this is the same post card the app timeline renders, shown here with fake data.',
+		avatar: 'orb',
+		media: 'space',
+		replies: 2,
+		boosts: 7,
+		favorites: 42,
+		actions: { reply: false, boost: true, favorite: false }
+	});
 
 	let theme = $state<Theme>('cream');
 
@@ -18,6 +39,15 @@
 
 	const setTheme = (nextTheme: Theme) => {
 		theme = nextTheme;
+	};
+	const toggleComponentPostAction = (_postId: string, action: PostAction) => {
+		componentPost = {
+			...componentPost,
+			actions: { ...componentPost.actions, [action]: !componentPost.actions[action] }
+		};
+	};
+	const clearComponentComposer = () => {
+		componentComposerText = '';
 	};
 
 	onMount(() => {
@@ -150,87 +180,34 @@
 				</div>
 			</article>
 
+			<article class="pn-card component-card" data-testid="primitive-composer">
+				<div class="pn-card__head">
+					<span class="pn-label">Composer component</span>
+				</div>
+				<Composer
+					label="Component composer"
+					textareaLabel="Component post text"
+					placeholder="Draft a component preview..."
+					submitLabel="Post"
+					value={componentComposerText}
+					privacy={componentPrivacy}
+					privacyOptions={privacyOptions}
+					privacyMenuOpen={componentPrivacyMenuOpen}
+					onValueChange={(value) => (componentComposerText = value)}
+					onPrivacyMenuOpenChange={(open) => (componentPrivacyMenuOpen = open)}
+					onPrivacyChange={(value) => {
+						componentPrivacy = value;
+						componentPrivacyMenuOpen = false;
+					}}
+					onSubmit={clearComponentComposer}
+				/>
+			</article>
+
 			<article class="pn-card" data-testid="primitive-post-actions">
 				<div class="pn-card__head">
-					<span class="pn-label">Post actions</span>
+					<span class="pn-label">Timeline post component</span>
 				</div>
-				<div class="pn-card__body">
-					<div class="sample-row sample-row--profile">
-						<div class="pn-avatar pn-avatar--orb" aria-hidden="true"></div>
-						<p class="post-copy">the internet can wait.</p>
-					</div>
-					<div class="pn-post-actions">
-						<button class="pn-post-action" type="button">
-							<svg
-								class="pn-post-action__icon"
-								viewBox="0 0 24 24"
-								fill="none"
-								aria-hidden="true"
-								focusable="false"
-								data-testid="post-action-reply-icon"
-							>
-								<path
-									d="M9 8H6v3M6 8c0 5 4 8 9 8h4M19 16l-3 3M19 16l-3-3"
-									stroke="currentColor"
-									stroke-width="1.5"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-								/>
-							</svg>
-							<span>2</span>
-						</button>
-						<button class="pn-post-action" type="button" aria-pressed="true">
-							<svg
-								class="pn-post-action__icon"
-								viewBox="0 0 24 24"
-								fill="none"
-								aria-hidden="true"
-								focusable="false"
-								data-testid="post-action-boost-icon"
-							>
-								<path
-									d="M4 8l3-3 3 3M7 5v9a2 2 0 0 0 2 2h7M20 16l-3 3-3-3M17 19v-9a2 2 0 0 0-2-2H8"
-									stroke="currentColor"
-									stroke-width="1.5"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-								/>
-							</svg>
-							<span>7</span>
-						</button>
-						<button class="pn-post-action" type="button">
-							<svg
-								class="pn-post-action__icon"
-								viewBox="0 0 24 24"
-								fill="none"
-								aria-hidden="true"
-								focusable="false"
-								data-testid="post-action-favorite-icon"
-							>
-								<path
-									d="M12 3l2.6 5.8 6.4.6-4.8 4.4 1.4 6.2L12 16.8 6.4 20l1.4-6.2L3 9.4l6.4-.6L12 3z"
-									stroke="currentColor"
-									stroke-width="1.5"
-									stroke-linejoin="round"
-								/>
-							</svg>
-							<span>42</span>
-						</button>
-						<button class="pn-post-action" type="button" aria-label="More actions">
-							<svg
-								class="pn-post-action__icon"
-								viewBox="0 0 24 24"
-								fill="none"
-								aria-hidden="true"
-								focusable="false"
-							>
-								<circle cx="6" cy="12" r="1.5" fill="currentColor" />
-								<circle cx="12" cy="12" r="1.5" fill="currentColor" />
-								<circle cx="18" cy="12" r="1.5" fill="currentColor" />
-							</svg>
-						</button>
-					</div>
-				</div>
+				<TimelinePostCard post={componentPost} onAction={toggleComponentPostAction} />
 			</article>
 		</section>
 	</div>
@@ -293,8 +270,7 @@
 		line-height: 1;
 	}
 
-	.profile-handle,
-	.post-copy {
+	.profile-handle {
 		color: var(--accent-ink);
 	}
 
@@ -304,10 +280,6 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-	}
-
-	.post-copy {
-		margin: 0;
 	}
 
 	@media (max-width: 980px) {

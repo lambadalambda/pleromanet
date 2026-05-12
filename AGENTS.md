@@ -51,6 +51,7 @@ PleromaNet is a new frontend for Pleroma with a reduced, refined visual style. T
 
 - Keep changes minimal and direct.
 - Preserve the project's reduced/refined direction; avoid generic dashboard aesthetics.
+- Extract reusable Svelte components early so application development stays manageable; showcase stable components in `/design-system` with mock data when useful.
 - Do not introduce backward-compatibility layers unless there is a concrete need.
 - Do not write class declarations or class inheritance in application code. Framework internals and third-party APIs are exempt.
 - Keep code comments rare and focused on non-obvious behavior.
