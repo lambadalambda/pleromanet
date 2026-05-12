@@ -5,3 +5,4 @@
 - [x] [05 Build thread detail view](issues/05-build-thread-detail-view.md)
 - [x] [06 Build explore and discovery view](issues/06-build-explore-and-discovery-view.md)
 - [x] [07 Build profile settings view](issues/07-build-profile-settings-view.md)
+- [x] [08 Build signed-out OAuth landing](issues/08-build-signed-out-oauth-landing.md)
