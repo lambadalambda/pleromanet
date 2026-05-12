@@ -6,6 +6,29 @@
 	type View = 'home' | 'local' | 'federated' | 'explore' | 'settings' | 'about';
 	type Theme = 'cream' | 'dusk' | 'drive';
 	type SidebarIcon = 'home' | 'users' | 'globe' | 'bell' | 'message' | 'bookmark' | 'list' | 'gear';
+	type TimelineView = 'home' | 'local' | 'federated';
+	type PostAction = 'reply' | 'boost' | 'favorite';
+	type ActionState = Record<PostAction, boolean>;
+	type TimelinePost = {
+		id: string;
+		timelines: TimelineView[];
+		name: string;
+		handle: string;
+		time: string;
+		body: string;
+		avatar: 'grad-1' | 'grad-2' | 'grad-3' | 'orb' | 'pc';
+		media?: 'sunset' | 'city' | 'space';
+		replies: number;
+		boosts: number;
+		favorites: number;
+		actions: ActionState;
+	};
+	type FollowSuggestion = {
+		id: string;
+		name: string;
+		handle: string;
+		avatar: 'anime' | 'pc' | 'grad';
+	};
 
 	const primaryNav: Array<{ id: View; label: string }> = [
 		{ id: 'home', label: 'Home' },
@@ -48,21 +71,122 @@
 		{ id: 'dusk', label: 'Dusk' },
 		{ id: 'drive', label: 'Drive' }
 	];
+	const privacyOptions = ['Public', 'Unlisted', 'Followers'] as const;
+
+	const timelineTabs: Array<{ id: TimelineView; label: string }> = [
+		{ id: 'home', label: 'Home' },
+		{ id: 'local', label: 'Local' },
+		{ id: 'federated', label: 'Federated' }
+	];
+
+	const mockTimelinePosts: TimelinePost[] = [
+		{
+			id: 'post-soft-css',
+			timelines: ['home', 'local'],
+			name: 'soft.hertz',
+			handle: '@soft.hertz@kolektiva.social',
+			time: '8m',
+			body: 'quiet CSS can still be expressive when the spacing carries the voice.',
+			avatar: 'grad-3',
+			replies: 4,
+			boosts: 12,
+			favorites: 28,
+			actions: { reply: false, boost: false, favorite: false }
+		},
+		{
+			id: 'post-federated-gardens',
+			timelines: ['home', 'federated'],
+			name: 'datagram',
+			handle: '@datagram@retro.social',
+			time: '21m',
+			body: 'Federated timelines feel best when they preserve context without shouting about it.',
+			avatar: 'pc',
+			media: 'city',
+			replies: 2,
+			boosts: 7,
+			favorites: 16,
+			actions: { reply: false, boost: false, favorite: false }
+		},
+		{
+			id: 'post-local-composer',
+			timelines: ['home', 'local'],
+			name: 'nyan.binary',
+			handle: '@nyan@catgirl.cloud',
+			time: '42m',
+			body: 'Local mutuals are comparing composer affordances and somehow the GIF button is winning.',
+			avatar: 'orb',
+			replies: 6,
+			boosts: 4,
+			favorites: 22,
+			actions: { reply: false, boost: false, favorite: false }
+		}
+	];
+
+	const trends = [
+		{ rank: 1, tag: '#fediverse', count: '12.4K' },
+		{ rank: 2, tag: '#IndieWeb', count: '6,213' },
+		{ rank: 3, tag: '#pleroma', count: '5,105' },
+		{ rank: 4, tag: '#vaporwave', count: '3,901' },
+		{ rank: 5, tag: '#selfhosted', count: '2,844' }
+	];
+
+	const suggestions: FollowSuggestion[] = [
+		{ id: 'nyan', name: 'nyan.binary', handle: '@nyan@catgirl.cloud', avatar: 'anime' },
+		{
+			id: 'datagram',
+			name: 'datagram',
+			handle: '@datagram@a-very-long-retro-instance-name.social',
+			avatar: 'pc'
+		},
+		{ id: 'soft', name: 'soft.hertz', handle: '@soft.hertz@kolektiva.social', avatar: 'grad' }
+	];
+
+	const shortcuts = [
+		{ label: 'Compose new post', key: 'N' },
+		{ label: 'Direct messages', key: 'M' },
+		{ label: 'Bookmarks', key: 'B' },
+		{ label: 'Lists', key: 'L' },
+		{ label: 'User settings', key: 'S' }
+	];
 
 	let activeView = $state<View>('home');
 	let userMenuOpen = $state(false);
 	let drawerOpen = $state(false);
 	let sheetOpen = $state(false);
+	let privacyMenuOpen = $state(false);
 	let theme = $state<Theme>('cream');
+	let composerText = $state('');
+	let composerPrivacy = $state<(typeof privacyOptions)[number]>('Public');
+	let timelinePosts = $state<TimelinePost[]>(
+		mockTimelinePosts.map((post) => ({
+			...post,
+			timelines: [...post.timelines],
+			actions: { ...post.actions }
+		}))
+	);
+	let following = $state<Record<string, boolean>>({});
 
 	const isTheme = (value: string | null): value is Theme =>
 		value === 'cream' || value === 'dusk' || value === 'drive';
+	const isTimelineView = (view: View): view is TimelineView =>
+		view === 'home' || view === 'local' || view === 'federated';
+	const actionCount = (post: TimelinePost, action: PostAction) => {
+		const base = action === 'reply' ? post.replies : action === 'boost' ? post.boosts : post.favorites;
+
+		return base + (post.actions[action] ? 1 : 0);
+	};
 
 	const viewTitle = $derived(
 		activeView === 'settings'
 			? 'Profile settings'
 			: `${activeView.slice(0, 1).toUpperCase()}${activeView.slice(1)} timeline`
 	);
+	const activeTimeline = $derived(isTimelineView(activeView) ? activeView : 'home');
+	const visibleTimelinePosts = $derived(
+		timelinePosts.filter((post) => post.timelines.includes(activeTimeline))
+	);
+	const remainingCharacters = $derived(500 - composerText.length);
+	const canPost = $derived(composerText.trim().length > 0 && remainingCharacters >= 0);
 
 	const railTitle = $derived(
 		activeView === 'explore'
@@ -76,12 +200,47 @@
 		activeView = view;
 		drawerOpen = false;
 		sheetOpen = false;
+		privacyMenuOpen = false;
+	};
+	const publishPost = () => {
+		const body = composerText.trim();
+
+		if (!body || body.length > 500) return;
+
+		timelinePosts = [
+			{
+				id: `local-${Date.now()}`,
+				timelines: [activeTimeline],
+				name: 'dreambyte',
+				handle: '@dreambyte@pleromanet.social',
+				time: 'now',
+				body,
+				avatar: 'grad-1',
+				replies: 0,
+				boosts: 0,
+				favorites: 0,
+				actions: { reply: false, boost: false, favorite: false }
+			},
+			...timelinePosts
+		];
+		composerText = '';
+	};
+	const togglePostAction = (postId: string, action: PostAction) => {
+		timelinePosts = timelinePosts.map((post) =>
+			post.id === postId
+				? { ...post, actions: { ...post.actions, [action]: !post.actions[action] } }
+				: post
+		);
+	};
+	const toggleFollow = (id: string) => {
+		following = { ...following, [id]: !following[id] };
 	};
 
 	const closeOverlays = () => {
 		userMenuOpen = false;
 		drawerOpen = false;
 		sheetOpen = false;
+		privacyMenuOpen = false;
 	};
 
 	onMount(() => {
@@ -289,70 +448,276 @@
 			</aside>
 
 			<section class="center-column" aria-label="Current view">
-				<div class="pn-card view-card">
-					<div class="pn-tabs" aria-label="Timeline sections">
-						<button
-							class="pn-tab"
-							class:active={activeView === 'home'}
-							type="button"
-							aria-current={activeView === 'home' ? 'page' : undefined}
-							onclick={() => selectView('home')}
+				{#if isTimelineView(activeView)}
+					<div class="pn-card timeline-card">
+						<h1 class="sr-only">{viewTitle}</h1>
+						<div class="pn-tabs timeline-tabs" role="tablist" aria-label="Timeline sections">
+							{#each timelineTabs as tab}
+								<button
+									id={`timeline-tab-${tab.id}`}
+									class="pn-tab"
+									class:active={activeTimeline === tab.id}
+									type="button"
+									role="tab"
+									aria-selected={activeTimeline === tab.id}
+									aria-controls="timeline-panel"
+									onclick={() => selectView(tab.id)}
+								>
+									{tab.label}
+								</button>
+							{/each}
+							<span class="tab-spacer"></span>
+							<button class="tab-action" type="button" aria-label="Timeline filters">
+								<span aria-hidden="true"></span>
+							</button>
+						</div>
+
+						<form class="composer" aria-label="Composer" onsubmit={(event) => { event.preventDefault(); publishPost(); }}>
+							<div class="composer-avatar timeline-avatar timeline-avatar--grad-1" aria-hidden="true"></div>
+							<div class="composer-content">
+								<textarea
+									class="composer-input"
+									aria-label="Post text"
+									placeholder="What's on your mind?"
+									maxlength="500"
+									bind:value={composerText}
+								></textarea>
+								<div class="composer-row">
+									<button class="composer-tool" type="button" aria-label="Image">
+										<span aria-hidden="true">IMG</span>
+									</button>
+									<button class="composer-tool composer-tool--gif" type="button" aria-label="GIF">GIF</button>
+									<button class="composer-tool" type="button" aria-label="Poll">
+										<span aria-hidden="true">POL</span>
+									</button>
+									<button class="composer-tool" type="button" aria-label="Emoji">
+										<span aria-hidden="true">:)</span>
+									</button>
+									<button class="composer-tool composer-tool--cw" type="button" aria-label="Content warning">CW</button>
+									<div class="privacy-control">
+										<button
+											class="composer-tool composer-tool--privacy"
+											type="button"
+											aria-label={`Privacy ${composerPrivacy}`}
+											aria-haspopup="listbox"
+											aria-expanded={privacyMenuOpen}
+											onclick={() => (privacyMenuOpen = !privacyMenuOpen)}
+										>
+											<span aria-hidden="true">●</span>
+											<span>{composerPrivacy}</span>
+										</button>
+										{#if privacyMenuOpen}
+											<div class="privacy-menu" role="listbox" aria-label="Privacy options">
+												{#each privacyOptions as option}
+													<button
+														type="button"
+														role="option"
+														aria-selected={composerPrivacy === option}
+														onclick={() => {
+															composerPrivacy = option;
+															privacyMenuOpen = false;
+														}}
+													>
+														{option}
+													</button>
+												{/each}
+											</div>
+										{/if}
+									</div>
+									<span class="composer-spacer"></span>
+									<span
+										class="composer-count"
+										class:warn={remainingCharacters < 50}
+										data-testid="composer-count"
+									>
+										{remainingCharacters}
+									</span>
+									<button class="composer-submit" type="submit" disabled={!canPost}>Post</button>
+								</div>
+							</div>
+						</form>
+
+						<div
+							id="timeline-panel"
+							class="timeline-list"
+							role="tabpanel"
+							aria-labelledby={`timeline-tab-${activeTimeline}`}
+							aria-label={`${activeTimeline} posts`}
 						>
-							Home
-						</button>
-						<button
-							class="pn-tab"
-							class:active={activeView === 'local'}
-							type="button"
-							aria-current={activeView === 'local' ? 'page' : undefined}
-							onclick={() => selectView('local')}
-						>
-							Local
-						</button>
-						<button
-							class="pn-tab"
-							class:active={activeView === 'federated'}
-							type="button"
-							aria-current={activeView === 'federated' ? 'page' : undefined}
-							onclick={() => selectView('federated')}
-						>
-							Federated
-						</button>
-					</div>
-					<div class="view-card__body">
-						<p class="pn-kicker">Signed-in shell</p>
-						<h1>{viewTitle}</h1>
-						<p>
-							This placeholder keeps the center column intentionally light. Timelines, composer,
-							and post interactions land in the next slice.
-						</p>
-						<div class="placeholder-composer">
-							<span class="pn-avatar" aria-hidden="true"></span>
-							<div>Composer shell reserved for issue 04.</div>
+							{#each visibleTimelinePosts as post (post.id)}
+								<article class="timeline-post" data-testid="timeline-post">
+									<div class={`timeline-avatar timeline-avatar--${post.avatar}`} aria-hidden="true"></div>
+									<div class="post-content">
+										<div class="post-head">
+											<span class="post-name">{post.name}</span>
+											<span class="post-handle">{post.handle}</span>
+											<span class="post-time">{post.time}</span>
+										</div>
+										<p class="post-body">{post.body}</p>
+										{#if post.media}
+											<div class={`post-media post-media--${post.media}`} role="img" aria-label="Attached media"></div>
+										{/if}
+										<div class="post-actions">
+											<button
+												class="post-action"
+												class:active={post.actions.reply}
+												type="button"
+												aria-label={`Reply ${actionCount(post, 'reply')}`}
+												aria-pressed={post.actions.reply}
+												onclick={() => togglePostAction(post.id, 'reply')}
+											>
+												<span class="post-action-icon" data-testid="post-action-reply-icon"><PnIcon name="reply" /></span>
+												<span>{actionCount(post, 'reply')}</span>
+											</button>
+											<button
+												class="post-action post-action--boost"
+												class:active={post.actions.boost}
+												type="button"
+												aria-label={`Boost ${actionCount(post, 'boost')}`}
+												aria-pressed={post.actions.boost}
+												onclick={() => togglePostAction(post.id, 'boost')}
+											>
+												<span class="post-action-icon" data-testid="post-action-boost-icon"><PnIcon name="boost" /></span>
+												<span>{actionCount(post, 'boost')}</span>
+											</button>
+											<button
+												class="post-action post-action--favorite"
+												class:active={post.actions.favorite}
+												type="button"
+												aria-label={`Favorite ${actionCount(post, 'favorite')}`}
+												aria-pressed={post.actions.favorite}
+												onclick={() => togglePostAction(post.id, 'favorite')}
+											>
+												<span class="post-action-icon" data-testid="post-action-favorite-icon"><PnIcon name="favorite" /></span>
+												<span>{actionCount(post, 'favorite')}</span>
+											</button>
+											<button class="post-more" type="button" aria-label="More actions">
+												<span class="post-action-icon"><PnIcon name="more" /></span>
+											</button>
+										</div>
+									</div>
+								</article>
+							{/each}
 						</div>
 					</div>
-				</div>
+				{:else}
+					<div class="pn-card view-card">
+						<div class="view-card__body">
+							<p class="pn-kicker">Signed-in shell</p>
+							<h1>{viewTitle}</h1>
+							<p>
+								This placeholder keeps the center column intentionally light while the next slices
+								fill in explore, settings, and signed-out flows.
+							</p>
+						</div>
+					</div>
+				{/if}
 			</section>
 
 			<aside class="right-rail" data-testid="right-rail">
-				<div class="pn-card rail-card">
-					<div class="pn-card__head">
-						<span class="pn-label">{railTitle}</span>
-						<span class="pn-pill">Live</span>
-					</div>
-					<div class="pn-card__body">
-						<div class="pn-status-row">
-							<span class="pn-status-row__label">pleromanet.social</span>
-							<span class="pn-status-row__value">Online</span>
+				{#if isTimelineView(activeView)}
+					<div class="pn-card rail-card trends-card">
+						<div class="pn-card__head">
+							<span class="pn-label">Trends & Activity</span>
+							<span class="rail-icon" aria-hidden="true">↗</span>
 						</div>
-						<div class="pn-status-row">
-							<span class="pn-status-row__label">Users</span>
-							<span class="pn-status-row__value">2,487</span>
+						<div class="trend-list">
+							{#each trends as trend}
+								<button class="trend-item" type="button">
+									<span class="trend-rank">{trend.rank}</span>
+									<span>
+										<span class="trend-tag">{trend.tag}</span>
+										<span class="trend-meta">{trend.count} posts</span>
+									</span>
+								</button>
+							{/each}
 						</div>
-						<div class="rail-link">#fediverse · 12.4K posts</div>
-						<div class="rail-link">nyan.binary · suggested</div>
+						<button class="card-foot" type="button">View all trends →</button>
 					</div>
-				</div>
+
+					<div class="pn-card rail-card">
+						<div class="pn-card__head">
+							<span class="pn-label">Who to follow</span>
+							<span class="rail-icon" aria-hidden="true">+</span>
+						</div>
+						<div class="suggestion-list">
+							{#each suggestions as suggestion}
+								<div class="suggestion">
+									<div class={`suggest-avatar suggest-avatar--${suggestion.avatar}`} aria-hidden="true"></div>
+									<div class="suggestion-copy" data-testid="suggestion-copy">
+										<div class="suggestion-name">{suggestion.name}</div>
+										<div class="suggestion-handle" data-testid="suggestion-handle">{suggestion.handle}</div>
+									</div>
+									<button
+										class="follow-button"
+										class:following={following[suggestion.id]}
+										type="button"
+										onclick={() => toggleFollow(suggestion.id)}
+									>
+										{following[suggestion.id] ? 'Following' : 'Follow'}
+									</button>
+								</div>
+							{/each}
+						</div>
+						<button class="card-foot" type="button">View more suggestions →</button>
+					</div>
+
+					<div class="pn-card rail-card">
+						<div class="pn-card__head">
+							<span class="pn-label">Shortcuts</span>
+							<span class="rail-icon" aria-hidden="true">⌁</span>
+						</div>
+						<div class="shortcut-list">
+							{#each shortcuts as shortcut}
+								<button class="shortcut" type="button">
+									<span class="shortcut-dot" aria-hidden="true"></span>
+									<span>{shortcut.label}</span>
+									<span class="shortcut-key">{shortcut.key}</span>
+								</button>
+							{/each}
+						</div>
+					</div>
+
+					<div class="pn-card rail-card">
+						<div class="pn-card__head">
+							<span class="pn-label">Instance status</span>
+							<span class="pn-pill">Live</span>
+						</div>
+						<div class="status-list">
+							<div class="rail-status-row">
+								<span>pleromanet.social</span>
+								<span class="pn-pill">All systems normal</span>
+							</div>
+							<div class="rail-status-row">
+								<span>Uptime</span>
+								<strong>30d 12h 42m</strong>
+							</div>
+							<div class="rail-status-row">
+								<span>Users</span>
+								<strong>2,487</strong>
+							</div>
+						</div>
+					</div>
+				{:else}
+					<div class="pn-card rail-card">
+						<div class="pn-card__head">
+							<span class="pn-label">{railTitle}</span>
+							<span class="pn-pill">Live</span>
+						</div>
+						<div class="pn-card__body">
+							<div class="pn-status-row">
+								<span class="pn-status-row__label">pleromanet.social</span>
+								<span class="pn-status-row__value">Online</span>
+							</div>
+							<div class="pn-status-row">
+								<span class="pn-status-row__label">Users</span>
+								<span class="pn-status-row__value">2,487</span>
+							</div>
+							<div class="rail-link">#fediverse · 12.4K posts</div>
+							<div class="rail-link">nyan.binary · suggested</div>
+						</div>
+					</div>
+				{/if}
 			</aside>
 		</div>
 	</div>
@@ -454,6 +819,18 @@
 
 	.app-shell-page .pn-card {
 		box-shadow: none;
+	}
+
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
 	}
 
 	.app-brand,
@@ -1015,6 +1392,418 @@
 		min-width: 0;
 	}
 
+	.timeline-card {
+		overflow: hidden;
+	}
+
+	.timeline-tabs {
+		padding-inline: 16px;
+	}
+
+	.tab-spacer {
+		flex: 1 1 auto;
+	}
+
+	.tab-action {
+		display: grid;
+		place-items: center;
+		width: 30px;
+		height: 30px;
+		border: 0;
+		border-radius: var(--radius);
+		background: transparent;
+		color: var(--muted);
+	}
+
+	.tab-action:hover {
+		background: var(--bg);
+		color: var(--ink);
+	}
+
+	.tab-action span {
+		width: 16px;
+		height: 16px;
+		border-top: 2px solid currentColor;
+		border-bottom: 2px solid currentColor;
+		position: relative;
+	}
+
+	.tab-action span::before {
+		content: '';
+		position: absolute;
+		inset: 5px 2px auto;
+		border-top: 2px solid currentColor;
+	}
+
+	.composer {
+		display: grid;
+		grid-template-columns: 44px minmax(0, 1fr);
+		gap: 12px;
+		border-bottom: 1px solid var(--border);
+		padding: 18px 20px 14px;
+	}
+
+	.composer-content {
+		min-width: 0;
+	}
+
+	.composer-avatar {
+		width: 44px;
+		height: 44px;
+	}
+
+	.composer-input {
+		display: block;
+		width: 100%;
+		min-height: 64px;
+		border: 0;
+		background: transparent;
+		color: var(--ink);
+		outline: 0;
+		padding: 6px 0 12px;
+		font-size: 15px;
+		resize: none;
+	}
+
+	.composer-input::placeholder {
+		color: var(--muted-2);
+	}
+
+	.composer-input:focus {
+		box-shadow: inset 0 -1px 0 var(--accent);
+	}
+
+	.composer-row {
+		display: flex;
+		align-items: center;
+		gap: 2px;
+		flex-wrap: wrap;
+		margin-top: 4px;
+		border-top: 1px solid var(--border);
+		padding-top: 10px;
+	}
+
+	.composer-tool,
+	.composer-submit,
+	.post-action,
+	.post-more,
+	.trend-item,
+	.card-foot,
+	.follow-button,
+	.shortcut {
+		border: 0;
+		background: transparent;
+	}
+
+	.composer-tool {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 4px;
+		width: 32px;
+		height: 32px;
+		border-radius: var(--radius);
+		color: var(--muted);
+		font-size: 10px;
+		font-family: var(--mono);
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		flex: 0 0 auto;
+	}
+
+	.composer-tool:hover {
+		background: var(--bg);
+		color: var(--accent-ink);
+	}
+
+	.composer-tool--cw {
+		width: auto;
+		border: 1px solid var(--border);
+		padding: 0 10px;
+	}
+
+	.composer-tool--cw:hover {
+		border-color: var(--accent);
+	}
+
+	.composer-tool--privacy {
+		width: auto;
+		max-width: 130px;
+		padding: 0 10px;
+		gap: 6px;
+		color: var(--ink-2);
+		font-family: var(--sans);
+		font-size: 12.5px;
+		font-weight: 500;
+		letter-spacing: 0;
+	}
+
+	.privacy-control {
+		position: relative;
+		display: inline-flex;
+		flex: 0 0 auto;
+	}
+
+	.privacy-menu {
+		position: absolute;
+		left: 0;
+		top: calc(100% + 6px);
+		z-index: 25;
+		min-width: 120px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--panel);
+		box-shadow: 0 10px 26px rgba(28, 32, 70, 0.16);
+		padding: 4px;
+	}
+
+	.privacy-menu button {
+		display: block;
+		width: 100%;
+		border: 0;
+		border-radius: var(--radius);
+		background: transparent;
+		padding: 7px 8px;
+		color: var(--ink-2);
+		font-size: 12.5px;
+		text-align: left;
+	}
+
+	.privacy-menu button:hover,
+	.privacy-menu button[aria-selected='true'] {
+		background: var(--accent-soft-2);
+		color: var(--accent-ink);
+	}
+
+	.composer-spacer {
+		flex: 1 1 12px;
+	}
+
+	.composer-count {
+		margin-right: 10px;
+		font-family: var(--mono);
+		font-size: 12px;
+		font-variant-numeric: tabular-nums;
+		color: var(--muted);
+	}
+
+	.composer-count.warn {
+		color: var(--bad);
+	}
+
+	.composer-submit {
+		border: 1px solid var(--accent);
+		border-radius: var(--radius);
+		background: var(--accent-soft);
+		color: var(--accent-ink);
+		padding: 7px 22px;
+		font-size: 13px;
+		font-weight: 600;
+		white-space: nowrap;
+		flex: 0 0 auto;
+	}
+
+	.composer-submit:hover:not(:disabled) {
+		background: var(--accent);
+		color: white;
+	}
+
+	.composer-submit:disabled {
+		border-color: var(--border);
+		background: var(--panel-2);
+		color: var(--muted-2);
+		cursor: not-allowed;
+	}
+
+	.timeline-list {
+		display: grid;
+	}
+
+	.timeline-post {
+		display: grid;
+		grid-template-columns: 48px minmax(0, 1fr);
+		gap: 12px;
+		border-bottom: 1px solid var(--border);
+		padding: 16px;
+	}
+
+	.timeline-post:last-child {
+		border-bottom: 0;
+	}
+
+	.timeline-post:hover {
+		background: rgba(164, 139, 217, 0.03);
+	}
+
+	.post-content {
+		min-width: 0;
+	}
+
+	.timeline-avatar {
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: linear-gradient(135deg, #2a1f4a, #6b4d8e, #d889a0);
+		overflow: hidden;
+	}
+
+	.timeline-avatar--grad-1 {
+		background: linear-gradient(135deg, #2a1f4a, #6b4d8e, #d889a0);
+	}
+
+	.timeline-avatar--grad-2 {
+		background: linear-gradient(135deg, #1a4a4a, #4a8a8a, #a8d5d5);
+	}
+
+	.timeline-avatar--grad-3 {
+		background: linear-gradient(135deg, #4a2a4a, #8a4a8a, #d8a8d8);
+	}
+
+	.timeline-avatar--orb {
+		background: radial-gradient(circle at 35% 35%, #6b4d8e, #1a1538 68%);
+	}
+
+	.timeline-avatar--pc {
+		background: linear-gradient(180deg, #e0d5c2 0 30%, #1a1538 30% 72%, #b8a890 72%);
+	}
+
+	.timeline-post .timeline-avatar {
+		width: 48px;
+		height: 48px;
+	}
+
+	.post-head {
+		display: flex;
+		align-items: baseline;
+		gap: 6px;
+		font-size: 13.5px;
+		flex-wrap: wrap;
+	}
+
+	.post-name {
+		font-weight: 600;
+		color: var(--ink);
+	}
+
+	.post-handle {
+		color: var(--accent-ink);
+		min-width: 0;
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.post-time {
+		margin-left: auto;
+		font-family: var(--mono);
+		font-size: 12px;
+		color: var(--muted);
+	}
+
+	.post-body {
+		margin: 6px 0 0;
+		color: var(--ink-2);
+		font-size: 14px;
+		white-space: pre-wrap;
+	}
+
+	.post-media {
+		position: relative;
+		margin-top: 10px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+		background: linear-gradient(180deg, #1d1840 0%, #533c7a 40%, #d889a0 75%, #f3c191 100%);
+		aspect-ratio: 16 / 8;
+		overflow: hidden;
+	}
+
+	.post-media::before {
+		content: '';
+		position: absolute;
+		left: 50%;
+		top: 18%;
+		width: 86px;
+		height: 86px;
+		border-radius: 50%;
+		background: radial-gradient(circle, #ffd1a8 0 35%, #f78fb3 60%, transparent 70%);
+		transform: translateX(-50%);
+	}
+
+	.post-media::after {
+		content: '';
+		position: absolute;
+		inset: 55% 0 0;
+		background:
+			repeating-linear-gradient(0deg, transparent 0 18px, rgba(255, 255, 255, 0.18) 18px 19px),
+			repeating-linear-gradient(90deg, transparent 0 14px, rgba(255, 255, 255, 0.18) 14px 15px);
+		transform: perspective(140px) rotateX(58deg);
+		transform-origin: top;
+	}
+
+	.post-media--city {
+		background: linear-gradient(180deg, #0c0a28 0%, #2a1f4a 30%, #6b4d8e 60%, #d889a0 100%);
+	}
+
+	.post-media--space {
+		background: radial-gradient(ellipse at 30% 30%, #2a1f4a 0%, #0c0a1a 70%);
+	}
+
+	.post-actions {
+		display: flex;
+		align-items: center;
+		gap: 18px;
+		margin-top: 12px;
+		flex-wrap: wrap;
+	}
+
+	.post-action {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		border-radius: var(--radius);
+		color: var(--muted);
+		padding: 4px 6px;
+		font-size: 12.5px;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.post-action:hover,
+	.post-action.active {
+		background: var(--accent-soft-2);
+		color: var(--accent-ink);
+	}
+
+	.post-action--boost.active {
+		color: #6fa97a;
+	}
+
+	.post-action--favorite.active {
+		color: #e0a13f;
+	}
+
+	.post-action-icon {
+		width: 16px;
+		height: 16px;
+		flex: 0 0 auto;
+	}
+
+	.post-more {
+		display: grid;
+		place-items: center;
+		width: 28px;
+		height: 28px;
+		margin-left: auto;
+		border-radius: var(--radius);
+		color: var(--muted-2);
+		font-size: 12px;
+		letter-spacing: 0.08em;
+	}
+
+	.post-more:hover {
+		background: var(--bg);
+		color: var(--ink);
+	}
+
 	.view-card__body {
 		display: grid;
 		gap: 12px;
@@ -1052,6 +1841,219 @@
 
 	.rail-card {
 		box-shadow: none;
+	}
+
+	.rail-icon {
+		color: var(--muted);
+		font-family: var(--mono);
+		font-size: 0.9rem;
+	}
+
+	.trend-list,
+	.suggestion-list,
+	.shortcut-list,
+	.status-list {
+		padding: 4px 0;
+	}
+
+	.trend-item {
+		display: grid;
+		grid-template-columns: 18px minmax(0, 1fr);
+		align-items: baseline;
+		gap: 10px;
+		width: 100%;
+		padding: 9px 16px;
+		text-align: left;
+	}
+
+	.trend-item:hover,
+	.shortcut:hover {
+		background: var(--bg);
+	}
+
+	.trend-rank {
+		font-family: var(--mono);
+		font-size: 11px;
+		color: var(--muted);
+	}
+
+	.trend-tag,
+	.trend-meta {
+		display: block;
+	}
+
+	.trend-tag {
+		font-size: 13.5px;
+		font-weight: 500;
+		color: var(--ink);
+	}
+
+	.trend-meta {
+		margin-top: 2px;
+		font-family: var(--mono);
+		font-size: 10.5px;
+		letter-spacing: 0.04em;
+		color: var(--muted);
+	}
+
+	.card-foot {
+		display: block;
+		width: 100%;
+		border-top: 1px solid var(--border);
+		padding: 10px 16px;
+		color: var(--accent-ink);
+		font-size: 12.5px;
+		text-align: left;
+	}
+
+	.card-foot:hover {
+		background: var(--bg);
+	}
+
+	.suggestion {
+		display: grid;
+		grid-template-columns: 36px minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 10px;
+		padding: 10px 16px;
+	}
+
+	.suggestion-copy {
+		min-width: 0;
+	}
+
+	.suggest-avatar {
+		width: 36px;
+		height: 36px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		overflow: hidden;
+	}
+
+	.suggest-avatar--anime {
+		background: radial-gradient(circle at 50% 30%, #f0c2dc 0 18%, #2a2050 19% 50%, #1a1538 70%);
+	}
+
+	.suggest-avatar--pc {
+		background: linear-gradient(180deg, #2a1f4a, #533c7a 55%, #d889a0);
+	}
+
+	.suggest-avatar--grad {
+		background: linear-gradient(135deg, #4a2a4a, #8a4a8a, #d8a8d8);
+	}
+
+	.suggestion-name,
+	.suggestion-handle {
+		display: block;
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.suggestion-name {
+		font-size: 13px;
+		font-weight: 600;
+		line-height: 1.1;
+	}
+
+	.suggestion-handle {
+		margin-top: 2px;
+		font-size: 11.5px;
+		color: var(--muted);
+	}
+
+	.follow-button {
+		border: 1px solid var(--accent);
+		border-radius: 14px;
+		padding: 4px 12px;
+		color: var(--accent-ink);
+		font-size: 12px;
+		font-weight: 500;
+		white-space: nowrap;
+	}
+
+	.follow-button:hover {
+		background: var(--accent-soft);
+	}
+
+	.follow-button.following {
+		background: var(--accent);
+		color: white;
+	}
+
+	.shortcut {
+		display: grid;
+		grid-template-columns: 16px minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 10px;
+		width: 100%;
+		padding: 8px 16px;
+		color: var(--ink-2);
+		font-size: 13px;
+		text-align: left;
+	}
+
+	.shortcut-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--muted);
+	}
+
+	.shortcut-key {
+		min-width: 18px;
+		border: 1px solid var(--border);
+		border-radius: 3px;
+		background: var(--bg);
+		padding: 1px 5px;
+		font-family: var(--mono);
+		font-size: 10px;
+		color: var(--muted);
+		text-align: center;
+	}
+
+	.rail-status-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+		min-width: 0;
+		padding: 10px 16px;
+		font-size: 13px;
+	}
+
+	.rail-status-row + .rail-status-row {
+		border-top: 1px solid var(--border);
+	}
+
+	.rail-status-row span:first-child {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+		color: var(--ink-2);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.rail-status-row span:first-child::before {
+		content: '';
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: #6fa97a;
+		box-shadow: 0 0 0 3px rgba(111, 169, 122, 0.18);
+		flex: 0 0 auto;
+	}
+
+	.rail-status-row strong {
+		font-family: var(--mono);
+		font-size: 11.5px;
+		font-weight: 500;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
 	}
 
 	.rail-link {
@@ -1246,6 +2248,65 @@
 			padding: 18px 16px 22px;
 		}
 
+		.timeline-tabs {
+			padding-inline: 8px;
+			overflow-x: auto;
+			scrollbar-width: none;
+		}
+
+		.timeline-tabs::-webkit-scrollbar {
+			display: none;
+		}
+
+		.composer {
+			grid-template-columns: 36px minmax(0, 1fr);
+			gap: 10px;
+			padding: 14px;
+		}
+
+		.composer-avatar {
+			width: 36px;
+			height: 36px;
+		}
+
+		.composer-input {
+			min-height: 56px;
+			padding-top: 4px;
+		}
+
+		.composer-row {
+			padding-top: 8px;
+		}
+
+		.composer-tool {
+			width: 30px;
+			height: 30px;
+		}
+
+		.composer-tool--cw,
+		.composer-tool--privacy {
+			width: auto;
+		}
+
+		.composer-submit {
+			padding: 6px 16px;
+		}
+
+		.timeline-post {
+			grid-template-columns: 40px minmax(0, 1fr);
+			gap: 10px;
+			padding: 14px;
+		}
+
+		.timeline-post .timeline-avatar {
+			width: 40px;
+			height: 40px;
+		}
+
+		.post-actions {
+			gap: 6px;
+		}
+
 		.placeholder-composer {
 			align-items: flex-start;
 		}
@@ -1272,6 +2333,18 @@
 		.pn-tab {
 			padding-inline: 10px;
 			font-size: 0.82rem;
+		}
+
+		.composer-spacer {
+			flex-basis: 100%;
+		}
+
+		.composer-count {
+			margin-left: auto;
+		}
+
+		.post-time {
+			margin-left: 0;
 		}
 	}
 </style>

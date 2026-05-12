@@ -8,7 +8,11 @@
 		| 'bookmark'
 		| 'list'
 		| 'gear'
-		| 'grip';
+		| 'grip'
+		| 'reply'
+		| 'boost'
+		| 'favorite'
+		| 'more';
 
 	let { name }: { name: IconName } = $props();
 </script>
@@ -58,6 +62,24 @@
 		<circle cx="15" cy="12" r="1" fill="currentColor" />
 		<circle cx="9" cy="18" r="1" fill="currentColor" />
 		<circle cx="15" cy="18" r="1" fill="currentColor" />
+	</svg>
+{:else if name === 'reply'}
+	<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+		<path d="M9 8H6v3M6 8c0 5 4 8 9 8h4M19 16l-3 3M19 16l-3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+	</svg>
+{:else if name === 'boost'}
+	<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+		<path d="M4 8l3-3 3 3M7 5v9a2 2 0 0 0 2 2h7M20 16l-3 3-3-3M17 19v-9a2 2 0 0 0-2-2H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+	</svg>
+{:else if name === 'favorite'}
+	<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+		<path d="M12 3l2.6 5.8 6.4.6-4.8 4.4 1.4 6.2L12 16.8 6.4 20l1.4-6.2L3 9.4l6.4-.6L12 3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+	</svg>
+{:else if name === 'more'}
+	<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+		<circle cx="6" cy="12" r="1.5" fill="currentColor" />
+		<circle cx="12" cy="12" r="1.5" fill="currentColor" />
+		<circle cx="18" cy="12" r="1.5" fill="currentColor" />
 	</svg>
 {/if}
 

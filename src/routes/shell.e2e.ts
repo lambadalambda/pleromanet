@@ -18,13 +18,14 @@ test('renders the authenticated desktop shell', async ({ page }) => {
 	await expect(page.getByTestId('left-sidebar')).toBeVisible();
 	await expect(page.getByTestId('right-rail')).toBeVisible();
 	await expect(page.getByTestId('profile-mini')).toContainText('dreambyte');
-	await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible();
+	await page.getByRole('tablist', { name: 'Timeline sections' }).getByRole('tab', { name: 'Local' }).click();
+	await expect(page.getByRole('tablist', { name: 'Timeline sections' }).getByRole('tab', { name: 'Local' })).toHaveAttribute('aria-selected', 'true');
+	const sidebarSettings = page.getByTestId('left-sidebar').getByRole('button', { name: 'Settings' });
+	await expect(sidebarSettings).toBeVisible();
 	await expect(page.getByTestId('settings-subnav')).toBeHidden();
-	await page.getByRole('button', { name: 'Settings' }).click();
+	await sidebarSettings.click();
 	await expect(page.getByTestId('settings-subnav')).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Profile' })).toHaveClass(/active/);
-	await page.getByLabel('Timeline sections').getByRole('button', { name: 'Local' }).click();
-	await expect(page.getByRole('heading', { name: 'Local timeline' })).toBeVisible();
 	await expectNoHorizontalOverflow(page);
 });
 
@@ -65,7 +66,7 @@ test('mobile shell opens drawer, sheet, and bottom navigation without overflow',
 	await page.getByRole('button', { name: 'Open navigation menu' }).click();
 	await expect(page.getByTestId('mobile-drawer')).toBeVisible();
 	await page.getByTestId('mobile-drawer').getByRole('button', { name: 'Local' }).click();
-	await expect(page.getByRole('heading', { name: 'Local timeline' })).toBeVisible();
+	await expect(page.getByRole('tablist', { name: 'Timeline sections' }).getByRole('tab', { name: 'Local' })).toHaveAttribute('aria-selected', 'true');
 	await expect(page.getByTestId('mobile-drawer')).toBeHidden();
 
 	await page.getByRole('button', { name: 'Open navigation menu' }).click();
@@ -73,7 +74,7 @@ test('mobile shell opens drawer, sheet, and bottom navigation without overflow',
 	await page.keyboard.press('Escape');
 	await expect(page.getByTestId('mobile-drawer')).toBeHidden();
 
-	await page.getByRole('button', { name: 'More' }).click();
+	await page.getByTestId('mobile-bottom-nav').getByRole('button', { name: 'More' }).click();
 	await expect(page.getByTestId('mobile-sheet')).toBeVisible();
 	await page.getByRole('button', { name: 'Close details sheet' }).click();
 	await expect(page.getByTestId('mobile-sheet')).toBeHidden();
