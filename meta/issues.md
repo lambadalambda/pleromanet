@@ -1,4 +1,3 @@
-- [ ] [07 Build profile settings view](issues/07-build-profile-settings-view.md)
 - [ ] [08 Build signed-out OAuth landing](issues/08-build-signed-out-oauth-landing.md)
 - [ ] [09 Wire Pleroma API client and auth boundaries](issues/09-wire-pleroma-api-client-and-auth-boundaries.md)
 - [ ] [10 Add responsive and regression test coverage](issues/10-add-responsive-and-regression-test-coverage.md)

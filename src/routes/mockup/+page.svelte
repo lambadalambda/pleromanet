@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import Composer from '$lib/components/Composer.svelte';
+	import ProfileSettingsView from '$lib/components/profile-settings/ProfileSettingsView.svelte';
 	import TimelinePostCard from '$lib/components/TimelinePostCard.svelte';
 	import PnIcon from '$lib/PnIcon.svelte';
 	import type { ActionState, PostAction, ReplySort, ThreadPost, TimelinePost, TimelineView } from '$lib/social/types';
@@ -682,7 +683,7 @@
 	{/if}
 
 	<div class="app-shell">
-		<div class="app-layout">
+		<div class="app-layout" class:settings-layout={activeView === 'settings'}>
 			<aside class="left-sidebar" data-testid="left-sidebar">
 				<div class="pn-card profile-card" data-testid="profile-mini">
 					<div class="profile-card__banner pn-vapor-banner pn-vapor-banner--window"></div>
@@ -1016,6 +1017,8 @@
 							{/each}
 						</div>
 					</div>
+				{:else if activeView === 'settings'}
+					<ProfileSettingsView />
 				{:else if activeView === 'explore'}
 					<div class="explore-view" data-testid="explore-view">
 						<section class="pn-card explore-hero" aria-labelledby="explore-title">
@@ -1848,6 +1851,14 @@
 		grid-template-columns: 240px minmax(0, 1fr) 280px;
 		gap: 20px;
 		align-items: start;
+	}
+
+	.app-layout.settings-layout {
+		grid-template-columns: 240px minmax(0, 1fr);
+	}
+
+	.app-layout.settings-layout .right-rail {
+		display: none;
 	}
 
 	.left-sidebar,
@@ -3289,6 +3300,10 @@
 
 	@media (max-width: 1179px) {
 		.app-layout {
+			grid-template-columns: 220px minmax(0, 1fr);
+		}
+
+		.app-layout.settings-layout {
 			grid-template-columns: 220px minmax(0, 1fr);
 		}
 

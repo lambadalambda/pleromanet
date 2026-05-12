@@ -25,7 +25,7 @@ test('renders the authenticated desktop shell', async ({ page }) => {
 	await expect(page.getByTestId('settings-subnav')).toBeHidden();
 	await sidebarSettings.click();
 	await expect(page.getByTestId('settings-subnav')).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Profile' })).toHaveClass(/active/);
+	await expect(page.getByTestId('settings-subnav').getByRole('button', { name: 'Profile' })).toHaveClass(/active/);
 	await expectNoHorizontalOverflow(page);
 });
 

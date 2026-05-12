@@ -4,3 +4,4 @@
 - [x] [04 Build home timelines and composer](issues/04-build-home-timelines-and-composer.md)
 - [x] [05 Build thread detail view](issues/05-build-thread-detail-view.md)
 - [x] [06 Build explore and discovery view](issues/06-build-explore-and-discovery-view.md)
+- [x] [07 Build profile settings view](issues/07-build-profile-settings-view.md)
