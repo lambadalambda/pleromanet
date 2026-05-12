@@ -1,4 +1,3 @@
-- [ ] [06 Build explore and discovery view](issues/06-build-explore-and-discovery-view.md)
 - [ ] [07 Build profile settings view](issues/07-build-profile-settings-view.md)
 - [ ] [08 Build signed-out OAuth landing](issues/08-build-signed-out-oauth-landing.md)
 - [ ] [09 Wire Pleroma API client and auth boundaries](issues/09-wire-pleroma-api-client-and-auth-boundaries.md)
