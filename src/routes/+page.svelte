@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import PnIcon from '$lib/PnIcon.svelte';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 
-	type View = 'home' | 'local' | 'federated' | 'explore' | 'settings' | 'about';
+	type View = 'home' | 'local' | 'federated' | 'thread' | 'explore' | 'settings' | 'about';
 	type Theme = 'cream' | 'dusk' | 'drive';
 	type SidebarIcon = 'home' | 'users' | 'globe' | 'bell' | 'message' | 'bookmark' | 'list' | 'gear';
 	type TimelineView = 'home' | 'local' | 'federated';
 	type PostAction = 'reply' | 'boost' | 'favorite';
+	type ReplySort = 'top' | 'newest';
 	type ActionState = Record<PostAction, boolean>;
 	type TimelinePost = {
 		id: string;
@@ -22,6 +23,13 @@
 		boosts: number;
 		favorites: number;
 		actions: ActionState;
+	};
+	type ThreadPost = Omit<TimelinePost, 'timelines'> & {
+		fullTime?: string;
+		source?: string;
+		views?: string;
+		bookmarks?: number;
+		nestedReplies?: ThreadPost[];
 	};
 	type FollowSuggestion = {
 		id: string;
@@ -149,6 +157,94 @@
 		{ label: 'User settings', key: 'S' }
 	];
 
+	const threadAncestors: ThreadPost[] = [
+		{
+			id: 'ancestor-gridwave',
+			name: 'gridwave',
+			handle: '@gridwave@retro.social',
+			time: '5h',
+			body: 'anyone else feel like the web got a little too loud lately?',
+			avatar: 'pc',
+			replies: 18,
+			boosts: 42,
+			favorites: 210,
+			actions: { reply: false, boost: false, favorite: false }
+		}
+	];
+
+	const mockThreadReplies: ThreadPost[] = [
+		{
+			id: 'reply-datagram',
+			name: 'datagram',
+			handle: '@datagram@retro.social',
+			time: '34m',
+			body: 'we used to log off. when did that stop being a thing.',
+			avatar: 'pc',
+			replies: 4,
+			boosts: 12,
+			favorites: 64,
+			actions: { reply: false, boost: false, favorite: false },
+			nestedReplies: [
+				{
+					id: 'reply-orbit',
+					name: 'orbit',
+					handle: '@orbit@spacebear.net',
+					time: '20m',
+					body: 'around the time the algorithm replaced the timeline.',
+					avatar: 'orb',
+					replies: 0,
+					boosts: 5,
+					favorites: 22,
+					actions: { reply: false, boost: false, favorite: false }
+				}
+			]
+		},
+		{
+			id: 'reply-nyan',
+			name: 'nyan.binary',
+			handle: '@nyan@catgirl.cloud',
+			time: '12m',
+			body: 'this is the energy i needed today.',
+			avatar: 'orb',
+			replies: 2,
+			boosts: 3,
+			favorites: 18,
+			actions: { reply: false, boost: false, favorite: false },
+			nestedReplies: [
+				{
+					id: 'reply-dreambyte',
+					name: 'dreambyte',
+					handle: '@dreambyte@pleromanet.social',
+					time: '8m',
+					body: 'saving this thread for later.',
+					avatar: 'grad-1',
+					replies: 0,
+					boosts: 0,
+					favorites: 4,
+					actions: { reply: false, boost: false, favorite: false }
+				}
+			]
+		},
+		{
+			id: 'reply-soft',
+			name: 'soft.hertz',
+			handle: '@soft.hertz@kolektiva.social',
+			time: '22m',
+			body: 'touched grass too. recommend the slow internet diet.',
+			avatar: 'grad-3',
+			replies: 0,
+			boosts: 7,
+			favorites: 31,
+			actions: { reply: false, boost: false, favorite: false }
+		}
+	];
+	const cloneThreadPost = (post: ThreadPost): ThreadPost => ({
+		...post,
+		actions: { ...post.actions },
+		nestedReplies: post.nestedReplies?.map(cloneThreadPost)
+	});
+	const createMockThreadReplies = () => mockThreadReplies.map(cloneThreadPost);
+
 	let activeView = $state<View>('home');
 	let userMenuOpen = $state(false);
 	let drawerOpen = $state(false);
@@ -157,6 +253,13 @@
 	let theme = $state<Theme>('cream');
 	let composerText = $state('');
 	let composerPrivacy = $state<(typeof privacyOptions)[number]>('Public');
+	let previousTimeline = $state<TimelineView>('home');
+	let threadPostId = $state<string | null>(null);
+	let threadOpenerPostId = $state<string | null>(null);
+	let replyDraft = $state('');
+	let replySort = $state<ReplySort>('top');
+	let expandedReplyIds = $state<Record<string, boolean>>({});
+	let threadRepliesByPostId = $state<Record<string, ThreadPost[]>>({});
 	let timelinePosts = $state<TimelinePost[]>(
 		mockTimelinePosts.map((post) => ({
 			...post,
@@ -170,23 +273,45 @@
 		value === 'cream' || value === 'dusk' || value === 'drive';
 	const isTimelineView = (view: View): view is TimelineView =>
 		view === 'home' || view === 'local' || view === 'federated';
-	const actionCount = (post: TimelinePost, action: PostAction) => {
+	const actionCount = (post: { replies: number; boosts: number; favorites: number; actions: ActionState }, action: PostAction) => {
 		const base = action === 'reply' ? post.replies : action === 'boost' ? post.boosts : post.favorites;
 
 		return base + (post.actions[action] ? 1 : 0);
+	};
+	const replyAgeMinutes = (time: string) => {
+		if (time === 'now') return -1;
+
+		const value = Number.parseInt(time, 10);
+		if (!Number.isFinite(value)) return Number.MAX_SAFE_INTEGER;
+		if (time.endsWith('m')) return value;
+		if (time.endsWith('h')) return value * 60;
+		if (time.endsWith('d')) return value * 1_440;
+
+		return Number.MAX_SAFE_INTEGER;
 	};
 
 	const viewTitle = $derived(
 		activeView === 'settings'
 			? 'Profile settings'
+			: activeView === 'thread'
+				? 'Thread'
 			: `${activeView.slice(0, 1).toUpperCase()}${activeView.slice(1)} timeline`
 	);
-	const activeTimeline = $derived(isTimelineView(activeView) ? activeView : 'home');
+	const activeTimeline = $derived(isTimelineView(activeView) ? activeView : previousTimeline);
 	const visibleTimelinePosts = $derived(
 		timelinePosts.filter((post) => post.timelines.includes(activeTimeline))
 	);
+	const focusedThreadPost = $derived(timelinePosts.find((post) => post.id === threadPostId) ?? timelinePosts[0]);
+	const threadReplies = $derived(threadPostId ? (threadRepliesByPostId[threadPostId] ?? []) : []);
+	const sortedThreadReplies = $derived(
+		replySort === 'newest'
+			? [...threadReplies].sort((first, second) => replyAgeMinutes(first.time) - replyAgeMinutes(second.time))
+			: threadReplies
+	);
+	const replyRemainingCharacters = $derived(500 - replyDraft.length);
 	const remainingCharacters = $derived(500 - composerText.length);
 	const canPost = $derived(composerText.trim().length > 0 && remainingCharacters >= 0);
+	const canReply = $derived(replyDraft.trim().length > 0 && replyRemainingCharacters >= 0);
 
 	const railTitle = $derived(
 		activeView === 'explore'
@@ -197,10 +322,54 @@
 	);
 
 	const selectView = (view: View) => {
+		if (isTimelineView(view)) {
+			previousTimeline = view;
+			threadPostId = null;
+			threadOpenerPostId = null;
+			replyDraft = '';
+			expandedReplyIds = {};
+		}
+
 		activeView = view;
 		drawerOpen = false;
 		sheetOpen = false;
 		privacyMenuOpen = false;
+	};
+	const focusAfterUpdate = async (id: string) => {
+		if (!browser) return;
+
+		await tick();
+		document.getElementById(id)?.focus();
+	};
+	const ensureThreadReplies = (postId: string) => {
+		if (threadRepliesByPostId[postId]) return;
+
+		threadRepliesByPostId = { ...threadRepliesByPostId, [postId]: createMockThreadReplies() };
+	};
+	const openThread = (postId: string) => {
+		ensureThreadReplies(postId);
+		previousTimeline = activeTimeline;
+		threadPostId = postId;
+		threadOpenerPostId = postId;
+		activeView = 'thread';
+		drawerOpen = false;
+		sheetOpen = false;
+		privacyMenuOpen = false;
+		expandedReplyIds = {};
+		if (browser) {
+			window.scrollTo({ top: 0, behavior: 'smooth' });
+			void focusAfterUpdate('thread-back');
+		}
+	};
+	const closeThread = () => {
+		const openerPostId = threadOpenerPostId;
+
+		activeView = previousTimeline;
+		threadPostId = null;
+		threadOpenerPostId = null;
+		replyDraft = '';
+		expandedReplyIds = {};
+		if (openerPostId) void focusAfterUpdate(`thread-opener-${openerPostId}`);
 	};
 	const publishPost = () => {
 		const body = composerText.trim();
@@ -232,8 +401,57 @@
 				: post
 		);
 	};
+	const updateThreadReplyAction = (
+		replies: ThreadPost[],
+		replyId: string,
+		action: PostAction
+	): ThreadPost[] =>
+		replies.map((reply) => ({
+			...reply,
+			actions:
+				reply.id === replyId
+					? { ...reply.actions, [action]: !reply.actions[action] }
+					: reply.actions,
+			nestedReplies: reply.nestedReplies
+				? updateThreadReplyAction(reply.nestedReplies, replyId, action)
+				: reply.nestedReplies
+		}));
+	const toggleThreadReplyAction = (replyId: string, action: PostAction) => {
+		if (!threadPostId) return;
+
+		threadRepliesByPostId = {
+			...threadRepliesByPostId,
+			[threadPostId]: updateThreadReplyAction(threadReplies, replyId, action)
+		};
+	};
 	const toggleFollow = (id: string) => {
 		following = { ...following, [id]: !following[id] };
+	};
+	const toggleNestedReplies = (id: string) => {
+		expandedReplyIds = { ...expandedReplyIds, [id]: !expandedReplyIds[id] };
+	};
+	const submitThreadReply = () => {
+		if (!canReply || !threadPostId) return;
+
+		threadRepliesByPostId = {
+			...threadRepliesByPostId,
+			[threadPostId]: [
+				{
+					id: `reply-${Date.now()}`,
+					name: 'dreambyte',
+					handle: '@dreambyte@pleromanet.social',
+					time: 'now',
+					body: replyDraft.trim(),
+					avatar: 'grad-1',
+					replies: 0,
+					boosts: 0,
+					favorites: 0,
+					actions: { reply: false, boost: false, favorite: false }
+				},
+				...threadReplies
+			]
+		};
+		replyDraft = '';
 	};
 
 	const closeOverlays = () => {
@@ -553,7 +771,16 @@
 											<span class="post-handle">{post.handle}</span>
 											<span class="post-time">{post.time}</span>
 										</div>
-										<p class="post-body">{post.body}</p>
+										<button
+											id={`thread-opener-${post.id}`}
+											class="post-body post-body-button"
+											type="button"
+											aria-describedby={`thread-link-${post.id}`}
+											onclick={() => openThread(post.id)}
+										>
+											{post.body}
+											<span id={`thread-link-${post.id}`} class="sr-only">Open thread</span>
+										</button>
 										{#if post.media}
 											<div class={`post-media post-media--${post.media}`} role="img" aria-label="Attached media"></div>
 										{/if}
@@ -600,6 +827,244 @@
 							{/each}
 						</div>
 					</div>
+				{:else if activeView === 'thread' && focusedThreadPost}
+					<div class="pn-card thread-card" data-testid="thread-view">
+						<header class="thread-head">
+							<button
+								id="thread-back"
+								class="thread-back"
+								type="button"
+								aria-label={`Back to ${previousTimeline} timeline`}
+								onclick={closeThread}
+							>
+								<span aria-hidden="true">←</span>
+							</button>
+							<h1>Thread</h1>
+							<button class="tab-action" type="button" aria-label="Refresh thread">
+								<span aria-hidden="true"></span>
+							</button>
+							<button class="post-more" type="button" aria-label="More thread actions">
+								<span class="post-action-icon"><PnIcon name="more" /></span>
+							</button>
+						</header>
+
+						<div class="thread-ancestors">
+							{#each threadAncestors as ancestor}
+								<article class="timeline-post thread-post thread-ancestor" data-testid="thread-ancestor">
+									<div class="thread-line-wrap">
+										<div class={`timeline-avatar timeline-avatar--${ancestor.avatar}`} aria-hidden="true"></div>
+										<div class="thread-line" data-testid="thread-line"></div>
+									</div>
+									<div class="post-content">
+										<div class="post-head">
+											<span class="post-name">{ancestor.name}</span>
+											<span class="post-handle">{ancestor.handle}</span>
+											<span class="post-time">{ancestor.time}</span>
+										</div>
+										<p class="post-body">{ancestor.body}</p>
+									</div>
+								</article>
+							{/each}
+						</div>
+
+						<article class="focused-post" data-testid="focused-post">
+							<div class="thread-line-top" aria-hidden="true"></div>
+							<div class="focused-post-head">
+								<div class={`timeline-avatar focused-avatar timeline-avatar--${focusedThreadPost.avatar}`} aria-hidden="true"></div>
+								<div class="focused-author">
+									<div class="focused-name">{focusedThreadPost.name}</div>
+									<div class="focused-handle">{focusedThreadPost.handle}</div>
+								</div>
+								<button class="follow-button" type="button">Follow</button>
+								<button class="post-more" type="button" aria-label="More post actions">
+									<span class="post-action-icon"><PnIcon name="more" /></span>
+								</button>
+							</div>
+
+							<div class="focused-body">{focusedThreadPost.body}</div>
+							{#if focusedThreadPost.media}
+								<div class={`post-media focused-media post-media--${focusedThreadPost.media}`} role="img" aria-label="Attached media"></div>
+							{/if}
+
+							<div class="focused-meta">
+								<span>4:18 PM · May 11, 2026</span>
+								<span class="meta-dot">·</span>
+								<span>PleromaNet™ Web</span>
+								<span class="meta-dot">·</span>
+								<span><strong>12.4K</strong> views</span>
+							</div>
+
+							<div class="focused-engagement" data-testid="focused-engagement">
+								<span><strong>{actionCount(focusedThreadPost, 'boost')}</strong> Boosts</span>
+								<span><strong>{actionCount(focusedThreadPost, 'favorite')}</strong> Favorites</span>
+								<span><strong>24</strong> Bookmarks</span>
+							</div>
+
+							<div class="focused-actions">
+								<button class="focused-action" type="button" aria-label="Reply to focused post">
+									<span class="post-action-icon"><PnIcon name="reply" /></span>
+									<span>Reply</span>
+								</button>
+								<button
+									class="focused-action"
+									class:active={focusedThreadPost.actions.boost}
+									type="button"
+									aria-label="Boost focused post"
+									aria-pressed={focusedThreadPost.actions.boost}
+									onclick={() => togglePostAction(focusedThreadPost.id, 'boost')}
+								>
+									<span class="post-action-icon"><PnIcon name="boost" /></span>
+									<span>Boost</span>
+								</button>
+								<button
+									class="focused-action"
+									class:active={focusedThreadPost.actions.favorite}
+									type="button"
+									aria-label="Favorite focused post"
+									aria-pressed={focusedThreadPost.actions.favorite}
+									onclick={() => togglePostAction(focusedThreadPost.id, 'favorite')}
+								>
+									<span class="post-action-icon"><PnIcon name="favorite" /></span>
+									<span>Favorite</span>
+								</button>
+								<button class="focused-action" type="button" aria-label="Save focused post">
+									<span class="post-action-icon"><PnIcon name="bookmark" /></span>
+									<span>Save</span>
+								</button>
+							</div>
+						</article>
+
+						<form class="thread-reply-composer" aria-label="Reply composer" onsubmit={(event) => { event.preventDefault(); submitThreadReply(); }}>
+							<div class="timeline-avatar reply-avatar timeline-avatar--grad-1" aria-hidden="true"></div>
+							<div class="thread-reply-content">
+								<textarea
+									class="composer-input thread-reply-input"
+									aria-label="Reply text"
+									placeholder={`Reply to ${focusedThreadPost.handle}...`}
+									maxlength="500"
+									bind:value={replyDraft}
+								></textarea>
+								<div class="composer-row thread-reply-row">
+									<button class="composer-tool" type="button" aria-label="Image"><span aria-hidden="true">IMG</span></button>
+									<button class="composer-tool" type="button" aria-label="Emoji"><span aria-hidden="true">:)</span></button>
+									<button class="composer-tool composer-tool--cw" type="button" aria-label="Content warning">CW</button>
+									<button class="composer-tool composer-tool--privacy" type="button" aria-label="Reply visibility">
+										<span class="post-action-icon"><PnIcon name="reply" /></span>
+										<span>Reply</span>
+									</button>
+									<span class="composer-spacer"></span>
+									<span class="composer-count" class:warn={replyRemainingCharacters < 50} data-testid="reply-composer-count">{replyRemainingCharacters}</span>
+									<button class="composer-submit" type="submit" disabled={!canReply}>Reply</button>
+								</div>
+							</div>
+						</form>
+
+						<div class="thread-reply-head">
+							<div class="thread-reply-count" data-testid="thread-reply-count">
+								<span class="post-action-icon"><PnIcon name="reply" /></span>
+								<span>{threadReplies.length} replies</span>
+							</div>
+							<div class="thread-sort" role="group" aria-label="Reply sort">
+								<button
+									class:active={replySort === 'top'}
+									type="button"
+									aria-pressed={replySort === 'top'}
+									onclick={() => (replySort = 'top')}
+								>
+									Top
+								</button>
+								<button
+									class:active={replySort === 'newest'}
+									type="button"
+									aria-pressed={replySort === 'newest'}
+									onclick={() => (replySort = 'newest')}
+								>
+									Newest
+								</button>
+							</div>
+						</div>
+
+						<div class="thread-replies">
+							{#each sortedThreadReplies as reply}
+								{@const nestedReplies = reply.nestedReplies ?? []}
+								<article class="timeline-post thread-post thread-reply" data-testid="thread-reply">
+									<div class="thread-line-wrap">
+										<div class={`timeline-avatar timeline-avatar--${reply.avatar}`} aria-hidden="true"></div>
+										{#if nestedReplies.length > 0}<div class="thread-line" aria-hidden="true"></div>{/if}
+									</div>
+									<div class="post-content">
+										<div class="post-head">
+											<span class="post-name">{reply.name}</span>
+											<span class="post-handle">{reply.handle}</span>
+											<span class="post-time">{reply.time}</span>
+										</div>
+										<p class="post-body">{reply.body}</p>
+										<div class="post-actions">
+											<button
+												class="post-action"
+												class:active={reply.actions.reply}
+												type="button"
+												aria-label={`Reply ${actionCount(reply, 'reply')}`}
+												aria-pressed={reply.actions.reply}
+												onclick={() => toggleThreadReplyAction(reply.id, 'reply')}
+											>
+												<span class="post-action-icon"><PnIcon name="reply" /></span><span>{actionCount(reply, 'reply')}</span>
+											</button>
+											<button
+												class="post-action post-action--boost"
+												class:active={reply.actions.boost}
+												type="button"
+												aria-label={`Boost ${actionCount(reply, 'boost')}`}
+												aria-pressed={reply.actions.boost}
+												onclick={() => toggleThreadReplyAction(reply.id, 'boost')}
+											>
+												<span class="post-action-icon"><PnIcon name="boost" /></span><span>{actionCount(reply, 'boost')}</span>
+											</button>
+											<button
+												class="post-action post-action--favorite"
+												class:active={reply.actions.favorite}
+												type="button"
+												aria-label={`Favorite ${actionCount(reply, 'favorite')}`}
+												aria-pressed={reply.actions.favorite}
+												onclick={() => toggleThreadReplyAction(reply.id, 'favorite')}
+											>
+												<span class="post-action-icon"><PnIcon name="favorite" /></span><span>{actionCount(reply, 'favorite')}</span>
+											</button>
+										</div>
+										{#if nestedReplies.length > 0}
+											<button
+												class="show-replies"
+												type="button"
+												aria-expanded={!!expandedReplyIds[reply.id]}
+												aria-controls={`nested-${reply.id}`}
+												onclick={() => toggleNestedReplies(reply.id)}
+											>
+												<span class="show-replies-line" aria-hidden="true"></span>
+												{expandedReplyIds[reply.id] ? 'Hide' : 'Show'} {nestedReplies.length} {nestedReplies.length === 1 ? 'reply' : 'replies'}
+											</button>
+										{/if}
+									</div>
+								</article>
+								{#if nestedReplies.length > 0 && expandedReplyIds[reply.id]}
+									<div class="nested-replies" id={`nested-${reply.id}`}>
+										{#each nestedReplies as nestedReply}
+											<article class="timeline-post thread-post thread-reply nested-reply">
+												<div class={`timeline-avatar timeline-avatar--${nestedReply.avatar}`} aria-hidden="true"></div>
+												<div class="post-content">
+													<div class="post-head">
+														<span class="post-name">{nestedReply.name}</span>
+														<span class="post-handle">{nestedReply.handle}</span>
+														<span class="post-time">{nestedReply.time}</span>
+													</div>
+													<p class="post-body">{nestedReply.body}</p>
+												</div>
+											</article>
+										{/each}
+									</div>
+								{/if}
+							{/each}
+						</div>
+					</div>
 				{:else}
 					<div class="pn-card view-card">
 						<div class="view-card__body">
@@ -615,7 +1080,7 @@
 			</section>
 
 			<aside class="right-rail" data-testid="right-rail">
-				{#if isTimelineView(activeView)}
+				{#if isTimelineView(activeView) || activeView === 'thread'}
 					<div class="pn-card rail-card trends-card">
 						<div class="pn-card__head">
 							<span class="pn-label">Trends & Activity</span>
@@ -1707,6 +2172,20 @@
 		white-space: pre-wrap;
 	}
 
+	.post-body-button {
+		display: block;
+		width: 100%;
+		border: 0;
+		background: transparent;
+		padding: 0;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.post-body-button:hover {
+		color: var(--ink);
+	}
+
 	.post-media {
 		position: relative;
 		margin-top: 10px;
@@ -1802,6 +2281,336 @@
 	.post-more:hover {
 		background: var(--bg);
 		color: var(--ink);
+	}
+
+	.thread-card {
+		overflow: hidden;
+	}
+
+	.thread-head {
+		position: sticky;
+		top: 0;
+		z-index: 5;
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		border-bottom: 1px solid var(--border);
+		background: color-mix(in srgb, var(--panel) 92%, transparent);
+		backdrop-filter: blur(10px);
+		padding: 10px 12px;
+	}
+
+	.thread-head h1 {
+		flex: 1;
+		margin: 0 60px 0 0;
+		font-family: var(--mono);
+		font-size: 11px;
+		font-weight: 600;
+		letter-spacing: 0.16em;
+		line-height: 1;
+		text-align: center;
+		text-transform: uppercase;
+		color: var(--ink);
+	}
+
+	.thread-back,
+	.focused-action,
+	.thread-sort button,
+	.show-replies {
+		border: 0;
+		background: transparent;
+	}
+
+	.thread-back {
+		display: grid;
+		place-items: center;
+		width: 32px;
+		height: 32px;
+		border-radius: var(--radius);
+		color: var(--ink-2);
+		font-size: 18px;
+	}
+
+	.thread-back:hover {
+		background: var(--bg);
+		color: var(--ink);
+	}
+
+	.thread-ancestors {
+		padding-top: 4px;
+	}
+
+	.thread-post {
+		border-bottom: 0;
+		padding-bottom: 6px;
+	}
+
+	.thread-reply {
+		border-bottom: 1px solid var(--border);
+		padding-bottom: 14px;
+	}
+
+	.thread-line-wrap {
+		position: relative;
+		display: flex;
+		align-items: center;
+		flex-direction: column;
+	}
+
+	.thread-line {
+		width: 2px;
+		min-height: 16px;
+		flex: 1 1 auto;
+		border-radius: 1px;
+		background: var(--border);
+		margin-top: 8px;
+	}
+
+	.focused-post {
+		position: relative;
+		border-top: 1px solid var(--border);
+		border-bottom: 1px solid var(--border);
+		background: var(--panel-2);
+		padding: 18px 20px 14px;
+	}
+
+	.thread-ancestors + .focused-post {
+		border-top: 0;
+	}
+
+	.thread-line-top {
+		position: absolute;
+		top: 0;
+		left: 44px;
+		width: 2px;
+		height: 14px;
+		background: var(--border);
+	}
+
+	.focused-post-head {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+
+	.focused-avatar {
+		width: 56px;
+		height: 56px;
+		flex: 0 0 auto;
+	}
+
+	.focused-author {
+		min-width: 0;
+		flex: 1 1 auto;
+	}
+
+	.focused-name {
+		font-family: var(--serif);
+		font-size: 20px;
+		font-weight: 500;
+		line-height: 1.1;
+		color: var(--ink);
+	}
+
+	.focused-handle {
+		margin-top: 2px;
+		color: var(--accent-ink);
+		font-size: 13px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.focused-body {
+		margin-top: 16px;
+		color: var(--ink);
+		font-size: 17px;
+		line-height: 1.55;
+		letter-spacing: -0.005em;
+		white-space: pre-wrap;
+	}
+
+	.focused-media {
+		aspect-ratio: 16 / 9;
+	}
+
+	.focused-meta {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		flex-wrap: wrap;
+		margin-top: 16px;
+		border-top: 1px solid var(--border);
+		border-bottom: 1px solid var(--border);
+		padding: 12px 0;
+		font-family: var(--mono);
+		font-size: 12.5px;
+		color: var(--muted);
+	}
+
+	.focused-meta strong {
+		color: var(--ink);
+		font-weight: 600;
+	}
+
+	.meta-dot {
+		color: var(--muted-2);
+	}
+
+	.focused-engagement {
+		display: flex;
+		gap: 24px;
+		border-bottom: 1px solid var(--border);
+		padding: 12px 0;
+		color: var(--ink-2);
+		font-size: 13px;
+		flex-wrap: wrap;
+	}
+
+	.focused-engagement strong {
+		margin-right: 4px;
+		font-family: var(--serif);
+		font-size: 17px;
+		font-weight: 600;
+		color: var(--ink);
+	}
+
+	.focused-actions {
+		display: flex;
+		justify-content: space-around;
+		gap: 4px;
+		padding-top: 8px;
+	}
+
+	.focused-action {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		flex: 1 1 0;
+		border-radius: var(--radius);
+		padding: 8px 14px;
+		color: var(--muted);
+		font-size: 13px;
+	}
+
+	.focused-action:hover,
+	.focused-action.active {
+		background: var(--accent-soft-2);
+		color: var(--accent-ink);
+	}
+
+	.thread-reply-composer {
+		display: flex;
+		gap: 12px;
+		border-bottom: 1px solid var(--border);
+		background: var(--panel);
+		padding: 14px 16px;
+	}
+
+	.reply-avatar {
+		width: 40px;
+		height: 40px;
+		flex: 0 0 auto;
+	}
+
+	.thread-reply-content {
+		min-width: 0;
+		flex: 1 1 auto;
+	}
+
+	.thread-reply-input {
+		min-height: 44px;
+	}
+
+	.thread-reply-row {
+		border-top: 1px solid var(--border);
+	}
+
+	.thread-reply-head {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		border-bottom: 1px solid var(--border);
+		background: var(--panel);
+		padding: 12px 20px;
+	}
+
+	.thread-reply-count {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-family: var(--mono);
+		font-size: 11px;
+		font-weight: 600;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+	}
+
+	.thread-sort {
+		display: inline-flex;
+		margin-left: auto;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--bg);
+		padding: 2px;
+	}
+
+	.thread-sort button {
+		border-radius: 3px;
+		padding: 4px 12px;
+		color: var(--muted);
+		font-family: var(--mono);
+		font-size: 12px;
+		letter-spacing: 0.04em;
+	}
+
+	.thread-sort button.active {
+		background: var(--panel);
+		color: var(--ink);
+		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+	}
+
+	.thread-replies {
+		padding-top: 4px;
+	}
+
+	.show-replies {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		margin-top: 10px;
+		padding: 6px 0;
+		color: var(--accent-ink);
+		font-size: 12.5px;
+		font-weight: 500;
+	}
+
+	.show-replies:hover {
+		text-decoration: underline;
+	}
+
+	.show-replies-line {
+		width: 28px;
+		height: 1px;
+		background: var(--accent);
+		opacity: 0.6;
+	}
+
+	.nested-replies {
+		border-left: 2px solid var(--border);
+		margin-left: 28px;
+		padding-left: 56px;
+	}
+
+	.nested-reply {
+		grid-template-columns: 40px minmax(0, 1fr);
+		padding-left: 4px;
+	}
+
+	.nested-reply .timeline-avatar {
+		width: 40px;
+		height: 40px;
 	}
 
 	.view-card__body {
@@ -2305,6 +3114,61 @@
 
 		.post-actions {
 			gap: 6px;
+		}
+
+		.thread-head h1 {
+			margin-right: 30px;
+		}
+
+		.focused-post {
+			padding: 16px 14px 12px;
+		}
+
+		.thread-line-top {
+			left: 34px;
+		}
+
+		.focused-avatar {
+			width: 44px;
+			height: 44px;
+		}
+
+		.focused-name {
+			font-size: 17px;
+		}
+
+		.focused-body {
+			font-size: 16px;
+		}
+
+		.focused-meta {
+			font-size: 11px;
+		}
+
+		.focused-engagement {
+			gap: 14px;
+			font-size: 12.5px;
+		}
+
+		.focused-engagement strong {
+			font-size: 15px;
+		}
+
+		.focused-action {
+			padding: 10px 6px;
+		}
+
+		.focused-action span:not(.post-action-icon) {
+			display: none;
+		}
+
+		.thread-reply-composer {
+			padding: 14px;
+		}
+
+		.nested-replies {
+			margin-left: 14px;
+			padding-left: 28px;
 		}
 
 		.placeholder-composer {

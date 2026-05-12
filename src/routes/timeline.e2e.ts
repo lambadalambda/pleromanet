@@ -90,15 +90,16 @@ test('composer toolbar and post button remain usable across viewport sizes', asy
 	]) {
 		await page.setViewportSize(viewport);
 		await page.goto('/');
+		const composerForm = page.getByRole('form', { name: 'Composer' });
 		const composer = page.getByRole('textbox', { name: 'Post text' });
-		const postButton = page.getByRole('button', { name: 'Post', exact: true });
+		const postButton = composerForm.getByRole('button', { name: 'Post', exact: true });
 
-		await expect(page.getByRole('button', { name: 'Image' })).toBeVisible();
-		await expect(page.getByRole('button', { name: 'GIF' })).toBeVisible();
-		await expect(page.getByRole('button', { name: 'Poll' })).toBeVisible();
-		await expect(page.getByRole('button', { name: 'Emoji' })).toBeVisible();
-		await expect(page.getByRole('button', { name: 'Content warning' })).toBeVisible();
-		await expect(page.getByRole('button', { name: /Privacy/ })).toBeVisible();
+		await expect(composerForm.getByRole('button', { name: 'Image' })).toBeVisible();
+		await expect(composerForm.getByRole('button', { name: 'GIF' })).toBeVisible();
+		await expect(composerForm.getByRole('button', { name: 'Poll' })).toBeVisible();
+		await expect(composerForm.getByRole('button', { name: 'Emoji' })).toBeVisible();
+		await expect(composerForm.getByRole('button', { name: 'Content warning' })).toBeVisible();
+		await expect(composerForm.getByRole('button', { name: /Privacy/ })).toBeVisible();
 		await composer.fill(`viewport ${viewport.width} composer post`);
 		await expect(postButton).toBeEnabled();
 		await postButton.click();
