@@ -2,24 +2,30 @@
 
 ## Summary
 
-Add broad Playwright coverage for the design implementation and define the opt-in dockerized integration test workflow.
+Add deterministic Playwright infrastructure and baseline responsive regression coverage for the current signed-out, design-system, and `/mockup` prototype surfaces.
+
+## Dependencies
+
+- Completed issues 01-09.
 
 ## Requirements
 
-- Add Playwright projects or fixtures for desktop, medium, tablet, and mobile viewport coverage.
-- Cover core signed-out, signed-in shell, timeline, thread, explore, and settings flows with mocked backend data.
+- Define the default Playwright organization for deterministic tests, preserving the current colocated `.e2e.ts` route-test pattern unless a smaller change clearly justifies a new shared test directory.
+- Add shared Playwright helpers for viewport presets and horizontal-overflow assertions.
+- Use explicit responsive fixtures for desktop around `1280px`, medium around `1000px`, tablet around `880px`, and small mobile around `390px`.
+- Cover signed-out landing, design-system, and current `/mockup` prototype shell behavior with route-agnostic selectors that can survive later route extraction.
 - Add assertions for known layout risks: composer overflow, who-to-follow handle truncation, hidden right rail, mobile drawer, mobile sheet, and bottom tab behavior.
-- Add mise tasks for default tests and, once available, dockerized integration tests.
-- Define a separated integration test location or tag, such as `tests/integration` or `@integration`.
-- Keep dockerized Pleroma integration tests opt-in and excluded from default local and CI test runs.
+- Keep this issue focused on default test coverage that runs without Docker or a live Pleroma instance.
 
 ## Acceptance Criteria
 
 - Default Playwright tests run headlessly and deterministically without Docker.
-- Responsive tests cover at least the prototype's desktop, tablet, and small mobile breakpoints.
-- `mise run test:integration` or equivalent is documented once the dockerized backend exists.
-- The issue remains open until the integration-test workflow is either implemented or explicitly split into follow-up issues.
+- Responsive tests cover desktop, medium, tablet, and small mobile breakpoints.
+- `mise run test` and `pnpm test` both continue to run only the deterministic default suite.
+- Regression assertions document the known layout risks they protect.
+- Existing `/mockup` route behavior and tests continue to pass.
+- Tests added here avoid coupling to `/mockup` implementation internals where shared components or stable accessible selectors can be used instead.
 
 ## Notes
 
-- Run dockerized integration tests after larger changes, especially API, authentication, persistence, or cross-page flow changes.
+- Dockerized Pleroma integration coverage is split into issue 15.
