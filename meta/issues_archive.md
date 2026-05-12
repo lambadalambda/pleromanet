@@ -1,1 +1,2 @@
 - [x] [01 Scaffold SvelteKit SPA baseline](issues/01-scaffold-sveltekit-spa-baseline.md)
+- [x] [02 Implement design system and visual primitives](issues/02-implement-design-system-and-visual-primitives.md)
