@@ -5,12 +5,17 @@
 	type Props = {
 		variant?: AvatarVariant;
 		size?: AvatarSize;
+		src?: string;
 	};
 
-	let { variant = 'grad-1', size = 'md' }: Props = $props();
+	let { variant = 'grad-1', size = 'md', src }: Props = $props();
 </script>
 
-<div class={`timeline-avatar timeline-avatar--${variant} timeline-avatar--${size}`} aria-hidden="true"></div>
+<div class={`timeline-avatar timeline-avatar--${variant} timeline-avatar--${size}`} aria-hidden="true">
+	{#if src}
+		<img src={src} alt="" loading="lazy" referrerpolicy="no-referrer" />
+	{/if}
+</div>
 
 <style>
 	.timeline-avatar {
@@ -18,6 +23,13 @@
 		border-radius: var(--radius);
 		background: linear-gradient(135deg, #2a1f4a, #6b4d8e, #d889a0);
 		overflow: hidden;
+	}
+
+	.timeline-avatar img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
 	}
 
 	.timeline-avatar--grad-1 {
