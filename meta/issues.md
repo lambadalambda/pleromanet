@@ -1,4 +1,3 @@
-- [ ] [03 Build authenticated app shell and responsive navigation](issues/03-build-authenticated-app-shell-and-responsive-navigation.md)
 - [ ] [04 Build home timelines and composer](issues/04-build-home-timelines-and-composer.md)
 - [ ] [05 Build thread detail view](issues/05-build-thread-detail-view.md)
 - [ ] [06 Build explore and discovery view](issues/06-build-explore-and-discovery-view.md)

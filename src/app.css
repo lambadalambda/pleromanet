@@ -10,8 +10,8 @@
 	--muted-2: #9b9db1;
 	--accent: #a48bd9;
 	--accent-ink: #6b52a3;
-	--accent-soft: rgba(164, 139, 217, 0.18);
-	--accent-soft-2: rgba(164, 139, 217, 0.08);
+	--accent-soft: #e9e1f5;
+	--accent-soft-2: #f1ebfa;
 	--pink: #e7a8c9;
 	--teal: #7dc4be;
 	--good: #a8d5b1;
@@ -200,7 +200,8 @@ a {
 	font-weight: 600;
 }
 
-.pn-tab[aria-selected='true'] {
+.pn-tab[aria-selected='true'],
+.pn-tab.active {
 	border-bottom-color: var(--accent);
 	color: var(--ink);
 }
