@@ -61,6 +61,29 @@
 	--shadow-soft: 0 18px 48px rgba(0, 0, 0, 0.3);
 }
 
+:root[data-theme='simoun'] {
+	--bg: #061f3d;
+	--panel: #082947;
+	--panel-2: #0c3358;
+	--border: #1d4569;
+	--border-strong: #315d7d;
+	--ink: #f6eee5;
+	--ink-2: #d9e0e4;
+	--muted: #8fa0af;
+	--muted-2: #61768a;
+	--accent: #ff8438;
+	--accent-ink: #ff9a57;
+	--accent-soft: rgba(255, 132, 56, 0.24);
+	--accent-soft-2: rgba(255, 132, 56, 0.12);
+	--pink: #ff9a57;
+	--teal: #7892aa;
+	--good: #d8d3c9;
+	--good-ink: #f6eee5;
+	--warn: #ff8438;
+	--bad: #ff6f4b;
+	--shadow-soft: 0 18px 48px rgba(0, 0, 0, 0.32);
+}
+
 * {
 	box-sizing: border-box;
 }

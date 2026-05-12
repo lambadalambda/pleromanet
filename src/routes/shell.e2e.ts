@@ -48,8 +48,8 @@ test('user menu supports theme switching and keyboard dismissal', async ({ page 
 
 	await page.getByRole('button', { name: 'dreambyte account menu' }).click();
 	await expect(page.getByTestId('user-menu')).toBeVisible();
-	await page.getByRole('button', { name: 'Dusk' }).click();
-	await expect(page.locator('html')).toHaveAttribute('data-theme', 'dusk');
+	await page.getByRole('button', { name: 'Simoun' }).click();
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'simoun');
 
 	await page.keyboard.press('Escape');
 	await expect(page.getByTestId('user-menu')).toBeHidden();

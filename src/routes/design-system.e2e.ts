@@ -23,8 +23,8 @@ test('shows core design primitives and switches themes', async ({ page }) => {
 	await expect(page.getByTestId('post-action-boost-icon')).toBeVisible();
 	await expect(page.getByTestId('post-action-favorite-icon')).toBeVisible();
 
-	await page.getByRole('button', { name: 'Drive' }).click();
-	await expect(page.locator('html')).toHaveAttribute('data-theme', 'drive');
+	await page.getByRole('button', { name: 'Simoun' }).click();
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'simoun');
 	await expectNoHorizontalOverflow(page);
 });
 
@@ -34,6 +34,6 @@ test('keeps design primitives usable on mobile', async ({ page }) => {
 
 	await expect(page.getByRole('heading', { name: 'Design System' })).toBeVisible();
 	await expect(page.getByTestId('primitive-grid')).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Dusk' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Simoun' })).toBeVisible();
 	await expectNoHorizontalOverflow(page);
 });

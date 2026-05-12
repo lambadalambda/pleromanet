@@ -2,18 +2,19 @@
 	import { browser } from '$app/environment';
 	import { onMount } from 'svelte';
 
-	type Theme = 'cream' | 'dusk' | 'drive';
+	type Theme = 'cream' | 'dusk' | 'drive' | 'simoun';
 
 	const themeOptions: Array<{ id: Theme; label: string }> = [
 		{ id: 'cream', label: 'Cream' },
 		{ id: 'dusk', label: 'Dusk' },
-		{ id: 'drive', label: 'Drive' }
+		{ id: 'drive', label: 'Drive' },
+		{ id: 'simoun', label: 'Simoun' }
 	];
 
 	let theme = $state<Theme>('cream');
 
 	const isTheme = (value: string | null): value is Theme =>
-		value === 'cream' || value === 'dusk' || value === 'drive';
+		value === 'cream' || value === 'dusk' || value === 'drive' || value === 'simoun';
 
 	const setTheme = (nextTheme: Theme) => {
 		theme = nextTheme;

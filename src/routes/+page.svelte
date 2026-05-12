@@ -4,7 +4,7 @@
 	import { onMount, tick } from 'svelte';
 
 	type View = 'home' | 'local' | 'federated' | 'thread' | 'explore' | 'settings' | 'about';
-	type Theme = 'cream' | 'dusk' | 'drive';
+	type Theme = 'cream' | 'dusk' | 'drive' | 'simoun';
 	type SidebarIcon = 'home' | 'users' | 'globe' | 'bell' | 'message' | 'bookmark' | 'list' | 'gear';
 	type TimelineView = 'home' | 'local' | 'federated';
 	type PostAction = 'reply' | 'boost' | 'favorite';
@@ -77,7 +77,8 @@
 	const themeOptions: Array<{ id: Theme; label: string }> = [
 		{ id: 'cream', label: 'Cream' },
 		{ id: 'dusk', label: 'Dusk' },
-		{ id: 'drive', label: 'Drive' }
+		{ id: 'drive', label: 'Drive' },
+		{ id: 'simoun', label: 'Simoun' }
 	];
 	const privacyOptions = ['Public', 'Unlisted', 'Followers'] as const;
 
@@ -270,7 +271,7 @@
 	let following = $state<Record<string, boolean>>({});
 
 	const isTheme = (value: string | null): value is Theme =>
-		value === 'cream' || value === 'dusk' || value === 'drive';
+		value === 'cream' || value === 'dusk' || value === 'drive' || value === 'simoun';
 	const isTimelineView = (view: View): view is TimelineView =>
 		view === 'home' || view === 'local' || view === 'federated';
 	const actionCount = (post: { replies: number; boosts: number; favorites: number; actions: ActionState }, action: PostAction) => {
@@ -1631,7 +1632,7 @@
 
 	.theme-swatches {
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
+		grid-template-columns: repeat(4, 1fr);
 		gap: 6px;
 		margin: 0;
 		padding: 4px 12px 8px;
@@ -1664,6 +1665,10 @@
 
 	.swatch--drive {
 		background: linear-gradient(135deg, #07091a 50%, #7dc4be 50%);
+	}
+
+	.swatch--simoun {
+		background: linear-gradient(135deg, #061f3d 50%, #ff8438 50%);
 	}
 
 	.app-shell {
