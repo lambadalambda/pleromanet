@@ -24,14 +24,18 @@
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: center;
-		gap: 16px;
-		border-top: 1px solid var(--border);
-		padding: 13px 0;
+		gap: 14px;
+		border-bottom: 1px solid var(--border);
+		padding: 16px 0;
 	}
 
 	.switch-row:first-child {
-		border-top: 0;
 		padding-top: 0;
+	}
+
+	.switch-row:last-child {
+		border-bottom: 0;
+		padding-bottom: 0;
 	}
 
 	h3,
@@ -40,58 +44,63 @@
 	}
 
 	h3 {
-		font-size: 0.95rem;
-		font-weight: 650;
+		font-size: 14px;
+		font-weight: 500;
 	}
 
 	p {
 		margin-top: 4px;
-		color: var(--ink-2);
-		font-size: 0.86rem;
+		color: var(--muted);
+		font-size: 12.5px;
 	}
 
 	.switch {
 		position: relative;
-		width: 52px;
-		height: 32px;
-		border: 1px solid var(--border-strong);
-		border-radius: 999px;
-		background: var(--bg);
-		padding: 3px;
+		width: 40px;
+		height: 22px;
+		border: 0;
+		border-radius: 12px;
+		background: var(--border-strong);
+		padding: 0;
 	}
 
 	.switch span {
+		position: absolute;
+		top: 2px;
+		left: 2px;
 		display: block;
-		width: 24px;
-		height: 24px;
+		width: 18px;
+		height: 18px;
 		border-radius: 999px;
-		background: var(--muted-2);
-		transition: transform 120ms ease, background 120ms ease;
+		background: white;
+		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+		transition: left 120ms ease;
 	}
 
 	.switch[aria-checked='true'] {
-		border-color: var(--accent);
-		background: var(--accent-soft);
+		background: var(--accent);
 	}
 
 	.switch[aria-checked='true'] span {
-		background: var(--accent-ink);
-		transform: translateX(18px);
+		left: 20px;
 	}
 
 	@media (max-width: 520px) {
 		.switch {
 			min-height: 42px;
 			width: 64px;
+			padding: 0;
 		}
 
 		.switch span {
 			width: 34px;
 			height: 34px;
+			top: 4px;
+			left: 4px;
 		}
 
 		.switch[aria-checked='true'] span {
-			transform: translateX(20px);
+			left: 26px;
 		}
 	}
 </style>

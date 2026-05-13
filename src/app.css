@@ -173,13 +173,12 @@ a {
 	color: var(--ink-2);
 }
 
-.pn-card {
-	background: var(--panel);
-	border: 1px solid var(--border);
-	border-radius: var(--radius-lg);
-	box-shadow: var(--shadow-soft);
-	overflow: hidden;
-}
+	.pn-card {
+		background: var(--panel);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+		overflow: hidden;
+	}
 
 .pn-card__head,
 .pn-card__body,

@@ -7,28 +7,27 @@
 		testId?: string;
 	};
 
-	let { title, description, buttonLabel, preview, testId }: Props = $props();
+	let { title: _title, description, buttonLabel, preview, testId }: Props = $props();
 </script>
 
-<div class="upload-row" data-testid={testId}>
-	<div class={`upload-preview upload-preview--${preview}`} aria-hidden="true"></div>
-	<div class="upload-copy">
-		<h3>{title}</h3>
-		<p>{description}</p>
+<div class="upload-wrap" data-testid={testId}>
+	<div class="upload-row">
+		<div class={`upload-preview upload-preview--${preview}`} aria-hidden="true"></div>
+		<button class="upload-button" type="button">{buttonLabel}</button>
 	</div>
-	<button class="pn-button" type="button">{buttonLabel}</button>
+	<p class="upload-help">{description}</p>
 </div>
 
 <style>
-	.upload-row {
+	.upload-wrap {
 		display: grid;
-		grid-template-columns: 72px minmax(0, 1fr) auto;
+		gap: 14px;
+	}
+
+	.upload-row {
+		display: flex;
 		align-items: center;
 		gap: 14px;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-lg);
-		background: var(--panel-2);
-		padding: 12px;
 	}
 
 	.upload-preview {
@@ -50,45 +49,36 @@
 		background: linear-gradient(180deg, #1d1840 0%, #533c7a 45%, #d889a0 78%, #f3c191 100%);
 	}
 
-	.upload-copy {
-		min-width: 0;
-	}
-
-	h3,
-	p {
-		margin: 0;
-	}
-
-	h3 {
-		font-family: var(--serif);
-		font-size: 1.25rem;
-		font-weight: 500;
-		line-height: 1;
-	}
-
-	p {
-		margin-top: 5px;
+	.upload-button {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--panel-2);
+		padding: 7px 14px;
 		color: var(--ink-2);
-		font-size: 0.86rem;
+		font-size: 13px;
 	}
 
-	@media (max-width: 520px) {
+	.upload-button:hover {
+		border-color: var(--accent);
+		color: var(--accent-ink);
+	}
+
+	.upload-help {
+		margin: 0;
+		color: var(--muted);
+		font-size: 12px;
+	}
+
+	@media (max-width: 560px) {
 		.upload-row {
-			grid-template-columns: 56px minmax(0, 1fr);
+			align-items: flex-start;
+			flex-direction: column;
 		}
 
-		.upload-preview--avatar {
-			width: 48px;
-			height: 48px;
-		}
-
-		.upload-preview--banner {
-			width: 56px;
-			height: 42px;
-		}
-
-		button {
-			grid-column: 1 / -1;
+		.upload-button {
 			min-height: 42px;
 		}
 	}

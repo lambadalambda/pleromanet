@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { AvatarVariant } from '$lib/social/types';
 
-	type AvatarSize = 'sm' | 'md' | 'composer';
+	type AvatarSize = 'sm' | 'md' | 'lg' | 'composer';
 	type Props = {
 		variant?: AvatarVariant;
 		size?: AvatarSize;
@@ -48,6 +48,11 @@
 	.timeline-avatar--md {
 		width: 48px;
 		height: 48px;
+	}
+
+	.timeline-avatar--lg {
+		width: 56px;
+		height: 56px;
 	}
 
 	.timeline-avatar--composer {

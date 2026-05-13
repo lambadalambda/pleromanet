@@ -82,18 +82,18 @@
 		></textarea>
 		<div class={rowClass}>
 			<button class="composer-tool" type="button" aria-label="Image">
-				<span aria-hidden="true">IMG</span>
+				<span class="composer-tool__icon" data-testid="composer-tool-image-icon"><PnIcon name="image" /></span>
 			</button>
 			{#if showGif}
 				<button class="composer-tool composer-tool--gif" type="button" aria-label="GIF">GIF</button>
 			{/if}
 			{#if showPoll}
 				<button class="composer-tool" type="button" aria-label="Poll">
-					<span aria-hidden="true">POL</span>
+					<span class="composer-tool__icon" data-testid="composer-tool-poll-icon"><PnIcon name="poll" /></span>
 				</button>
 			{/if}
 			<button class="composer-tool" type="button" aria-label="Emoji">
-				<span aria-hidden="true">:)</span>
+				<span class="composer-tool__icon" data-testid="composer-tool-emoji-icon"><PnIcon name="smile" /></span>
 			</button>
 			<button class="composer-tool composer-tool--cw" type="button" aria-label="Content warning">CW</button>
 			{#if privacyMode === 'menu'}
@@ -105,8 +105,9 @@
 						aria-expanded={privacyMenuOpen}
 						onclick={() => onPrivacyMenuOpenChange?.(!privacyMenuOpen)}
 					>
-						<span aria-hidden="true">●</span>
+						<span class="composer-tool__icon composer-tool__icon--privacy" data-testid="composer-tool-privacy-icon"><PnIcon name="globe" /></span>
 						<span>{privacy}</span>
+						<span class="composer-tool__chevron" data-testid="composer-tool-privacy-chevron"><PnIcon name="chevron-down" /></span>
 					</button>
 					{#if privacyMenuOpen}
 						<div class="privacy-menu" aria-label="Privacy options">
@@ -124,8 +125,9 @@
 				</div>
 			{:else}
 				<button class="composer-tool composer-tool--privacy" type="button" aria-label={privacyButtonLabel}>
-					<span class="post-action-icon"><PnIcon name="reply" /></span>
+					<span class="composer-tool__icon composer-tool__icon--privacy"><PnIcon name="reply" /></span>
 					<span>{submitLabel}</span>
+					<span class="composer-tool__chevron"><PnIcon name="chevron-down" /></span>
 				</button>
 			{/if}
 			<span class="composer-spacer"></span>
@@ -228,10 +230,28 @@
 		color: var(--accent-ink);
 	}
 
+	.composer-tool__icon {
+		width: 18px;
+		height: 18px;
+		flex: 0 0 auto;
+	}
+
+	.composer-tool__icon--privacy {
+		width: 13px;
+		height: 13px;
+	}
+
+	.composer-tool__chevron {
+		width: 12px;
+		height: 12px;
+		flex: 0 0 auto;
+	}
+
 	.composer-tool--cw {
 		width: auto;
 		border: 1px solid var(--border);
 		padding: 0 10px;
+		margin-left: 2px;
 	}
 
 	.composer-tool--cw:hover {
@@ -243,6 +263,7 @@
 		max-width: 130px;
 		padding: 0 10px;
 		gap: 6px;
+		margin-left: 8px;
 		color: var(--ink-2);
 		font-family: var(--sans);
 		font-size: 12.5px;

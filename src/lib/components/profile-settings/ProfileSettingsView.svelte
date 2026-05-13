@@ -1,7 +1,6 @@
 <script lang="ts">
-	import ProfilePreviewCard from './ProfilePreviewCard.svelte';
 	import ProfileSettingSwitch from './ProfileSettingSwitch.svelte';
-	import ProfileTipsCard from './ProfileTipsCard.svelte';
+	import { setProfileSettingsPreview } from './store';
 	import ProfileUploadRow from './ProfileUploadRow.svelte';
 	import {
 		cloneProfileSettings,
@@ -10,12 +9,16 @@
 		type ProfileSettings
 	} from './types';
 
+	const bioLimit = 160;
+	const instanceOptions = ['pleromanet.social', 'kolektiva.social', 'retro.social'];
+
 	let savedProfile = $state<ProfileSettings>(createDefaultProfileSettings());
 	let draftProfile = $state<ProfileSettings>(createDefaultProfileSettings());
 	let saveMessage = $state('Saved');
 
 	const isDirty = $derived(!profileSettingsEqual(savedProfile, draftProfile));
 	const saveState = $derived(isDirty ? 'Unsaved changes' : saveMessage);
+	const bioCount = $derived(`${draftProfile.bio.length} / ${bioLimit}`);
 
 	const updateProfile = (patch: Partial<ProfileSettings>) => {
 		draftProfile = { ...draftProfile, ...patch };
@@ -31,270 +34,306 @@
 		draftProfile = cloneProfileSettings(savedProfile);
 		saveMessage = 'Saved';
 	};
+
+	$effect(() => {
+		setProfileSettingsPreview(draftProfile);
+	});
 </script>
 
 <section class="settings-view" aria-labelledby="profile-settings-title">
-	<div class="settings-main">
-		<div class="pn-card settings-card">
-			<header class="settings-head">
-				<p class="settings-breadcrumb">Settings / Profile</p>
-				<div class="settings-title-row">
-					<div>
-						<p class="pn-kicker">Account profile</p>
-						<h1 id="profile-settings-title">Profile settings</h1>
-						<p>
-							Edit the public profile details shown across PleromaNet. These controls are mocked
-							until the profile update API is wired.
-						</p>
-					</div>
-					<span class="pn-pill" data-testid="settings-save-state">{saveState}</span>
-				</div>
-			</header>
+	<div class="pn-card settings-card">
+		<header class="settings-head">
+			<p class="settings-breadcrumb">Settings / Profile</p>
+			<h1 id="profile-settings-title">Profile settings</h1>
+			<p class="settings-subtitle">Manage your profile information and how you appear to others.</p>
+		</header>
 
-			<div class="settings-section upload-section">
+		<div class="field-row">
+			<div class="field-label">Avatar</div>
+			<div>
 				<ProfileUploadRow
 					title="Avatar"
-					description="Square image shown beside your posts. File handling is stubbed for now."
+					description="JPG, PNG or GIF. Max size 2MB."
 					buttonLabel="Choose avatar"
 					preview="avatar"
 					testId="avatar-upload-row"
 				/>
+			</div>
+		</div>
+
+		<div class="field-row">
+			<div class="field-label">Banner</div>
+			<div>
 				<ProfileUploadRow
 					title="Banner"
-					description="Wide profile header treatment for profile preview and profile pages."
+					description="Recommended size 1500×500. JPG, PNG or GIF. Max size 5MB."
 					buttonLabel="Choose banner"
 					preview="banner"
 					testId="banner-upload-row"
 				/>
 			</div>
+		</div>
 
-			<div class="settings-section form-grid">
-				<label class="field">
-					<span>Display name</span>
+		<div class="field-row">
+			<div class="field-label">Display name</div>
+			<div class="field-control">
+				<input
+					class="field-input"
+					type="text"
+					aria-label="Display name"
+					value={draftProfile.displayName}
+					oninput={(event) => updateProfile({ displayName: event.currentTarget.value })}
+				/>
+				<p class="field-help">The name shown on your profile.</p>
+			</div>
+		</div>
+
+		<div class="field-row">
+			<div class="field-label">Username</div>
+			<div class="field-control">
+				<div class="split-row">
 					<input
-						type="text"
-						aria-label="Display name"
-						value={draftProfile.displayName}
-						oninput={(event) => updateProfile({ displayName: event.currentTarget.value })}
-					/>
-				</label>
-				<label class="field">
-					<span>Username</span>
-					<input
+						class="field-input"
 						type="text"
 						aria-label="Username"
 						value={draftProfile.username}
 						oninput={(event) => updateProfile({ username: event.currentTarget.value })}
 					/>
-				</label>
-				<label class="field">
-					<span>Instance</span>
-					<input
-						type="text"
+					<select
+						class="field-input field-select"
 						aria-label="Instance domain"
 						value={draftProfile.instance}
-						oninput={(event) => updateProfile({ instance: event.currentTarget.value })}
-					/>
-				</label>
-				<label class="field">
-					<span>Website</span>
+						onchange={(event) => updateProfile({ instance: event.currentTarget.value })}
+					>
+						{#each instanceOptions as option}
+							<option value={option}>@{option}</option>
+						{/each}
+					</select>
+				</div>
+				<p class="field-help">Your unique handle on this server.</p>
+			</div>
+		</div>
+
+		<div class="field-row">
+			<div class="field-label">Bio</div>
+			<div class="field-control">
+				<textarea
+					class="field-input field-textarea"
+					aria-label="Bio"
+					maxlength={bioLimit}
+					value={draftProfile.bio}
+					oninput={(event) => updateProfile({ bio: event.currentTarget.value })}
+				></textarea>
+				<div class="field-counter">{bioCount}</div>
+			</div>
+		</div>
+
+		<div class="field-row field-row--last">
+			<div class="field-label">Website</div>
+			<div class="field-control split-row split-row--wide">
+				<div>
 					<input
+						class="field-input"
 						type="url"
 						aria-label="Website"
 						value={draftProfile.website}
 						oninput={(event) => updateProfile({ website: event.currentTarget.value })}
 					/>
-				</label>
-				<label class="field field--wide">
-					<span>Bio</span>
-					<textarea
-						aria-label="Bio"
-						value={draftProfile.bio}
-						oninput={(event) => updateProfile({ bio: event.currentTarget.value })}
-					></textarea>
-				</label>
-				<label class="field field--wide">
-					<span>Location</span>
+					<p class="field-help">Your website or personal link.</p>
+				</div>
+				<div>
+					<div class="field-sub-label">Location</div>
 					<input
+						class="field-input"
 						type="text"
 						aria-label="Location"
 						value={draftProfile.location}
 						oninput={(event) => updateProfile({ location: event.currentTarget.value })}
 					/>
-				</label>
+					<p class="field-help">You can leave this blank.</p>
+				</div>
 			</div>
-
-			<div class="settings-section toggle-section">
-				<ProfileSettingSwitch
-					label="Discoverable profile"
-					description="Allow this profile to appear in suggestions and discovery surfaces."
-					checked={draftProfile.discoverable}
-					onToggle={() => updateProfile({ discoverable: !draftProfile.discoverable })}
-				/>
-				<ProfileSettingSwitch
-					label="Allow search indexing"
-					description="Permit public profile fields to be indexed by Pleroma search."
-					checked={draftProfile.indexable}
-					onToggle={() => updateProfile({ indexable: !draftProfile.indexable })}
-				/>
-				<ProfileSettingSwitch
-					label="Show follower count"
-					description="Show follower totals in profile cards and profile preview surfaces."
-					checked={draftProfile.showFollowerCount}
-					onToggle={() => updateProfile({ showFollowerCount: !draftProfile.showFollowerCount })}
-				/>
-			</div>
-
-			<footer class="settings-actions">
-				<button class="pn-button" type="button" aria-label="Reset profile settings" disabled={!isDirty} onclick={resetProfile}>
-					Reset
-				</button>
-				<button class="pn-button pn-button--primary" type="button" aria-label="Save profile settings" disabled={!isDirty} onclick={saveProfile}>
-					Save
-				</button>
-			</footer>
 		</div>
-	</div>
 
-	<aside class="settings-preview" aria-label="Profile settings preview">
-		<ProfilePreviewCard profile={draftProfile} />
-		<ProfileTipsCard />
-	</aside>
+		<div class="toggle-section">
+			<ProfileSettingSwitch
+				label="Discoverable profile"
+				description="Allow this profile to appear in suggestions and discovery surfaces."
+				checked={draftProfile.discoverable}
+				onToggle={() => updateProfile({ discoverable: !draftProfile.discoverable })}
+			/>
+			<ProfileSettingSwitch
+				label="Allow search indexing"
+				description="Permit public profile fields to be indexed by Pleroma search."
+				checked={draftProfile.indexable}
+				onToggle={() => updateProfile({ indexable: !draftProfile.indexable })}
+			/>
+			<ProfileSettingSwitch
+				label="Show follower count"
+				description="Show follower totals in profile cards and profile preview surfaces."
+				checked={draftProfile.showFollowerCount}
+				onToggle={() => updateProfile({ showFollowerCount: !draftProfile.showFollowerCount })}
+			/>
+		</div>
+
+		<footer class="settings-actions">
+			<button class="pn-button pn-button--primary" type="button" aria-label="Save profile settings" disabled={!isDirty} onclick={saveProfile}>
+				Save changes
+			</button>
+			<button class="pn-button" type="button" aria-label="Reset profile settings" disabled={!isDirty} onclick={resetProfile}>
+				Reset
+			</button>
+			<span class="settings-saved" data-testid="settings-save-state">{saveState}</span>
+		</footer>
+	</div>
 </section>
 
 <style>
-	.settings-view {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) 280px;
-		gap: 16px;
-		align-items: start;
-	}
-
-	.settings-main,
-	.settings-preview {
+	.settings-view,
+	.settings-card {
 		min-width: 0;
 	}
 
-	.settings-preview {
-		display: grid;
-		gap: 16px;
-	}
-
-	.settings-card,
-	.settings-preview :global(.pn-card) {
+	.settings-card {
 		box-shadow: none;
+		padding: 24px 32px 28px;
 	}
 
-	.settings-head,
-	.settings-section,
-	.settings-actions {
-		padding: 16px 18px;
-	}
-
-	.settings-head,
-	.settings-section {
+	.settings-head {
 		border-bottom: 1px solid var(--border);
+		padding-bottom: 24px;
+		margin-bottom: 8px;
 	}
 
 	.settings-breadcrumb,
 	.settings-head h1,
-	.settings-head p {
+	.settings-subtitle {
 		margin: 0;
 	}
 
 	.settings-breadcrumb {
 		font-family: var(--mono);
-		font-size: 0.7rem;
-		font-weight: 700;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: var(--accent-ink);
-	}
-
-	.settings-title-row {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		gap: 16px;
-		align-items: start;
-		margin-top: 12px;
-	}
-
-	.settings-head h1 {
-		margin-top: 6px;
-		font-family: var(--serif);
-		font-size: clamp(2rem, 4vw, 3.4rem);
-		font-weight: 500;
-		line-height: 1;
-	}
-
-	.settings-head .pn-kicker + h1 + p {
-		max-width: 58ch;
-		margin-top: 10px;
-		color: var(--ink-2);
-	}
-
-	.upload-section {
-		display: grid;
-		gap: 12px;
-	}
-
-	.form-grid {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 12px;
-	}
-
-	.field {
-		display: grid;
-		gap: 6px;
-	}
-
-	.field--wide {
-		grid-column: 1 / -1;
-	}
-
-	.field span {
-		font-family: var(--mono);
-		font-size: 0.68rem;
-		font-weight: 700;
-		letter-spacing: 0.12em;
+		font-size: 11px;
+		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--muted);
 	}
 
-	.field input,
-	.field textarea {
+	.settings-head h1 {
+		margin-top: 12px;
+		font-family: var(--serif);
+		font-size: 38px;
+		font-weight: 500;
+		line-height: 1;
+	}
+
+	.settings-subtitle {
+		margin-top: 8px;
+		color: var(--muted);
+		font-size: 14px;
+	}
+
+	.field-row {
+		display: grid;
+		grid-template-columns: 130px minmax(0, 1fr);
+		gap: 24px;
+		align-items: start;
+		padding: 16px 0;
+		border-bottom: 1px solid var(--border);
+	}
+
+	.field-row--last {
+		border-bottom: 0;
+	}
+
+	.field-label {
+		padding-top: 8px;
+		font-size: 13.5px;
+		font-weight: 500;
+		color: var(--ink-2);
+	}
+
+	.field-control {
+		min-width: 0;
+	}
+
+	.field-input {
 		width: 100%;
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		background: var(--panel-2);
-		padding: 10px 11px;
+		padding: 8px 12px;
+		font-size: 13.5px;
 		outline: 0;
+		color: var(--ink);
 	}
 
-	.field textarea {
-		min-height: 96px;
-		resize: vertical;
-	}
-
-	.field input:focus,
-	.field textarea:focus {
+	.field-input:focus {
 		border-color: var(--accent);
 		box-shadow: 0 0 0 3px var(--accent-soft-2);
 	}
 
-	.toggle-section {
+	.field-textarea {
+		min-height: 70px;
+		resize: vertical;
+	}
+
+	.field-select {
+		appearance: none;
+		background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5L6 8l3-3.5' stroke='%237a7c95' stroke-width='1.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+		background-repeat: no-repeat;
+		background-position: right 10px center;
+		padding-right: 28px;
+	}
+
+	.field-help,
+	.field-counter {
+		margin: 4px 0 0;
+		font-size: 12px;
+		color: var(--muted);
+	}
+
+	.field-counter {
+		text-align: right;
+		font-family: var(--mono);
+		font-size: 11px;
+	}
+
+	.field-sub-label {
+		margin-bottom: 6px;
+		font-size: 13.5px;
+		font-weight: 500;
+		color: var(--ink-2);
+	}
+
+	.split-row {
 		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 12px;
+	}
+
+	.split-row--wide {
+		align-items: start;
+	}
+
+	.toggle-section {
+		margin-top: 12px;
 	}
 
 	.settings-actions {
 		display: flex;
-		justify-content: flex-end;
-		gap: 10px;
+		align-items: center;
+		gap: 12px;
+		padding-top: 24px;
+		margin-top: 8px;
 	}
 
-	.settings-actions button {
-		min-height: 40px;
+	.settings-saved {
+		margin-left: auto;
+		font-family: var(--mono);
+		font-size: 12px;
+		letter-spacing: 0.04em;
+		color: var(--muted);
 	}
 
 	.settings-actions button:disabled {
@@ -302,37 +341,35 @@
 		opacity: 0.55;
 	}
 
-	@media (max-width: 1100px) {
-		.settings-view {
+	@media (max-width: 720px) {
+		.settings-card {
+			padding: 18px 16px 20px;
+		}
+
+		.field-row,
+		.split-row {
 			grid-template-columns: 1fr;
 		}
 
-		.settings-preview {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
+		.field-label {
+			padding-top: 0;
 		}
 	}
 
 	@media (max-width: 560px) {
-		.settings-head,
-		.settings-section,
-		.settings-actions {
-			padding: 14px;
-		}
-
-		.settings-title-row,
-		.form-grid,
-		.settings-preview {
-			grid-template-columns: 1fr;
-		}
-
 		.settings-actions {
 			align-items: stretch;
-			flex-direction: column-reverse;
+			flex-direction: column;
 		}
 
 		.settings-actions button {
 			width: 100%;
 			min-height: 44px;
+		}
+
+		.settings-saved {
+			margin-left: 0;
+			text-align: center;
 		}
 	}
 </style>

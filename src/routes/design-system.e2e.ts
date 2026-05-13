@@ -23,6 +23,11 @@ test('shows core design primitives and switches themes', async ({ page }) => {
 	await expect(componentPost.getByTestId('post-action-favorite-icon')).toBeVisible();
 
 	const componentComposer = page.getByTestId('primitive-composer');
+	await expect(componentComposer.getByTestId('composer-tool-image-icon')).toBeVisible();
+	await expect(componentComposer.getByTestId('composer-tool-poll-icon')).toBeVisible();
+	await expect(componentComposer.getByTestId('composer-tool-emoji-icon')).toBeVisible();
+	await expect(componentComposer.getByTestId('composer-tool-privacy-icon')).toBeVisible();
+	await expect(componentComposer.getByTestId('composer-tool-privacy-chevron')).toBeVisible();
 	await componentComposer.getByRole('button', { name: 'Privacy Public' }).click();
 	await componentComposer.getByRole('button', { name: 'Followers' }).click();
 	await expect(componentComposer.getByRole('button', { name: 'Privacy Followers' })).toBeVisible();

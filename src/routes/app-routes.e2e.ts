@@ -43,7 +43,8 @@ test('authenticated users are redirected from the landing page into the real app
 
 	await expect(page).toHaveURL('/app/home');
 	await expect(page.getByTestId('app-header')).toBeVisible();
-	await expect(page.getByRole('heading', { name: 'Home timeline' })).toBeVisible();
+	await expect(page.getByRole('tablist', { name: 'Timeline sections' })).toBeVisible();
+	await expect(page.getByRole('form', { name: 'Composer' })).toBeVisible();
 });
 
 test('real app routes render shell, deep links, and browser history', async ({ page }) => {
@@ -75,6 +76,41 @@ test('real app routes render shell, deep links, and browser history', async ({ p
 	await page.goForward();
 	await expect(page).toHaveURL('/app/explore');
 	await expectNoHorizontalOverflow(page);
+});
+
+test('real app left sidebar keeps profile stats and full settings subnav', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const profileMini = page.getByTestId('profile-mini');
+	await expect(profileMini).toContainText('Posts');
+	await expect(profileMini).toContainText('Following');
+	await expect(profileMini).toContainText('Followers');
+
+	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Settings' }).click();
+	await expect(page.getByTestId('settings-subnav')).toContainText('Import / Export');
+	await expect(page.getByTestId('settings-subnav')).toContainText('Development');
+});
+
+test('real app right rail keeps timeline and explore card stacks', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const rail = page.getByTestId('right-rail');
+	await expect(rail).toContainText('Trends & Activity');
+	await expect(rail).toContainText('Who to follow');
+	await expect(rail).toContainText('Shortcuts');
+	await expect(rail).toContainText('Instance status');
+
+	await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Explore' }).click();
+	await expect(page).toHaveURL('/app/explore');
+	await expect(page.getByLabel('Quick search Explore')).toBeVisible();
+	await expect(rail).toContainText('Known instances');
+	await expect(rail).toContainText('Discovery mode');
 });
 
 test('app route guard revalidates when session disappears during client navigation', async ({ page }) => {
@@ -134,6 +170,21 @@ test('real app shell stays responsive across desktop, medium, tablet, and mobile
 
 		await expectNoHorizontalOverflow(page);
 	}
+});
+
+test('real app user menu switches themes and closes with escape', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	await page.getByRole('button', { name: 'quiet admin account menu' }).click();
+	await expect(page.getByTestId('user-menu')).toBeVisible();
+	await page.getByRole('button', { name: 'Simoun' }).click();
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'simoun');
+
+	await page.keyboard.press('Escape');
+	await expect(page.getByTestId('user-menu')).toBeHidden();
 });
 
 test('mobile real app shell opens drawer and details sheet', async ({ page }) => {

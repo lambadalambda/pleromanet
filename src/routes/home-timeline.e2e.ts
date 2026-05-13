@@ -40,6 +40,9 @@ test('authenticated home timeline loads and renders posts through adapters', asy
 	await page.goto('/app/home');
 
 	await expect(page.getByTestId('app-header')).toBeVisible();
+	await expect(page.getByRole('tablist', { name: 'Timeline sections' })).toBeVisible();
+	await expect(page.getByRole('tab', { name: 'Home' })).toHaveAttribute('aria-selected', 'true');
+	await expect(page.getByRole('form', { name: 'Composer' })).toBeVisible();
 	await expect(page.getByTestId('home-timeline-list')).toContainText('quiet CSS can still carry the voice.');
 	await expect(page.getByTestId('home-timeline-list')).toContainText('@quietadmin@pleroma.example');
 	await expect(page.getByTestId('home-timeline-list')).toContainText('@datagram@retro.social');

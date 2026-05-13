@@ -3,6 +3,11 @@
 		| 'home'
 		| 'users'
 		| 'globe'
+		| 'search'
+		| 'image'
+		| 'poll'
+		| 'smile'
+		| 'chevron-down'
 		| 'bell'
 		| 'message'
 		| 'bookmark'
@@ -31,6 +36,32 @@
 	<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
 		<circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.5" />
 		<path d="M4 12h16M12 4c2.5 3 2.5 13 0 16M12 4c-2.5 3-2.5 13 0 16" stroke="currentColor" stroke-width="1.5" />
+	</svg>
+{:else if name === 'search'}
+	<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+		<circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="1.5" />
+		<path d="m16 16 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+	</svg>
+{:else if name === 'image'}
+	<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+		<rect x="4" y="5" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.5" />
+		<circle cx="9" cy="10" r="1.5" fill="currentColor" />
+		<path d="m7 17 4-4 3 3 3-4 2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+	</svg>
+{:else if name === 'poll'}
+	<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+		<path d="M6 19V9M12 19V5M18 19v-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+	</svg>
+{:else if name === 'smile'}
+	<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+		<circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.5" />
+		<circle cx="9" cy="10" r="1" fill="currentColor" />
+		<circle cx="15" cy="10" r="1" fill="currentColor" />
+		<path d="M8.5 14c.8 1 2 1.5 3.5 1.5s2.7-.5 3.5-1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+	</svg>
+{:else if name === 'chevron-down'}
+	<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+		<path d="M7 10.5 12 15l5-4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
 	</svg>
 {:else if name === 'bell'}
 	<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
