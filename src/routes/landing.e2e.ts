@@ -27,7 +27,9 @@ test('signed-out landing explains OAuth handoff and avoids passwords', async ({ 
 	await page.goto('/');
 
 	await expect(page.getByRole('banner')).toContainText('PleromaNet');
-	await expect(page.getByRole('link', { name: 'Browse public' })).toHaveAttribute('href', '#public');
+	await expect(page.getByRole('link', { name: 'Browse public' })).toHaveAttribute('href', '/public');
+	await expect(page.getByRole('link', { name: 'Open public timeline' })).toHaveAttribute('href', '/public');
+	await expect(page.getByRole('link', { name: 'Federation log' })).toHaveAttribute('href', '/public');
 	await expect(page.getByRole('heading', { name: /A quieter corner of the social web/ })).toBeVisible();
 	await expect(page.getByText('no algorithm, no ads, no scraping')).toBeVisible();
 	await expect(page.getByText('PleromaNet never sees your password')).toBeVisible();

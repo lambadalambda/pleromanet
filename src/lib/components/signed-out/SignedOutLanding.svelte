@@ -109,7 +109,7 @@
 			</nav>
 
 			<div class="so-header-right">
-				<a href="#public" class="so-link-sm">Browse public</a>
+				<a href="/public" class="so-link-sm">Browse public</a>
 				<a href="#oauth" class="so-mini-cta">Sign in</a>
 			</div>
 		</div>
@@ -193,7 +193,7 @@
 							<TimelinePostCard {post} />
 						{/each}
 						<div class="so-peek-mask">
-							<a class="so-peek-cta" href="#oauth">Sign in to see more</a>
+							<a class="so-peek-cta" href="/public">Open public timeline</a>
 						</div>
 					</div>
 
@@ -273,7 +273,7 @@
 					<a href="#instances">Browse instances</a>
 					<a href="#manifesto">What is ActivityPub?</a>
 					<a href="#apps">Developer API</a>
-					<a href="#public">Federation log</a>
+					<a href="/public">Federation log</a>
 				</div>
 				<div id="apps">
 					<h2 class="so-foot-h">Apps</h2>
