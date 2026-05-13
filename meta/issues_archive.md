@@ -8,3 +8,4 @@
 - [x] [08 Build signed-out OAuth landing](issues/08-build-signed-out-oauth-landing.md)
 - [x] [09 Wire Pleroma API client and auth boundaries](issues/09-wire-pleroma-api-client-and-auth-boundaries.md)
 - [x] [10 Add responsive and regression test coverage](issues/10-add-responsive-and-regression-test-coverage.md)
+- [x] [11 Add reactive auth state and session lifecycle](issues/11-add-reactive-auth-state-and-session-lifecycle.md)

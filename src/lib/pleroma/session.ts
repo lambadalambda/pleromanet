@@ -48,8 +48,12 @@ export const clearPendingOAuth = (storage: PleromaStorage) => {
 	storage.removeItem(PLEROMA_PENDING_OAUTH_KEY);
 };
 
-export const storePleromaSession = (storage: PleromaStorage, session: PleromaSession) => {
+export const writePleromaSession = (storage: PleromaStorage, session: PleromaSession) => {
 	storage.setItem(PLEROMA_SESSION_KEY, JSON.stringify(session));
+};
+
+export const storePleromaSession = (storage: PleromaStorage, session: PleromaSession) => {
+	writePleromaSession(storage, session);
 	clearPendingOAuth(storage);
 };
 
@@ -73,15 +77,25 @@ export const readPleromaAuthState = (storage: PleromaStorage): PleromaAuthState 
 
 export const readSplitPleromaAuthState = ({
 	sessionStorage,
-	pendingStorage
+	pendingStorage,
+	now = Date.now()
 }: {
 	sessionStorage: PleromaStorage;
 	pendingStorage: PleromaStorage;
+	now?: number;
 }): PleromaAuthState => {
 	const session = readPleromaSession(sessionStorage);
-	if (session) return { status: 'authenticated', session };
+	if (session) {
+		try {
+			readPendingOAuth(pendingStorage, now);
+		} catch {
+			// Pending OAuth cleanup should not mask a valid persisted session.
+		}
 
-	const pending = readPendingOAuth(pendingStorage);
+		return { status: 'authenticated', session };
+	}
+
+	const pending = readPendingOAuth(pendingStorage, now);
 	if (pending) return { status: 'authenticating', pending };
 
 	return { status: 'unauthenticated' };

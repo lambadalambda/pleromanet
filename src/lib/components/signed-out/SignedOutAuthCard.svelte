@@ -1,7 +1,7 @@
 <script lang="ts">
+	import { getPleromaAuthContext } from '$lib/pleroma/auth';
 	import { normalizeInstanceUrl, toPleromaClientError } from '$lib/pleroma/http';
 	import { buildAuthorizationUrl, createOAuthState, registerOAuthApp } from '$lib/pleroma/oauth';
-	import { clearPendingOAuth, storePendingOAuth } from '$lib/pleroma/session';
 	import type { PleromaScope } from '$lib/pleroma/types';
 
 	type AuthMode = 'signin' | 'signup';
@@ -20,6 +20,7 @@
 		{ domain: 'spacebear.net', theme: 'Astronomy / Friendly', color: '#e0b97a' }
 	];
 	const oauthScopes = ['read', 'write', 'follow'] satisfies PleromaScope[];
+	const auth = getPleromaAuthContext();
 
 	let mode = $state<AuthMode>('signin');
 	let instance = $state('pleromanet.social');
@@ -69,7 +70,7 @@
 			});
 			if (attempt !== authAttempt) return;
 
-			storePendingOAuth(window.sessionStorage, {
+			auth.startOAuth({
 				instanceUrl: instanceOrigin,
 				clientId: app.clientId,
 				clientSecret: app.clientSecret,
@@ -97,7 +98,7 @@
 
 	const cancelRedirect = () => {
 		authAttempt += 1;
-		clearPendingOAuth(window.sessionStorage);
+		auth.clearPendingOAuth();
 		authorizationUrl = '';
 		authError = '';
 		isPreparingAuth = false;

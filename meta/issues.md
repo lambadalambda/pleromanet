@@ -1,4 +1,3 @@
-- [ ] [11 Add reactive auth state and session lifecycle](issues/11-add-reactive-auth-state-and-session-lifecycle.md)
 - [ ] [12 Add Pleroma UI adapters and request-state components](issues/12-add-pleroma-ui-adapters-and-request-state-components.md)
 - [ ] [13 Extract authenticated app shell into guarded real routes](issues/13-extract-authenticated-app-shell-into-guarded-real-routes.md)
 - [ ] [14 Wire public timeline read slice](issues/14-wire-public-timeline-read-slice.md)

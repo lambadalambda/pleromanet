@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { getPleromaAuthContext } from '$lib/pleroma/auth';
 	import { toPleromaClientError } from '$lib/pleroma/http';
 	import { exchangeOAuthCode, parseOAuthCallback } from '$lib/pleroma/oauth';
-	import { clearPendingOAuth, readPendingOAuth, storePleromaSession } from '$lib/pleroma/session';
 
 	type CallbackView = {
 		status: 'loading' | 'success' | 'cancelled' | 'missing' | 'error';
@@ -15,6 +15,7 @@
 		title: 'Finishing Pleroma authorization',
 		message: 'PleromaNet is exchanging the authorization code with your home server.'
 	});
+	const auth = getPleromaAuthContext();
 
 	const instanceHost = (instanceUrl: string) => {
 		try {
@@ -25,12 +26,13 @@
 	};
 
 	onMount(async () => {
+		auth.refresh();
 		const callback = parseOAuthCallback(window.location.href);
-		const pending = readPendingOAuth(window.sessionStorage);
+		const pending = auth.getPendingOAuth();
 		const pendingMatchesCallback = Boolean(pending && callback.state && callback.state === pending.state);
 
 		if (callback.status === 'error') {
-			if (!pending || pendingMatchesCallback) clearPendingOAuth(window.sessionStorage);
+			if (!pending || pendingMatchesCallback) auth.clearPendingOAuth();
 			view = {
 				status: 'cancelled',
 				title: 'Authorization was cancelled',
@@ -40,7 +42,7 @@
 		}
 
 		if (callback.status === 'missing_code') {
-			if (!pending || pendingMatchesCallback) clearPendingOAuth(window.sessionStorage);
+			if (!pending || pendingMatchesCallback) auth.clearPendingOAuth();
 			view = {
 				status: 'error',
 				title: 'Authorization code was missing',
@@ -59,7 +61,7 @@
 		}
 
 		if (callback.state !== pending.state) {
-			clearPendingOAuth(window.sessionStorage);
+			auth.clearPendingOAuth();
 			view = {
 				status: 'error',
 				title: 'Authorization state did not match',
@@ -78,14 +80,13 @@
 				fetch: window.fetch.bind(window)
 			});
 
-			storePleromaSession(window.localStorage, {
+			auth.completeOAuth({
 				instanceUrl: pending.instanceUrl,
 				accessToken: token.accessToken,
 				tokenType: token.tokenType,
 				scope: token.scope,
 				createdAt: token.createdAt ? token.createdAt * 1000 : Date.now()
 			});
-			clearPendingOAuth(window.sessionStorage);
 
 			view = {
 				status: 'success',
@@ -93,7 +94,7 @@
 				message: 'PleromaNet stored an OAuth token from your server. Passwords stay on the server that authorized you.'
 			};
 		} catch (error) {
-			clearPendingOAuth(window.sessionStorage);
+			auth.clearPendingOAuth();
 			const clientError = toPleromaClientError(error);
 			view = {
 				status: 'error',
