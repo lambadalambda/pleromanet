@@ -1,4 +1,3 @@
-- [ ] [13 Extract authenticated app shell into guarded real routes](issues/13-extract-authenticated-app-shell-into-guarded-real-routes.md)
 - [ ] [14 Wire public timeline read slice](issues/14-wire-public-timeline-read-slice.md)
 - [ ] [15 Add dockerized Pleroma integration workflow](issues/15-add-dockerized-pleroma-integration-workflow.md)
 - [ ] [16 Wire authenticated home timeline](issues/16-wire-authenticated-home-timeline.md)

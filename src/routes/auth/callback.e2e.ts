@@ -40,6 +40,7 @@ test('OAuth callback exchanges code and stores token without passwords', async (
 
 	await expect(page.getByRole('heading', { name: 'Signed in to pleroma.example' })).toBeVisible();
 	await expect(page.getByText('PleromaNet stored an OAuth token from your server.')).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Open PleromaNet' })).toHaveAttribute('href', '/app/home');
 	await expect(page.locator('input[type="password"]')).toHaveCount(0);
 
 	const session = await page.evaluate(() => window.localStorage.getItem('pleromanet.session'));

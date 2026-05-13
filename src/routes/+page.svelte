@@ -1,5 +1,14 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import SignedOutLanding from '$lib/components/signed-out/SignedOutLanding.svelte';
+	import { getPleromaAuthContext } from '$lib/pleroma/auth';
+	import { onMount } from 'svelte';
+
+	const auth = getPleromaAuthContext();
+
+	onMount(() => {
+		if (auth.refresh().status === 'authenticated') void goto('/app/home', { replaceState: true });
+	});
 </script>
 
 <svelte:head>

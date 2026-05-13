@@ -122,7 +122,7 @@
 				<span>Finishing authorization</span>
 			</div>
 		{:else if view.status === 'success'}
-			<a class="callback-action" href="/mockup">Open mockup app</a>
+			<a class="callback-action" href="/app/home">Open PleromaNet</a>
 		{:else}
 			<a class="callback-action" href="/#oauth">Return to sign in</a>
 		{/if}
