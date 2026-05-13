@@ -1,12 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-
-const expectNoHorizontalOverflow = async (page: Page) => {
-	const hasOverflow = await page.evaluate(
-		() => document.documentElement.scrollWidth > document.documentElement.clientWidth
-	);
-
-	expect(hasOverflow).toBe(false);
-};
+import { expectNoHorizontalOverflow, setViewport } from '../test/playwright';
 
 const mockOAuthAppRegistration = async (page: Page, server: string) => {
 	let body = '';
@@ -30,7 +23,7 @@ const mockOAuthAppRegistration = async (page: Page, server: string) => {
 };
 
 test('signed-out landing explains OAuth handoff and avoids passwords', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await page.goto('/');
 
 	await expect(page.getByRole('banner')).toContainText('PleromaNet');
@@ -45,7 +38,7 @@ test('signed-out landing explains OAuth handoff and avoids passwords', async ({ 
 });
 
 test('selects recent server, prepares OAuth redirect, and cancels pending auth', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	const appRegistrationBody = await mockOAuthAppRegistration(page, 'retro.social');
 	await page.goto('/');
 
@@ -86,7 +79,7 @@ test('selects recent server, prepares OAuth redirect, and cancels pending auth',
 });
 
 test('cancelled OAuth setup cannot restore pending auth after registration resolves', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	let releaseRegistration: () => void = () => {};
 	let registrationStarted: () => void = () => {};
 	const registrationRelease = new Promise<void>((resolve) => {
@@ -126,7 +119,7 @@ test('cancelled OAuth setup cannot restore pending auth after registration resol
 });
 
 test('create account flow gates redirect behind code of conduct agreement', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await mockOAuthAppRegistration(page, 'spacebear.net');
 	await page.goto('/');
 
@@ -149,7 +142,7 @@ test('create account flow gates redirect behind code of conduct agreement', asyn
 });
 
 test('signed-out landing remains usable on mobile', async ({ page }) => {
-	await page.setViewportSize({ width: 390, height: 844 });
+	await setViewport(page, 'mobile');
 	await page.goto('/');
 
 	await expect(page.getByRole('heading', { name: /A quieter corner of the social web/ })).toBeVisible();

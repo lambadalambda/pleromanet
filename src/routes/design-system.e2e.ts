@@ -1,15 +1,8 @@
-import { expect, test, type Page } from '@playwright/test';
-
-const expectNoHorizontalOverflow = async (page: Page) => {
-	const hasOverflow = await page.evaluate(
-		() => document.documentElement.scrollWidth > document.documentElement.clientWidth
-	);
-
-	expect(hasOverflow).toBe(false);
-};
+import { expect, test } from '@playwright/test';
+import { expectNoHorizontalOverflow, setViewport } from '../test/playwright';
 
 test('shows core design primitives and switches themes', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await page.goto('/design-system');
 
 	await expect(page.getByRole('heading', { name: 'Design System' })).toBeVisible();
@@ -43,7 +36,7 @@ test('shows core design primitives and switches themes', async ({ page }) => {
 });
 
 test('keeps design primitives usable on mobile', async ({ page }) => {
-	await page.setViewportSize({ width: 390, height: 844 });
+	await setViewport(page, 'mobile');
 	await page.goto('/design-system');
 
 	await expect(page.getByRole('heading', { name: 'Design System' })).toBeVisible();

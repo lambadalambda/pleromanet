@@ -1,15 +1,8 @@
-import { expect, test, type Page } from '@playwright/test';
-
-const expectNoHorizontalOverflow = async (page: Page) => {
-	const hasOverflow = await page.evaluate(
-		() => document.documentElement.scrollWidth > document.documentElement.clientWidth
-	);
-
-	expect(hasOverflow).toBe(false);
-};
+import { expect, test } from '@playwright/test';
+import { expectElementIsTruncatedWithinParent, expectNoHorizontalOverflow, setViewport, viewports } from '../test/playwright';
 
 test('composer starts empty, posts text, and prepends the new post', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await page.goto('/mockup');
 
 	const composer = page.getByRole('textbox', { name: 'Post text' });
@@ -30,7 +23,7 @@ test('composer starts empty, posts text, and prepends the new post', async ({ pa
 });
 
 test('post actions update reply, boost, and favorite state locally', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await page.goto('/mockup');
 
 	const post = page.getByTestId('timeline-post').filter({ hasText: 'quiet CSS can still be expressive' });
@@ -58,7 +51,7 @@ test('post actions update reply, boost, and favorite state locally', async ({ pa
 });
 
 test('right rail cards render and suggestion handles do not overflow', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await page.goto('/mockup');
 
 	await expect(page.getByTestId('right-rail')).toContainText('Trends');
@@ -69,24 +62,15 @@ test('right rail cards render and suggestion handles do not overflow', async ({ 
 	const longHandle = page
 		.getByTestId('suggestion-handle')
 		.filter({ hasText: '@datagram@a-very-long-retro-instance-name.social' });
-	const handleBox = await longHandle.boundingBox();
-	const parentBox = await longHandle.locator('..').boundingBox();
-	const isActuallyTruncated = await longHandle.evaluate(
-		(element) => element.scrollWidth > element.clientWidth
-	);
-
-	expect(handleBox).not.toBeNull();
-	expect(parentBox).not.toBeNull();
-	expect(handleBox!.width).toBeLessThanOrEqual(parentBox!.width + 1);
-	expect(isActuallyTruncated).toBe(true);
+	await expectElementIsTruncatedWithinParent(longHandle);
 	await expectNoHorizontalOverflow(page);
 });
 
 test('composer toolbar and post button remain usable across viewport sizes', async ({ page }) => {
 	for (const viewport of [
-		{ width: 1280, height: 900 },
-		{ width: 900, height: 760 },
-		{ width: 390, height: 844 }
+		viewports.desktop,
+		viewports.tablet,
+		viewports.mobile
 	]) {
 		await page.setViewportSize(viewport);
 		await page.goto('/mockup');

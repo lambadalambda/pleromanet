@@ -1,15 +1,8 @@
-import { expect, test, type Page } from '@playwright/test';
-
-const expectNoHorizontalOverflow = async (page: Page) => {
-	const hasOverflow = await page.evaluate(
-		() => document.documentElement.scrollWidth > document.documentElement.clientWidth
-	);
-
-	expect(hasOverflow).toBe(false);
-};
+import { expect, test } from '@playwright/test';
+import { expectNoHorizontalOverflow, setViewport } from '../test/playwright';
 
 test('renders the authenticated desktop shell', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await page.goto('/mockup');
 
 	await expect(page.getByTestId('app-header')).toBeVisible();
@@ -30,20 +23,20 @@ test('renders the authenticated desktop shell', async ({ page }) => {
 });
 
 test('right rail changes by view and hides on medium widths', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await page.goto('/mockup');
 
 	await expect(page.getByTestId('right-rail')).toContainText('Trends & Activity');
 	await page.getByRole('button', { name: 'Explore' }).first().click();
 	await expect(page.getByTestId('right-rail')).toContainText('Discover');
 
-	await page.setViewportSize({ width: 1000, height: 800 });
+	await setViewport(page, 'medium');
 	await expect(page.getByTestId('right-rail')).toBeHidden();
 	await expectNoHorizontalOverflow(page);
 });
 
 test('user menu supports theme switching and keyboard dismissal', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await page.goto('/mockup');
 
 	await page.getByRole('button', { name: 'dreambyte account menu' }).click();
@@ -56,7 +49,7 @@ test('user menu supports theme switching and keyboard dismissal', async ({ page 
 });
 
 test('mobile shell opens drawer, sheet, and bottom navigation without overflow', async ({ page }) => {
-	await page.setViewportSize({ width: 390, height: 844 });
+	await setViewport(page, 'mobile');
 	await page.goto('/mockup');
 
 	await expect(page.getByTestId('mobile-bottom-nav')).toBeVisible();

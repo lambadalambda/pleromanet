@@ -1,20 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
+import { expectNoHorizontalOverflow, setViewport } from '../test/playwright';
 
 const openExplore = async (page: Page) => {
 	await page.goto('/mockup');
 	await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Explore' }).click();
 };
 
-const expectNoHorizontalOverflow = async (page: Page) => {
-	const hasOverflow = await page.evaluate(
-		() => document.documentElement.scrollWidth > document.documentElement.clientWidth
-	);
-
-	expect(hasOverflow).toBe(false);
-};
-
 test('renders explore search, suggested tags, topics, and communities', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await openExplore(page);
 
 	await expect(page.getByRole('heading', { name: 'Explore the network' })).toBeVisible();
@@ -30,7 +23,7 @@ test('renders explore search, suggested tags, topics, and communities', async ({
 });
 
 test('switches discover feed tabs', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await openExplore(page);
 
 	const feedTabs = page.getByRole('tablist', { name: 'Discover feed' });
@@ -47,7 +40,7 @@ test('switches discover feed tabs', async ({ page }) => {
 });
 
 test('community join buttons retain local joined state', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await openExplore(page);
 
 	const community = page.getByTestId('explore-community-card').filter({ hasText: 'Federated CSS Garden' });
@@ -59,7 +52,7 @@ test('community join buttons retain local joined state', async ({ page }) => {
 });
 
 test('explore layout stacks cleanly on mobile', async ({ page }) => {
-	await page.setViewportSize({ width: 390, height: 844 });
+	await setViewport(page, 'mobile');
 	await page.goto('/mockup');
 
 	await page.getByTestId('mobile-bottom-nav').getByRole('button', { name: 'Explore' }).click();

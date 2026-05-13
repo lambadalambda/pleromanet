@@ -1,20 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
+import { expectNoHorizontalOverflow, setViewport } from '../test/playwright';
 
 const openSettings = async (page: Page) => {
 	await page.goto('/mockup');
 	await page.getByTestId('left-sidebar').getByRole('button', { name: 'Settings' }).click();
 };
 
-const expectNoHorizontalOverflow = async (page: Page) => {
-	const hasOverflow = await page.evaluate(
-		() => document.documentElement.scrollWidth > document.documentElement.clientWidth
-	);
-
-	expect(hasOverflow).toBe(false);
-};
-
 test('edits profile fields, tracks dirty state, saves, and resets', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await openSettings(page);
 
 	await expect(page.getByRole('heading', { name: 'Profile settings' })).toBeVisible();
@@ -46,7 +39,7 @@ test('edits profile fields, tracks dirty state, saves, and resets', async ({ pag
 });
 
 test('toggles profile visibility settings', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await openSettings(page);
 
 	const discoverable = page.getByRole('switch', { name: 'Discoverable profile' });
@@ -68,7 +61,7 @@ test('toggles profile visibility settings', async ({ page }) => {
 });
 
 test('profile settings stay touch-friendly on mobile', async ({ page }) => {
-	await page.setViewportSize({ width: 390, height: 844 });
+	await setViewport(page, 'mobile');
 	await page.goto('/mockup');
 
 	await page.getByTestId('mobile-bottom-nav').getByRole('button', { name: 'Settings' }).click();

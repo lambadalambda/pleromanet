@@ -1,12 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-
-const expectNoHorizontalOverflow = async (page: Page) => {
-	const hasOverflow = await page.evaluate(
-		() => document.documentElement.scrollWidth > document.documentElement.clientWidth
-	);
-
-	expect(hasOverflow).toBe(false);
-};
+import { expectNoHorizontalOverflow, setViewport } from '../test/playwright';
 
 const softCssPost = (page: Page) =>
 	page
@@ -28,7 +21,7 @@ const openSoftCssThread = async (page: Page) => {
 };
 
 test('opens a thread from the home timeline and returns to the timeline', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await openSoftCssThread(page);
 
 	await expect(page.getByTestId('thread-view')).toBeVisible();
@@ -42,7 +35,7 @@ test('opens a thread from the home timeline and returns to the timeline', async 
 });
 
 test('shows ancestors, focused metadata, reply composer, and reply count', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await openSoftCssThread(page);
 
 	await expect(page.getByTestId('thread-ancestor')).toContainText('gridwave');
@@ -63,7 +56,7 @@ test('shows ancestors, focused metadata, reply composer, and reply count', async
 });
 
 test('thread reply actions update local state', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await openSoftCssThread(page);
 
 	const reply = page
@@ -80,7 +73,7 @@ test('thread reply actions update local state', async ({ page }) => {
 });
 
 test('thread reply state stays isolated between opened posts', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await openSoftCssThread(page);
 
 	await page.getByRole('textbox', { name: 'Reply text' }).fill('soft thread only reply');
@@ -96,7 +89,7 @@ test('thread reply state stays isolated between opened posts', async ({ page }) 
 });
 
 test('thread reply sort changes selected state and order', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await openSoftCssThread(page);
 
 	const replies = page.getByTestId('thread-reply');
@@ -110,7 +103,7 @@ test('thread reply sort changes selected state and order', async ({ page }) => {
 });
 
 test('opens expandable nested replies', async ({ page }) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await setViewport(page, 'desktop');
 	await openSoftCssThread(page);
 
 	await expect(page.getByText('around the time the algorithm replaced the timeline.')).toBeHidden();
@@ -119,7 +112,7 @@ test('opens expandable nested replies', async ({ page }) => {
 });
 
 test('thread layout remains readable on mobile without horizontal overflow', async ({ page }) => {
-	await page.setViewportSize({ width: 390, height: 844 });
+	await setViewport(page, 'mobile');
 	await openSoftCssThread(page);
 
 	await expect(page.getByTestId('thread-view')).toBeVisible();
