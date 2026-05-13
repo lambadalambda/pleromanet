@@ -12,3 +12,4 @@
 - [x] [12 Add Pleroma UI adapters and request-state components](issues/12-add-pleroma-ui-adapters-and-request-state-components.md)
 - [x] [13 Extract authenticated app shell into guarded real routes](issues/13-extract-authenticated-app-shell-into-guarded-real-routes.md)
 - [x] [14 Wire public timeline read slice](issues/14-wire-public-timeline-read-slice.md)
+- [x] [15 Add dockerized Pleroma integration workflow](issues/15-add-dockerized-pleroma-integration-workflow.md)

@@ -1,4 +1,4 @@
-- [ ] [15 Add dockerized Pleroma integration workflow](issues/15-add-dockerized-pleroma-integration-workflow.md)
+
 - [ ] [16 Wire authenticated home timeline](issues/16-wire-authenticated-home-timeline.md)
 - [ ] [17 Add cursor-based timeline pagination](issues/17-add-cursor-based-timeline-pagination.md)
 - [ ] [18 Add new-posts timeline indicator](issues/18-add-new-posts-timeline-indicator.md)

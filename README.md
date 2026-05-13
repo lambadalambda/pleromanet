@@ -71,6 +71,14 @@ mise run build
 
 Dockerized integration tests against an ephemeral Pleroma backend will be added later and kept behind explicit mise tasks.
 
+Dockerized integration tests are opt-in:
+
+```sh
+mise run test:integration
+```
+
+See `docs/integration.md` for backend version, debugging, and cleanup details.
+
 ## Building
 
 To create a production version of your app:
