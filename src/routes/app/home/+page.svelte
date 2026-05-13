@@ -1,50 +1,77 @@
 <script lang="ts">
-	import { appTimelinePosts } from '$lib/app/fixtures';
+	import { goto } from '$app/navigation';
+	import RequestState from '$lib/components/RequestState.svelte';
 	import TimelinePostCard from '$lib/components/TimelinePostCard.svelte';
+	import { getPleromaAuthContext } from '$lib/pleroma/auth';
+	import { createPleromaClient } from '$lib/pleroma/client';
+	import { adaptPleromaStatuses, normalizePleromaRequestError, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { onMount } from 'svelte';
+
+	const auth = getPleromaAuthContext();
+
+	let timelineState = $state<PleromaRequestState<PleromaStatusView[]>>({ status: 'loading' });
+	let loadVersion = 0;
+	const posts = $derived(timelineState.status === 'success' ? timelineState.data : []);
+
+	const loadTimeline = async () => {
+		const version = loadVersion + 1;
+		loadVersion = version;
+		timelineState = { status: 'loading' };
+
+		const authState = auth.refresh();
+		if (authState.status !== 'authenticated') {
+			timelineState = { status: 'idle' };
+			void goto('/');
+			return;
+		}
+
+		try {
+			const client = createPleromaClient({ instanceUrl: authState.session.instanceUrl, accessToken: authState.session.accessToken, fetch: window.fetch.bind(window) });
+			const statuses = await client.getHomeTimeline({ limit: 20 });
+			if (version !== loadVersion) return;
+			const adapted = adaptPleromaStatuses(statuses, { timelines: ['home'] });
+			timelineState = adapted.length > 0 ? { status: 'success', data: adapted } : { status: 'empty' };
+		} catch (error) {
+			if (version !== loadVersion) return;
+			const failure = auth.handleAuthFailure(error);
+			if (failure.handled) {
+				void goto(failure.redirectTo, { replaceState: true });
+				return;
+			}
+
+			timelineState = { status: 'error', error: normalizePleromaRequestError(error) };
+		}
+	};
+
+	onMount(() => {
+		void loadTimeline();
+	});
 </script>
 
 <svelte:head><title>PleromaNet · Home</title></svelte:head>
 
-<section class="pn-card app-view-card" aria-labelledby="home-title">
-	<div class="app-view-head">
-		<div>
-			<p class="pn-kicker">Authenticated route</p>
-			<h1 id="home-title">Home timeline</h1>
+<div class="home-view" data-testid="home-timeline">
+	<h1 data-testid="app-content-heading" class="pn-title">Home timeline</h1>
+	<RequestState
+		state={timelineState}
+		emptyTitle="No posts yet"
+		emptyMessage="Your home timeline is empty. Follow accounts to see posts here."
+		onRetry={() => loadTimeline()}
+	>
+		<div class="timeline-list" data-testid="home-timeline-list">
+			{#each posts as post (post.timelineItemId)}
+				<TimelinePostCard {post} />
+			{/each}
 		</div>
-		<span class="pn-pill">Fixture-backed</span>
-	</div>
-	<div class="timeline-list">
-		{#each appTimelinePosts as post (post.timelineItemId)}
-			<TimelinePostCard {post} />
-		{/each}
-	</div>
-</section>
+	</RequestState>
+</div>
 
 <style>
-	.app-view-card {
-		box-shadow: none;
+	.home-view {
+		overflow: hidden;
 	}
 
-	.app-view-head {
-		display: flex;
-		align-items: start;
-		justify-content: space-between;
-		gap: 16px;
-		border-bottom: 1px solid var(--border);
-		padding: 18px 16px;
-	}
-
-	.app-view-head h1,
-	.app-view-head p {
-		margin: 0;
-	}
-
-	.app-view-head h1 {
-		margin-top: 4px;
-		font-family: var(--serif);
-		font-size: clamp(2rem, 6vw, 3.8rem);
-		font-weight: 500;
-		letter-spacing: -0.04em;
-		line-height: 0.95;
+	.timeline-list {
+		display: grid;
 	}
 </style>

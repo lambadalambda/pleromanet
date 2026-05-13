@@ -1,5 +1,4 @@
 
-- [ ] [16 Wire authenticated home timeline](issues/16-wire-authenticated-home-timeline.md)
 - [ ] [17 Add cursor-based timeline pagination](issues/17-add-cursor-based-timeline-pagination.md)
 - [ ] [18 Add new-posts timeline indicator](issues/18-add-new-posts-timeline-indicator.md)
 - [ ] [19 Wire status creation and composer](issues/19-wire-status-creation-and-composer.md)

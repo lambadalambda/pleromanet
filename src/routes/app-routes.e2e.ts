@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Route } from '@playwright/test';
+import { pleromaFixtures } from '../lib/pleroma/fixtures';
 import { expectNoHorizontalOverflow, setViewport, viewports } from '../test/playwright';
 
 const session = {
@@ -15,6 +16,17 @@ const authenticate = async (page: Page) => {
 	}, session);
 };
 
+const mockHomeTimeline = async (page: Page) => {
+	const homeUrl = 'https://pleroma.example/api/v1/timelines/home**';
+	await page.route(homeUrl, async (route: Route) => {
+		await route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify(pleromaFixtures.timelines.home)
+		});
+	});
+};
+
 test('signed-out users are redirected away from authenticated app routes', async ({ page }) => {
 	await setViewport(page, 'desktop');
 	await page.goto('/app/home');
@@ -25,6 +37,7 @@ test('signed-out users are redirected away from authenticated app routes', async
 
 test('authenticated users are redirected from the landing page into the real app', async ({ page }) => {
 	await authenticate(page);
+	await mockHomeTimeline(page);
 	await setViewport(page, 'desktop');
 	await page.goto('/');
 
@@ -35,6 +48,7 @@ test('authenticated users are redirected from the landing page into the real app
 
 test('real app routes render shell, deep links, and browser history', async ({ page }) => {
 	await authenticate(page);
+	await mockHomeTimeline(page);
 	await setViewport(page, 'desktop');
 	await page.goto('/app/home');
 
@@ -65,6 +79,7 @@ test('real app routes render shell, deep links, and browser history', async ({ p
 
 test('app route guard revalidates when session disappears during client navigation', async ({ page }) => {
 	await authenticate(page);
+	await mockHomeTimeline(page);
 	await setViewport(page, 'desktop');
 	await page.goto('/app/home');
 	await expect(page.getByTestId('app-header')).toBeVisible();
@@ -99,6 +114,7 @@ test('timeline, thread, profile, notification, and placeholder routes deep link 
 
 test('real app shell stays responsive across desktop, medium, tablet, and mobile', async ({ page }) => {
 	await authenticate(page);
+	await mockHomeTimeline(page);
 
 	for (const [name, viewport] of Object.entries(viewports)) {
 		await page.setViewportSize(viewport);
@@ -122,6 +138,7 @@ test('real app shell stays responsive across desktop, medium, tablet, and mobile
 
 test('mobile real app shell opens drawer and details sheet', async ({ page }) => {
 	await authenticate(page);
+	await mockHomeTimeline(page);
 	await setViewport(page, 'mobile');
 	await page.goto('/app/home');
 
