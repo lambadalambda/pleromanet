@@ -9,3 +9,4 @@
 - [x] [09 Wire Pleroma API client and auth boundaries](issues/09-wire-pleroma-api-client-and-auth-boundaries.md)
 - [x] [10 Add responsive and regression test coverage](issues/10-add-responsive-and-regression-test-coverage.md)
 - [x] [11 Add reactive auth state and session lifecycle](issues/11-add-reactive-auth-state-and-session-lifecycle.md)
+- [x] [12 Add Pleroma UI adapters and request-state components](issues/12-add-pleroma-ui-adapters-and-request-state-components.md)

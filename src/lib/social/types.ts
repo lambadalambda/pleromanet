@@ -7,6 +7,8 @@ export type ActionState = Record<PostAction, boolean>;
 
 export type SocialPost = {
 	id: string;
+	actionStatusId?: string;
+	threadStatusId?: string;
 	name: string;
 	handle: string;
 	time: string;

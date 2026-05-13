@@ -1,0 +1,292 @@
+import type { AvatarVariant, TimelinePost, TimelineView } from '$lib/social/types';
+import { isPleromaClientError } from './http';
+import type { PleromaAccount, PleromaStatus } from './types';
+
+export type PleromaAccountView = {
+	id: string;
+	username: string;
+	displayName: string;
+	acct: string;
+	handle: string;
+	url: string;
+	avatarUrl: string | null;
+	faviconUrl: string | null;
+	isAdmin: boolean;
+	isModerator: boolean;
+	tags: string[];
+};
+
+export type PleromaMediaAttachmentView = {
+	id: string;
+	type: string;
+	url: string;
+	previewUrl: string | null;
+	description: string | null;
+};
+
+export type PleromaStatusView = TimelinePost & {
+	actionStatusId: string;
+	threadStatusId: string;
+	timelineItemId: string;
+	originalStatusId: string;
+	url: string;
+	uri: string;
+	account: PleromaAccountView;
+	contentHtml: string;
+	contentText: string;
+	spoilerText: string;
+	hasContentWarning: boolean;
+	mediaHidden: boolean;
+	mediaAttachments: PleromaMediaAttachmentView[];
+	rebloggedBy?: PleromaAccountView;
+	pleroma: {
+		conversationId?: number;
+		local?: boolean;
+		plainText?: string;
+	};
+};
+
+export type PleromaRequestErrorKind = 'auth-required' | 'rate-limited' | 'server' | 'network' | 'request';
+
+export type PleromaRequestErrorView = {
+	kind: PleromaRequestErrorKind;
+	title: string;
+	message: string;
+	retryable: boolean;
+	reauthRequired: boolean;
+	status?: number;
+	path?: string;
+};
+
+export type PleromaRequestState<Data> =
+	| { status: 'idle' }
+	| { status: 'loading' }
+	| { status: 'empty' }
+	| { status: 'error'; error: PleromaRequestErrorView }
+	| { status: 'success'; data: Data };
+
+export type AdaptPleromaStatusOptions = {
+	timelines?: TimelineView[];
+};
+
+const htmlEntities: Record<string, string> = {
+	amp: '&',
+	gt: '>',
+	lt: '<',
+	quot: '"',
+	apos: "'",
+	nbsp: ' '
+};
+
+const displayName = (account: PleromaAccount) => account.display_name.trim() || account.username || account.acct;
+
+const handle = (acct: string) => `@${acct.replace(/^@/, '')}`;
+
+const decodeHtmlEntities = (value: string) =>
+	value.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity, code: string) => {
+		const normalized = code.toLowerCase();
+		if (normalized.startsWith('#x') || normalized.startsWith('#')) {
+			const codePoint = Number.parseInt(normalized.startsWith('#x') ? normalized.slice(2) : normalized.slice(1), normalized.startsWith('#x') ? 16 : 10);
+			return Number.isFinite(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : entity;
+		}
+
+		return htmlEntities[normalized] ?? entity;
+	});
+
+export const htmlToPlainText = (html: string) => {
+	const withBreaks = html
+		.replace(/<br\s*\/?>/gi, '\n')
+		.replace(/<\/p>\s*<p[^>]*>/gi, '\n\n')
+		.replace(/<\/(div|li|blockquote|p)>/gi, '\n')
+		.replace(/<li[^>]*>/gi, '- ');
+	const stripped = withBreaks.replace(/<[^>]+>/g, '');
+
+	return decodeHtmlEntities(stripped)
+		.split('\n')
+		.map((line) => line.replace(/[\t ]+/g, ' ').trim())
+		.join('\n')
+		.replace(/\n{3,}/g, '\n\n')
+		.trim();
+};
+
+const plainTextContent = (status: PleromaStatus) => {
+	const plainText = status.pleroma.content?.['text/plain'];
+	if (plainText?.trim()) return plainText.trim();
+
+	return htmlToPlainText(status.content);
+};
+
+const spoilerText = (status: PleromaStatus) => {
+	const plainText = status.pleroma.spoiler_text?.['text/plain'];
+	if (plainText?.trim()) return plainText.trim();
+
+	return htmlToPlainText(status.spoiler_text ?? '');
+};
+
+const formatStatusDate = (createdAt: string) => {
+	const date = new Date(createdAt);
+	if (Number.isNaN(date.getTime())) return '';
+
+	return new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(date);
+};
+
+const avatarUrl = (account: PleromaAccount) => account.avatar || account.avatar_static || null;
+
+const avatarVariant = (account: PleromaAccount): AvatarVariant => (avatarUrl(account) ? 'orb' : 'grad-2');
+
+const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object');
+
+const stringValue = (value: unknown) => (typeof value === 'string' && value.trim() ? value : null);
+
+const adaptMediaAttachment = (attachment: unknown, index: number): PleromaMediaAttachmentView | null => {
+	if (!isRecord(attachment)) return null;
+
+	const url = stringValue(attachment.url) ?? stringValue(attachment.remote_url);
+	if (!url) return null;
+
+	return {
+		id: stringValue(attachment.id) ?? `media-${index + 1}`,
+		type: stringValue(attachment.type) ?? 'unknown',
+		url,
+		previewUrl: stringValue(attachment.preview_url) ?? stringValue(attachment.previewUrl),
+		description: stringValue(attachment.description)
+	};
+};
+
+const timelineMembership = (status: PleromaStatus, options: AdaptPleromaStatusOptions): TimelineView[] => {
+	if (options.timelines) return options.timelines;
+	if (typeof status.pleroma.local !== 'boolean') return [];
+
+	return [status.pleroma.local ? 'local' : 'federated'];
+};
+
+const countBeforeViewerAction = (count: number, active: boolean) => Math.max(0, count - (active ? 1 : 0));
+
+export const adaptPleromaAccount = (account: PleromaAccount): PleromaAccountView => ({
+	id: account.id,
+	username: account.username,
+	displayName: displayName(account),
+	acct: account.acct,
+	handle: handle(account.acct),
+	url: account.url,
+	avatarUrl: avatarUrl(account),
+	faviconUrl: account.pleroma.favicon ?? null,
+	isAdmin: account.pleroma.is_admin ?? false,
+	isModerator: account.pleroma.is_moderator ?? false,
+	tags: account.pleroma.tags ?? []
+});
+
+export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaStatusOptions = {}): PleromaStatusView => {
+	const source = status.reblog ?? status;
+	const account = adaptPleromaAccount(source.account);
+	const mediaAttachments = source.media_attachments.map(adaptMediaAttachment).filter((attachment) => attachment !== null);
+	const warning = spoilerText(source);
+	const plainText = plainTextContent(source);
+	const mediaHidden = mediaAttachments.length > 0 && Boolean(warning || source.sensitive);
+
+	return {
+		id: status.id,
+		actionStatusId: source.id,
+		threadStatusId: source.id,
+		timelineItemId: status.id,
+		originalStatusId: source.id,
+		timelines: timelineMembership(source, options),
+		name: account.displayName,
+		handle: account.handle,
+		time: formatStatusDate(source.created_at),
+		body: warning ? `Content warning: ${warning}` : plainText,
+		avatar: avatarVariant(source.account),
+		media: mediaAttachments.length > 0 && !mediaHidden ? 'city' : undefined,
+		replies: source.replies_count,
+		boosts: countBeforeViewerAction(source.reblogs_count, source.reblogged),
+		favorites: countBeforeViewerAction(source.favourites_count, source.favourited),
+		actions: { reply: false, boost: source.reblogged, favorite: source.favourited },
+		url: source.url,
+		uri: source.uri,
+		account,
+		contentHtml: source.content,
+		contentText: plainText,
+		spoilerText: warning,
+		hasContentWarning: Boolean(warning),
+		mediaHidden,
+		mediaAttachments,
+		rebloggedBy: status.reblog ? adaptPleromaAccount(status.account) : undefined,
+		pleroma: {
+			conversationId: source.pleroma.conversation_id,
+			local: source.pleroma.local,
+			plainText: source.pleroma.content?.['text/plain']
+		}
+	};
+};
+
+export const adaptPleromaStatuses = (statuses: PleromaStatus[], options: AdaptPleromaStatusOptions = {}) =>
+	statuses.map((status) => adaptPleromaStatus(status, options));
+
+export const normalizePleromaRequestError = (error: unknown): PleromaRequestErrorView => {
+	if (!isPleromaClientError(error)) {
+		return {
+			kind: 'request',
+			title: 'Request failed',
+			message: error instanceof Error ? error.message : 'PleromaNet could not complete this request.',
+			retryable: true,
+			reauthRequired: false
+		};
+	}
+
+	if (error.kind === 'unauthenticated' || (error.kind === 'http' && (error.status === 401 || error.status === 403))) {
+		return {
+			kind: 'auth-required',
+			title: 'Re-authentication required',
+			message: error.message || 'Your Pleroma session needs to be authorized again.',
+			retryable: false,
+			reauthRequired: true,
+			path: error.path,
+			status: error.kind === 'http' ? error.status : undefined
+		};
+	}
+
+	if (error.kind === 'network') {
+		return {
+			kind: 'network',
+			title: 'Network connection failed',
+			message: error.message,
+			retryable: true,
+			reauthRequired: false,
+			path: error.path
+		};
+	}
+
+	if (error.status === 429) {
+		return {
+			kind: 'rate-limited',
+			title: 'Rate limit reached',
+			message: error.message,
+			retryable: true,
+			reauthRequired: false,
+			path: error.path,
+			status: error.status
+		};
+	}
+
+	if (error.status >= 500) {
+		return {
+			kind: 'server',
+			title: 'Pleroma server error',
+			message: error.message,
+			retryable: true,
+			reauthRequired: false,
+			path: error.path,
+			status: error.status
+		};
+	}
+
+	return {
+		kind: 'request',
+		title: 'Pleroma request failed',
+		message: error.message,
+		retryable: false,
+		reauthRequired: false,
+		path: error.path,
+		status: error.status
+	};
+};

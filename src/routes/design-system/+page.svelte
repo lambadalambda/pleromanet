@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import Composer from '$lib/components/Composer.svelte';
+	import RequestState from '$lib/components/RequestState.svelte';
 	import TimelinePostCard from '$lib/components/TimelinePostCard.svelte';
+	import { pleromaFixtures } from '$lib/pleroma/fixtures';
+	import { adaptPleromaStatus, normalizePleromaRequestError, type PleromaRequestState } from '$lib/pleroma/ui';
 	import type { PostAction, TimelinePost } from '$lib/social/types';
 	import { onMount } from 'svelte';
 
@@ -14,6 +17,7 @@
 		{ id: 'simoun', label: 'Simoun' }
 	];
 	const privacyOptions = ['Public', 'Unlisted', 'Followers'] as const;
+	const adaptedFixturePost = adaptPleromaStatus(pleromaFixtures.status);
 	let componentComposerText = $state('component seams make real data easier to wire.');
 	let componentPrivacy = $state<(typeof privacyOptions)[number]>('Public');
 	let componentPrivacyMenuOpen = $state(false);
@@ -33,6 +37,9 @@
 	});
 
 	let theme = $state<Theme>('cream');
+	let retryCount = $state(0);
+	let requestState = $state<PleromaRequestState<typeof adaptedFixturePost>>({ status: 'success', data: adaptedFixturePost });
+	const requestStatePost = $derived(requestState.status === 'success' ? requestState.data : adaptedFixturePost);
 
 	const isTheme = (value: string | null): value is Theme =>
 		value === 'cream' || value === 'dusk' || value === 'drive' || value === 'simoun';
@@ -48,6 +55,27 @@
 	};
 	const clearComponentComposer = () => {
 		componentComposerText = '';
+	};
+	const showLoadingRequestState = () => {
+		requestState = { status: 'loading' };
+	};
+	const showEmptyRequestState = () => {
+		requestState = { status: 'empty' };
+	};
+	const showRetryableErrorState = () => {
+		requestState = {
+			status: 'error',
+			error: normalizePleromaRequestError({ kind: 'network', path: '/api/v1/timelines/home', message: 'offline', cause: null })
+		};
+	};
+	const showAuthRequiredState = () => {
+		requestState = { status: 'error', error: normalizePleromaRequestError({ kind: 'unauthenticated', message: 'OAuth token required' }) };
+	};
+	const showSuccessRequestState = () => {
+		requestState = { status: 'success', data: adaptedFixturePost };
+	};
+	const retryRequestState = () => {
+		retryCount += 1;
 	};
 
 	onMount(() => {
@@ -209,6 +237,39 @@
 				</div>
 				<TimelinePostCard post={componentPost} onAction={toggleComponentPostAction} />
 			</article>
+
+			<article class="pn-card" data-testid="primitive-pleroma-fixture">
+				<div class="pn-card__head">
+					<span class="pn-label">Pleroma fixture adapter</span>
+					<span class="pn-pill">Typed API data</span>
+				</div>
+				<TimelinePostCard post={adaptedFixturePost} testId="fixture-adapted-post" />
+			</article>
+
+			<article class="pn-card request-state-card" data-testid="primitive-request-state">
+				<div class="pn-card__head">
+					<span class="pn-label">Request states</span>
+					<span class="pn-pill">Retry count {retryCount}</span>
+				</div>
+				<div class="request-state-controls" aria-label="Request state demos">
+					<button class="pn-button pn-button--ghost" type="button" onclick={showLoadingRequestState}>Show loading</button>
+					<button class="pn-button pn-button--ghost" type="button" onclick={showEmptyRequestState}>Show empty</button>
+					<button class="pn-button pn-button--ghost" type="button" onclick={showRetryableErrorState}>Show retryable error</button>
+					<button class="pn-button pn-button--ghost" type="button" onclick={showAuthRequiredState}>Show auth required</button>
+					<button class="pn-button pn-button--ghost" type="button" onclick={showSuccessRequestState}>Show success</button>
+				</div>
+				<div class="pn-card__body">
+					<RequestState
+						state={requestState}
+						emptyTitle="No statuses yet"
+						emptyMessage="This fixture-backed timeline returned no posts."
+						onRetry={retryRequestState}
+					>
+						<p class="request-state-success-copy">Adapted fixture content loaded</p>
+						<TimelinePostCard post={requestStatePost} testId="request-state-success-post" />
+					</RequestState>
+				</div>
+			</article>
 		</section>
 	</div>
 </main>
@@ -264,6 +325,25 @@
 		min-width: 0;
 	}
 
+	.request-state-card {
+		grid-column: span 2;
+	}
+
+	.request-state-controls {
+		display: flex;
+		gap: 8px;
+		flex-wrap: wrap;
+		border-bottom: 1px solid var(--border);
+		padding: 12px 16px;
+	}
+
+	.request-state-success-copy {
+		margin: 0;
+		padding: 14px 16px 0;
+		color: var(--accent-ink);
+		font-weight: 700;
+	}
+
 	.profile-name {
 		font-family: var(--serif);
 		font-size: 1.55rem;
@@ -285,6 +365,10 @@
 	@media (max-width: 980px) {
 		.primitive-grid {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		.request-state-card {
+			grid-column: auto;
 		}
 	}
 

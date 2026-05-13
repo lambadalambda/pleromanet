@@ -11,6 +11,8 @@
 	};
 
 	let { post, onAction, onOpenThread, testId = 'timeline-post' }: Props = $props();
+	const actionStatusId = $derived(post.actionStatusId ?? post.id);
+	const threadStatusId = $derived(post.threadStatusId ?? post.id);
 
 	const actionCount = (action: PostAction) => {
 		const base = action === 'reply' ? post.replies : action === 'boost' ? post.boosts : post.favorites;
@@ -33,7 +35,7 @@
 				class="post-body post-body-button"
 				type="button"
 				aria-describedby={`thread-link-${post.id}`}
-				onclick={() => onOpenThread?.(post.id)}
+				onclick={() => onOpenThread?.(threadStatusId)}
 			>
 				{post.body}
 				<span id={`thread-link-${post.id}`} class="sr-only">Open thread</span>
@@ -51,7 +53,7 @@
 				type="button"
 				aria-label={`Reply ${actionCount('reply')}`}
 				aria-pressed={post.actions.reply}
-				onclick={() => onAction?.(post.id, 'reply')}
+				onclick={() => onAction?.(actionStatusId, 'reply')}
 			>
 				<span class="post-action-icon" data-testid="post-action-reply-icon"><PnIcon name="reply" /></span>
 				<span>{actionCount('reply')}</span>
@@ -62,7 +64,7 @@
 				type="button"
 				aria-label={`Boost ${actionCount('boost')}`}
 				aria-pressed={post.actions.boost}
-				onclick={() => onAction?.(post.id, 'boost')}
+				onclick={() => onAction?.(actionStatusId, 'boost')}
 			>
 				<span class="post-action-icon" data-testid="post-action-boost-icon"><PnIcon name="boost" /></span>
 				<span>{actionCount('boost')}</span>
@@ -73,7 +75,7 @@
 				type="button"
 				aria-label={`Favorite ${actionCount('favorite')}`}
 				aria-pressed={post.actions.favorite}
-				onclick={() => onAction?.(post.id, 'favorite')}
+				onclick={() => onAction?.(actionStatusId, 'favorite')}
 			>
 				<span class="post-action-icon" data-testid="post-action-favorite-icon"><PnIcon name="favorite" /></span>
 				<span>{actionCount('favorite')}</span>
