@@ -14,6 +14,7 @@ test('shows converted canonical design-system sections and switches themes', asy
 	await expect(page.getByRole('heading', { name: 'Thread' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Radio · PN.fm' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Oekaki' })).toBeVisible();
 
 	await expect(page.locator('#controls')).toContainText('Button · primary');
 	await expect(page.locator('#attachments')).toContainText('pickAttachmentLayout →');
@@ -21,6 +22,7 @@ test('shows converted canonical design-system sections and switches themes', asy
 	await expect(page.locator('#thread')).toContainText('AncestorPost → FocusedPost → ReplyPost');
 	await expect(page.locator('#notifications')).toContainText('NotifRow k-mention unread');
 	await expect(page.locator('#radio')).toContainText('Radio · Now playing tab');
+	await expect(page.locator('#oekaki')).toContainText('Tool rail');
 
 	await page.getByRole('button', { name: 'Simoun' }).click();
 	await expect(page.locator('html')).toHaveAttribute('data-theme', 'simoun');
@@ -34,7 +36,7 @@ test('opens the attachment lightbox from the design-system specimen', async ({ p
 	await page.locator('#attachments').getByRole('button', { name: 'Open lightbox →' }).click();
 	await expect(page.getByRole('dialog')).toBeVisible();
 	await expect(page.getByText('1 of 5 · station platform at dusk')).toBeVisible();
-	await page.getByRole('button', { name: 'Close', exact: true }).click();
+	await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
 	await expect(page.getByRole('dialog')).toBeHidden();
 });
 
@@ -99,6 +101,29 @@ test('renders canonical radio specimens and controls', async ({ page }) => {
 	await expect(interactive.getByRole('button', { name: 'Pause', exact: true }).first()).toBeVisible();
 });
 
+test('renders canonical oekaki anatomy and launcher', async ({ page }) => {
+	await setViewport(page, 'desktop');
+	await page.goto('/design-system');
+
+	const oekaki = page.locator('#oekaki');
+	const anatomyList = oekaki.locator('.ds-anatomy-list');
+	await expect(anatomyList.getByText('Tool rail', { exact: true })).toBeVisible();
+	await expect(anatomyList.getByText('Canvas', { exact: true })).toBeVisible();
+	await expect(anatomyList.getByText('Side panel', { exact: true })).toBeVisible();
+	await expect(anatomyList.getByText('Footer', { exact: true })).toBeVisible();
+	await expect(oekaki.getByTitle('Brush').first()).toBeVisible();
+	await expect(oekaki.getByTitle('Text').first()).toBeVisible();
+
+	await oekaki.getByRole('button', { name: 'Launch fullscreen →' }).click();
+	const modal = page.getByRole('dialog', { name: 'oekaki' });
+	await expect(modal).toBeVisible();
+	await expect(modal).toContainText('~/draft/untitled.png');
+	await modal.getByTitle('Pen').click();
+	await expect(modal).toContainText('PNG · 800×600 · pen');
+	await page.keyboard.press('Escape');
+	await expect(modal).toBeHidden();
+});
+
 test('keeps the design system usable on mobile', async ({ page }) => {
 	await setViewport(page, 'mobile');
 	await page.goto('/design-system');
@@ -108,5 +133,6 @@ test('keeps the design system usable on mobile', async ({ page }) => {
 	await expect(page.getByRole('heading', { name: 'Thread' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Radio · PN.fm' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Oekaki' })).toBeVisible();
 	await expectNoHorizontalOverflow(page);
 });

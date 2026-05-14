@@ -15,6 +15,7 @@
 	import NowPlayingLine from '$lib/rebuild/NowPlayingLine.svelte';
 	import NotifRow from '$lib/rebuild/NotifRow.svelte';
 	import NotifsPopover from '$lib/rebuild/NotifsPopover.svelte';
+	import OekakiModal from '$lib/rebuild/OekakiModal.svelte';
 	import Seg from '$lib/rebuild/Seg.svelte';
 	import Tag from '$lib/rebuild/Tag.svelte';
 	import Toggle from '$lib/rebuild/Toggle.svelte';
@@ -161,6 +162,7 @@
 	let composerRemaining = $derived(500 - composerText.length);
 	let threadReplyDraft = $state('');
 	let threadRemaining = $derived(500 - threadReplyDraft.length);
+	let oekakiOpen = $state(false);
 
 	const demoPost = (attachments: Attachment[], body = '', quotedPost?: QuotedDemoPost): DemoPostData => ({
 		id: 'ds-demo',
@@ -1297,6 +1299,38 @@
 				</div>
 			</section>
 
+			<section id="oekaki" class="ds-slab">
+				<header class="ds-slab-head">
+					<div class="ds-kicker">12</div>
+					<h2 class="ds-h2">Oekaki</h2>
+					<p class="ds-sub">In-composer drawing tool. Fullscreen modal triggered from the composer pencil button. Tool rail, canvas, side panel (color / brush / layers).</p>
+				</header>
+				<div class="ds-slab-body">
+					<div class="ds-sub-h">Anatomy</div>
+					<div class="ds-anatomy">
+						<div class="ds-anatomy-fig ds-oekaki-anatomy">
+							<div class="ds-oekaki-scale" inert aria-hidden="true">
+								<OekakiModal open preview />
+							</div>
+							<div class="ds-anatomy-marker ds-omk-1">1</div>
+							<div class="ds-anatomy-marker ds-omk-2">2</div>
+							<div class="ds-anatomy-marker ds-omk-3">3</div>
+							<div class="ds-anatomy-marker ds-omk-4">4</div>
+							<button type="button" class="ds-oekaki-launch" onclick={() => (oekakiOpen = true)}>Launch fullscreen →</button>
+							{#if oekakiOpen}
+								<OekakiModal open onClose={() => (oekakiOpen = false)} onAttach={() => (oekakiOpen = false)} />
+							{/if}
+						</div>
+						<ul class="ds-anatomy-list">
+							<li><span class="m">1</span> <span><b>Tool rail</b> · 9 tools (brush, pen, eraser, fill, eyedrop, rect, circle, line, text)</span></li>
+							<li><span class="m">2</span> <span><b>Canvas</b> · 800×600 native, zoom + cursor readout</span></li>
+							<li><span class="m">3</span> <span><b>Side panel</b> · Color swatches + free picker, brush size/opacity/flow, layer stack</span></li>
+							<li><span class="m">4</span> <span><b>Footer</b> · Clear / Save draft / Attach to post</span></li>
+						</ul>
+					</div>
+				</div>
+			</section>
+
 			<footer class="ds-foot">
 				<div>End of system · everything else is composed from what's above.</div>
 				<div>PleromaNet™ Design System · v2.4.58 · {new Date().getFullYear()}</div>
@@ -1883,6 +1917,72 @@
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
 		color: var(--muted-2);
+	}
+
+	:global(.ds-oekaki-anatomy) {
+		position: relative;
+		overflow: hidden;
+		background: var(--ink);
+		padding: 18px;
+		min-height: 360px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	:global(.ds-oekaki-anatomy .ds-oekaki-scale) {
+		width: 920px;
+		transform: scale(0.55);
+		transform-origin: center center;
+		pointer-events: none;
+		user-select: none;
+	}
+
+	:global(.ds-oekaki-anatomy .ds-anatomy-marker) {
+		z-index: 5;
+	}
+
+	:global(.ds-oekaki-anatomy .ds-omk-1) { top: 50%; left: calc(50% - 232px); transform: translateY(-50%); }
+	:global(.ds-oekaki-anatomy .ds-omk-2) { top: 50%; left: calc(50% - 70px); transform: translateY(-50%); }
+	:global(.ds-oekaki-anatomy .ds-omk-3) { top: 50%; left: calc(50% + 170px); transform: translateY(-50%); }
+	:global(.ds-oekaki-anatomy .ds-omk-4) { bottom: 36px; left: calc(50% + 200px); }
+
+	:global(.ds-oekaki-scale .oek-backdrop) {
+		position: static;
+		background: transparent;
+		padding: 0;
+		animation: none;
+	}
+
+	:global(.ds-oekaki-scale .oek-window) {
+		max-width: none;
+		max-height: none;
+		height: 600px;
+	}
+
+	.ds-oekaki-launch {
+		position: absolute;
+		bottom: 14px;
+		right: 14px;
+		padding: 8px 14px;
+		font-family: var(--mono);
+		font-size: 10px;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		background: var(--accent);
+		color: white;
+		border-radius: 2px;
+		cursor: pointer;
+		transition: filter 0.15s;
+		z-index: 2;
+	}
+
+	.ds-oekaki-launch:hover {
+		filter: brightness(1.08);
+	}
+
+	@media (max-width: 720px) {
+		:global(.ds-oekaki-scale) { transform: scale(0.35); }
 	}
 
 	:global(.ds-thread-demo-card) {
