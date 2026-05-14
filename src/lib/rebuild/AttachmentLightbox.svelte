@@ -55,7 +55,8 @@
 					<Icon name="arrowL" width={16} height={16} />
 				</button>
 			{/if}
-			<div class="lightbox-viewer" key={startIdx}>
+		<div class="lightbox-viewer">
+			{#key startIdx}
 				{#if att.kind === 'photo'}
 					<img class="lightbox-photo" src={att.src} alt={att.alt || ''} />
 				{:else if att.kind === 'video'}
@@ -63,7 +64,8 @@
 				{:else if att.kind === 'audio'}
 					<div class="lightbox-audio"><AudioAttachment audio={att} /></div>
 				{/if}
-			</div>
+			{/key}
+		</div>
 			{#if startIdx < total - 1}
 				<button class="lightbox-nav lightbox-nav-r" onclick={next} aria-label="Next">
 					<Icon name="arrowR" width={16} height={16} />
@@ -76,7 +78,7 @@
 					<button
 						class="lightbox-thumb mst-{a.kind}{i === startIdx ? ' sel' : ''}"
 						onclick={() => onIdx(i)}
-						title={a.title || a.alt || a.kind}
+						title={a.title || a.filename || a.alt || a.kind}
 					>
 						<MediaStripThumb att={a} />
 						<MediaStripKindBadge kind={a.kind} />

@@ -3,6 +3,7 @@ export type PhotoAttachment = {
 	src: string;
 	alt?: string;
 	cw?: boolean;
+	filename?: string;
 };
 
 export type VideoAttachment = {
@@ -12,6 +13,7 @@ export type VideoAttachment = {
 	cc?: boolean;
 	caption?: string;
 	start?: number;
+	filename?: string;
 };
 
 export type AudioAttachment = {
@@ -21,6 +23,7 @@ export type AudioAttachment = {
 	duration?: string;
 	cover?: string;
 	start?: number;
+	filename?: string;
 };
 
 export type Attachment = PhotoAttachment | VideoAttachment | AudioAttachment;

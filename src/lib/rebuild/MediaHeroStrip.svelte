@@ -4,7 +4,6 @@
 	import MediaStripKindBadge from './MediaStripKindBadge.svelte';
 	import VideoAttachment from './VideoAttachment.svelte';
 	import AudioAttachment from './AudioAttachment.svelte';
-	import PhotoGrid from './PhotoGrid.svelte';
 
 	type Props = {
 		attachments: Attachment[];
@@ -36,7 +35,7 @@
 			<button
 				class="media-strip-tile {i === heroIdx ? 'sel' : ''} mst-{a.kind}"
 				onclick={() => (heroIdx = i)}
-				title={a.title || a.alt || a.kind}
+				title={a.title || a.filename || a.alt || a.kind}
 			>
 				<MediaStripThumb att={a} />
 				<MediaStripKindBadge kind={a.kind} />

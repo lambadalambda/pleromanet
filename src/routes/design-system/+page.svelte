@@ -113,6 +113,7 @@
 	let toggleRowOn = $state(true);
 	let composerText = $state('drafting in the design system');
 	let composerPrivacy = $state('Public');
+	let composerRemaining = $derived(500 - composerText.length);
 
 	const demoPost = (attachments: Attachment[], body = '') => ({
 		id: 'ds-demo',
@@ -811,7 +812,7 @@
 											<button class="composer-tool cw">CW</button>
 											<button class="composer-tool privacy"><Icon name="globe" width={13} height={13} /><span>{composerPrivacy}</span><Icon name="chevDown" width={12} height={12} /></button>
 											<span class="composer-spacer"></span>
-											<span class="composer-count">{500 - composerText.length}</span>
+											<span class="composer-count" style={composerRemaining < 50 ? 'color:var(--bad)' : ''}>{composerRemaining}</span>
 											<Button variant="primary" disabled={!composerText.trim()}>Post</Button>
 										</div>
 									</div>

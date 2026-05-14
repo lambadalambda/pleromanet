@@ -22,14 +22,14 @@
 		return () => clearInterval(t);
 	});
 
-	const BARS: number[] = Array.from({ length: 56 }, (_, i) => {
+	let BARS = $derived(Array.from({ length: 56 }, (_, i) => {
 		const seed = (audio.title || 'a').length;
 		const v =
 			Math.sin(i * 0.7 + seed) * 0.5 +
 			Math.sin(i * 0.31 + seed * 0.4) * 0.3 +
 			Math.cos(i * 1.1) * 0.2;
 		return Math.max(0.18, Math.min(1, Math.abs(v) + 0.25));
-	});
+	}));
 
 	let playedIdx = $derived(Math.floor(progress * BARS.length));
 
@@ -41,7 +41,7 @@
 	};
 </script>
 
-<div class="post-audio">
+<div class="post-audio" onclick={(e) => e.stopPropagation()}>
 	<button
 		class="pa-cover"
 		onclick={() => (playing = !playing)}

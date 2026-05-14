@@ -25,7 +25,7 @@
 	});
 </script>
 
-<div class="post-video">
+<div class="post-video" onclick={(e) => e.stopPropagation()}>
 	<div class="pv-frame">
 		<VaporBanner variant={video.poster || 'sunset'} />
 		<div class="pv-scrim {playing ? 'on' : ''}"></div>

@@ -15,11 +15,11 @@
 		onPlay?.();
 	};
 
-	const BARS: number[] = Array.from({ length: 38 }, (_, i) => {
+	let BARS = $derived(Array.from({ length: 38 }, (_, i) => {
 		const seed = (audio.title || 'a').length;
 		const v = Math.sin(i * 0.7 + seed) * 0.5 + Math.cos(i * 1.1) * 0.3;
 		return Math.max(0.2, Math.min(1, Math.abs(v) + 0.3));
-	});
+	}));
 </script>
 
 <div class="compact-audio" onclick={(e) => e.stopPropagation()}>

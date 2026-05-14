@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Icon from './Icon.svelte';
 	import type { Attachment } from './attachments';
 
 	type Props = {
