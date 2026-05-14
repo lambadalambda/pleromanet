@@ -14,6 +14,6 @@
 
 <div class="post-head">
 	<span class="post-name">{n}</span>
-	<a class="post-handle">{h}</a>
+	<span class="post-handle">{h}</span>
 	<span class="post-time">{t}</span>
 </div>

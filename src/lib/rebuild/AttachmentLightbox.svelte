@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { Attachment } from './attachments';
+	import type { Attachment, BannerVariant } from './attachments';
+	import { attachmentTitle } from './attachments';
 	import Avatar from './Avatar.svelte';
 	import Icon from './Icon.svelte';
 	import MediaStripThumb from './MediaStripThumb.svelte';
@@ -14,7 +15,7 @@
 			name?: string;
 			handle?: string;
 			avClass?: string;
-			avBanner?: string;
+			avBanner?: BannerVariant;
 		} | null;
 		onClose: () => void;
 		onIdx: (i: number) => void;
@@ -28,8 +29,19 @@
 	const next = () => onIdx(Math.min(total - 1, startIdx + 1));
 </script>
 
-<div class="lightbox-bg" onclick={onClose}>
-	<div class="lightbox" onclick={(e) => e.stopPropagation()}>
+<div
+	class="lightbox-bg"
+	role="button"
+	tabindex="0"
+	aria-label="Close lightbox"
+	onclick={(e) => {
+		if (e.target === e.currentTarget) onClose();
+	}}
+	onkeydown={(e) => {
+		if (e.key === 'Escape') onClose();
+	}}
+>
+	<div class="lightbox" role="dialog" aria-modal="true">
 		<div class="lightbox-head">
 			<div class="lightbox-attr">
 				{#if attribution}
@@ -38,7 +50,7 @@
 						<div class="lightbox-name">{attribution.name} <span>{attribution.handle}</span></div>
 						<div class="lightbox-count">
 							{startIdx + 1} of {total} ·{' '}
-							{#if att.kind === 'photo'}{att.alt || 'photo'}{:else if att.kind === 'video'}{att.title || 'video'}{:else if att.kind === 'audio'}{att.title || 'audio'}{/if}
+							{attachmentTitle(att)}
 						</div>
 					</div>
 				{/if}
@@ -78,7 +90,7 @@
 					<button
 						class="lightbox-thumb mst-{a.kind}{i === startIdx ? ' sel' : ''}"
 						onclick={() => onIdx(i)}
-						title={a.title || a.filename || a.alt || a.kind}
+						title={attachmentTitle(a)}
 					>
 						<MediaStripThumb att={a} />
 						<MediaStripKindBadge kind={a.kind} />

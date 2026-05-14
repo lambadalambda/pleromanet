@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Avatar from './Avatar.svelte';
 	import { pickQuoteHero } from './attachments';
-	import type { Attachment } from './attachments';
+	import type { Attachment, BannerVariant } from './attachments';
 	import { renderBodyText } from './mentions';
 
 	type QuotedPostData = {
@@ -9,7 +9,7 @@
 		handle?: string;
 		time?: string;
 		avClass?: string;
-		avBanner?: string;
+		avBanner?: BannerVariant;
 		body?: string;
 		attachments?: Attachment[];
 		replies?: number;
@@ -31,7 +31,7 @@
 
 {#if quoted}
 	{#if !hero}
-		<a class="quoted-card quoted-embedded" onclick={(e) => e.stopPropagation()}>
+		<div class="quoted-card quoted-embedded" data-post-ignore>
 			<div class="quoted-head">
 				<Avatar variant="post" size={28} avClass={quoted.avClass} avBanner={quoted.avBanner} className="quoted-av-sm" />
 				<span class="quoted-name">{quoted.name}</span>
@@ -44,7 +44,7 @@
 					{#if typeof part === 'string'}
 						{part}
 					{:else}
-						<a class="post-mention-inline">{part.text}</a>
+						<span class="post-mention-inline">{part.text}</span>
 					{/if}
 				{/each}
 			</div>
@@ -54,9 +54,9 @@
 				{#if quoted.favs != null}<span>★ {quoted.favs}</span>{/if}
 				<span class="quoted-foot-end">view original →</span>
 			</div>
-		</a>
+		</div>
 	{:else}
-		<a class="quoted-card quoted-smart" onclick={(e) => e.stopPropagation()}>
+		<div class="quoted-card quoted-smart" data-post-ignore>
 			<div class="quoted-hero">
 				{#if hero.kind === 'photo'}
 					<img src={hero.src} alt={hero.alt || ''} />
@@ -83,7 +83,7 @@
 						{#if typeof part === 'string'}
 							{part}
 						{:else}
-							<a class="post-mention-inline">{part.text}</a>
+							<span class="post-mention-inline">{part.text}</span>
 						{/if}
 					{/each}
 				</div>
@@ -94,6 +94,6 @@
 					<span class="quoted-time">· {quoted.time}</span>
 				</div>
 			</div>
-		</a>
+		</div>
 	{/if}
 {/if}

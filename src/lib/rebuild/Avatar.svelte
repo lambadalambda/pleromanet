@@ -1,8 +1,8 @@
 <script lang="ts">
 	import VaporBanner from './VaporBanner.svelte';
+	import type { BannerVariant } from './attachments';
 
 	type AvatarVariant = 'post' | 'focused' | 'notif' | 'compose';
-	type BannerVariant = 'sunset' | 'pixel-window' | 'city' | 'space';
 
 	type PostLike = { avClass?: string; avBanner?: BannerVariant };
 

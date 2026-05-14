@@ -10,11 +10,19 @@
 	let { video }: Props = $props();
 	let playing = $state(false);
 	let muted = $state(true);
-	let progress = $state(video.start ?? 0.18);
+	let progress = $state(0.18);
+	let seeded = $state(false);
 
 	let dur = $derived(video.duration || '2:14');
 	let total = $derived(parseDur(dur));
 	let cur = $derived(fmtDur(total * progress));
+
+	$effect(() => {
+		if (!seeded) {
+			progress = video.start ?? 0.18;
+			seeded = true;
+		}
+	});
 
 	$effect(() => {
 		if (!playing) return;
@@ -25,7 +33,7 @@
 	});
 </script>
 
-<div class="post-video" onclick={(e) => e.stopPropagation()}>
+<div class="post-video" data-post-ignore>
 	<div class="pv-frame">
 		<VaporBanner variant={video.poster || 'sunset'} />
 		<div class="pv-scrim {playing ? 'on' : ''}"></div>

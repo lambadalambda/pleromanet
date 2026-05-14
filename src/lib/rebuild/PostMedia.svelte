@@ -19,7 +19,7 @@
 
 {#if post.media}
 	<div class="post-media">
-		<VaporBanner variant={post.media as string} />
+		<VaporBanner variant={post.media} />
 	</div>
 {/if}
 

@@ -16,7 +16,7 @@
 		{#if typeof part === 'string'}
 			{part}
 		{:else}
-			<a class="post-mention-inline">{part.text}</a>
+			<span class="post-mention-inline">{part.text}</span>
 		{/if}
 	{/each}
 </div>
@@ -25,7 +25,7 @@
 		<span class="post-pinged-l">Pinged</span>
 		<span class="post-pinged-list">
 			{#each addressees as a}
-				<a class="post-pinged-chip">{a}</a>
+				<span class="post-pinged-chip">{a}</span>
 			{/each}
 		</span>
 	</div>

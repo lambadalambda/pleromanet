@@ -8,11 +8,19 @@
 
 	let { audio }: Props = $props();
 	let playing = $state(false);
-	let progress = $state(audio.start ?? 0.32);
+	let progress = $state(0.32);
+	let seeded = $state(false);
 
 	let dur = $derived(audio.duration || '3:42');
 	let total = $derived(parseDur(dur));
 	let cur = $derived(fmtDur(total * progress));
+
+	$effect(() => {
+		if (!seeded) {
+			progress = audio.start ?? 0.32;
+			seeded = true;
+		}
+	});
 
 	$effect(() => {
 		if (!playing) return;
@@ -41,7 +49,7 @@
 	};
 </script>
 
-<div class="post-audio" onclick={(e) => e.stopPropagation()}>
+<div class="post-audio" data-post-ignore>
 	<button
 		class="pa-cover"
 		onclick={() => (playing = !playing)}
@@ -58,11 +66,11 @@
 			{/if}
 		</span>
 	</button>
-	<div class="pa-bars" onclick={seek}>
+	<button type="button" class="pa-bars" onclick={seek} aria-label="Seek audio">
 		{#each BARS as h, i}
 			<span class="pa-bar {i <= playedIdx ? 'played' : ''}" style="height:{h * 100}%"></span>
 		{/each}
-	</div>
+	</button>
 	<div class="pa-meta">
 		<div class="pa-text">
 			<span class="pa-title">{audio.title}</span>

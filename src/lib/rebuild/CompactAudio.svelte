@@ -22,7 +22,7 @@
 	}));
 </script>
 
-<div class="compact-audio" onclick={(e) => e.stopPropagation()}>
+<div class="compact-audio" data-post-ignore>
 	<button class="cap-play" onclick={toggle} aria-label={playing ? 'Pause' : 'Play'}>
 		{#if audio.cover}
 			<img src={audio.cover} alt="" class="cap-play-img" />

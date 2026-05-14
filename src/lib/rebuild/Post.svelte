@@ -5,17 +5,17 @@
 	import PostMedia from './PostMedia.svelte';
 	import PostActions from './PostActions.svelte';
 	import QuotedPost from './QuotedPost.svelte';
-	import type { PostLike, Attachment } from './attachments';
+	import type { PostLike, Attachment, BannerVariant } from './attachments';
 	import { openLightbox } from './attachments';
 
 	type Props = {
 		post: PostLike & {
-			id?: string;
+			id?: string | number;
 			name?: string;
 			handle?: string;
 			time?: string;
 			avClass?: string;
-			avBanner?: string;
+			avBanner?: BannerVariant;
 			body?: string;
 			addressees?: string[];
 			quotedPost?: Record<string, unknown>;
@@ -41,14 +41,7 @@
 	};
 </script>
 
-<div
-	class="post"
-	onclick={(e) => {
-		if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('a')) return;
-		onOpen?.();
-	}}
-	style="cursor: {onOpen ? 'pointer' : 'default'}"
->
+{#snippet postContents()}
 	<Avatar post={post} />
 	<div style="min-width:0">
 		<PostHead post={post} />
@@ -57,4 +50,29 @@
 		<PostMedia post={post} onOpen={handleLightbox} />
 		<PostActions post={post} onAction={onAction} />
 	</div>
-</div>
+{/snippet}
+
+{#if onOpen}
+	<div
+		class="post"
+		role="button"
+		tabindex="0"
+		onclick={(e) => {
+			if ((e.target as HTMLElement).closest('button, a, [data-post-ignore]')) return;
+			onOpen?.();
+		}}
+		onkeydown={(e) => {
+			if (e.key !== 'Enter' && e.key !== ' ') return;
+			if ((e.target as HTMLElement).closest('button, a, [data-post-ignore]')) return;
+			e.preventDefault();
+			onOpen?.();
+		}}
+		style="cursor:pointer"
+	>
+		{@render postContents()}
+	</div>
+{:else}
+	<div class="post">
+		{@render postContents()}
+	</div>
+{/if}

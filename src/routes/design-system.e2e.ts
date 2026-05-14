@@ -1,79 +1,62 @@
 import { expect, test } from '@playwright/test';
 import { expectNoHorizontalOverflow, setViewport } from '../test/playwright';
 
-test('shows core design primitives and switches themes', async ({ page }) => {
+test('shows converted canonical design-system sections and switches themes', async ({ page }) => {
 	await setViewport(page, 'desktop');
 	await page.goto('/design-system');
 
-	await expect(page.getByRole('heading', { name: 'Design System' })).toBeVisible();
-	await expect(page.getByTestId('primitive-card')).toBeVisible();
-	await expect(page.getByTestId('primitive-tabs')).toBeVisible();
-	await expect(page.getByTestId('primitive-form')).toBeVisible();
-	await expect(page.getByTestId('primitive-status')).toBeVisible();
-	await expect(page.getByTestId('primitive-vapor-banner')).toBeVisible();
-	await expect(page.getByTestId('primitive-composer')).toBeVisible();
-	await expect(page.getByTestId('primitive-post-actions')).toBeVisible();
-	await expect(page.getByTestId('primitive-pleroma-fixture')).toContainText('quiet CSS can still carry the voice.');
-	await expect(page.getByTestId('primitive-pleroma-fixture')).toContainText('@quietadmin@pleroma.example');
-	await expect(page.getByTestId('primitive-request-state')).toContainText('Adapted fixture content loaded');
-	await expect(page.getByRole('textbox', { name: 'Component post text' })).toBeVisible();
-	const componentPost = page.getByTestId('primitive-post-actions');
-	await expect(componentPost.getByTestId('post-action-reply-icon')).toBeVisible();
-	await expect(componentPost.getByTestId('post-action-boost-icon')).toBeVisible();
-	await expect(componentPost.getByTestId('post-action-favorite-icon')).toBeVisible();
+	await expect(page).toHaveTitle('PleromaNet · Design System');
+	await expect(page.getByRole('heading', { name: 'Foundations' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Iconography' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Controls' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Attachments' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Posts' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Thread' })).toBeVisible();
 
-	const componentComposer = page.getByTestId('primitive-composer');
-	await expect(componentComposer.getByTestId('composer-tool-image-icon')).toBeVisible();
-	await expect(componentComposer.getByTestId('composer-tool-poll-icon')).toBeVisible();
-	await expect(componentComposer.getByTestId('composer-tool-emoji-icon')).toBeVisible();
-	await expect(componentComposer.getByTestId('composer-tool-privacy-icon')).toBeVisible();
-	await expect(componentComposer.getByTestId('composer-tool-privacy-chevron')).toBeVisible();
-	await componentComposer.getByRole('button', { name: 'Privacy Public' }).click();
-	await componentComposer.getByRole('button', { name: 'Followers' }).click();
-	await expect(componentComposer.getByRole('button', { name: 'Privacy Followers' })).toBeVisible();
-	await componentComposer.getByRole('textbox', { name: 'Component post text' }).fill('clear this preview');
-	await componentComposer.getByRole('button', { name: 'Post', exact: true }).click();
-	await expect(componentComposer.getByRole('textbox', { name: 'Component post text' })).toHaveValue('');
-
-	await componentPost.getByRole('button', { name: 'Favorite 42' }).click();
-	await expect(componentPost.getByRole('button', { name: 'Favorite 43' })).toHaveAttribute('aria-pressed', 'true');
+	await expect(page.locator('#controls')).toContainText('Button · primary');
+	await expect(page.locator('#attachments')).toContainText('pickAttachmentLayout →');
+	await expect(page.locator('#posts')).toContainText('Quoted posts');
+	await expect(page.locator('#thread')).toContainText('AncestorPost → FocusedPost → ReplyPost');
 
 	await page.getByRole('button', { name: 'Simoun' }).click();
 	await expect(page.locator('html')).toHaveAttribute('data-theme', 'simoun');
 	await expectNoHorizontalOverflow(page);
 });
 
-test('request-state primitive renders loading, empty, retryable, auth-required, and success states', async ({ page }) => {
+test('opens the attachment lightbox from the design-system specimen', async ({ page }) => {
 	await setViewport(page, 'desktop');
 	await page.goto('/design-system');
-	const primitive = page.getByTestId('primitive-request-state');
 
-	await primitive.getByRole('button', { name: 'Show loading' }).click();
-	await expect(primitive.getByRole('status', { name: 'Request status' })).toContainText('Loading Pleroma data');
-
-	await primitive.getByRole('button', { name: 'Show empty' }).click();
-	await expect(primitive).toContainText('No statuses yet');
-
-	await primitive.getByRole('button', { name: 'Show retryable error' }).click();
-	await expect(primitive).toContainText('Network connection failed');
-	await primitive.getByRole('button', { name: 'Retry request' }).click();
-	await expect(primitive).toContainText('Retry count 1');
-
-	await primitive.getByRole('button', { name: 'Show auth required' }).click();
-	await expect(primitive).toContainText('Re-authentication required');
-	await expect(primitive).toContainText('Return to sign in when a real guarded route exists.');
-	await expect(primitive.getByRole('link', { name: 'Return to sign in' })).toHaveAttribute('href', '/#oauth');
-
-	await primitive.getByRole('button', { name: 'Show success' }).click();
-	await expect(primitive).toContainText('Adapted fixture content loaded');
+	await page.locator('#attachments').getByRole('button', { name: 'Open lightbox →' }).click();
+	await expect(page.getByRole('dialog')).toBeVisible();
+	await expect(page.getByText('1 of 5 · station platform at dusk')).toBeVisible();
+	await page.getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(page.getByRole('dialog')).toBeHidden();
 });
 
-test('keeps design primitives usable on mobile', async ({ page }) => {
+test('renders the canonical thread specimen with a working reply composer', async ({ page }) => {
+	await setViewport(page, 'desktop');
+	await page.goto('/design-system');
+
+	const thread = page.locator('#thread');
+	await expect(thread.getByText('gridwave', { exact: true })).toBeVisible();
+	await expect(thread.getByText('nyan.binary', { exact: true })).toBeVisible();
+	await expect(thread.getByText('2 replies')).toBeVisible();
+
+	const composer = thread.locator('.thread-reply-composer');
+	const submitReply = composer.locator('.btn-primary');
+	await expect(composer.getByRole('textbox')).toHaveAttribute('placeholder', 'Reply to @emichan...');
+	await expect(submitReply).toBeDisabled();
+	await composer.getByRole('textbox').fill('soft web yes');
+	await expect(submitReply).toBeEnabled();
+});
+
+test('keeps the design system usable on mobile', async ({ page }) => {
 	await setViewport(page, 'mobile');
 	await page.goto('/design-system');
 
-	await expect(page.getByRole('heading', { name: 'Design System' })).toBeVisible();
-	await expect(page.getByTestId('primitive-grid')).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Foundations' })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Simoun' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Thread' })).toBeVisible();
 	await expectNoHorizontalOverflow(page);
 });

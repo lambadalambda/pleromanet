@@ -1,5 +1,6 @@
 <script lang="ts">
-	type BannerVariant = 'sunset' | 'pixel-window' | 'city' | 'space';
+	import type { BannerVariant } from './attachments';
+
 	type Props = {
 		variant?: BannerVariant;
 		className?: string;

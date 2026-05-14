@@ -19,14 +19,15 @@
 	};
 </script>
 
-<div class="post-photos n{n}" onclick={(e) => e.stopPropagation()}>
+<div class="post-photos n{n}" data-post-ignore>
 	{#each photos.slice(0, 4) as p, i}
-		<div
+		<button
+			type="button"
 			class="ph{p.cw && !revealed[i] ? ' cw' : ''}"
 			onclick={() => handleClick(i, p)}
 		>
 			<img src={p.src} alt={p.alt || ''} loading="lazy" />
 			<span class="ph-tag"><em>duotone</em> · hover for raw</span>
-		</div>
+		</button>
 	{/each}
 </div>

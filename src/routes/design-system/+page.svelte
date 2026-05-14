@@ -1,9 +1,12 @@
 <script lang="ts">
 	import Avatar from '$lib/rebuild/Avatar.svelte';
+	import AncestorPost from '$lib/rebuild/AncestorPost.svelte';
 	import Button from '$lib/rebuild/Button.svelte';
+	import FocusedPost from '$lib/rebuild/FocusedPost.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
 	import Pill from '$lib/rebuild/Pill.svelte';
 	import Post from '$lib/rebuild/Post.svelte';
+	import ReplyPost from '$lib/rebuild/ReplyPost.svelte';
 	import CompactAudio from '$lib/rebuild/CompactAudio.svelte';
 	import AttachmentLightboxHost from '$lib/rebuild/AttachmentLightboxHost.svelte';
 	import { openLightbox } from '$lib/rebuild/attachments';
@@ -14,7 +17,7 @@
 	import Toggle from '$lib/rebuild/Toggle.svelte';
 	import VaporBanner from '$lib/rebuild/VaporBanner.svelte';
 	import { iconNames } from '$lib/rebuild/icons';
-	import type { Attachment } from '$lib/rebuild/attachments';
+	import type { Attachment, BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import { onMount } from 'svelte';
 
 	type BannerVariant = 'sunset' | 'pixel-window' | 'city' | 'space';
@@ -50,6 +53,39 @@
 		family: string;
 		sample: string;
 		meta: string;
+	};
+	type QuotedDemoPost = {
+		name?: string;
+		handle?: string;
+		time?: string;
+		avClass?: string;
+		avBanner?: BannerVariant;
+		body?: string;
+		attachments?: Attachment[];
+		replies?: number;
+		boosts?: number;
+		favs?: number;
+	};
+	type DemoPostData = PostLike & {
+		id: string | number;
+		name: string;
+		handle: string;
+		time: string;
+		avClass?: string;
+		avBanner?: BannerVariant;
+		body: string;
+		addressees?: string[];
+		quotedPost?: QuotedDemoPost;
+		replies: number;
+		boosts: number;
+		favs: number;
+		actions: { reply: boolean; boost: boolean; fav: boolean };
+		fullTime?: string;
+		source?: string;
+		views?: string;
+		bookmarks?: number;
+		following?: boolean;
+		nestedReplies?: DemoPostData[];
 	};
 	const THEMES: Theme[] = [
 		{ id: 'cream', label: 'Cream', bg: '#f5f1e8', panel: '#fbfaf3', ink: '#1f2347', accent: '#a48bd9' },
@@ -114,8 +150,10 @@
 	let composerText = $state('drafting in the design system');
 	let composerPrivacy = $state('Public');
 	let composerRemaining = $derived(500 - composerText.length);
+	let threadReplyDraft = $state('');
+	let threadRemaining = $derived(500 - threadReplyDraft.length);
 
-	const demoPost = (attachments: Attachment[], body = '', quotedPost?: Record<string, unknown>) => ({
+	const demoPost = (attachments: Attachment[], body = '', quotedPost?: QuotedDemoPost): DemoPostData => ({
 		id: 'ds-demo',
 		name: 'orbit',
 		handle: '@orbit@spacebear.net',
@@ -138,19 +176,19 @@
 		{ input: 'anything else', layout: 'heroStrip', highlight: false },
 	];
 
-	const SAMPLE_POST = {
-		id: 1, name: 'emi', handle: '@emichan@kolektiva.social', time: '16m',
+	const SAMPLE_POST: DemoPostData = {
+		id: '1', name: 'emi', handle: '@emichan@kolektiva.social', time: '16m',
 		avClass: 'av-anime',
 		body: "tiny update: fixed some bugs, added a toggle, and touched grass.\n\nthe internet can wait.",
 		replies: 2, boosts: 7, favs: 42,
 		actions: { reply: false, boost: false, fav: false },
 	};
-	const PHOTO_POST = {
-		...SAMPLE_POST, id: 2, body: "dusk in the city 🌆",
+	const PHOTO_POST: DemoPostData = {
+		...SAMPLE_POST, id: '2', body: "dusk in the city 🌆",
 		attachments: [{ kind: 'photo', src: 'samples/falco.png', alt: 'still 1985' }],
 	};
-	const PHOTOS3_POST = {
-		...SAMPLE_POST, id: 3, name: 'sysadmin', handle: '@root@pleroma.social',
+	const PHOTOS3_POST: DemoPostData = {
+		...SAMPLE_POST, id: '3', name: 'sysadmin', handle: '@root@pleroma.social',
 		avClass: 'av-pc-old',
 		body: "Backup your data. Hug your cat. Update PleromaNet™.",
 		attachments: [
@@ -159,22 +197,56 @@
 			{ kind: 'photo', src: 'samples/cats-pair.webp', alt: '' },
 		],
 	};
-	const VIDEO_POST = {
-		...SAMPLE_POST, id: 4, name: 'pixelmoth', handle: '@pixelmoth@retro.social',
+	const VIDEO_POST: DemoPostData = {
+		...SAMPLE_POST, id: '4', name: 'pixelmoth', handle: '@pixelmoth@retro.social',
 		avClass: 'av-pixel-pc',
 		body: "cassette deck loop i recorded out the kitchen window.",
 		attachments: [{ kind: 'video', poster: 'sunset', duration: '0:42', start: 0.15, cc: true, caption: 'A slow pan across a windowsill at dusk.' }],
 	};
-	const AUDIO_POST = {
-		...SAMPLE_POST, id: 5, name: 'kestrel.fm', handle: '@kestrel@audio.garden',
+	const AUDIO_POST: DemoPostData = {
+		...SAMPLE_POST, id: '5', name: 'kestrel.fm', handle: '@kestrel@audio.garden',
 		avClass: 'av-grad-3',
 		body: "demo from last night's basement set.",
 		attachments: [{ kind: 'audio', title: 'after the storm (demo)', byline: 'kestrel · live take · 2026', duration: '4:18', start: 0.28, cover: 'samples/encardia-99.png' }],
 	};
-	const BANNER_POST = {
-		...SAMPLE_POST, id: 6, name: 'dreambyte', handle: '@dreambyte@pleromanet.social',
+	const BANNER_POST: DemoPostData = {
+		...SAMPLE_POST, id: '6', name: 'dreambyte', handle: '@dreambyte@pleromanet.social',
 		avClass: '', avBanner: 'sunset',
 		body: "🤍",
+	};
+
+	const THREAD_DEMO: { ancestors: DemoPostData[]; focused: DemoPostData; replies: DemoPostData[] } = {
+		ancestors: [{
+			id: 'a1', name: 'gridwave', handle: '@gridwave@retro.social', time: '5h',
+			avClass: 'av-pixel-pc',
+			body: 'anyone else feel like the web got a little too loud lately?',
+			replies: 18, boosts: 42, favs: 210,
+			actions: { reply: false, boost: false, fav: false },
+		}],
+		focused: {
+			...SAMPLE_POST,
+			id: 'focused',
+			fullTime: '4:18 PM · May 11, 2026',
+			source: 'PleromaNet™ Web',
+			views: '12.4K',
+			bookmarks: 24,
+		},
+		replies: [
+			{
+				id: 'r1', name: 'nyan.binary', handle: '@nyan@catgirl.cloud', time: '12m',
+				avClass: 'av-anime', body: 'this is the energy i needed today 🌙',
+				replies: 2, boosts: 3, favs: 18,
+				actions: { reply: false, boost: false, fav: false },
+				nestedReplies: [],
+			},
+			{
+				id: 'r2', name: 'soft.hertz', handle: '@soft.hertz@kolektiva.social', time: '22m',
+				avClass: 'av-grad-3', body: 'touched grass too. recommend the slow internet diet.',
+				replies: 0, boosts: 7, favs: 31,
+				actions: { reply: false, boost: false, fav: false },
+				nestedReplies: [],
+			},
+		],
 	};
 
 	onMount(() => {
@@ -770,7 +842,7 @@
 						<div class="ds-spec">
 							<div class="ds-spec-stage">
 								<div style="padding:14px">
-									<CompactAudio audio={{title:'kettle whistle', byline:'orbit · field · 2026', duration:'2:14'}} />
+									<CompactAudio audio={{kind:'audio', title:'kettle whistle', byline:'orbit · field · 2026', duration:'2:14'}} />
 								</div>
 							</div>
 							<div class="ds-spec-foot">
@@ -781,15 +853,15 @@
 						<div class="ds-spec">
 							<div class="ds-spec-stage padded">
 								<div style="display:flex;gap:8px">
-									<div style="position:relative;width:56px;height:56px;border-radius:3px;overflow:hidden;border:1px solid var(--border)">
+									<div class="ds-media-thumb-cell" style="position:relative;width:56px;height:56px;border-radius:3px;overflow:hidden;border:1px solid var(--border)">
 										<MediaStripThumb att={{kind:'photo', src:'samples/falco.png'}} />
 										<MediaStripKindBadge kind="photo" />
 									</div>
-									<div style="position:relative;width:56px;height:56px;border-radius:3px;overflow:hidden;border:1px solid var(--border)">
+									<div class="ds-media-thumb-cell" style="position:relative;width:56px;height:56px;border-radius:3px;overflow:hidden;border:1px solid var(--border)">
 										<MediaStripThumb att={{kind:'video'}} />
 										<MediaStripKindBadge kind="video" />
 									</div>
-									<div style="position:relative;width:56px;height:56px;border-radius:3px;overflow:hidden;border:1px solid var(--border)">
+									<div class="ds-media-thumb-cell" style="position:relative;width:56px;height:56px;border-radius:3px;overflow:hidden;border:1px solid var(--border)">
 										<MediaStripThumb att={{kind:'audio', cover:'samples/encardia-99.png'}} />
 										<MediaStripKindBadge kind="audio" />
 									</div>
@@ -1030,6 +1102,79 @@
 								<span class="ds-spec-label">With audio</span>
 								<span class="ds-spec-note">post.audio</span>
 							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section id="thread" class="ds-slab">
+				<header class="ds-slab-head">
+					<div class="ds-kicker">09</div>
+					<h2 class="ds-h2">Thread</h2>
+					<p class="ds-sub">The thread view stacks three post shapes — Ancestor (collapsed), Focused (expanded with meta), Reply (with branching line).</p>
+				</header>
+				<div class="ds-slab-body">
+					<div class="ds-spec">
+						<div class="ds-spec-stage ds-thread-stage">
+							<div class="card thread ds-thread-demo-card">
+								<div class="thread-head">
+									<button type="button" class="thread-back" aria-label="Back"><Icon name="arrowL" width={18} height={18} /></button>
+									<div class="thread-head-title">Thread</div>
+									<button type="button" class="tab-action" title="Refresh">
+										<svg viewBox="0 0 24 24" fill="none" style="width:16px;height:16px"><path d="M4 12a8 8 0 0114-5.3L20 9M20 4v5h-5M20 12a8 8 0 01-14 5.3L4 15M4 20v-5h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+									</button>
+									<button type="button" class="tab-action" title="More"><Icon name="more" width={16} height={16} /></button>
+								</div>
+
+								{#if THREAD_DEMO.ancestors.length > 0}
+									<div class="thread-ancestors">
+										{#each THREAD_DEMO.ancestors as ancestor (ancestor.id)}
+											<AncestorPost post={ancestor} />
+										{/each}
+									</div>
+								{/if}
+
+								<FocusedPost post={THREAD_DEMO.focused} continuesAbove={THREAD_DEMO.ancestors.length > 0} />
+
+								<div class="thread-reply-composer">
+									<Avatar variant="compose" avBanner="sunset" />
+									<div style="min-width:0;flex:1">
+										<textarea
+											class="composer-input"
+											placeholder="Reply to @emichan..."
+											bind:value={threadReplyDraft}
+											style="min-height:44px"
+										></textarea>
+										<div class="composer-row" style="border-top:1px solid var(--border)">
+											<button type="button" class="composer-tool" title="Image"><Icon name="image" width={18} height={18} /></button>
+											<button type="button" class="composer-tool" title="Emoji"><Icon name="smile" width={18} height={18} /></button>
+											<button type="button" class="composer-tool cw">CW</button>
+											<button type="button" class="composer-tool privacy"><Icon name="reply" width={13} height={13} /><span>Reply</span><Icon name="chevDown" width={12} height={12} /></button>
+											<span class="composer-spacer"></span>
+											<span class="composer-count" style={threadRemaining < 50 ? 'color:var(--bad)' : 'color:var(--muted)'}>{threadRemaining}</span>
+											<Button variant="primary" disabled={!threadReplyDraft.trim()} onclick={() => (threadReplyDraft = '')}>Reply</Button>
+										</div>
+									</div>
+								</div>
+
+								<div class="thread-reply-head">
+									<div class="thread-reply-count"><Icon name="reply" width={13} height={13} /><span>{THREAD_DEMO.replies.length} replies</span></div>
+									<div class="seg" style="margin-left:auto">
+										<button type="button" class="active">Top</button>
+										<button type="button">Newest</button>
+									</div>
+								</div>
+
+								<div class="thread-replies">
+									{#each THREAD_DEMO.replies as reply, i (reply.id)}
+										<ReplyPost post={reply} isLast={i === THREAD_DEMO.replies.length - 1} nestedReplies={reply.nestedReplies} />
+									{/each}
+								</div>
+							</div>
+						</div>
+						<div class="ds-spec-foot">
+							<span class="ds-spec-label">Full thread</span>
+							<span class="ds-spec-note">AncestorPost → FocusedPost → ReplyPost</span>
 						</div>
 					</div>
 				</div>
@@ -1424,6 +1569,14 @@
 		color: var(--ink);
 		margin-bottom: 8px;
 		letter-spacing: -0.01em;
+		overflow-wrap: anywhere;
+	}
+
+	:global(.ds-media-thumb-cell img) {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
 	}
 
 	.ds-type-meta {
@@ -1542,6 +1695,16 @@
 	.ds-spec-stage.padded {
 		padding: 24px;
 		align-items: center;
+	}
+
+	.ds-thread-stage {
+		width: 100%;
+		padding: 18px;
+		background: var(--bg);
+	}
+
+	:global(.ds-thread-demo-card) {
+		width: min(720px, 100%);
 	}
 
 	.ds-spec-foot {
@@ -1819,6 +1982,37 @@
 		:global(.ds-grid-3),
 		:global(.ds-grid-2) {
 			grid-template-columns: 1fr;
+		}
+
+		:global(.ds-spec-span-2) {
+			grid-column: auto;
+		}
+
+		.ds-thread-stage {
+			padding: 10px;
+		}
+
+		:global(.ds-att-rule) {
+			grid-template-columns: 70px 1fr;
+			gap: 8px 12px;
+		}
+
+		:global(.ds-att-rule-arrow) {
+			display: none;
+		}
+
+		:global(.ds-att-rule-layout) {
+			grid-column: 2;
+			justify-self: start;
+		}
+
+		.ds-spec-foot {
+			align-items: flex-start;
+			flex-direction: column;
+		}
+
+		.ds-spec-note {
+			overflow-wrap: anywhere;
 		}
 
 		.ds-type-sample {

@@ -1,16 +1,11 @@
 <script lang="ts">
-	import type { Attachment } from './attachments';
+	import type { Attachment, LightboxAttribution } from './attachments';
 	import AttachmentLightbox from './AttachmentLightbox.svelte';
 
 	type LightboxState = {
 		attachments: Attachment[];
 		startIdx: number;
-		attribution?: {
-			name?: string;
-			handle?: string;
-			avClass?: string;
-			avBanner?: string;
-		} | null;
+		attribution?: LightboxAttribution | null;
 	};
 
 	let state = $state<LightboxState | null>(null);

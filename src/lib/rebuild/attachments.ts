@@ -1,3 +1,10 @@
+export type BannerVariant = 'sunset' | 'pixel-window' | 'city' | 'space';
+
+export const bannerVariants: BannerVariant[] = ['sunset', 'pixel-window', 'city', 'space'];
+
+export const isBannerVariant = (value: string | undefined): value is BannerVariant =>
+	bannerVariants.some((variant) => variant === value);
+
 export type PhotoAttachment = {
 	kind: 'photo';
 	src: string;
@@ -8,7 +15,8 @@ export type PhotoAttachment = {
 
 export type VideoAttachment = {
 	kind: 'video';
-	poster?: string;
+	poster?: BannerVariant;
+	title?: string;
 	duration?: string;
 	cc?: boolean;
 	caption?: string;
@@ -28,12 +36,17 @@ export type AudioAttachment = {
 
 export type Attachment = PhotoAttachment | VideoAttachment | AudioAttachment;
 
+export type LegacyPhotoAttachment = Omit<PhotoAttachment, 'kind'> & { kind?: 'photo' };
+export type LegacyVideoAttachment = Omit<VideoAttachment, 'kind'> & { kind?: 'video' };
+export type LegacyAudioAttachment = Omit<AudioAttachment, 'kind'> & { kind?: 'audio' };
+
 export type PostLike = {
 	attachments?: Attachment[];
-	photos?: PhotoAttachment[];
-	video?: VideoAttachment;
-	audio?: AudioAttachment;
-	media?: string;
+	photos?: LegacyPhotoAttachment[];
+	video?: LegacyVideoAttachment;
+	audio?: LegacyAudioAttachment;
+	media?: BannerVariant;
+	avBanner?: BannerVariant;
 	[key: string]: unknown;
 };
 
@@ -76,10 +89,16 @@ export const pickAttachmentLayout = (attachments: Attachment[] | undefined): Att
 export const normalizeAttachments = (post: PostLike): Attachment[] => {
 	if (post.attachments) return post.attachments;
 	const out: Attachment[] = [];
-	if (post.photos) post.photos.forEach((p) => out.push({ kind: 'photo', ...p }));
-	if (post.video) out.push({ kind: 'video', ...post.video });
-	if (post.audio) out.push({ kind: 'audio', ...post.audio });
+	if (post.photos) post.photos.forEach((p) => out.push({ ...p, kind: 'photo' }));
+	if (post.video) out.push({ ...post.video, kind: 'video' });
+	if (post.audio) out.push({ ...post.audio, kind: 'audio' });
 	return out;
+};
+
+export const attachmentTitle = (attachment: Attachment): string => {
+	if (attachment.kind === 'photo') return attachment.filename || attachment.alt || 'photo';
+	if (attachment.kind === 'video') return attachment.title || attachment.filename || 'video';
+	return attachment.title || attachment.filename || 'audio';
 };
 
 export const parseDur = (s: string): number => {
@@ -97,7 +116,7 @@ export type LightboxAttribution = {
 	name?: string;
 	handle?: string;
 	avClass?: string;
-	avBanner?: string;
+	avBanner?: BannerVariant;
 };
 
 export const openLightbox = (
