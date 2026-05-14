@@ -20,6 +20,7 @@
 	import Tag from '$lib/rebuild/Tag.svelte';
 	import Toggle from '$lib/rebuild/Toggle.svelte';
 	import Radio from '$lib/rebuild/Radio.svelte';
+	import SurfaceCard from '$lib/rebuild/SurfaceCard.svelte';
 	import VaporBanner from '$lib/rebuild/VaporBanner.svelte';
 	import { iconNames } from '$lib/rebuild/icons';
 	import { SAMPLE_NOTIFS, type NotificationData, type NotificationKind } from '$lib/rebuild/notifications';
@@ -96,6 +97,12 @@
 		label: string;
 		note: string;
 		notification: NotificationData;
+	};
+	type SurfaceSpec = {
+		kind: string;
+		label: string;
+		note: string;
+		span?: number;
 	};
 	const THEMES: Theme[] = [
 		{ id: 'cream', label: 'Cream', bg: '#f5f1e8', panel: '#fbfaf3', ink: '#1f2347', accent: '#a48bd9' },
@@ -270,6 +277,17 @@
 		{ label: 'Reply', note: 'NotifRow k-reply', notification: sampleNotification('reply') },
 		{ label: 'Follow', note: 'NotifRow k-follow · Follow back', notification: sampleNotification('follow') },
 		{ label: 'Follow request', note: 'NotifRow k-follow_req · Accept / Decline', notification: sampleNotification('follow_req') },
+	];
+
+	const SURFACE_SPECS: SurfaceSpec[] = [
+		{ kind: 'trends', label: 'TrendsCard', note: 'trend-list' },
+		{ kind: 'who-to-follow', label: 'WhoToFollow', note: 'suggest' },
+		{ kind: 'shortcuts', label: 'ShortcutsCard', note: 'short' },
+		{ kind: 'instance-status', label: 'InstanceStatus', note: 'status-row' },
+		{ kind: 'quick-search', label: 'QuickSearchCard', note: 'explore right rail' },
+		{ kind: 'footer', label: 'FooterCard', note: 'footer-card' },
+		{ kind: 'profile-preview', label: 'ProfilePreviewCard', note: 'settings right rail', span: 2 },
+		{ kind: 'profile-tips', label: 'ProfileTipsCard', note: 'settings right rail' },
 	];
 
 	onMount(() => {
@@ -1331,6 +1349,29 @@
 				</div>
 			</section>
 
+			<section id="surfaces" class="ds-slab">
+				<header class="ds-slab-head">
+					<div class="ds-kicker">13</div>
+					<h2 class="ds-h2">Surfaces</h2>
+					<p class="ds-sub">Cards and the right-rail card library. Each card is title + content + optional foot link.</p>
+				</header>
+				<div class="ds-slab-body">
+					<div class="ds-grid ds-grid-3">
+						{#each SURFACE_SPECS as spec}
+							<div class={`ds-spec${spec.span === 2 ? ' ds-spec-span-2' : ''}`}>
+								<div class="ds-spec-stage ds-surface-stage">
+									<SurfaceCard kind={spec.kind} />
+								</div>
+								<div class="ds-spec-foot">
+									<span class="ds-spec-label">{spec.label}</span>
+									<span class="ds-spec-note">{spec.note}</span>
+								</div>
+							</div>
+						{/each}
+					</div>
+				</div>
+			</section>
+
 			<footer class="ds-foot">
 				<div>End of system · everything else is composed from what's above.</div>
 				<div>PleromaNet™ Design System · v2.4.58 · {new Date().getFullYear()}</div>
@@ -1891,6 +1932,16 @@
 		width: 100%;
 		max-width: none;
 		box-shadow: 0 4px 20px -8px rgba(0,0,0,0.18);
+	}
+
+	.ds-surface-stage {
+		align-items: flex-start;
+		background: var(--bg);
+		min-height: 0;
+	}
+
+	.ds-surface-stage :global(.surface-card) {
+		width: 100%;
 	}
 
 	.ds-nps-stack {

@@ -15,6 +15,7 @@ test('shows converted canonical design-system sections and switches themes', asy
 	await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Radio · PN.fm' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Oekaki' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Surfaces' })).toBeVisible();
 
 	await expect(page.locator('#controls')).toContainText('Button · primary');
 	await expect(page.locator('#attachments')).toContainText('pickAttachmentLayout →');
@@ -23,9 +24,37 @@ test('shows converted canonical design-system sections and switches themes', asy
 	await expect(page.locator('#notifications')).toContainText('NotifRow k-mention unread');
 	await expect(page.locator('#radio')).toContainText('Radio · Now playing tab');
 	await expect(page.locator('#oekaki')).toContainText('Tool rail');
+	await expect(page.locator('#surfaces')).toContainText('TrendsCard');
 
 	await page.getByRole('button', { name: 'Simoun' }).click();
 	await expect(page.locator('html')).toHaveAttribute('data-theme', 'simoun');
+	await expectNoHorizontalOverflow(page);
+});
+
+test('renders canonical surface and right-rail card specimens', async ({ page }) => {
+	await setViewport(page, 'desktop');
+	await page.goto('/design-system');
+
+	const surfaces = page.locator('#surfaces');
+	await expect(surfaces.getByText('TrendsCard')).toBeVisible();
+	await expect(surfaces.getByRole('button', { name: /#fediverse/ })).toBeVisible();
+	await expect(surfaces.getByText('WhoToFollow')).toBeVisible();
+	await expect(surfaces.getByText('nyan.binary')).toBeVisible();
+	await expect(surfaces.getByText('ShortcutsCard')).toBeVisible();
+	await expect(surfaces.getByRole('button', { name: /Compose new post/ })).toBeVisible();
+	await expect(surfaces.getByText('InstanceStatus')).toBeVisible();
+	await expect(surfaces.getByText('pleromanet.social', { exact: true })).toBeVisible();
+	await expect(surfaces.getByText('QuickSearchCard')).toBeVisible();
+	await expect(surfaces.getByRole('button', { name: /Search hashtags/ })).toBeVisible();
+	await expect(surfaces.getByText('FooterCard')).toBeVisible();
+	await expect(surfaces.getByText('PLEROMANET™ 2.4.58')).toBeVisible();
+	await expect(surfaces.getByText('ProfilePreviewCard')).toBeVisible();
+	await expect(surfaces.getByText('@dreambyte@pleromanet.social')).toBeVisible();
+	await expect(surfaces.getByText('ProfileTipsCard')).toBeVisible();
+	await expect(surfaces.getByText('Your avatar will be shown at 96×96px.')).toBeVisible();
+
+	await surfaces.getByRole('button', { name: 'Follow' }).first().click();
+	await expect(surfaces.getByRole('button', { name: 'Following' })).toBeVisible();
 	await expectNoHorizontalOverflow(page);
 });
 
