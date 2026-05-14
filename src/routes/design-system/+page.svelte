@@ -115,7 +115,7 @@
 	let composerPrivacy = $state('Public');
 	let composerRemaining = $derived(500 - composerText.length);
 
-	const demoPost = (attachments: Attachment[], body = '') => ({
+	const demoPost = (attachments: Attachment[], body = '', quotedPost?: Record<string, unknown>) => ({
 		id: 'ds-demo',
 		name: 'orbit',
 		handle: '@orbit@spacebear.net',
@@ -123,6 +123,7 @@
 		avClass: 'av-orb',
 		body,
 		attachments,
+		quotedPost,
 		replies: 0,
 		boosts: 0,
 		favs: 0,
@@ -136,6 +137,45 @@
 		{ input: '2–4 photos + 1 audio', layout: 'photosAudio', highlight: false },
 		{ input: 'anything else', layout: 'heroStrip', highlight: false },
 	];
+
+	const SAMPLE_POST = {
+		id: 1, name: 'emi', handle: '@emichan@kolektiva.social', time: '16m',
+		avClass: 'av-anime',
+		body: "tiny update: fixed some bugs, added a toggle, and touched grass.\n\nthe internet can wait.",
+		replies: 2, boosts: 7, favs: 42,
+		actions: { reply: false, boost: false, fav: false },
+	};
+	const PHOTO_POST = {
+		...SAMPLE_POST, id: 2, body: "dusk in the city 🌆",
+		attachments: [{ kind: 'photo', src: 'samples/falco.png', alt: 'still 1985' }],
+	};
+	const PHOTOS3_POST = {
+		...SAMPLE_POST, id: 3, name: 'sysadmin', handle: '@root@pleroma.social',
+		avClass: 'av-pc-old',
+		body: "Backup your data. Hug your cat. Update PleromaNet™.",
+		attachments: [
+			{ kind: 'photo', src: 'samples/cat-door.webp', alt: '' },
+			{ kind: 'photo', src: 'samples/cat-bank.webp', alt: '' },
+			{ kind: 'photo', src: 'samples/cats-pair.webp', alt: '' },
+		],
+	};
+	const VIDEO_POST = {
+		...SAMPLE_POST, id: 4, name: 'pixelmoth', handle: '@pixelmoth@retro.social',
+		avClass: 'av-pixel-pc',
+		body: "cassette deck loop i recorded out the kitchen window.",
+		attachments: [{ kind: 'video', poster: 'sunset', duration: '0:42', start: 0.15, cc: true, caption: 'A slow pan across a windowsill at dusk.' }],
+	};
+	const AUDIO_POST = {
+		...SAMPLE_POST, id: 5, name: 'kestrel.fm', handle: '@kestrel@audio.garden',
+		avClass: 'av-grad-3',
+		body: "demo from last night's basement set.",
+		attachments: [{ kind: 'audio', title: 'after the storm (demo)', byline: 'kestrel · live take · 2026', duration: '4:18', start: 0.28, cover: 'samples/encardia-99.png' }],
+	};
+	const BANNER_POST = {
+		...SAMPLE_POST, id: 6, name: 'dreambyte', handle: '@dreambyte@pleromanet.social',
+		avClass: '', avBanner: 'sunset',
+		body: "🤍",
+	};
 
 	onMount(() => {
 		const storedTheme = localStorage.getItem('pn-theme');
@@ -821,6 +861,174 @@
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Composer · feed</span>
 								<span class="ds-spec-note">.composer</span>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section id="posts" class="ds-slab">
+				<header class="ds-slab-head">
+					<div class="ds-kicker">08</div>
+					<h2 class="ds-h2">Posts</h2>
+					<p class="ds-sub">The canonical post composes Avatar + PostHead + body + PostMedia + PostActions. Every post-shaped surface uses the same atoms.</p>
+				</header>
+				<div class="ds-slab-body">
+					<div class="ds-sub-h">Post anatomy</div>
+					<div class="ds-anatomy">
+						<div class="ds-anatomy-fig ds-post-anatomy" style="max-width:620px">
+							<Post post={PHOTO_POST} onAction={() => {}} />
+							<div class="ds-anatomy-marker ds-mk-1">1</div>
+							<div class="ds-anatomy-marker ds-mk-2">2</div>
+							<div class="ds-anatomy-marker ds-mk-3">3</div>
+							<div class="ds-anatomy-marker ds-mk-4">4</div>
+							<div class="ds-anatomy-marker ds-mk-5">5</div>
+						</div>
+						<ul class="ds-anatomy-list">
+							<li><span class="m">1</span> <b>Avatar</b> · post variant, 40–48px</li>
+							<li><span class="m">2</span> <b>PostHead</b> · name, handle, relative time</li>
+							<li><span class="m">3</span> <b>PostBody</b> · body + inline @mentions + optional pinged footer</li>
+							<li><span class="m">4</span> <b>PostMedia</b> · dispatches to PhotoGrid / Video / Audio</li>
+							<li><span class="m">5</span> <b>PostActions</b> · reply / boost / fav + overflow</li>
+						</ul>
+					</div>
+
+					<div class="ds-sub-h">Body &amp; mentions</div>
+					<p class="ds-sub" style="margin-bottom:14px">The <code style="font-family:var(--mono);font-size:11px">&lt;PostBody/&gt;</code> primitive auto-parses <code style="font-family:var(--mono);font-size:11px">@handle</code> patterns in the body string and renders them as inline links. A separate <code style="font-family:var(--mono);font-size:11px">addressees</code> array (the leading recipient pile-up from a fediverse reply) renders as a compact "PINGED" footer below the body, so the first line of a reply stays content, not a recipient list.</p>
+					<div class="ds-grid ds-grid-2">
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={demoPost([], "thanks for the recs @datagram — going to try qwen 0.5b first and then jan-nano if it doesn't cut it. @feld did you end up testing josie?")} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Body only</span>
+								<span class="ds-spec-note">no addressees · just inline mention parsing</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={{...demoPost([]), body: "qwen 0.5b can handle some limited summary tasks. theres also the JOSIE models which are jailbroken qwens.", addressees: ['@dtluna', '@feld', '@lain']}} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Body + addressees</span>
+								<span class="ds-spec-note">leading addressees → footer chip row</span>
+							</div>
+						</div>
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage">
+								<Post post={{...demoPost([]), body: "agreed with @datagram — the slow web feels possible again. tagging @soft.hertz too, this was your point yesterday", addressees: ['@datagram', '@gridwave', '@nyan', '@soft.hertz', '@orbit', '@lumen', '@kestrel.fm']}} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Long addressee chain</span>
+								<span class="ds-spec-note">scales horizontally · wraps if needed</span>
+							</div>
+						</div>
+					</div>
+
+					<div class="ds-sub-h">Quoted posts</div>
+					<p class="ds-sub" style="margin-bottom:14px">The <code style="font-family:var(--mono);font-size:11px">&lt;QuotedPost/&gt;</code> primitive embeds a referenced post inside any other. With media, it renders a horizontal smart-card (hero on the left, body on the right). Without media, it falls back to a vertical embedded card with the engagement footer. Quoted media is always a preview — videos and audio never play inline, since the original is one click away.</p>
+					<div class="ds-grid ds-grid-2">
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={demoPost([], "this perfectly captures my feelings about saturday morning", { name: 'kestrel.fm', handle: '@kestrel@audio.garden', avClass: 'av-grad-3', time: '2h', body: "the moment between waking up and remembering you have responsibilities is the most peaceful state known to humanity", attachments: [{ kind: 'photo', src: 'samples/cat-door.webp' }], replies: 12, boosts: 87, favs: 312 })} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">With 1 photo</span>
+								<span class="ds-spec-note">smart-card · hero photo · body + attribution</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={demoPost([], "agreed @soft.hertz — sharing in case anyone missed it the first time.", { name: 'soft.hertz', handle: '@soft.hertz@kolektiva.social', avClass: 'av-grad-3', time: '3h', body: "the algorithm doesn't care about you. the timeline doesn't either. but the people in it do, and that's worth keeping.", attachments: [], replies: 8, boosts: 34, favs: 142 })} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Text only (fallback)</span>
+								<span class="ds-spec-note">no media → embedded card · header + body + footer</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={demoPost([], "this whole walk was great. photos + the kettle audio.", { name: 'orbit', handle: '@orbit@spacebear.net', avClass: 'av-orb', time: '5h', body: "field walk yesterday — a couple of photos and the kettle clip i mentioned.", attachments: [{ kind: 'photo', src: 'samples/falco.png' }, { kind: 'photo', src: 'samples/dragon.png' }, { kind: 'video', poster: 'sunset', duration: '0:42' }, { kind: 'audio', title: 'kettle whistle', duration: '2:14' }], replies: 7, boosts: 24, favs: 116 })} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">With multiple media</span>
+								<span class="ds-spec-note">smart-card · hero photo + "+N" overflow badge</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={demoPost([], "the cinematography here, especially the kettle scene.", { name: 'pixelmoth', handle: '@pixelmoth@retro.social', avClass: 'av-pixel-pc', time: '6h', body: "cassette deck loop i recorded out the kitchen window.", attachments: [{ kind: 'video', poster: 'sunset', duration: '0:42', cc: true }], replies: 3, boosts: 12, favs: 58 })} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">With video hero</span>
+								<span class="ds-spec-note">smart-card · poster + play badge · no inline player</span>
+							</div>
+						</div>
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage">
+								<Post post={demoPost([], "have not stopped listening to this all week.", { name: 'kestrel.fm', handle: '@kestrel@audio.garden', avClass: 'av-grad-3', time: '3d', body: "demo from last night's basement set. 12 minutes of synths, one take, no edits.", attachments: [{ kind: 'audio', title: 'after the storm (demo)', byline: 'kestrel · 2026', duration: '4:18', cover: 'samples/encardia-99.png' }], replies: 6, boosts: 19, favs: 84 })} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">With audio hero</span>
+								<span class="ds-spec-note">smart-card · gradient cover with serif initial</span>
+							</div>
+						</div>
+					</div>
+
+					<div class="ds-sub-h">Variants</div>
+					<div class="ds-grid ds-grid-2">
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={SAMPLE_POST} onAction={() => {}} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Text only</span>
+								<span class="ds-spec-note">no media</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={BANNER_POST} onAction={() => {}} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">With banner avatar</span>
+								<span class="ds-spec-note">avBanner='sunset'</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={PHOTO_POST} onAction={() => {}} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">With one photo</span>
+								<span class="ds-spec-note">post.photos.length === 1</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={PHOTOS3_POST} onAction={() => {}} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">With multiple photos</span>
+								<span class="ds-spec-note">post-photos.n3</span>
+							</div>
+						</div>
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage">
+								<Post post={VIDEO_POST} onAction={() => {}} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">With video</span>
+								<span class="ds-spec-note">post.video</span>
+							</div>
+						</div>
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage">
+								<Post post={AUDIO_POST} onAction={() => {}} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">With audio</span>
+								<span class="ds-spec-note">post.audio</span>
 							</div>
 						</div>
 					</div>
@@ -1661,5 +1869,79 @@
 		background: var(--accent-soft);
 		padding: 2px 8px;
 		border-radius: 2px;
+	}
+
+	/* ===== Post anatomy markers ===== */
+	:global(.ds-post-anatomy) {
+		position: relative;
+		overflow: visible;
+	}
+	:global(.ds-anatomy-marker) {
+		position: absolute;
+		width: 24px;
+		height: 24px;
+		border-radius: 50%;
+		background: var(--accent);
+		color: white;
+		font-family: var(--mono);
+		font-size: 12px;
+		font-weight: 600;
+		display: grid;
+		place-items: center;
+		box-shadow: 0 0 0 2px var(--panel), 0 4px 12px -2px rgba(0,0,0,0.3);
+		pointer-events: none;
+		z-index: 4;
+	}
+	:global(.ds-post-anatomy .ds-mk-1) { top: 12px; left: 12px; }
+	:global(.ds-post-anatomy .ds-mk-2) { top: 12px; right: 12px; }
+	:global(.ds-post-anatomy .ds-mk-3) { top: 64px; left: 12px; }
+	:global(.ds-post-anatomy .ds-mk-4) { top: 130px; left: 12px; }
+	:global(.ds-post-anatomy .ds-mk-5) { bottom: 12px; left: 12px; }
+
+	/* ===== Anatomy section ===== */
+	:global(.ds-anatomy) {
+		display: grid;
+		grid-template-columns: 1fr 280px;
+		gap: 24px;
+		align-items: start;
+	}
+	:global(.ds-anatomy-fig) {
+		border: 1px solid var(--border);
+		background: var(--panel);
+		border-radius: 2px;
+		overflow: hidden;
+	}
+	:global(.ds-anatomy-list) {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		font-size: 13px;
+		color: var(--ink-2);
+	}
+	:global(.ds-anatomy-list li) {
+		display: grid;
+		grid-template-columns: 24px 1fr;
+		align-items: baseline;
+		gap: 10px;
+		padding: 10px 12px;
+		background: var(--panel);
+		border: 1px solid var(--border);
+		border-radius: 2px;
+	}
+	:global(.ds-anatomy-list li .m) {
+		font-family: var(--mono);
+		font-size: 11px;
+		color: var(--accent-ink);
+		background: var(--accent-soft);
+		text-align: center;
+		border-radius: 2px;
+		padding: 2px 0;
+	}
+	:global(.ds-anatomy-list b) { color: var(--ink); font-weight: 600; }
+	@media (max-width: 900px) {
+		:global(.ds-anatomy) { grid-template-columns: 1fr; }
 	}
 </style>
