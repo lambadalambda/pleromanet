@@ -1,4 +1,6 @@
 <script lang="ts">
+	import Icon from '$lib/rebuild/Icon.svelte';
+	import { iconNames } from '$lib/rebuild/icons';
 	import { onMount } from 'svelte';
 
 	type ThemeId = 'cream' | 'dusk' | 'drive' | 'simoun';
@@ -24,7 +26,6 @@
 		sample: string;
 		meta: string;
 	};
-
 	const THEMES: Theme[] = [
 		{ id: 'cream', label: 'Cream', bg: '#f5f1e8', panel: '#fbfaf3', ink: '#1f2347', accent: '#a48bd9' },
 		{ id: 'dusk', label: 'Dusk', bg: '#1a1538', panel: '#2a1f4a', ink: '#e8e2f5', accent: '#e7a8c9' },
@@ -205,6 +206,24 @@
 									<span style={`background: ${themeOption.ink};`}></span>
 									<span style={`background: ${themeOption.accent};`}></span>
 								</div>
+							</div>
+						{/each}
+					</div>
+				</div>
+			</section>
+
+			<section id="iconography" class="ds-slab">
+				<header class="ds-slab-head">
+					<div class="ds-kicker">02</div>
+					<h2 class="ds-h2">Iconography</h2>
+					<p class="ds-sub">One stroke weight (1.5–1.6), one corner style, currentColor on stroke. Imported from icons.jsx as the `I` namespace.</p>
+				</header>
+				<div class="ds-slab-body">
+					<div class="ds-icon-grid">
+						{#each iconNames as iconName (iconName)}
+							<div class="ds-icon-cell">
+								<div class="ds-icon-box"><Icon name={iconName} className="ds-icon-svg" /></div>
+								<div class="ds-icon-name">I.{iconName}</div>
 							</div>
 						{/each}
 					</div>
@@ -708,6 +727,47 @@
 
 	.ds-theme-card-swatches span:first-child {
 		border: 1px solid;
+	}
+
+	/* ===== Icon gallery ===== */
+	.ds-icon-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+		gap: 8px;
+	}
+
+	.ds-icon-cell {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 8px;
+		padding: 14px 8px 10px;
+		border: 1px solid var(--border);
+		background: var(--panel);
+		border-radius: 2px;
+	}
+
+	.ds-icon-box {
+		width: 40px;
+		height: 40px;
+		border: 1px solid var(--border);
+		background: var(--bg);
+		display: grid;
+		place-items: center;
+		color: var(--ink);
+		border-radius: 2px;
+	}
+
+	:global(.ds-icon-svg) {
+		width: 20px;
+		height: 20px;
+	}
+
+	.ds-icon-name {
+		font-family: var(--mono);
+		font-size: 10px;
+		letter-spacing: 0.04em;
+		color: var(--muted);
 	}
 
 	.ds-foot {
