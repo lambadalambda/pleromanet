@@ -13,12 +13,14 @@ test('shows converted canonical design-system sections and switches themes', asy
 	await expect(page.getByRole('heading', { name: 'Posts' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Thread' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Radio · PN.fm' })).toBeVisible();
 
 	await expect(page.locator('#controls')).toContainText('Button · primary');
 	await expect(page.locator('#attachments')).toContainText('pickAttachmentLayout →');
 	await expect(page.locator('#posts')).toContainText('Quoted posts');
 	await expect(page.locator('#thread')).toContainText('AncestorPost → FocusedPost → ReplyPost');
 	await expect(page.locator('#notifications')).toContainText('NotifRow k-mention unread');
+	await expect(page.locator('#radio')).toContainText('Radio · Now playing tab');
 
 	await page.getByRole('button', { name: 'Simoun' }).click();
 	await expect(page.locator('html')).toHaveAttribute('data-theme', 'simoun');
@@ -75,6 +77,28 @@ test('renders canonical notification rows and popover controls', async ({ page }
 	await expect(notifications.locator('.notif-pop-count')).toBeHidden();
 });
 
+test('renders canonical radio specimens and controls', async ({ page }) => {
+	await setViewport(page, 'desktop');
+	await page.goto('/design-system');
+
+	const radio = page.locator('#radio');
+	await expect(radio.getByText('NowPlayingLine')).toBeVisible();
+	await expect(radio.locator('.ds-nps-stack').getByText('pacific hour')).toHaveCount(2);
+	await expect(radio.locator('.ds-nps-stack').getByText('paused')).toHaveCount(2);
+	await expect(radio.getByText('Compact bar (collapsed)')).toBeVisible();
+	await expect(radio.locator('.radio').first()).toContainText('PN.fm · Retrowave');
+	await expect(radio.getByText('Radio · Now playing tab')).toBeVisible();
+	await expect(radio.getByText('Album · Outer Drive')).toBeVisible();
+	await expect(radio.getByRole('button', { name: 'coastline 1986' })).toBeVisible();
+	await expect(radio.getByText('Radio · Albums tab')).toBeVisible();
+	await expect(radio.getByRole('button', { name: /Modem Hymns/ })).toBeVisible();
+	await expect(radio.getByRole('button', { name: /Garden Hours/ })).toBeVisible();
+
+	const interactive = radio.locator('.radio').nth(1);
+	await interactive.getByRole('button', { name: 'Play', exact: true }).first().click();
+	await expect(interactive.getByRole('button', { name: 'Pause', exact: true }).first()).toBeVisible();
+});
+
 test('keeps the design system usable on mobile', async ({ page }) => {
 	await setViewport(page, 'mobile');
 	await page.goto('/design-system');
@@ -83,5 +107,6 @@ test('keeps the design system usable on mobile', async ({ page }) => {
 	await expect(page.getByRole('button', { name: 'Simoun' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Thread' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Radio · PN.fm' })).toBeVisible();
 	await expectNoHorizontalOverflow(page);
 });

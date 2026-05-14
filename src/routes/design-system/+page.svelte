@@ -12,11 +12,13 @@
 	import { openLightbox } from '$lib/rebuild/attachments';
 	import MediaStripThumb from '$lib/rebuild/MediaStripThumb.svelte';
 	import MediaStripKindBadge from '$lib/rebuild/MediaStripKindBadge.svelte';
+	import NowPlayingLine from '$lib/rebuild/NowPlayingLine.svelte';
 	import NotifRow from '$lib/rebuild/NotifRow.svelte';
 	import NotifsPopover from '$lib/rebuild/NotifsPopover.svelte';
 	import Seg from '$lib/rebuild/Seg.svelte';
 	import Tag from '$lib/rebuild/Tag.svelte';
 	import Toggle from '$lib/rebuild/Toggle.svelte';
+	import Radio from '$lib/rebuild/Radio.svelte';
 	import VaporBanner from '$lib/rebuild/VaporBanner.svelte';
 	import { iconNames } from '$lib/rebuild/icons';
 	import { SAMPLE_NOTIFS, type NotificationData, type NotificationKind } from '$lib/rebuild/notifications';
@@ -1235,6 +1237,66 @@
 				</div>
 			</section>
 
+			<section id="radio" class="ds-slab">
+				<header class="ds-slab-head">
+					<div class="ds-kicker">11</div>
+					<h2 class="ds-h2">Radio · PN.fm</h2>
+					<p class="ds-sub">A persistent server-radio dock. Floats bottom-left in the live app. Two states (compact bar, expanded panel), four sample albums.</p>
+				</header>
+				<div class="ds-slab-body">
+					<div class="ds-sub-h">Now playing line</div>
+					<div class="ds-spec">
+						<div class="ds-spec-stage padded">
+							<div class="ds-nps-stack">
+								<div class="ds-nps-wrap">
+									<div class="ds-nps-label">playing</div>
+									<NowPlayingLine playing track="pacific hour" artist="neon.cassette" tint="#a48bd9" />
+								</div>
+								<div class="ds-nps-wrap">
+									<div class="ds-nps-label">paused</div>
+									<NowPlayingLine playing={false} track="pacific hour" artist="neon.cassette" tint="#a48bd9" />
+								</div>
+							</div>
+						</div>
+						<div class="ds-spec-foot">
+							<span class="ds-spec-label">NowPlayingLine</span>
+							<span class="ds-spec-note">shown in user menu &amp; profile mini</span>
+						</div>
+					</div>
+
+					<div class="ds-sub-h">Compact bar (collapsed)</div>
+					<div class="ds-spec">
+						<div class="ds-spec-stage ds-radio-stage">
+							<div class="ds-radio-host"><Radio inline /></div>
+						</div>
+						<div class="ds-spec-foot">
+							<span class="ds-spec-label">Radio · bar</span>
+							<span class="ds-spec-note">.radio · default state</span>
+						</div>
+					</div>
+
+					<div class="ds-sub-h">Expanded panel</div>
+					<div class="ds-spec">
+						<div class="ds-spec-stage ds-radio-stage tall">
+							<div class="ds-radio-host"><Radio inline forceOpen forceView="now" /></div>
+						</div>
+						<div class="ds-spec-foot">
+							<span class="ds-spec-label">Radio · Now playing tab</span>
+							<span class="ds-spec-note">.radio.open · panel + tracklist</span>
+						</div>
+					</div>
+					<div class="ds-spec">
+						<div class="ds-spec-stage ds-radio-stage tall">
+							<div class="ds-radio-host"><Radio inline forceOpen forceView="albums" /></div>
+						</div>
+						<div class="ds-spec-foot">
+							<span class="ds-spec-label">Radio · Albums tab</span>
+							<span class="ds-spec-note">.radio.open · view=albums</span>
+						</div>
+					</div>
+				</div>
+			</section>
+
 			<footer class="ds-foot">
 				<div>End of system · everything else is composed from what's above.</div>
 				<div>PleromaNet™ Design System · v2.4.58 · {new Date().getFullYear()}</div>
@@ -1768,6 +1830,59 @@
 		position: relative;
 		display: inline-block;
 		max-width: 100%;
+	}
+
+	.ds-radio-stage {
+		padding: 20px;
+		background: var(--bg);
+		display: flex;
+		justify-content: center;
+		min-height: 80px;
+	}
+
+	.ds-radio-stage.tall {
+		min-height: 400px;
+		align-items: flex-start;
+	}
+
+	.ds-radio-host {
+		position: relative;
+		width: 360px;
+		max-width: 100%;
+	}
+
+	.ds-radio-host :global(.radio),
+	.ds-radio-host :global(.radio-revive) {
+		position: static;
+		width: 100%;
+		max-width: none;
+		box-shadow: 0 4px 20px -8px rgba(0,0,0,0.18);
+	}
+
+	.ds-nps-stack {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+		min-width: 280px;
+	}
+
+	.ds-nps-wrap {
+		display: grid;
+		grid-template-columns: 70px 1fr;
+		align-items: center;
+		gap: 14px;
+		padding: 6px 10px;
+		background: var(--panel);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+	}
+
+	.ds-nps-label {
+		font-family: var(--mono);
+		font-size: 9px;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--muted-2);
 	}
 
 	:global(.ds-thread-demo-card) {
