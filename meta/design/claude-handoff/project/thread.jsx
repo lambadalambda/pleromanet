@@ -1,4 +1,4 @@
-/* global React, I, VaporBanner */
+/* global React, I, VaporBanner, Avatar, PostHead, PostBody, PostMedia, PostActions, QuotedPost, Button */
 const { useState: useStateT } = React;
 
 // ============ Thread view ============
@@ -35,9 +35,7 @@ function ThreadView({ thread, focusedId, onBack, onAction, onReply, replyDraft, 
 
       {/* Inline reply composer */}
       <div className="thread-reply-composer">
-        <div className="composer-av av-grad-1" style={{borderRadius: 4, overflow: 'hidden'}}>
-          <VaporBanner variant="sunset"/>
-        </div>
+        <Avatar variant="compose" avBanner="sunset"/>
         <div style={{minWidth: 0, flex: 1}}>
           <textarea
             className="composer-input"
@@ -96,35 +94,15 @@ function AncestorPost({ post, onAction, hasLine }) {
   return (
     <div className="post post-ancestor">
       <div className="thread-line-wrap">
-        <div className={"post-av " + post.avClass}>
-          {post.avBanner && <VaporBanner variant={post.avBanner}/>}
-        </div>
+        <Avatar post={post}/>
         <div className="thread-line"></div>
       </div>
       <div style={{minWidth: 0}}>
-        <div className="post-head">
-          <span className="post-name">{post.name}</span>
-          <a className="post-handle">{post.handle}</a>
-          <span className="post-time">{post.time}</span>
-        </div>
-        <div className="post-body">{post.body}</div>
-        {post.media && (
-          <div className="post-media">
-            <VaporBanner variant={post.media}/>
-          </div>
-        )}
-        <div className="post-actions">
-          <button className={"post-action reply " + (post.actions.reply ? 'on' : '')} onClick={() => onAction(post.id, 'reply')}>
-            <I.reply/> {post.replies}
-          </button>
-          <button className={"post-action boost " + (post.actions.boost ? 'on' : '')} onClick={() => onAction(post.id, 'boost')}>
-            <I.boost/> {post.boosts + (post.actions.boost ? 1 : 0)}
-          </button>
-          <button className={"post-action fav " + (post.actions.fav ? 'on' : '')} onClick={() => onAction(post.id, 'fav')}>
-            <I.star fill={post.actions.fav ? 'currentColor' : 'none'}/> {post.favs + (post.actions.fav ? 1 : 0)}
-          </button>
-          <button className="post-more"><I.more style={{width: 16, height: 16}}/></button>
-        </div>
+        <PostHead post={post}/>
+        <PostBody body={post.body} addressees={post.addressees}/>
+        <QuotedPost quoted={post.quotedPost}/>
+        <PostMedia post={post}/>
+        <PostActions post={post} onAction={(k) => onAction(post.id, k)}/>
       </div>
     </div>
   );
@@ -135,20 +113,27 @@ function FocusedPost({ post, onAction, continuesAbove }) {
     <article className="focused-post">
       {continuesAbove && <div className="thread-line-top"></div>}
       <div className="focused-post-head">
-        <div className={"focused-av " + post.avClass}>
-          {post.avBanner && <VaporBanner variant={post.avBanner}/>}
-        </div>
+        <Avatar post={post} variant="focused"/>
         <div style={{minWidth: 0, flex: 1}}>
           <div className="focused-name">{post.name}</div>
           <div className="focused-handle">{post.handle}</div>
         </div>
-        <button className={"btn-follow " + (post.following ? 'following' : '')}>
+        <Button variant="follow" className={post.following ? 'following' : ''}>
           {post.following ? 'Following' : 'Follow'}
-        </button>
+        </Button>
         <button className="post-more"><I.more style={{width: 16, height: 16}}/></button>
       </div>
 
       <div className="focused-body">{post.body}</div>
+      {post.quotedPost && <QuotedPost quoted={post.quotedPost}/>}
+      {post.addressees && post.addressees.length > 0 && (
+        <div className="post-pinged focused-pinged">
+          <span className="post-pinged-l">Pinged</span>
+          <span className="post-pinged-list">
+            {post.addressees.map(a => <a key={a} className="post-pinged-chip">{a}</a>)}
+          </span>
+        </div>
+      )}
 
       {post.media && (
         <div className="focused-media">
@@ -164,22 +149,31 @@ function FocusedPost({ post, onAction, continuesAbove }) {
         <span><strong>{post.views || '12.4K'}</strong> views</span>
       </div>
 
-      <div className="focused-engagement">
-        <span><strong>{post.boosts + (post.actions.boost ? 1 : 0)}</strong> Boosts</span>
-        <span><strong>{post.favs + (post.actions.fav ? 1 : 0)}</strong> Favorites</span>
-        <span><strong>{post.bookmarks || 12}</strong> Bookmarks</span>
-      </div>
-
       <div className="focused-actions">
-        <button className="focused-action"><I.reply/> Reply</button>
+        <button className="focused-action">
+          <I.reply/>
+          <span>Reply</span>
+          {post.replies > 0 && <span className="focused-action-c">{post.replies}</span>}
+        </button>
         <button className={"focused-action " + (post.actions.boost ? 'on' : '')} onClick={() => onAction(post.id, 'boost')}>
-          <I.boost/> Boost
+          <I.boost/>
+          <span>Boost</span>
+          {(post.boosts + (post.actions.boost ? 1 : 0)) > 0 && <span className="focused-action-c">{post.boosts + (post.actions.boost ? 1 : 0)}</span>}
         </button>
         <button className={"focused-action " + (post.actions.fav ? 'on' : '')} onClick={() => onAction(post.id, 'fav')}>
-          <I.star fill={post.actions.fav ? 'currentColor' : 'none'}/> Favorite
+          <I.star fill={post.actions.fav ? 'currentColor' : 'none'}/>
+          <span>Favorite</span>
+          {(post.favs + (post.actions.fav ? 1 : 0)) > 0 && <span className="focused-action-c">{post.favs + (post.actions.fav ? 1 : 0)}</span>}
         </button>
-        <button className="focused-action"><I.bookmark/> Save</button>
-        <button className="focused-action"><I.ext/> Share</button>
+        <button className="focused-action">
+          <I.bookmark/>
+          <span>Save</span>
+          {(post.bookmarks || 0) > 0 && <span className="focused-action-c">{post.bookmarks}</span>}
+        </button>
+        <button className="focused-action">
+          <I.ext/>
+          <span>Share</span>
+        </button>
       </div>
     </article>
   );
@@ -188,38 +182,18 @@ function FocusedPost({ post, onAction, continuesAbove }) {
 function ReplyPost({ post, onAction, isLast, nestedReplies, depth = 0 }) {
   const [showNested, setShowNested] = useStateT(false);
   return (
-    <>
+    <React.Fragment>
       <div className={"post post-reply " + (isLast && nestedReplies.length === 0 ? 'post-reply-last' : '')}>
         <div className="thread-line-wrap">
-          <div className={"post-av " + post.avClass}>
-            {post.avBanner && <VaporBanner variant={post.avBanner}/>}
-          </div>
+          <Avatar post={post}/>
           {(nestedReplies.length > 0 || depth > 0) && !isLast && <div className="thread-line"></div>}
         </div>
         <div style={{minWidth: 0}}>
-          <div className="post-head">
-            <span className="post-name">{post.name}</span>
-            <a className="post-handle">{post.handle}</a>
-            <span className="post-time">{post.time}</span>
-          </div>
-          <div className="post-body">{post.body}</div>
-          {post.media && (
-            <div className="post-media">
-              <VaporBanner variant={post.media}/>
-            </div>
-          )}
-          <div className="post-actions">
-            <button className={"post-action reply " + (post.actions.reply ? 'on' : '')} onClick={() => onAction(post.id, 'reply')}>
-              <I.reply/> {post.replies}
-            </button>
-            <button className={"post-action boost " + (post.actions.boost ? 'on' : '')} onClick={() => onAction(post.id, 'boost')}>
-              <I.boost/> {post.boosts + (post.actions.boost ? 1 : 0)}
-            </button>
-            <button className={"post-action fav " + (post.actions.fav ? 'on' : '')} onClick={() => onAction(post.id, 'fav')}>
-              <I.star fill={post.actions.fav ? 'currentColor' : 'none'}/> {post.favs + (post.actions.fav ? 1 : 0)}
-            </button>
-            <button className="post-more"><I.more style={{width: 16, height: 16}}/></button>
-          </div>
+          <PostHead post={post}/>
+          <PostBody body={post.body} addressees={post.addressees}/>
+          <QuotedPost quoted={post.quotedPost}/>
+          <PostMedia post={post}/>
+          <PostActions post={post} onAction={(k) => onAction(post.id, k)}/>
           {nestedReplies.length > 0 && !showNested && (
             <button className="show-replies" onClick={() => setShowNested(true)}>
               <span className="show-replies-line"></span>
@@ -242,8 +216,8 @@ function ReplyPost({ post, onAction, isLast, nestedReplies, depth = 0 }) {
           ))}
         </div>
       )}
-    </>
+    </React.Fragment>
   );
 }
 
-Object.assign(window, { ThreadView });
+Object.assign(window, { ThreadView, AncestorPost, FocusedPost, ReplyPost });

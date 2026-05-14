@@ -1,7 +1,11 @@
-/* global React, I */
+/* global React, I, VaporBanner, Avatar, Card, CardHead, StatBlock, StatStrip */
 const { useState: useStateA } = React;
 
 // ============ Vaporwave / pixel placeholder components ============
+// Each variant is a self-contained SVG composition. Banners scale via
+// preserveAspectRatio="xMidYMid slice" so they crop cleanly at any
+// container shape — banner (16:7), avatar (1:1), or cover (3:1).
+
 function VaporBanner({ variant = 'sunset', className = '' }) {
   if (variant === 'pixel-window') {
     return (
@@ -12,72 +16,222 @@ function VaporBanner({ variant = 'sunset', className = '' }) {
           <div className="pw-banner-dot g"></div>
         </div>
         <div className="pw-banner-content">
-          <div className="vw-placeholder">
-            <div className="vw-stars"></div>
-            <div className="vw-sun"></div>
-            <div className="vw-grid"></div>
-            <div className="vw-palm"></div>
-            <div className="vw-city"></div>
-          </div>
+          <BannerPixelDesktop/>
         </div>
       </div>
     );
   }
   if (variant === 'city') {
-    return (
-      <div className={"vw-placeholder " + className} style={{background: 'linear-gradient(180deg, #0c0a28 0%, #2a1f4a 30%, #6b4d8e 60%, #d889a0 100%)'}}>
-        <div className="vw-stars"></div>
-        <div style={{position: 'absolute', right: '20%', top: '20%', width: 30, height: 4, background: 'rgba(255,255,255,0.7)', borderRadius: 2}}></div>
-        <div style={{position: 'absolute', right: '15%', top: '15%', fontSize: 14, color: 'rgba(255,255,255,0.8)'}}>☾</div>
-        <CityScape />
-      </div>
-    );
+    return <BannerCity className={className}/>;
   }
   if (variant === 'space') {
-    return (
-      <div className={"vw-placeholder " + className} style={{background: 'radial-gradient(ellipse at 30% 30%, #2a1f4a 0%, #0c0a1a 70%)'}}>
-        <div className="vw-stars"></div>
-        <div style={{position: 'absolute', right: '25%', top: '20%', width: 60, height: 60, borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, #5a4a7a, #1a1538)', boxShadow: '0 0 20px rgba(108, 77, 142, 0.4)'}}></div>
-      </div>
-    );
+    return <BannerSpace className={className}/>;
   }
-  // sunset default
+  // sunset (default)
+  return <BannerSunset className={className}/>;
+}
+
+function BannerSunset({ className = '' }) {
   return (
-    <div className={"vw-placeholder " + className}>
-      <div className="vw-stars"></div>
-      <div className="vw-sun"></div>
-      <div className="vw-grid"></div>
-      <div className="vw-palm"></div>
-      <div className="vw-city"></div>
-    </div>
+    <svg viewBox="0 0 100 50" preserveAspectRatio="xMidYMid slice"
+         className={className}
+         style={{width: '100%', height: '100%', display: 'block'}}>
+      <defs>
+        <linearGradient id="sun-sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#1d1840"/>
+          <stop offset="35%" stopColor="#3d2d6a"/>
+          <stop offset="60%" stopColor="#a8688c"/>
+          <stop offset="82%" stopColor="#e7a98a"/>
+          <stop offset="100%" stopColor="#f4cfa1"/>
+        </linearGradient>
+        <radialGradient id="sun-disc" cx="50%" cy="40%" r="55%">
+          <stop offset="0%" stopColor="#fff5d4"/>
+          <stop offset="45%" stopColor="#ffb877"/>
+          <stop offset="100%" stopColor="#e87d6c"/>
+        </radialGradient>
+        <linearGradient id="sun-glow" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffd1a8" stopOpacity="0"/>
+          <stop offset="100%" stopColor="#ffd1a8" stopOpacity="0.45"/>
+        </linearGradient>
+      </defs>
+      <rect width="100" height="50" fill="url(#sun-sky)"/>
+      {/* Distant stars in the upper sky */}
+      <g fill="#fff5d4">
+        <circle cx="14" cy="5" r="0.35" opacity="0.9"/>
+        <circle cx="32" cy="3" r="0.25" opacity="0.7"/>
+        <circle cx="73" cy="4" r="0.3" opacity="0.85"/>
+        <circle cx="89" cy="7" r="0.2" opacity="0.6"/>
+        <circle cx="55" cy="8" r="0.18" opacity="0.5"/>
+      </g>
+      {/* Atmospheric haze across the horizon */}
+      <rect x="0" y="28" width="100" height="14" fill="url(#sun-glow)"/>
+      {/* Sun disc, half-set behind the horizon */}
+      <circle cx="50" cy="39" r="13" fill="url(#sun-disc)"/>
+      {/* Layered mountain silhouettes — depth without clutter */}
+      <path d="M0 50 L0 41 L18 33 L34 38 L52 30 L66 36 L82 32 L100 36 L100 50 Z"
+            fill="#1d1840" opacity="0.55"/>
+      <path d="M0 50 L0 44 L14 40 L30 43 L44 39 L62 42 L78 39 L100 42 L100 50 Z"
+            fill="#1d1840" opacity="0.78"/>
+      {/* Reflection slivers below the horizon */}
+      <g stroke="#ffd1a8" strokeLinecap="round">
+        <line x1="34" y1="45.5" x2="66" y2="45.5" strokeWidth="0.25" opacity="0.5"/>
+        <line x1="40" y1="47" x2="60" y2="47" strokeWidth="0.2" opacity="0.35"/>
+        <line x1="44" y1="48.4" x2="56" y2="48.4" strokeWidth="0.15" opacity="0.25"/>
+      </g>
+    </svg>
+  );
+}
+
+function BannerCity({ className = '' }) {
+  return (
+    <svg viewBox="0 0 100 50" preserveAspectRatio="xMidYMid slice"
+         className={className}
+         style={{width: '100%', height: '100%', display: 'block'}}>
+      <defs>
+        <linearGradient id="city-sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#0c0a28"/>
+          <stop offset="45%" stopColor="#2a1f4a"/>
+          <stop offset="85%" stopColor="#7e5a92"/>
+          <stop offset="100%" stopColor="#d889a0"/>
+        </linearGradient>
+        <linearGradient id="city-buildings" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#1a0f30" stopOpacity="0.85"/>
+          <stop offset="100%" stopColor="#0a0520"/>
+        </linearGradient>
+      </defs>
+      <rect width="100" height="50" fill="url(#city-sky)"/>
+      {/* Stars */}
+      <g fill="white">
+        <circle cx="10" cy="6" r="0.35" opacity="0.8"/>
+        <circle cx="25" cy="3" r="0.25" opacity="0.6"/>
+        <circle cx="40" cy="7" r="0.3" opacity="0.7"/>
+        <circle cx="58" cy="4" r="0.2" opacity="0.5"/>
+        <circle cx="72" cy="9" r="0.3" opacity="0.8"/>
+        <circle cx="92" cy="3" r="0.25" opacity="0.6"/>
+      </g>
+      {/* Crescent moon */}
+      <g transform="translate(80 9)">
+        <circle r="3" fill="#fff5d4" opacity="0.9"/>
+        <circle cx="1.2" r="3" fill="#0c0a28"/>
+      </g>
+      {/* Skyline silhouette */}
+      <path d="M0 50 L0 36 L4 36 L4 30 L9 30 L9 33 L14 33 L14 26 L19 26 L19 32 L24 32 L24 22 L29 22 L29 30 L34 30 L34 27 L39 27 L39 32 L44 32 L44 20 L49 20 L49 28 L54 28 L54 25 L59 25 L59 30 L64 30 L64 22 L69 22 L69 27 L74 27 L74 24 L79 24 L79 31 L84 31 L84 28 L89 28 L89 30 L94 30 L94 26 L100 26 L100 50 Z"
+            fill="url(#city-buildings)"/>
+      {/* Window lights */}
+      <g fill="#ffd1a8" opacity="0.85">
+        {[[6,33],[10,32],[15,29],[20,28],[25,25],[30,26],[35,30],[40,29],[45,23],[50,24],[55,27],[60,26],[65,25],[70,24],[75,27],[80,28],[85,30],[90,29],[95,28]].map(([x,y], i) => (
+          <rect key={i} x={x-0.4} y={y} width="0.6" height="0.6"/>
+        ))}
+      </g>
+      <g fill="#f78fb3" opacity="0.7">
+        {[[7,35],[12,31],[17,28],[27,24],[37,28],[47,26],[57,29],[67,28],[77,30]].map(([x,y], i) => (
+          <rect key={i} x={x-0.4} y={y} width="0.6" height="0.6"/>
+        ))}
+      </g>
+    </svg>
+  );
+}
+
+function BannerSpace({ className = '' }) {
+  return (
+    <svg viewBox="0 0 100 50" preserveAspectRatio="xMidYMid slice"
+         className={className}
+         style={{width: '100%', height: '100%', display: 'block'}}>
+      <defs>
+        <radialGradient id="space-bg" cx="30%" cy="35%" r="85%">
+          <stop offset="0%" stopColor="#2a1f4a"/>
+          <stop offset="45%" stopColor="#15102a"/>
+          <stop offset="100%" stopColor="#070414"/>
+        </radialGradient>
+        <radialGradient id="space-planet" cx="30%" cy="30%" r="75%">
+          <stop offset="0%" stopColor="#c2a8e0"/>
+          <stop offset="55%" stopColor="#6e4f9e"/>
+          <stop offset="100%" stopColor="#2a1f4a"/>
+        </radialGradient>
+      </defs>
+      <rect width="100" height="50" fill="url(#space-bg)"/>
+      {/* Scattered starfield */}
+      <g fill="white">
+        <circle cx="8" cy="6" r="0.4" opacity="0.9"/>
+        <circle cx="15" cy="32" r="0.3" opacity="0.6"/>
+        <circle cx="22" cy="12" r="0.5" opacity="0.95"/>
+        <circle cx="30" cy="42" r="0.25" opacity="0.5"/>
+        <circle cx="38" cy="8" r="0.35" opacity="0.8"/>
+        <circle cx="45" cy="38" r="0.3" opacity="0.6"/>
+        <circle cx="52" cy="4" r="0.45" opacity="0.9"/>
+        <circle cx="55" cy="22" r="0.2" opacity="0.5"/>
+        <circle cx="63" cy="45" r="0.3" opacity="0.7"/>
+        <circle cx="88" cy="10" r="0.35" opacity="0.8"/>
+        <circle cx="94" cy="30" r="0.25" opacity="0.55"/>
+        <circle cx="82" cy="40" r="0.4" opacity="0.9"/>
+        <circle cx="3" cy="22" r="0.2" opacity="0.4"/>
+        <circle cx="70" cy="18" r="0.3" opacity="0.7"/>
+      </g>
+      {/* Twinkle accents */}
+      <circle cx="42" cy="22" r="0.6" fill="#fff5d4">
+        <animate attributeName="opacity" values="0.3;1;0.3" dur="2.4s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="60" cy="36" r="0.5" fill="#e7a8c9">
+        <animate attributeName="opacity" values="1;0.4;1" dur="3.1s" repeatCount="indefinite"/>
+      </circle>
+      {/* Ringed planet, offset right */}
+      <g transform="translate(72 28) rotate(-18)">
+        <ellipse rx="18" ry="3" fill="none" stroke="#e7a8c9" strokeWidth="0.6" opacity="0.45"/>
+        <ellipse rx="18" ry="3" fill="none" stroke="#a48bd9" strokeWidth="0.3" opacity="0.8" strokeDasharray="30 1"/>
+      </g>
+      <circle cx="72" cy="28" r="9" fill="url(#space-planet)"/>
+      {/* Front portion of the ring crossing the planet */}
+      <g transform="translate(72 28) rotate(-18)">
+        <path d="M -18 0 A 18 3 0 0 1 18 0" fill="none" stroke="#a48bd9" strokeWidth="0.4" opacity="0.5" strokeDasharray="0 18 30 30"/>
+      </g>
+    </svg>
+  );
+}
+
+function BannerPixelDesktop() {
+  // Inside the window-chrome — a low-poly dawn landscape (cleaner than a
+  // "window inside a window" of vaporwave clutter).
+  return (
+    <svg viewBox="0 0 100 60" preserveAspectRatio="xMidYMid slice"
+         style={{width: '100%', height: '100%', display: 'block'}}>
+      <defs>
+        <linearGradient id="pw-sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#3d2d6a"/>
+          <stop offset="60%" stopColor="#a48bd9"/>
+          <stop offset="100%" stopColor="#e7a8c9"/>
+        </linearGradient>
+      </defs>
+      <rect width="100" height="60" fill="url(#pw-sky)"/>
+      {/* Sun */}
+      <circle cx="72" cy="24" r="6" fill="#fff5d4" opacity="0.95"/>
+      <circle cx="72" cy="24" r="10" fill="#fff5d4" opacity="0.18"/>
+      {/* Far peaks */}
+      <path d="M0 60 L0 42 L18 30 L32 38 L48 28 L62 36 L80 32 L100 38 L100 60 Z"
+            fill="#2a1f4a" opacity="0.55"/>
+      {/* Near hills */}
+      <path d="M0 60 L0 48 L20 42 L40 46 L60 40 L80 44 L100 42 L100 60 Z"
+            fill="#3d2d6a" opacity="0.85"/>
+      <path d="M0 60 L0 52 L25 50 L50 53 L75 50 L100 52 L100 60 Z"
+            fill="#1d1840"/>
+      {/* CRT scanlines */}
+      <g fill="rgba(255,255,255,0.05)">
+        {Array.from({length: 14}).map((_, i) => (
+          <rect key={i} x="0" y={i * 4.3 + 1} width="100" height="1"/>
+        ))}
+      </g>
+    </svg>
   );
 }
 
 function CityScape() {
-  return (
-    <svg viewBox="0 0 400 100" preserveAspectRatio="none" style={{position: 'absolute', left: 0, right: 0, bottom: 0, width: '100%', height: '60%'}}>
-      <defs>
-        <linearGradient id="cityG" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#1a0f30" stopOpacity="0.8"/>
-          <stop offset="100%" stopColor="#0a0520" stopOpacity="1"/>
-        </linearGradient>
-      </defs>
-      <path d="M0 80 L20 80 L20 50 L40 50 L40 70 L60 70 L60 30 L80 30 L80 60 L100 60 L100 45 L120 45 L120 70 L140 70 L140 25 L160 25 L160 55 L180 55 L180 40 L200 40 L200 65 L220 65 L220 35 L240 35 L240 50 L260 50 L260 30 L280 30 L280 60 L300 60 L300 45 L320 45 L320 55 L340 55 L340 35 L360 35 L360 65 L380 65 L380 50 L400 50 L400 100 L0 100 Z" fill="url(#cityG)"/>
-      {/* Window dots */}
-      {[[25,55],[28,60],[45,55],[48,60],[65,40],[68,45],[68,50],[85,45],[88,40],[88,50],[105,55],[108,50],[125,50],[128,55],[145,35],[148,30],[165,40],[168,45],[185,55],[188,60],[205,50],[208,45],[225,45],[228,40],[245,42],[248,45],[265,40],[268,35],[285,40],[288,45],[305,55],[308,50],[325,55],[328,50],[345,45],[348,40],[365,45],[368,50],[385,55],[388,60]].map(([x, y], i) => (
-        <rect key={i} x={x} y={y} width="2" height="2" fill={i % 3 === 0 ? "#f78fb3" : "#ffd1a8"} opacity="0.85"/>
-      ))}
-    </svg>
-  );
+  // Legacy export kept for back-compat (no longer used by VaporBanner).
+  return <BannerCity/>;
 }
 
 // ============ Header ============
 function Header({ view, onView, tweaks, onMenu, theme, setTheme, onSignOut }) {
   const [userMenuOpen, setUserMenuOpen] = React.useState(false);
   const navs = [
-    { id: 'home', label: 'Home' },
-    { id: 'local', label: 'Local' },
-    { id: 'federated', label: 'Federated' },
     { id: 'explore', label: 'Explore' },
     { id: 'about', label: 'About' },
   ];
@@ -123,7 +277,7 @@ function Header({ view, onView, tweaks, onMenu, theme, setTheme, onSignOut }) {
               <input placeholder="Search..." />
               <span className="kbd">⌘K</span>
             </div>
-            <button className="icon-btn" aria-label="Notifications">
+            <button className="icon-btn" aria-label="Notifications" data-bell onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('toggle-notifs-pop')); }}>
               <I.bell style={{width: 20, height: 20}}/>
               <span className="badge">3</span>
             </button>
@@ -147,6 +301,7 @@ function UserMenu({ onView, theme, setTheme, onSignOut }) {
     { id: 'cream', label: 'Cream', grad: 'linear-gradient(135deg, #f5f1e8 50%, #a48bd9 50%)' },
     { id: 'dusk', label: 'Dusk', grad: 'linear-gradient(135deg, #2a1f4a 50%, #e7a8c9 50%)' },
     { id: 'drive', label: 'Drive', grad: 'linear-gradient(135deg, #0c0a28 50%, #7dc4be 50%)' },
+    { id: 'simoun', label: 'Simoun', grad: 'linear-gradient(135deg, #18203f 50%, #e8763a 50%)' },
   ];
   return (
     <div className="user-menu">
@@ -157,6 +312,7 @@ function UserMenu({ onView, theme, setTheme, onSignOut }) {
         <div style={{minWidth: 0, flex: 1}}>
           <div className="user-menu-name">dreambyte</div>
           <div className="user-menu-handle">@dreambyte@pleromanet.social</div>
+          {window.NowPlayingLine && <window.NowPlayingLine compact hidePausedLabel/>}
         </div>
       </div>
       <div className="user-menu-stats">
@@ -244,6 +400,7 @@ function SideNav({ view, onView, settingsTab, onSettingsTab }) {
                 else if (it.id === 'settings') onView('profile-settings');
                 else if (it.id === 'federated') onView('federated');
                 else if (it.id === 'local') onView('local');
+                else if (it.id === 'notifs') onView('notifs');
               }}>
               <span className="ico"><Ico style={{width: 18, height: 18}}/></span>
               <span>{it.label}</span>
@@ -270,8 +427,9 @@ function SideNav({ view, onView, settingsTab, onSettingsTab }) {
 
 // ============ Profile mini card ============
 function ProfileMini() {
+  const NP = window.NowPlayingLine;
   return (
-    <div className="card">
+    <Card>
       <div className="profile-mini-banner">
         <VaporBanner variant="pixel-window"/>
       </div>
@@ -279,29 +437,21 @@ function ProfileMini() {
         <div className="profile-mini-name">dreambyte</div>
         <div className="profile-mini-handle">@dreambyte@pleroma.social</div>
         <div className="profile-mini-bio">living in a soft world</div>
+        {NP && <NP/>}
       </div>
-      <div className="stat-row">
-        <div className="stat">
-          <div className="stat-label">Posts</div>
-          <div className="stat-value">1,248</div>
-        </div>
-        <div className="stat">
-          <div className="stat-label">Following</div>
-          <div className="stat-value">312</div>
-        </div>
-        <div className="stat">
-          <div className="stat-label">Followers</div>
-          <div className="stat-value">1,921</div>
-        </div>
-      </div>
-    </div>
+      <StatStrip items={[
+        { label: 'Posts', value: '1,248' },
+        { label: 'Following', value: '312' },
+        { label: 'Followers', value: '1,921' },
+      ]}/>
+    </Card>
   );
 }
 
 // ============ Footer card ============
 function FooterCard() {
   return (
-    <div className="card footer-card">
+    <Card className="footer-card">
       <div><span className="v">PLEROMANET™ 2.4.58</span></div>
       <div style={{marginTop: 4, fontFamily: 'var(--sans)', fontSize: 11.5, letterSpacing: 0}}>© 2024 PleromaNet™ Contributors</div>
       <div className="footer-links">
@@ -311,7 +461,7 @@ function FooterCard() {
         <span style={{color: 'var(--muted-2)'}}>·</span>
         <a>About</a>
       </div>
-    </div>
+    </Card>
   );
 }
 

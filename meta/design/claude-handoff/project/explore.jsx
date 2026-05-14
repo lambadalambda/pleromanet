@@ -1,4 +1,4 @@
-/* global React, I, VaporBanner, Post */
+/* global React, I, VaporBanner, Post, Avatar, Card, CardHead, CardFoot, Button, Pill, StatusRow */
 const { useState: useStateE } = React;
 
 // ============ Explore view ============
@@ -71,11 +71,12 @@ function ExploreView({ posts, onToggleAction, following, toggleFollow }) {
               <div className="community-bio">{c.bio}</div>
               <div className="community-foot">
                 <span className="community-members">{c.members}</span>
-                <button
-                  className={"btn-follow " + (following[c.name] ? 'following' : '')}
+                <Button
+                  variant="follow"
+                  className={following[c.name] ? 'following' : ''}
                   onClick={() => toggleFollow(c.name)}>
                   {following[c.name] ? 'Joined' : 'Join'}
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -109,10 +110,8 @@ function QuickSearchCard() {
     { ico: I.hash, label: 'Search hashtags' },
   ];
   return (
-    <div className="card">
-      <div className="card-head" style={{borderBottom: 'none', paddingBottom: 4}}>
-        <span className="card-title">Quick search</span>
-      </div>
+    <Card>
+      <CardHead style={{borderBottom: 'none', paddingBottom: 4}} title="Quick search"/>
       <div style={{padding: '4px 0 12px'}}>
         {items.map((it, i) => {
           const Ico = it.ico;
@@ -125,25 +124,22 @@ function QuickSearchCard() {
           );
         })}
       </div>
-    </div>
+    </Card>
   );
 }
 
 function InstanceStatusExtended() {
   return (
-    <div className="card">
-      <div className="card-head">
-        <span className="card-title">Instance status</span>
-        <I.pulse style={{width: 16, height: 16, color: 'var(--muted)'}}/>
-      </div>
+    <Card>
+      <CardHead title="Instance status" icon={I.pulse}/>
       <div>
-        <div className="status-row"><span className="l">pleromanet.social</span><span className="pill">All systems normal</span></div>
-        <div className="status-row"><span className="l">Uptime</span><span className="r">30d 12h 42m</span></div>
-        <div className="status-row"><span className="l">Users</span><span className="r">2,487</span></div>
-        <div className="status-row"><span className="l">Statuses</span><span className="r">98,312</span></div>
+        <StatusRow label="pleromanet.social" value={<Pill>All systems normal</Pill>}/>
+        <StatusRow label="Uptime"  value="30d 12h 42m"/>
+        <StatusRow label="Users"   value="2,487"/>
+        <StatusRow label="Statuses" value="98,312"/>
       </div>
-      <button className="card-foot">View more →</button>
-    </div>
+      <CardFoot>View more →</CardFoot>
+    </Card>
   );
 }
 

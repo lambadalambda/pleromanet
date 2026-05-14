@@ -1,4 +1,4 @@
-/* global React, I, VaporBanner */
+/* global React, I, VaporBanner, Avatar, Card, CardHead, CardFoot, Toggle, StatStrip, Button */
 const { useState: useStateS } = React;
 
 // ============ Profile / Settings ============
@@ -113,7 +113,7 @@ function ToggleRow({ title, help, on, onChange }) {
         <div className="toggle-title">{title}</div>
         <div className="toggle-help">{help}</div>
       </div>
-      <div className={"toggle " + (on ? 'on' : '')} onClick={() => onChange(!on)}></div>
+      <Toggle on={on} onChange={onChange}/>
     </div>
   );
 }
@@ -121,7 +121,7 @@ function ToggleRow({ title, help, on, onChange }) {
 // ============ Right column for Profile Settings ============
 function ProfilePreviewCard() {
   return (
-    <div className="card" style={{overflow: 'hidden'}}>
+    <Card style={{overflow: 'hidden'}}>
       <div style={{padding: '14px 16px 8px', borderBottom: '1px solid var(--border)'}}>
         <div style={{fontSize: 13, fontWeight: 600, color: 'var(--ink)'}}>Profile preview</div>
       </div>
@@ -138,16 +138,18 @@ function ProfilePreviewCard() {
         <div style={{fontFamily: 'var(--serif)', fontSize: 22, lineHeight: 1, fontWeight: 500}}>dreambyte</div>
         <div style={{color: 'var(--accent-ink)', fontSize: 12.5, marginTop: 4}}>@dreambyte@pleromanet.social</div>
         <div style={{fontSize: 13, color: 'var(--ink-2)', marginTop: 10}}>living in a soft world</div>
-        <div className="stat-row" style={{marginTop: 14}}>
-          <div className="stat"><div className="stat-label">Posts</div><div className="stat-value">1,248</div></div>
-          <div className="stat"><div className="stat-label">Following</div><div className="stat-value">312</div></div>
-          <div className="stat"><div className="stat-label">Followers</div><div className="stat-value">1,921</div></div>
+        <div style={{marginTop: 14}}>
+          <StatStrip items={[
+            { label: 'Posts', value: '1,248' },
+            { label: 'Following', value: '312' },
+            { label: 'Followers', value: '1,921' },
+          ]}/>
         </div>
         <div style={{fontSize: 11.5, color: 'var(--muted)', marginTop: 12, textAlign: 'center', paddingTop: 12, borderTop: '1px solid var(--border)'}}>
           This is how your profile appears to other users.
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -159,13 +161,13 @@ function ProfileTipsCard() {
     { ico: I.info, text: 'A good bio helps others find you.' },
   ];
   return (
-    <div className="card">
-      <div className="card-head" style={{borderBottom: 'none', paddingBottom: 4}}>
+    <Card>
+      <CardHead style={{borderBottom: 'none', paddingBottom: 4}}>
         <span style={{fontSize: 13, fontWeight: 600, color: 'var(--ink)'}}>
           <I.info style={{width: 14, height: 14, marginRight: 6, verticalAlign: 'middle', color: 'var(--muted)'}}/>
           Profile tips
         </span>
-      </div>
+      </CardHead>
       <div style={{padding: '4px 0 8px'}}>
         {tips.map((t, i) => {
           const Ico = t.ico;
@@ -177,8 +179,8 @@ function ProfileTipsCard() {
           );
         })}
       </div>
-      <button className="card-foot">Learn more about profiles →</button>
-    </div>
+      <CardFoot>Learn more about profiles →</CardFoot>
+    </Card>
   );
 }
 

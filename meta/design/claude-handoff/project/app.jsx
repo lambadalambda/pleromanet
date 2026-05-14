@@ -15,24 +15,118 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 
 const initialPosts = [
   {
+    id: 9, name: 'orbit', handle: '@orbit@spacebear.net', time: '14m',
+    avClass: 'av-orb',
+    body: "this perfectly captures my feelings about saturday morning",
+    quotedPost: {
+      name: 'kestrel.fm', handle: '@kestrel@audio.garden',
+      avClass: 'av-grad-3', time: '2h',
+      body: "the moment between waking up and remembering you have responsibilities is the most peaceful state known to humanity",
+      url: 'https://audio.garden/users/kestrel/statuses/116571702560550172',
+      attachments: [
+        { kind: 'photo', src: 'samples/cat-door.webp', alt: 'morning light' },
+      ],
+      replies: 12, boosts: 87, favs: 312,
+    },
+    replies: 1, boosts: 4, favs: 18,
+    actions: { reply: false, boost: false, fav: false },
+  },
+  {
+    id: 10, name: 'datagram', handle: '@datagram@retro.social', time: '1h',
+    avClass: 'av-pixel-pc',
+    body: "agreed @soft.hertz — sharing in case anyone missed it the first time.",
+    quotedPost: {
+      name: 'soft.hertz', handle: '@soft.hertz@kolektiva.social',
+      avClass: 'av-grad-3', time: '3h',
+      body: "the algorithm doesn't care about you. the timeline doesn't either. but the people in it do, and that's worth keeping.",
+      url: 'https://kolektiva.social/@softhertz/116571702560550172',
+      attachments: [],
+      replies: 8, boosts: 34, favs: 142,
+    },
+    replies: 2, boosts: 11, favs: 47,
+    actions: { reply: false, boost: false, fav: false },
+  },
+  {
     id: 1, name: 'emi', handle: '@emichan@kolektiva.social', time: '16m',
     avClass: 'av-anime',
     body: "tiny update: fixed some bugs, added a toggle, and touched grass.\n\nthe internet can wait.",
+    attachments: [
+      { kind: 'photo', src: 'samples/cats-pair.webp', alt: 'two cats sitting on a wall' },
+    ],
     replies: 2, boosts: 7, favs: 42,
+    actions: { reply: false, boost: false, fav: false },
+  },
+  {
+    id: 7, name: 'lumen', handle: '@lumen@candle.house', time: '20m',
+    avClass: 'av-grad-3',
+    body: "rain recording from earlier, and the window it came from.",
+    attachments: [
+      { kind: 'photo', src: 'samples/cat-door.webp', alt: 'window in the rain' },
+      { kind: 'audio', title: 'rain on glass', byline: 'lumen · field · 2026',
+        duration: '5:12', start: 0.18 },
+    ],
+    replies: 1, boosts: 8, favs: 33,
+    actions: { reply: false, boost: false, fav: false },
+  },
+  {
+    id: 5, name: 'kestrel.fm', handle: '@kestrel@audio.garden', time: '32m',
+    avClass: 'av-grad-3',
+    body: "demo from last night's basement set. 12 minutes of synths, one take, no edits.",
+    attachments: [
+      { kind: 'audio', title: 'after the storm (demo)', byline: 'kestrel · live take · 2026',
+        duration: '4:18', start: 0.28,
+        cover: 'samples/encardia-99.png' },
+    ],
+    replies: 6, boosts: 19, favs: 84,
+    actions: { reply: false, boost: false, fav: false },
+  },
+  {
+    id: 8, name: 'orbit', handle: '@orbit@spacebear.net', time: '48m',
+    avClass: 'av-orb',
+    body: "field walk yesterday — couple of photos + the kettle clip i mentioned + a short video from the windowsill.",
+    attachments: [
+      { kind: 'photo', src: 'samples/falco.png',     alt: 'station platform at dusk' },
+      { kind: 'photo', src: 'samples/dragon.png',    alt: 'shrine path' },
+      { kind: 'photo', src: 'samples/cat-door.webp', alt: 'door with cat' },
+      { kind: 'video', poster: 'sunset', duration: '0:42', start: 0.15, cc: true,
+        caption: 'A slow pan across a windowsill at dusk; faint kettle whistle.' },
+      { kind: 'audio', title: 'kettle whistle', byline: 'orbit · field · 2026',
+        duration: '2:14' },
+      { kind: 'audio', title: 'evening crickets', byline: 'orbit · field · 2026',
+        duration: '3:48' },
+    ],
+    replies: 7, boosts: 24, favs: 116,
     actions: { reply: false, boost: false, fav: false },
   },
   {
     id: 2, name: 'signal', handle: '@signal@mastodon.online', time: '1h',
     avClass: '', avBanner: 'pixel-window',
     body: "dusk in the city 🌆",
-    media: 'city',
+    attachments: [
+      { kind: 'photo', src: 'samples/falco.png', alt: 'still from a music video, 1985' },
+    ],
     replies: 4, boosts: 15, favs: 120,
+    actions: { reply: false, boost: false, fav: false },
+  },
+  {
+    id: 6, name: 'pixelmoth', handle: '@pixelmoth@retro.social', time: '1h',
+    avClass: 'av-pixel-pc',
+    body: "cassette deck loop i recorded out the kitchen window. don't mind the kettle.",
+    attachments: [
+      { kind: 'video', poster: 'sunset', duration: '0:42', start: 0.15, cc: true,
+        caption: 'A slow pan across a windowsill at dusk; faint kettle whistle.' },
+    ],
+    replies: 3, boosts: 12, favs: 58,
     actions: { reply: false, boost: false, fav: false },
   },
   {
     id: 3, name: 'orbit', handle: '@orbit@spacebear.net', time: '2h',
     avClass: 'av-orb',
     body: "Reminder: your instance is not the whole network.\nReach out. Follow across. The fediverse is bigger than your feed.",
+    attachments: [
+      { kind: 'photo', src: 'samples/dragon.png', alt: 'dragon coiled around a temple' },
+      { kind: 'photo', src: 'samples/flute-text.png', alt: 'The Magic Flute title card' },
+    ],
     replies: 1, boosts: 23, favs: 89,
     actions: { reply: false, boost: false, fav: false },
   },
@@ -40,6 +134,11 @@ const initialPosts = [
     id: 4, name: 'sysadmin', handle: '@root@pleroma.social', time: '4h',
     avClass: 'av-pc-old',
     body: "Backup your data. Hug your cat. Update PleromaNet™.",
+    attachments: [
+      { kind: 'photo', src: 'samples/cat-door.webp', alt: 'cat peeking out a doorway' },
+      { kind: 'photo', src: 'samples/cat-bank.webp', alt: 'cat on top of an ATM' },
+      { kind: 'photo', src: 'samples/cats-pair.webp', alt: 'two stray cats' },
+    ],
     replies: 3, boosts: 11, favs: 76,
     actions: { reply: false, boost: false, fav: false },
   },
@@ -117,6 +216,7 @@ function App() {
         id: 'r1', name: 'nyan.binary', handle: '@nyan@catgirl.cloud', time: '12m',
         avClass: 'av-anime',
         body: "this is the energy i needed today 🌙",
+        addressees: ['@' + (focused.handle.split('@')[1] || 'unknown'), '@gridwave'],
         replies: 2, boosts: 3, favs: 18,
         actions: { reply: false, boost: false, fav: false },
         nestedReplies: [
@@ -124,6 +224,7 @@ function App() {
             id: 'r1a', name: 'dreambyte', handle: '@dreambyte@pleromanet.social', time: '8m',
             avClass: '', avBanner: 'sunset',
             body: "🤍",
+            addressees: ['@nyan', '@' + (focused.handle.split('@')[1] || 'unknown'), '@gridwave'],
             replies: 0, boosts: 0, favs: 4,
             actions: { reply: false, boost: false, fav: false },
             nestedReplies: [],
@@ -133,7 +234,8 @@ function App() {
       {
         id: 'r2', name: 'soft.hertz', handle: '@soft.hertz@kolektiva.social', time: '22m',
         avClass: 'av-grad-3',
-        body: "touched grass too. recommend the slow internet diet.",
+        body: "touched grass too. recommend the slow internet diet. @nyan was saying something similar yesterday.",
+        addressees: ['@' + (focused.handle.split('@')[1] || 'unknown'), '@gridwave'],
         replies: 0, boosts: 7, favs: 31,
         actions: { reply: false, boost: false, fav: false },
         nestedReplies: [],
@@ -142,13 +244,15 @@ function App() {
         id: 'r3', name: 'datagram', handle: '@datagram@retro.social', time: '34m',
         avClass: 'av-pixel-pc',
         body: "we used to log off. when did that stop being a thing.",
+        addressees: ['@' + (focused.handle.split('@')[1] || 'unknown'), '@gridwave', '@nyan', '@soft.hertz'],
         replies: 4, boosts: 12, favs: 64,
         actions: { reply: false, boost: false, fav: false },
         nestedReplies: [
           {
             id: 'r3a', name: 'orbit', handle: '@orbit@spacebear.net', time: '20m',
             avClass: 'av-orb',
-            body: "around the time the algorithm replaced the timeline.",
+            body: "around the time the algorithm replaced the timeline. agreed with @datagram — the slow web feels possible again.",
+            addressees: ['@datagram', '@' + (focused.handle.split('@')[1] || 'unknown'), '@gridwave', '@nyan', '@soft.hertz'],
             replies: 0, boosts: 5, favs: 22,
             actions: { reply: false, boost: false, fav: false },
             nestedReplies: [],
@@ -204,6 +308,7 @@ function App() {
         ${tweaks.darkComposer ? '.composer { background: linear-gradient(180deg, #1a1538 0%, #2a1f4a 100%); color: #e8e2f5; } .composer-input { color: #e8e2f5; } .composer-input::placeholder { color: rgba(232,226,245,0.55); } .composer-tool { color: rgba(232,226,245,0.6); } .composer-tool:hover { background: rgba(255,255,255,0.08); color: white; } .composer-count { color: rgba(232,226,245,0.6); }' : ''}
       `}</style>
       <Header view={view} onView={(v) => { setView(v); setDrawerOpen(false); }} tweaks={tweaks} onMenu={() => setDrawerOpen(true)} theme={theme} setTheme={setTheme} onSignOut={() => setSignedIn(false)}/>
+      <NotifsPopHost onSeeAll={() => setView('notifs')}/>
       <div className="shell">
         <div className="main">
           <aside>
@@ -212,6 +317,7 @@ function App() {
               <SideNav
                 view={view}
                 onView={setView}
+                _placeholder1={null}
                 settingsTab={settingsTab}
                 onSettingsTab={setSettingsTab}
               />
@@ -251,6 +357,9 @@ function App() {
             )}
             {view === 'explore' && (
               <ExploreView posts={posts} onToggleAction={onToggleAction} following={following} toggleFollow={toggleFollow}/>
+            )}
+            {view === 'notifs' && (
+              <NotifsPage/>
             )}
           </section>
 
@@ -325,6 +434,7 @@ function App() {
           <SideNav
             view={view}
             onView={(v) => { setView(v); setDrawerOpen(false); }}
+            _placeholder2={null}
             settingsTab={settingsTab}
             onSettingsTab={(t) => { setSettingsTab(t); setDrawerOpen(false); }}
           />
@@ -374,7 +484,7 @@ function App() {
         <button className={"mob-tab " + (view === 'explore' ? 'active' : '')} onClick={() => setView('explore')}>
           <I.search/><span>Explore</span>
         </button>
-        <button className="mob-tab" onClick={() => alert('Notifications')}>
+        <button className={"mob-tab " + (view === 'notifs' ? 'active' : '')} onClick={() => setView('notifs')}>
           <I.bell/><span>Alerts</span>
           <span className="tab-badge">3</span>
         </button>
@@ -385,8 +495,39 @@ function App() {
           <I.list/><span>More</span>
         </button>
       </nav>
+      <Radio/>
+      {window.AttachmentLightboxHost && <window.AttachmentLightboxHost/>}
     </div>
   );
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+
+function NotifsPopHost({ onSeeAll }) {
+  const [open, setOpen] = React.useState(false);
+  React.useEffect(() => {
+    const h = () => setOpen(o => !o);
+    window.addEventListener('toggle-notifs-pop', h);
+    return () => window.removeEventListener('toggle-notifs-pop', h);
+  }, []);
+  if (!open) return null;
+  // Anchor: portal-ish — popover renders next to bell via fixed positioning relative to bell rect
+  return <NotifsAnchored onClose={() => setOpen(false)} onSeeAll={() => { setOpen(false); onSeeAll(); }}/>;
+}
+
+function NotifsAnchored({ onClose, onSeeAll }) {
+  const [pos, setPos] = React.useState(null);
+  React.useLayoutEffect(() => {
+    const bell = document.querySelector('[data-bell]');
+    if (bell) {
+      const r = bell.getBoundingClientRect();
+      setPos({ top: r.bottom + 8, right: window.innerWidth - r.right });
+    }
+  }, []);
+  if (!pos) return null;
+  return (
+    <div style={{position: 'fixed', top: pos.top, right: pos.right, zIndex: 100}}>
+      <NotifsPopover onClose={onClose} onSeeAll={onSeeAll}/>
+    </div>
+  );
+}

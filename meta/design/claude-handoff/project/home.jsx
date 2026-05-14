@@ -1,4 +1,6 @@
-/* global React, I, VaporBanner */
+/* global React, I, VaporBanner, Avatar, PostHead, PostBody, PostMedia, PostActions,
+   Card, CardHead, CardFoot, Button, Pill, StatusRow,
+   OekakiModal */
 const { useState: useStateF } = React;
 
 // ============ Home feed ============
@@ -22,12 +24,11 @@ function HomeView({ tweaks, posts, onToggleAction, composer, setComposer, onPost
 }
 
 function Composer({ composer, setComposer, onPost }) {
+  const [oekOpen, setOekOpen] = React.useState(false);
   const remaining = 500 - (composer.text || '').length;
   return (
     <div className="composer">
-      <div className="composer-av av-grad-1" style={{borderRadius: 4, overflow: 'hidden'}}>
-        <VaporBanner variant="sunset"/>
-      </div>
+      <Avatar variant="compose" avBanner="sunset"/>
       <div>
         <textarea
           className="composer-input"
@@ -37,7 +38,13 @@ function Composer({ composer, setComposer, onPost }) {
         />
         <div className="composer-row">
           <button className="composer-tool" title="Image"><I.image style={{width: 18, height: 18}}/></button>
-          <button className="composer-tool" title="GIF" style={{fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '0.08em', fontWeight: 600}}>GIF</button>
+          <button className="composer-tool" title="Draw (Oekaki)" onClick={() => setOekOpen(true)}>
+            <svg viewBox="0 0 24 24" fill="none" style={{width: 18, height: 18}}>
+              <path d="M3 21l4-1 11.5-11.5a2.121 2.121 0 00-3-3L4 17l-1 4z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
+              <path d="M14 6l3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+              <path d="M5 19l1.5-1.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+            </svg>
+          </button>
           <button className="composer-tool" title="Poll"><I.poll style={{width: 18, height: 18}}/></button>
           <button className="composer-tool" title="Emoji"><I.smile style={{width: 18, height: 18}}/></button>
           <button className="composer-tool cw" title="Content warning">CW</button>
@@ -51,6 +58,18 @@ function Composer({ composer, setComposer, onPost }) {
           <button className="btn-primary" onClick={onPost} disabled={!composer.text.trim()}>Post</button>
         </div>
       </div>
+      <OekakiModal
+        open={oekOpen}
+        onClose={() => setOekOpen(false)}
+        onAttach={(dataURL) => {
+          setComposer({
+            ...composer,
+            text: composer.text + (composer.text ? '\n' : '') + '🖌️ attached an oekaki sketch',
+            oekaki: dataURL,
+          });
+          setOekOpen(false);
+        }}
+      />
     </div>
   );
 }
@@ -60,39 +79,31 @@ function Post({ post, onAction, onOpen }) {
     if (e.target.closest('button') || e.target.closest('a')) return;
     onOpen && onOpen();
   };
+  const openLightbox = (idx) => {
+    if (!post.attachments || !post.attachments.length) return;
+    const opener = window.openLightbox;
+    if (opener) opener(post.attachments, idx, {
+      name: post.name, handle: post.handle,
+      avClass: post.avClass, avBanner: post.avBanner,
+    });
+  };
   return (
     <div className="post" onClick={click} style={{cursor: onOpen ? 'pointer' : 'default'}}>
-      <div className={"post-av " + post.avClass}>
-        {post.avBanner && <VaporBanner variant={post.avBanner}/>}
-      </div>
+      <Avatar post={post}/>
       <div style={{minWidth: 0}}>
-        <div className="post-head">
-          <span className="post-name">{post.name}</span>
-          <a className="post-handle">{post.handle}</a>
-          <span className="post-time">{post.time}</span>
-        </div>
-        <div className="post-body">{post.body}</div>
-        {post.media && (
-          <div className="post-media">
-            <VaporBanner variant={post.media}/>
-          </div>
-        )}
-        <div className="post-actions">
-          <button className={"post-action reply " + (post.actions.reply ? 'on' : '')} onClick={() => onAction('reply')}>
-            <I.reply/> {post.replies}
-          </button>
-          <button className={"post-action boost " + (post.actions.boost ? 'on' : '')} onClick={() => onAction('boost')}>
-            <I.boost/> {post.boosts + (post.actions.boost ? 1 : 0)}
-          </button>
-          <button className={"post-action fav " + (post.actions.fav ? 'on' : '')} onClick={() => onAction('fav')}>
-            <I.star fill={post.actions.fav ? 'currentColor' : 'none'}/> {post.favs + (post.actions.fav ? 1 : 0)}
-          </button>
-          <button className="post-more" title="More"><I.more style={{width: 16, height: 16}}/></button>
-        </div>
+        <PostHead post={post}/>
+        <PostBody body={post.body} addressees={post.addressees}/>
+        <QuotedPost quoted={post.quotedPost}/>
+        <PostMedia post={post} onOpen={openLightbox}/>
+        <PostActions post={post} onAction={onAction}/>
       </div>
     </div>
   );
 }
+
+// ============ Attachment components moved to attachments.jsx ============
+// PhotoGrid, VideoAttachment, AudioAttachment, CompactAudio, MediaHeroStrip,
+// AttachmentLightbox, AttachmentLightboxHost, openLightbox
 
 // ============ Right column cards (Home) ============
 function TrendsCard() {
@@ -104,11 +115,8 @@ function TrendsCard() {
     { rank: 5, tag: '#selfhosted', count: '2,844' },
   ];
   return (
-    <div className="card">
-      <div className="card-head">
-        <span className="card-title">Trends</span>
-        <I.trend style={{width: 16, height: 16, color: 'var(--muted)'}}/>
-      </div>
+    <Card>
+      <CardHead title="Trends" icon={I.trend}/>
       <div className="trend-list">
         {trends.map(t => (
           <button key={t.rank} className="trend-item">
@@ -120,8 +128,8 @@ function TrendsCard() {
           </button>
         ))}
       </div>
-      <button className="card-foot">View all trends →</button>
-    </div>
+      <CardFoot>View all trends →</CardFoot>
+    </Card>
   );
 }
 
@@ -132,11 +140,8 @@ function WhoToFollow({ following, toggleFollow }) {
     { id: 'soft', name: 'soft.hertz', handle: '@soft.hertz@kolektiva.social', av: 'av-grad-3' },
   ];
   return (
-    <div className="card">
-      <div className="card-head">
-        <span className="card-title">Who to follow</span>
-        <I.users style={{width: 16, height: 16, color: 'var(--muted)'}}/>
-      </div>
+    <Card>
+      <CardHead title="Who to follow" icon={I.users}/>
       <div style={{padding: '6px 0'}}>
         {sugg.map(s => (
           <div key={s.id} className="suggest">
@@ -145,16 +150,17 @@ function WhoToFollow({ following, toggleFollow }) {
               <div className="suggest-name">{s.name}</div>
               <div className="suggest-handle">{s.handle}</div>
             </div>
-            <button
-              className={"btn-follow " + (following[s.id] ? 'following' : '')}
+            <Button
+              variant="follow"
+              className={following[s.id] ? 'following' : ''}
               onClick={() => toggleFollow(s.id)}>
               {following[s.id] ? 'Following' : 'Follow'}
-            </button>
+            </Button>
           </div>
         ))}
       </div>
-      <button className="card-foot">View more suggestions →</button>
-    </div>
+      <CardFoot>View more suggestions →</CardFoot>
+    </Card>
   );
 }
 
@@ -167,11 +173,8 @@ function ShortcutsCard() {
     { ico: I.gear, label: 'User settings', key: 'S' },
   ];
   return (
-    <div className="card">
-      <div className="card-head">
-        <span className="card-title">Shortcuts</span>
-        <I.bolt style={{width: 16, height: 16, color: 'var(--muted)'}}/>
-      </div>
+    <Card>
+      <CardHead title="Shortcuts" icon={I.bolt}/>
       <div style={{padding: '6px 0'}}>
         {shorts.map((s, i) => {
           const Ico = s.ico;
@@ -184,33 +187,24 @@ function ShortcutsCard() {
           );
         })}
       </div>
-    </div>
+    </Card>
   );
 }
 
 function InstanceStatus() {
   return (
-    <div className="card">
-      <div className="card-head">
-        <span className="card-title">Instance status</span>
-        <I.pulse style={{width: 16, height: 16, color: 'var(--muted)'}}/>
-      </div>
+    <Card>
+      <CardHead title="Instance status" icon={I.pulse}/>
       <div>
-        <div className="status-row">
-          <span className="l">pleromanet.social</span>
-          <span className="pill">All systems normal</span>
-        </div>
-        <div className="status-row">
-          <span className="l">Uptime</span>
-          <span className="r">30d 12h 42m</span>
-        </div>
-        <div className="status-row">
-          <span className="l">Users</span>
-          <span className="r">2,487</span>
-        </div>
+        <StatusRow label="pleromanet.social" value={<Pill>All systems normal</Pill>}/>
+        <StatusRow label="Uptime" value="30d 12h 42m"/>
+        <StatusRow label="Users" value="2,487"/>
       </div>
-    </div>
+    </Card>
   );
 }
 
-Object.assign(window, { HomeView, Composer, Post, TrendsCard, WhoToFollow, ShortcutsCard, InstanceStatus });
+Object.assign(window, {
+  HomeView, Composer, Post,
+  TrendsCard, WhoToFollow, ShortcutsCard, InstanceStatus,
+});

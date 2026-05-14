@@ -494,3 +494,583 @@ Good catch — converted to OAuth. The auth card now:
 - **Sign in tab** — single field for your home server (`https://your.instance`) with a recent-servers dropdown, plus a three-step indicator (Enter server → Authorize on [instance] → Return here). "PleromaNet never sees your password" footnote.
 - **Create account tab** — a list of server cards with radio selection (since picking the right community matters more for sign-up), CoC checkbox referencing the chosen instance.
 - **Redirect state** — after clicking Continue, the card morphs into an animated handoff: PleromaNet card → flowing arrow → instance card with a globe icon, "Redirecting to [instance]…" headline, indeterminate progress bar, and a Cancel link. Auto-completes after ~1.6s.
+
+## User
+
+nice! can you add designs for video and audio attachments?
+
+## Assistant
+
+_[tool: snip]_
+
+_[tool: grep]_
+
+_[tool: read_file]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: run_script]_
+
+_[tool: done]_
+
+_[tool: snip]_
+
+Added two new media types with example posts in the feed:
+
+**Audio post** (kestrel.fm, 2nd in feed) — square gradient cover with a serif initial, a peeking vinyl disc on the right edge that spins while playing, AUDIO chip, serif title + mono byline, play button + animated waveform (56 bars, played portion fills in accent ink), elapsed/total time, hashtag chips below.
+
+**Video post** (pixelmoth, 4th in feed) — 16:9 frame with poster, large center play button, VIDEO + duration + CC chips, full control bar on hover with play/pause, mono timecode, scrubber with a draggable thumb, mute toggle, fullscreen. An ALT caption row sits under the player styled like a vintage closed-caption strip.
+
+Both controls actually work (play/pause, mute toggle, animated progress).
+
+## User
+
+great! I want to also add a radio funciton, should be unobtrusive but should allow you to play a few server-provided tracks. essentially i want to play  albums with relaxing retrowave / vaporwave / chiptune type music that is free to use. can you buiold that out?
+
+## Assistant
+
+_[tool: write_file]_
+
+_[tool: run_script]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: done]_
+
+_[tool: snip]_
+
+**PN.fm** is live in the bottom-right corner.
+
+**Compact bar** (always visible, ~44px tall): album cover with animated EQ bars when playing, "PN.fm · genre" mono eyebrow, current track title, play/skip/expand buttons, slim progress bar across the bottom.
+
+**Expanded panel** has two tabs:
+
+- **Now playing** — large cover with peeking vinyl disc (spins when playing), serif track title, album/artist/year metadata, license line ("CC BY 4.0 · free to play, free to share"), full transport row (shuffle / prev / big play / next / loop), volume slider, and a scrollable tracklist where the current track shows mini EQ bars.
+- **Albums** — 4 curated albums with cover swatch, artist/year, genre + license tags. Click to switch.
+
+**Four albums** seeded:
+- *Modem Hymns* by static.gif — Chiptune (CC BY 4.0)
+- *Plaza FM* by Vapor Garden Collective — Vaporwave (CC0)
+- *Outer Drive* by neon.cassette — Retrowave (CC BY-NC 4.0) — currently selected
+- *Garden Hours* by warm.process — Ambient (CC BY 4.0)
+
+Each album tints the player (eq bars, accent, vinyl center) with its own color. Tracks auto-advance when one finishes. The "×" in the tabs hides the radio entirely; a small floating button reappears bottom-right to bring it back, and the hidden state persists across reloads.
+
+## User
+
+looks amazing, but can we put it in the sidebar instead of floating? or maybe in the top bar and get rid of the doubled and tripled home, local, federated links?
+
+## Assistant
+
+_[tool: snip]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: run_script]_
+
+_[tool: done]_
+
+_[tool: snip]_
+
+Done. Top nav is now just **Explore** and **About** — Home/Local/Federated live exclusively in the left sidebar (and bottom mobile tabs). The radio is now a compact chip in the header between the nav and the search box, with the full Now-Playing / Albums panel dropping down from it when expanded.
+
+On mobile the inline radio hides (already redundant with the bottom tab bar's "More" sheet — happy to add a radio entry there if you want).
+
+## User
+
+looks like you broke half the functionality, it doesn't fit in visually and doesn't open up anymore.
+
+## Assistant
+
+_[tool: snip]_
+
+_[tool: read_file]_
+
+_[tool: snip]_
+
+_[tool: str_replace_edit]_
+
+_[tool: read_file]_
+
+_[tool: grep]_
+
+_[tool: str_replace_edit]_
+
+_[tool: snip]_
+
+_[tool: str_replace_edit]_
+
+_[tool: run_script]_
+
+_[tool: done]_
+
+Radio now lives in the left sidebar as a card between SideNav and FooterCard — same compact bar collapsed (cover, eyebrow, title, play/skip/expand) with progress underneath, and the full Now Playing / Albums panel expanding inline below it within the card. No more fixed positioning, no header chip, no floating overlay. It matches the sidebar's visual vocabulary (panel background, hairline border, mono eyebrows) and the expand toggle works again.
+
+## User
+
+let's revert to the original floating design, but put it in the left bottom instead.
+
+## Assistant
+
+_[tool: snip]_
+
+_[tool: str_replace_edit]_
+
+_[tool: run_script]_
+
+_[tool: done]_
+
+Radio is now floating in the bottom-left corner, same expanding panel design as before. On mobile it sits above the bottom tab bar.
+
+## User
+
+can you give me two or three variants of the audio attahcment card? in a new file, not integrated, so i can take a look at what's best.
+
+## Assistant
+
+_[tool: snip]_
+
+_[tool: write_file]_
+
+_[tool: done]_
+
+Three takes in **Audio variants.html**:
+
+1. **Cassette tape** — warm cream label, two spinning reels with a tape strand between them, dashed dividers, vintage A/B side toggle, classic counter with red record dot.
+2. **Terminal waveform** — dark vaporwave panel framed as a CLI window, file path in the title bar, blinking cursor on the track name, 64-bar generated waveform that fills with accent color as it plays, FLAC/CC license footer.
+3. **Vinyl 45** — spinning disc with grooves and a gradient center label, needle that sits on the disc when paused and lifts when playing, 45 RPM eyebrow with "Side A" badge, dashed-rule footer with progress bar.
+
+None of these are integrated into the main app — just sitting in the new file for comparison. Let me know which one (or mash-up) you want me to wire into the feed as the audio attachment type.
+
+## User
+
+alright, nice. what are wegonna do about the notifications page? do we want a whole page for it? just a pop over list when clicking on the bell? both?
+
+## Assistant
+
+_[tool: snip]_
+
+My take: **both, but with clear roles.**
+
+**Bell popover** — the quick-glance surface. Opens from the bell in the header (or sidebar "Notifications" on hover/click-and-hold). ~360px wide, shows the last 8–10 items grouped lightly (e.g. "3 people boosted your post"). Has tabs across the top (All · Mentions · Boosts) but no filters/settings. Footer link "See all notifications →" goes to the page. Fast to open, fast to dismiss, marks-as-read on close.
+
+**Full page** — the inbox surface. Lives at `/notifications` (already in the side nav). Three things the popover can't do well:
+1. **Wider grouping & timeline** — "Yesterday", "This week", collapsed clusters you can expand.
+2. **Filters & rules** — toggle which kinds you see, mute keywords, filter to mentions-from-people-I-follow-only, etc. Mastodon/Pleroma users actually use these.
+3. **Bulk actions** — mark all read, clear category, archive.
+
+**Why both:** the popover handles 90% of sessions ("did anyone reply?"), the page handles the 10% that matter ("let me actually clean this up"). Skipping the popover makes the bell feel inert; skipping the page makes power users feel cramped.
+
+**One open question for you:** mentions — same surface as boosts/favs, or separate (Twitter-style "Mentions" tab that feels more like a conversation inbox)? Pleroma traditionally lumps them; I'd lean toward giving mentions their own visual weight inside the same list (left accent stripe + reply preview inline) rather than a separate page.
+
+Want me to mock both? I'd do the popover first since it's smaller and informs the page's row design.
+
+## User
+
+yeah, please do.
+
+## Assistant
+
+_[tool: snip]_
+
+_[tool: grep]_
+
+_[tool: read_file]_
+
+_[tool: grep]_
+
+_[tool: grep]_
+
+_[tool: write_file]_
+
+_[tool: run_script]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: snip]_
+
+_[tool: str_replace_edit]_
+
+_[tool: read_file]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: run_script]_
+
+_[tool: done]_
+
+_[tool: snip]_
+
+Done. Two surfaces wired up:
+
+**Popover** — click the bell in the header. ~380px panel with title + unread count, mark-all-read & settings tools, 4 tabs (All / Mentions / Boosts / Favorites), grouped rows showing icon + stacked avatars + clickable quoted post, footer link "See all notifications →" that jumps to the page.
+
+**Full page** — `Notifications` in the side nav (and mobile "Alerts" tab). Serif headline + inbox eyebrow, 5 tabs with per-tab unread counts, time-bucketed groups (New / Today / Yesterday / This week / Earlier), and a right rail with three cards: Filters (followers-only, hide-boosts, mute-keywords), Delivery (email digest, browser push, quiet hours), and a "This week" stat breakdown with mini bars.
+
+Rows are shared between both — same `NotifRow` component, just `dense` mode in the popover. Follow notifications get inline Accept/Decline or Follow-back buttons; mentions/replies show the quoted post.
+
+## User
+
+thats quite nice. can you add a new color scheme called 'simoun' to the system, bsed on this image? feel free to modify the colors to fit better with our mood.
+
+## Assistant
+
+_[tool: snip]_
+
+_[tool: grep]_
+
+_[tool: grep]_
+
+_[tool: str_replace_edit]_
+
+_[tool: run_script]_
+
+_[tool: done]_
+
+_[tool: snip]_
+
+**Simoun** is live — pick it from the user menu (avatar dropdown → Appearance).
+
+Deep desert-night navy as the base (`#141b36` bg, `#1c2547` panels), warm parchment ink (`#f4ebd8`) for text, and a softened ember orange (`#e8763a`) as the accent — pulled straight from the album cover but desaturated a touch so it reads on long reading sessions rather than burning out. Header, drawer, composer, and pills all retuned to match.
+
+## User
+
+I want to add an oekaki function to the frontend. Can you remove the "gif" button and add a paintbrush instead which will open a basic oekaki tool? also give me three mockups for that tool, please.
+
+## Assistant
+
+_[tool: snip]_
+
+_[tool: grep]_
+
+_[tool: str_replace_edit]_
+
+_[tool: write_file]_
+
+_[tool: done]_
+
+_[tool: snip]_
+
+Three takes in **Oekaki variants.html**:
+
+1. **Sticky pad** — masking-tape header, six pen colors, three sizes, undo + eraser + attach. Minimum chrome, all canvas.
+2. **Utility panel** — IDE-style titlebar, tool rail (brush/pen/eraser/fill/eyedrop/shapes/text), swatch grid + HSL sliders + layers panel, status footer. Power-user.
+3. **Zine console** — chunky MS Paint–meets–cassette-deck bezel, 16-color palette grid, all-caps mono UI. Pairs naturally with Simoun.
+
+The composer's GIF button is replaced with a paintbrush icon — clicking it will be wired up to whichever variant you pick.
+
+## User
+
+these are images that you can use as example images for attachments. I want to to show attachments by default in a color reduced / dithered way, to keep with the retro / vaporwave look. can youl give me a few approaches to that as well?
+
+## Assistant
+
+_[tool: snip]_
+
+_[tool: copy_files]_
+
+_[tool: write_file]_
+
+_[tool: done]_
+
+Six approaches in **Dithering variants.html**, applied as default styling with hover-to-reveal-original:
+
+- **A · Duotone** (recommended default) — SVG `feColorMatrix` maps luminance onto a 2-color ramp. One filter per theme (Simoun navy→orange, Dusk purple→pink, Cream warm-ink→lilac), so attachments always reagree with the active palette.
+- **B · Posterize + desaturate** — 3 or 4 levels per channel with saturation cut; keeps original hues but flattens them like risograph print.
+- **C · 1-bit threshold** — pure black/white; in Simoun screened to navy-on-parchment. Aggressive, best as opt-in.
+- **D · Bayer 4×4** — ordered dither pattern overlaid via SVG data-URI on posterized base. Closest pure-CSS approximation of real error-diffusion dither.
+- **E · Halftone** — radial-gradient dot grid multiplied over posterized image. Newsprint / record-sleeve feel.
+- **F · CRT scanlines** — horizontal lines + vignette; pairs well with the FB-meme-image vibe.
+
+Bottom of the file shows **A** in-context as feed attachments with a small "click to view raw" badge.
+
+Hover any tile to bypass all filters and see the original. No canvas or JS — everything is one SVG filter + optional CSS overlay, so it's free at scale.
+
+## User
+
+ah, it says it uses the team, but the yare black and white (duotone)
+
+## Assistant
+
+_[tool: str_replace_edit]_
+
+_[tool: snip]_
+
+Fixed. The `<feFunc*>` elements were missing `type="table"`, so the browser fell back to identity and the duotone collapsed to grayscale. With `type="table"` set, the table values interpolate properly and the three duotone tiles in row A now read in their actual theme colors (navy/orange, purple/pink, warm-ink/lilac). The in-feed preview at the bottom uses the same filter, so it picks up the fix too.
+
+## User
+
+the duotone looks great. Can you put that plus a bunch of attachments in the main pleromanet mockup?
+
+## Assistant
+
+_[tool: list_files]_
+
+_[tool: grep]_
+
+_[tool: run_script]_
+
+_[tool: read_file]_
+
+_[tool: grep]_
+
+_[tool: snip]_
+
+_[tool: grep]_
+
+_[tool: grep]_
+
+_[tool: grep]_
+
+_[tool: grep]_
+
+_[tool: copy_files]_
+
+_[tool: read_file]_
+
+_[tool: grep]_
+
+_[tool: snip]_
+
+_[tool: grep]_
+
+_[tool: str_replace_edit]_
+
+_[tool: run_script]_
+
+_[tool: snip]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: snip]_
+
+_[tool: str_replace_edit]_
+
+_[tool: done]_
+
+_[tool: grep]_
+
+_[tool: snip]_
+
+_[tool: str_replace_edit]_
+
+_[tool: snip]_
+
+Wired duotone attachments into the main feed.
+
+**What's there now:**
+- 4 posts have photo grids: emi (1 cat photo), signal (Falco still), orbit (dragon + Magic Flute title card, 2-up), sysadmin (3 cat photos in a 2+1+1 grid)
+- Layouts: 1 photo = wide 16:10, 2 = side-by-side squares, 3 = big-left + two-stacked, 4 = 2×2
+- Hover any photo to bypass the filter and see it raw — small "DUOTONE · hover for raw" chip fades in on hover
+- CW veil (blur + dashed accent border + "click to reveal") supported via `cw: true` on any photo
+- Filter switches with theme: cream (warm-ink → lilac), dusk (purple → pink), drive (navy → teal), simoun (navy → ember orange). Try the user-menu theme picker to see the same images retint live.
+
+Filters live as one `<svg>` block in `PleromaNet.html`; CSS picks the right one via a `--photo-filter` custom property keyed off `data-theme`.
+
+## User
+
+i only see the falco one. also the genreated city image in signal can go, it isn't handled correctly anyway
+
+## Assistant
+
+_[tool: snip]_
+
+_[tool: list_files]_
+
+_[tool: eval_js]_
+
+_[tool: grep]_
+
+_[tool: show_html]_
+
+_[tool: sleep]_
+
+_[tool: eval_js]_
+
+_[tool: read_file]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: done]_
+
+Fixed — the earlier multi-edit silently lost three of the four changes; only the falco/signal one landed. Re-applied them as individual edits, and dropped the `media: 'city'` SVG placeholder from the signal post.
+
+Now in the feed: emi (1 cat photo), signal (Falco still), orbit (2-up: dragon + flute title card), sysadmin (3-up: cats). All duotone-tinted to the current theme; hover to see raw.
+
+## User
+
+looks good! can you add the oekaki popping up when i press the pencil? I think the utility panel is the right call for the design.
+
+## Assistant
+
+_[tool: snip]_
+
+_[tool: write_file]_
+
+_[tool: run_script]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: done]_
+
+Click the paintbrush in the composer — the utility-panel oekaki pops up as a modal. It's actually functional:
+
+- **Brush** and **eraser** draw on the canvas (mouse down + drag); **fill** floods the canvas with the current color
+- 14 swatches + a native color picker for anything else
+- Live **size** and **opacity** sliders affect the brush
+- Tool rail switches active tool; left highlight stripe on selected
+- Layer list with add/duplicate/delete buttons, **x/y readout** in bottom-right, zoom control bottom-left
+- **Clear** button in the footer, **Save draft** (no-op for now), **Attach to post** which exports the canvas as PNG, closes the modal, and adds a `🖌️ attached an oekaki sketch` line to the composer text (and stashes the dataURL on `composer.oekaki` so it can be wired into the actual post later)
+- Backdrop click + close button both dismiss
+
+## User
+
+looks great. do you have any other ideas for interesting features we might add?
+
+## Assistant
+
+Some ideas, sorted by how well they fit the brand voice:
+
+**Strong fit — these would feel native**
+- **Quiet mode** — a Tweaks-style toggle that swaps the timeline into reverse-chronological-only with no boost-amplification and no counts on posts (favs/boosts hidden until you tap). A reading mode for the timeline. Pairs perfectly with the "no algorithm" pitch.
+- **Status music** — your currently-playing PN.fm track shows as a tiny line under your handle ("♪ kestrel — after the storm") on your profile and posts. Light, ambient social signal.
+- **Post-as-letter / longform** — most fediverse clients are mediocre at long posts. A "letter" mode in the composer (paintbrush button neighbor) opens a serif-typeset editor with section breaks, drop-cap, and footnotes. Renders inline in the feed as a folded card with first paragraph + "read 8 min →".
+- **Postcards** — pre-made vaporwave/Simoun postcard frames you can drop a photo + 1-line caption into. Sharable from the composer, very on-brand, and a natural use of the duotone filters.
+
+**Useful, also brand-friendly**
+- **Filtered words with reasons** — Pleroma's filter system but with named lists ("politics", "spoilers — succession s4", "work talk") that hide posts in a collapsed bar instead of removing them. One tap to peek.
+- **Reading position memory** — when you scroll back to the timeline, it lands at "where you left off, 14h ago" with a small gap marker and "show what I missed" button. Tumblr-style.
+- **Per-conversation themes** — a thread author can pick a theme (Cream/Dusk/Drive/Simoun) that gets applied just inside that thread view. Like a mood for a conversation.
+- **Bookmarks → folders** — bookmarks today is just a flat list everywhere. Give it folders + notes ("read later", "design references", "kindness"). Use the macOS 9 / file-manager visual vocabulary you already have in side nav.
+
+**Playful / experimental**
+- **Stationery** — pick a paper texture + ink color for your posts (small bordered cards, faint grid, your handwriting in serif italic at the top). Persists per-user. Some Mastodon clients have done variants of this.
+- **Mailbox** — DMs reframed as letters. Threaded view shows them as a stacked pile of envelopes; opening one slides it out and reveals a serif typeset reply form. Doesn't change the protocol, just the surface.
+- **Listening party** — PN.fm gets a "broadcast" toggle. When on, anyone who follows you can opt-in to sync to your playback (with a small "currently listening with @dreambyte" badge in their player). Pure social loitering.
+- **Sketch replies** — reply to any post with a tiny oekaki canvas instead of (or alongside) text. Renders inline as a 200×200 thumbnail. Leans into the brush button you just added.
+
+**Power-user**
+- **Saved searches as columns** — TweetDeck-style multi-column view (toggle in tweaks) where each column is a saved search/list/hashtag. The vaporwave UI looks fantastic in column form.
+- **Cross-posting receipts** — a Mastodon/Bluesky/IndieWeb posse panel in the composer: post here, optionally syndicate to other accounts. Pleroma's federation is solid but cross-network is the actual user pain.
+
+If I had to pick **three to build next**, I'd start with **Postcards** (most native, gives the duotone filters somewhere to shine), **Stationery / per-thread themes** (visually distinctive, no protocol changes), and **Mailbox** (DMs are genuinely missing from the design so far). 
+
+Which direction sounds interesting?
+
+## User
+
+yes, add the status music please. and please make me a few mockups of the postcard thing
+
+## Assistant
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: grep]_
+
+_[tool: read_file]_
+
+_[tool: grep]_
+
+_[tool: read_file]_
+
+_[tool: run_script]_
+
+_[tool: str_replace_edit]_
+
+_[tool: grep]_
+
+_[tool: run_script]_
+
+_[tool: run_script]_
+
+_[tool: read_file]_
+
+_[tool: grep]_
+
+## Assistant
+
+_[tool: grep]_
+
+Two things coming up:
+
+**1. Status music — wired up**
+
+_[tool: read_file]_
+
+_[tool: grep]_
+
+_[tool: grep]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: str_replace_edit]_
+
+_[tool: run_script]_
+
+Now the postcard mockups:
+
+_[tool: write_file]_
+
+_[tool: snip]_
+
+_[tool: done]_
+
+Two things done:
+
+**Status music** is live in PleromaNet.html. Look at:
+- **Profile mini card** in the left sidebar — under "living in a soft world" you'll see a tiny line like "▭ after the storm · kestrel · paused" (greyed because Outer Drive starts paused).
+- **User menu** in the header (click your avatar) — same line under your handle.
+
+Press play in the radio (bottom-left) and both update live: the paused glyph turns into animated EQ bars, the line tints with the album's accent, and the track title brightens. Skip tracks → the line follows. Hide the radio → the line stays visible because state is broadcast via window event.
+
+**Postcards** — four variants in **Postcard variants.html** (now open):
+
+1. **Classic horizontal** — photo-left, handwritten message right, dashed-dotted address lines, postmark + stamp. The default. Reads like a real Vienna-1985 postcard.
+2. **Polaroid roll** — masking-tape polaroids with slight rotations, different duotone filter per frame, handwritten caption strip. Single posts and stacks both shown.
+3. **Souvenir greeting** — massive serif "GREETINGS FROM VIENNA" overlaid on full-bleed duotone photo. Loudest variant; on-brand.
+4. **Address-side** — the back of a postcard: handwritten letter left, stamp + dotted address lines right. Photo-less; pure correspondence. Great for DMs.
+
+Each row shows the full-size card on a soft graph-paper stage, then below it a **"how it reads inline"** strip with feed-mockup thumbnails so you can see the scaled-down rendering.
+
+My pick at the bottom of the file: ship Classic + Souvenir first, Polaroid next, Address-side as a DM treatment.
+

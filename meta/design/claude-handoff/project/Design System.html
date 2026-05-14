@@ -2,20 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=1280"/>
-<title>PleromaNet — A federated social web</title>
+<meta name="viewport" content="width=1440"/>
+<title>PleromaNet — Design System</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="styles.css"/>
+<link rel="stylesheet" href="design-system.css"/>
 </head>
 <body>
 <div id="root"></div>
 
-<!-- Reusable duotone filters — one per theme. Set via CSS var --photo-filter. -->
+<!-- Same duotone filter library used by the app -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
-    <!-- Cream: warm-ink → lilac (default) -->
     <filter id="duotoneCream" color-interpolation-filters="sRGB">
       <feColorMatrix type="matrix" values="0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0 0 0 1 0"/>
       <feComponentTransfer>
@@ -24,7 +24,6 @@
         <feFuncB type="table" tableValues="0.125 0.910"/>
       </feComponentTransfer>
     </filter>
-    <!-- Dusk: deep purple → soft pink -->
     <filter id="duotoneDusk" color-interpolation-filters="sRGB">
       <feColorMatrix type="matrix" values="0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0 0 0 1 0"/>
       <feComponentTransfer>
@@ -33,7 +32,6 @@
         <feFuncB type="table" tableValues="0.180 0.788"/>
       </feComponentTransfer>
     </filter>
-    <!-- Drive: deep navy → cyan/teal -->
     <filter id="duotoneDrive" color-interpolation-filters="sRGB">
       <feColorMatrix type="matrix" values="0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0 0 0 1 0"/>
       <feComponentTransfer>
@@ -42,7 +40,6 @@
         <feFuncB type="table" tableValues="0.102 0.745"/>
       </feComponentTransfer>
     </filter>
-    <!-- Simoun: navy → ember orange -->
     <filter id="duotoneSimoun" color-interpolation-filters="sRGB">
       <feColorMatrix type="matrix" values="0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0 0 0 1 0"/>
       <feComponentTransfer>
@@ -58,7 +55,7 @@
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
-<script type="text/babel" src="tweaks-panel.jsx"></script>
+<!-- Same component graph as the live app, minus app.jsx -->
 <script type="text/babel" src="icons.jsx"></script>
 <script type="text/babel" src="shell.jsx"></script>
 <script type="text/babel" src="components.jsx"></script>
@@ -67,10 +64,10 @@
 <script type="text/babel" src="profile.jsx"></script>
 <script type="text/babel" src="explore.jsx"></script>
 <script type="text/babel" src="thread.jsx"></script>
-<script type="text/babel" src="signed-out.jsx"></script>
-<script type="text/babel" src="radio.jsx"></script>
 <script type="text/babel" src="notifications.jsx"></script>
+<script type="text/babel" src="radio.jsx"></script>
 <script type="text/babel" src="oekaki.jsx"></script>
-<script type="text/babel" src="app.jsx"></script>
+
+<script type="text/babel" src="design-system.jsx"></script>
 </body>
 </html>
