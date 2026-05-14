@@ -1,5 +1,10 @@
 <script lang="ts">
+	import Button from '$lib/rebuild/Button.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
+	import Pill from '$lib/rebuild/Pill.svelte';
+	import Seg from '$lib/rebuild/Seg.svelte';
+	import Tag from '$lib/rebuild/Tag.svelte';
+	import Toggle from '$lib/rebuild/Toggle.svelte';
 	import { iconNames } from '$lib/rebuild/icons';
 	import { onMount } from 'svelte';
 
@@ -83,6 +88,8 @@
 	let theme = $state<ThemeId>('cream');
 	let section = $state('foundations');
 	let mounted = $state(false);
+	let toggleOn = $state(true);
+	let segValue = $state('Popular');
 
 	onMount(() => {
 		const storedTheme = localStorage.getItem('pn-theme');
@@ -230,6 +237,124 @@
 				</div>
 			</section>
 
+			<section id="controls" class="ds-slab">
+				<header class="ds-slab-head">
+					<div class="ds-kicker">03</div>
+					<h2 class="ds-h2">Controls</h2>
+					<p class="ds-sub">Buttons, pills, tabs and segmented switches.</p>
+				</header>
+				<div class="ds-slab-body">
+					<div class="ds-grid ds-grid-3">
+						<div class="ds-spec">
+							<div class="ds-spec-stage padded">
+								<div class="ds-row">
+									<Button variant="primary">Post</Button>
+									<Button variant="primary" disabled>Disabled</Button>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Button · primary</span>
+								<span class="ds-spec-note">btn-primary</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage padded">
+								<Button variant="secondary">Reset</Button>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Button · secondary</span>
+								<span class="ds-spec-note">btn-secondary</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage padded">
+								<div class="ds-row">
+									<Button variant="follow">Follow</Button>
+									<Button variant="follow" className="following">Following</Button>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Button · follow</span>
+								<span class="ds-spec-note">btn-follow · btn-follow.following</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage padded">
+								<Button variant="upload">
+									<span>Change avatar</span>
+									<Icon name="upload" className="ds-spec-icon-sm" />
+								</Button>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Button · upload</span>
+								<span class="ds-spec-note">btn-upload</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage padded">
+								<div class="ds-row">
+									<Pill>All systems normal</Pill>
+									<Pill>3 new</Pill>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Pill</span>
+								<span class="ds-spec-note">pill</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage padded">
+								<div class="ds-row">
+									<Tag>#fediverse</Tag>
+									<Tag>#privacy</Tag>
+									<Tag>#vaporwave</Tag>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Tag</span>
+								<span class="ds-spec-note">tag</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage padded">
+								<div class="tabs" style="border-radius: 4px; overflow: hidden;">
+									<button type="button" class="tab active">Home</button>
+									<button type="button" class="tab">Local</button>
+									<button type="button" class="tab">Federated</button>
+									<div class="tab-spacer"></div>
+									<button type="button" class="tab-action"><Icon name="sliders" className="ds-spec-icon-sm" /></button>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Tabs</span>
+								<span class="ds-spec-note">.tabs > .tab · .tabs > .tab.active</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage padded">
+								<Seg options={['Popular', 'New', 'Active']} value={segValue} onchange={(v) => (segValue = v)} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Segmented</span>
+								<span class="ds-spec-note">.seg</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage padded">
+								<div class="ds-row" style="align-items: center;">
+									<Toggle checked={toggleOn} onchange={(v) => (toggleOn = v)} />
+									<span class="ds-toggle-label">{toggleOn ? 'ON' : 'OFF'}</span>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Toggle</span>
+								<span class="ds-spec-note">.toggle · .toggle.on</span>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
 			<footer class="ds-foot">
 				<div>End of system · everything else is composed from what's above.</div>
 				<div>PleromaNet™ Design System · v2.4.58 · {new Date().getFullYear()}</div>
@@ -239,68 +364,11 @@
 </div>
 
 <style>
-	:global(body[data-theme='dusk']) {
-		--bg: #1a142e;
-		--panel: #221a3a;
-		--panel-2: #2a2046;
-		--border: #3a2f5a;
-		--border-strong: #4a3f6e;
-		--ink: #f4eef8;
-		--ink-2: #d8ccea;
-		--muted: #8b7eaa;
-		--muted-2: #6a5d88;
-		--accent: #e7a8c9;
-		--accent-ink: #f0c2dc;
-		--accent-soft: rgba(231, 168, 201, 0.22);
-		--accent-soft-2: rgba(231, 168, 201, 0.1);
-	}
-
-	:global(body[data-theme='drive']) {
-		--bg: #07091a;
-		--panel: #0e1228;
-		--panel-2: #131836;
-		--border: #1f2547;
-		--border-strong: #2c3360;
-		--ink: #e8efff;
-		--ink-2: #c5cfea;
-		--muted: #7a85a8;
-		--muted-2: #535d80;
-		--accent: #7dc4be;
-		--accent-ink: #a4dad4;
-		--accent-soft: rgba(125, 196, 190, 0.22);
-		--accent-soft-2: rgba(125, 196, 190, 0.1);
-	}
-
-	:global(body[data-theme='simoun']) {
-		--bg: #141b36;
-		--panel: #1c2547;
-		--panel-2: #232d54;
-		--border: #2d3866;
-		--border-strong: #3a4880;
-		--ink: #f4ebd8;
-		--ink-2: #d8cdb3;
-		--muted: #8a96bd;
-		--muted-2: #6471a0;
-		--accent: #e8763a;
-		--accent-ink: #f08c4f;
-		--accent-soft: rgba(232, 118, 58, 0.22);
-		--accent-soft-2: rgba(232, 118, 58, 0.1);
-	}
-
 	.ds-page {
 		min-height: 100vh;
 		background: var(--bg);
 		color: var(--ink);
 		font-family: var(--sans);
-	}
-
-	.ds-page button {
-		font-family: inherit;
-		cursor: pointer;
-		border: none;
-		background: none;
-		color: inherit;
-		padding: 0;
 	}
 
 	/* ===== Header ===== */
@@ -761,6 +829,76 @@
 	:global(.ds-icon-svg) {
 		width: 20px;
 		height: 20px;
+	}
+
+	:global(.ds-spec-icon-sm) {
+		width: 14px;
+		height: 14px;
+	}
+
+	.ds-spec {
+		border: 1px solid var(--border);
+		background: var(--panel);
+		display: flex;
+		flex-direction: column;
+		border-radius: 2px;
+		overflow: hidden;
+	}
+
+	:global(.ds-spec-span-2) {
+		grid-column: span 2;
+	}
+
+	.ds-spec-stage {
+		flex: 1;
+		background:
+			repeating-linear-gradient(45deg, transparent 0, transparent 12px, rgba(0,0,0,0.02) 12px, rgba(0,0,0,0.02) 13px);
+		display: flex;
+		align-items: stretch;
+		justify-content: center;
+		min-height: 100px;
+	}
+
+	.ds-spec-stage.padded {
+		padding: 24px;
+		align-items: center;
+	}
+
+	.ds-spec-foot {
+		padding: 8px 12px;
+		border-top: 1px solid var(--border);
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 12px;
+		background: var(--panel-2);
+	}
+
+	.ds-spec-label {
+		font-family: var(--mono);
+		font-size: 11px;
+		letter-spacing: 0.06em;
+		color: var(--ink);
+	}
+
+	.ds-spec-note {
+		font-family: var(--mono);
+		font-size: 10px;
+		letter-spacing: 0.04em;
+		color: var(--muted);
+	}
+
+	:global(.ds-row) {
+		display: flex;
+		gap: 10px;
+		flex-wrap: wrap;
+		align-items: flex-start;
+	}
+
+	.ds-toggle-label {
+		font-family: var(--mono);
+		font-size: 11px;
+		color: var(--muted);
 	}
 
 	.ds-icon-name {
