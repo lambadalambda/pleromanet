@@ -1,12 +1,25 @@
 <script lang="ts">
+	import Avatar from '$lib/rebuild/Avatar.svelte';
 	import Button from '$lib/rebuild/Button.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
 	import Pill from '$lib/rebuild/Pill.svelte';
 	import Seg from '$lib/rebuild/Seg.svelte';
 	import Tag from '$lib/rebuild/Tag.svelte';
 	import Toggle from '$lib/rebuild/Toggle.svelte';
+	import VaporBanner from '$lib/rebuild/VaporBanner.svelte';
 	import { iconNames } from '$lib/rebuild/icons';
 	import { onMount } from 'svelte';
+
+	type BannerVariant = 'sunset' | 'pixel-window' | 'city' | 'space';
+	type AvatarVariant = 'post' | 'focused' | 'notif' | 'compose';
+
+	const BANNER_VARIANTS: BannerVariant[] = ['sunset', 'pixel-window', 'city', 'space'];
+	const AV_SIZE_CELLS: { variant: AvatarVariant; size: number; shape: string; cls: string; role: string }[] = [
+		{ variant: 'notif', size: 28, shape: 'circle', cls: 'notif-av', role: 'Notification rows · stackable, ring-on-panel' },
+		{ variant: 'compose', size: 40, shape: 'rect', cls: 'composer-av', role: 'Composer · 4px radius' },
+		{ variant: 'post', size: 48, shape: 'rect', cls: 'post-av', role: 'Feed post · 4px radius' },
+		{ variant: 'focused', size: 56, shape: 'rect', cls: 'focused-av', role: 'Focused thread post · 4px radius' },
+	];
 
 	type ThemeId = 'cream' | 'dusk' | 'drive' | 'simoun';
 	type Theme = {
@@ -419,6 +432,77 @@
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Toggle row</span>
 								<span class="ds-spec-note">.toggle-row — used in settings</span>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section id="avatars" class="ds-slab">
+				<header class="ds-slab-head">
+					<div class="ds-kicker">05</div>
+					<h2 class="ds-h2">Avatars</h2>
+					<p class="ds-sub">&lt;Avatar/&gt; wraps four base CSS classes (.post-av / .focused-av / .notif-av / .composer-av) around either an .av-* CSS class or a VaporBanner. Pass a post-shaped object and the variant figures itself out.</p>
+				</header>
+				<div class="ds-slab-body">
+					<div class="ds-av-gallery">
+						<div class="ds-av-section">
+							<div class="ds-av-section-label">CSS variants</div>
+							<div class="ds-av-row">
+								{#each [
+									{ lbl: 'av-anime', cls: 'av-anime' },
+									{ lbl: 'av-pixel-pc', cls: 'av-pixel-pc' },
+									{ lbl: 'av-orb', cls: 'av-orb' },
+									{ lbl: 'av-pc-old', cls: 'av-pc-old' },
+									{ lbl: 'av-grad-1', cls: 'av-grad-1' },
+									{ lbl: 'av-grad-3', cls: 'av-grad-3' },
+								] as v}
+									<div class="ds-av-cell">
+										<Avatar avClass={v.cls} />
+										<div class="ds-av-name">.{v.lbl}</div>
+									</div>
+								{/each}
+							</div>
+						</div>
+						<div class="ds-av-section">
+							<div class="ds-av-section-label">VaporBanner variants <span style="opacity: 0.6">· shown at banner size, with avatar crop inset</span></div>
+							<div class="ds-banner-row">
+								{#each BANNER_VARIANTS as b}
+									<div class="ds-banner-cell">
+										<div class="ds-banner-tile">
+											<VaporBanner variant={b} />
+										</div>
+										<div class="ds-banner-meta">
+											<div class="ds-banner-crop">
+												<VaporBanner variant={b} />
+											</div>
+											<div class="ds-banner-text">
+												<div class="ds-av-name">{b}</div>
+												<div class="ds-banner-note">as avatar →</div>
+											</div>
+										</div>
+									</div>
+								{/each}
+							</div>
+						</div>
+						<div class="ds-av-section">
+							<div class="ds-av-section-label">Sizes & shapes <span style="opacity: 0.6">· each variant has its own size and shape rules</span></div>
+							<div class="ds-size-row">
+								{#each AV_SIZE_CELLS as s}
+									<div class="ds-size-cell">
+										<div class="ds-size-stage">
+											<Avatar variant={s.variant} avBanner="sunset" size={s.size} />
+										</div>
+										<div class="ds-size-meta">
+											<div class="ds-size-name">
+												<span class="ds-size-variant">.{s.cls}</span>
+												<span class="ds-size-dim">{s.size}×{s.size}</span>
+												<span class="ds-size-shape ds-size-shape-{s.shape}">{s.shape}</span>
+											</div>
+											<div class="ds-size-role">{s.role}</div>
+										</div>
+									</div>
+								{/each}
 							</div>
 						</div>
 					</div>
@@ -969,6 +1053,146 @@
 		font-family: var(--mono);
 		font-size: 11px;
 		color: var(--muted);
+	}
+
+	:global(.ds-av-gallery) { display: flex; flex-direction: column; gap: 24px; }
+	:global(.ds-av-section) {
+		border: 1px solid var(--border);
+		background: var(--panel);
+		padding: 16px 20px;
+		border-radius: 2px;
+	}
+	:global(.ds-av-section-label) {
+		font-family: var(--mono);
+		font-size: 10.5px;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--muted);
+		margin-bottom: 14px;
+	}
+	:global(.ds-av-row) {
+		display: flex;
+		gap: 24px;
+		flex-wrap: wrap;
+	}
+	:global(.ds-av-cell) {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 8px;
+	}
+	:global(.ds-av-name) {
+		font-family: var(--mono);
+		font-size: 10px;
+		letter-spacing: 0.04em;
+		color: var(--muted);
+	}
+	:global(.ds-banner-row) {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+		gap: 14px;
+	}
+	:global(.ds-banner-cell) {
+		border: 1px solid var(--border);
+		background: var(--bg);
+		border-radius: 2px;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
+	}
+	:global(.ds-banner-tile) {
+		width: 100%;
+		aspect-ratio: 16 / 7;
+		position: relative;
+		overflow: hidden;
+	}
+	:global(.ds-banner-meta) {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 8px 10px;
+		border-top: 1px solid var(--border);
+		background: var(--panel);
+	}
+	:global(.ds-banner-crop) {
+		width: 36px;
+		height: 36px;
+		border-radius: 4px;
+		overflow: hidden;
+		flex-shrink: 0;
+		position: relative;
+		border: 1px solid var(--border);
+	}
+	:global(.ds-banner-text) { min-width: 0; }
+	:global(.ds-banner-note) {
+		font-family: var(--mono);
+		font-size: 9px;
+		letter-spacing: 0.06em;
+		color: var(--muted-2);
+		margin-top: 2px;
+	}
+	:global(.ds-size-row) {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+		gap: 12px;
+	}
+	:global(.ds-size-cell) {
+		display: flex;
+		flex-direction: column;
+		border: 1px solid var(--border);
+		background: var(--bg);
+		border-radius: 2px;
+		overflow: hidden;
+	}
+	:global(.ds-size-stage) {
+		display: flex;
+		align-items: flex-end;
+		justify-content: center;
+		padding: 14px 8px 12px;
+		background:
+			repeating-linear-gradient(45deg, transparent 0, transparent 10px, rgba(0,0,0,0.025) 10px, rgba(0,0,0,0.025) 11px),
+			var(--panel);
+		min-height: 80px;
+	}
+	:global(.ds-size-meta) {
+		padding: 8px 10px;
+		border-top: 1px solid var(--border);
+		background: var(--panel);
+	}
+	:global(.ds-size-name) {
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
+		flex-wrap: wrap;
+	}
+	:global(.ds-size-variant) {
+		font-family: var(--mono);
+		font-size: 11px;
+		color: var(--ink);
+		letter-spacing: 0.02em;
+	}
+	:global(.ds-size-dim) {
+		font-family: var(--mono);
+		font-size: 10px;
+		color: var(--accent-ink);
+	}
+	:global(.ds-size-shape) {
+		font-family: var(--mono);
+		font-size: 9px;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		padding: 1px 5px;
+		border-radius: 8px;
+		border: 1px solid var(--border-strong);
+		color: var(--muted);
+	}
+	:global(.ds-size-shape-circle) {
+		border-radius: 8px;
+	}
+	:global(.ds-size-role) {
+		font-size: 11px;
+		color: var(--muted);
+		margin-top: 4px;
 	}
 
 	.ds-icon-name {

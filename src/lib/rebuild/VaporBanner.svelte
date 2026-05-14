@@ -95,8 +95,12 @@
 				<circle cx={x} cy={y} r={r} {opacity} />
 			{/each}
 		</g>
-		<circle cx="42" cy="22" r="0.6" fill="#fff5d4" opacity="0.9" />
-		<circle cx="60" cy="36" r="0.5" fill="#e7a8c9" opacity="0.75" />
+		<circle cx="42" cy="22" r="0.6" fill="#fff5d4">
+			<animate attributeName="opacity" values="0.3;1;0.3" dur="2.4s" repeatCount="indefinite" />
+		</circle>
+		<circle cx="60" cy="36" r="0.5" fill="#e7a8c9">
+			<animate attributeName="opacity" values="1;0.4;1" dur="3.1s" repeatCount="indefinite" />
+		</circle>
 		<g transform="translate(72 28) rotate(-18)">
 			<ellipse rx="18" ry="3" fill="none" stroke="#e7a8c9" stroke-width="0.6" opacity="0.45" />
 			<ellipse rx="18" ry="3" fill="none" stroke="#a48bd9" stroke-width="0.3" opacity="0.8" stroke-dasharray="30 1" />
