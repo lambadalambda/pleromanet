@@ -56,3 +56,13 @@ PleromaNet is a new frontend for Pleroma with a reduced, refined visual style. T
 - Do not write class declarations or class inheritance in application code. Framework internals and third-party APIs are exempt.
 - Keep code comments rare and focused on non-obvious behavior.
 - Agents should only create commits when explicitly requested.
+
+## Canonical Design Handoff
+
+- The canonical design bundle lives in `meta/design/claude-handoff/`.
+- Treat `meta/design/claude-handoff/project/design-system.jsx` as the source of truth for the `/design-system` page structure and section order.
+- Treat `meta/design/claude-handoff/project/design-system.css` as the source of truth for `/design-system` page styling.
+- Treat `meta/design/claude-handoff/project/components.jsx` as the source of truth for shared reusable app primitives.
+- Treat `meta/design/claude-handoff/project/styles.css` as the source of truth for global tokens, themes, app layout, and primitive CSS classes.
+- Treat `meta/design/claude-handoff/project/attachments.jsx` as the source of truth for media and attachment behavior.
+- Port `/design-system` section by section from the JSX handoff into Svelte, stopping after each section for visual confirmation before continuing.
