@@ -5,16 +5,21 @@
 		name: IconName;
 		className?: string;
 		title?: string;
+		width?: number;
+		height?: number;
+		fill?: string;
 	};
 
-	let { name, className = '', title }: Props = $props();
+	let { name, className = '', title, width, height, fill }: Props = $props();
 	let icon = $derived(icons[name]);
 </script>
 
 <svg
 	viewBox={icon.viewBox}
-	fill={icon.fill}
+	fill={fill ?? icon.fill}
 	class={className || undefined}
+	width={width}
+	height={height}
 	aria-hidden={title ? undefined : 'true'}
 	role={title ? 'img' : undefined}
 >
