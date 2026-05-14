@@ -3,11 +3,18 @@
 	import Button from '$lib/rebuild/Button.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
 	import Pill from '$lib/rebuild/Pill.svelte';
+	import Post from '$lib/rebuild/Post.svelte';
+	import CompactAudio from '$lib/rebuild/CompactAudio.svelte';
+	import AttachmentLightboxHost from '$lib/rebuild/AttachmentLightboxHost.svelte';
+	import { openLightbox } from '$lib/rebuild/attachments';
+	import MediaStripThumb from '$lib/rebuild/MediaStripThumb.svelte';
+	import MediaStripKindBadge from '$lib/rebuild/MediaStripKindBadge.svelte';
 	import Seg from '$lib/rebuild/Seg.svelte';
 	import Tag from '$lib/rebuild/Tag.svelte';
 	import Toggle from '$lib/rebuild/Toggle.svelte';
 	import VaporBanner from '$lib/rebuild/VaporBanner.svelte';
 	import { iconNames } from '$lib/rebuild/icons';
+	import type { Attachment } from '$lib/rebuild/attachments';
 	import { onMount } from 'svelte';
 
 	type BannerVariant = 'sunset' | 'pixel-window' | 'city' | 'space';
@@ -104,6 +111,30 @@
 	let toggleOn = $state(true);
 	let segValue = $state('Popular');
 	let toggleRowOn = $state(true);
+	let composerText = $state('drafting in the design system');
+	let composerPrivacy = $state('Public');
+
+	const demoPost = (attachments: Attachment[], body = '') => ({
+		id: 'ds-demo',
+		name: 'orbit',
+		handle: '@orbit@spacebear.net',
+		time: '8m',
+		avClass: 'av-orb',
+		body,
+		attachments,
+		replies: 0,
+		boosts: 0,
+		favs: 0,
+		actions: { reply: false, boost: false, fav: false },
+	});
+
+	const ATT_RULES = [
+		{ input: '1 attachment of any kind', layout: 'single', highlight: false },
+		{ input: '2–4 photos only', layout: 'photoGrid', highlight: false },
+		{ input: '1 photo + 1 audio', layout: 'photoAudio', highlight: true },
+		{ input: '2–4 photos + 1 audio', layout: 'photosAudio', highlight: false },
+		{ input: 'anything else', layout: 'heroStrip', highlight: false },
+	];
 
 	onMount(() => {
 		const storedTheme = localStorage.getItem('pn-theme');
@@ -123,6 +154,44 @@
 	<title>PleromaNet · Design System</title>
 </svelte:head>
 
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+	<defs>
+		<filter id="duotoneCream" color-interpolation-filters="sRGB">
+			<feColorMatrix type="matrix" values="0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0 0 0 1 0"/>
+			<feComponentTransfer>
+				<feFuncR type="table" tableValues="0.165 0.961"/>
+				<feFuncG type="table" tableValues="0.145 0.945"/>
+				<feFuncB type="table" tableValues="0.125 0.910"/>
+			</feComponentTransfer>
+		</filter>
+		<filter id="duotoneDusk" color-interpolation-filters="sRGB">
+			<feColorMatrix type="matrix" values="0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0 0 0 1 0"/>
+			<feComponentTransfer>
+				<feFuncR type="table" tableValues="0.102 0.906"/>
+				<feFuncG type="table" tableValues="0.078 0.659"/>
+				<feFuncB type="table" tableValues="0.180 0.788"/>
+			</feComponentTransfer>
+		</filter>
+		<filter id="duotoneDrive" color-interpolation-filters="sRGB">
+			<feColorMatrix type="matrix" values="0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0 0 0 1 0"/>
+			<feComponentTransfer>
+				<feFuncR type="table" tableValues="0.027 0.490"/>
+				<feFuncG type="table" tableValues="0.035 0.769"/>
+				<feFuncB type="table" tableValues="0.102 0.745"/>
+			</feComponentTransfer>
+		</filter>
+		<filter id="duotoneSimoun" color-interpolation-filters="sRGB">
+			<feColorMatrix type="matrix" values="0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0 0 0 1 0"/>
+			<feComponentTransfer>
+				<feFuncR type="table" tableValues="0.094 0.910"/>
+				<feFuncG type="table" tableValues="0.125 0.463"/>
+				<feFuncB type="table" tableValues="0.247 0.227"/>
+			</feComponentTransfer>
+		</filter>
+	</defs>
+</svg>
+
+<AttachmentLightboxHost />
 <div class="ds-page">
 	<header class="ds-header">
 		<div class="ds-header-l">
@@ -503,6 +572,254 @@
 										</div>
 									</div>
 								{/each}
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section id="attachments" class="ds-slab">
+				<header class="ds-slab-head">
+					<div class="ds-kicker">06</div>
+					<h2 class="ds-h2">Attachments</h2>
+					<p class="ds-sub">Each post can carry any mix of media. A pure function — pickAttachmentLayout(attachments) — decides which layout pattern renders. The Post component never calls a media component directly.</p>
+				</header>
+				<div class="ds-slab-body">
+					<div class="ds-sub-h">Layout rules</div>
+					<p class="ds-sub" style="margin-bottom:14px">Most-specific-first. The last branch is the fallthrough.</p>
+					<div class="ds-att-rules">
+						{#each ATT_RULES as r, i}
+							<div class="ds-att-rule {r.highlight ? 'ds-att-rule-hi' : ''}">
+								<div class="ds-att-rule-wire">
+									<svg viewBox="0 0 80 50" style="width:80px;height:50px;display:block">
+										{#if i === 0}
+											<rect x="2" y="2" width="76" height="46" rx="2" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="0.8"/>
+										{:else if i === 1}
+											<rect x="2" y="2" width="37" height="22" rx="1" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="0.7"/>
+											<rect x="41" y="2" width="37" height="22" rx="1" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="0.7"/>
+											<rect x="2" y="26" width="37" height="22" rx="1" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="0.7"/>
+											<rect x="41" y="26" width="37" height="22" rx="1" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="0.7"/>
+										{:else if i === 2}
+											<rect x="2" y="2" width="76" height="32" rx="2" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="0.8"/>
+											<rect x="2" y="36" width="76" height="12" rx="1.5" fill="var(--panel)" stroke="var(--accent)" stroke-width="0.8"/>
+											<circle cx="9" cy="42" r="3" fill="var(--accent)"/>
+											<path d="M7.5 40.5 L10.5 42 L7.5 43.5 Z" fill="white"/>
+										{:else if i === 3}
+											<rect x="2" y="2" width="37" height="14" rx="1" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="0.6"/>
+											<rect x="41" y="2" width="37" height="14" rx="1" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="0.6"/>
+											<rect x="2" y="18" width="37" height="14" rx="1" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="0.6"/>
+											<rect x="41" y="18" width="37" height="14" rx="1" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="0.6"/>
+											<rect x="2" y="34" width="76" height="14" rx="1.5" fill="var(--panel)" stroke="var(--accent)" stroke-width="0.7"/>
+											<circle cx="9" cy="41" r="3" fill="var(--accent)"/>
+											<path d="M7.5 39.5 L10.5 41 L7.5 42.5 Z" fill="white"/>
+										{:else if i === 4}
+											<rect x="2" y="2" width="76" height="30" rx="2" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="0.8"/>
+											<circle cx="40" cy="17" r="4" fill="var(--accent)"/>
+											<path d="M38 14.5 L42 17 L38 19.5 Z" fill="white"/>
+											{#each [2,12,22,32,42,52,62,72] as x, j}
+												<rect x={x} y="36" width="6" height="10" rx="0.6" fill={j === 0 ? 'var(--accent)' : 'var(--border-strong)'} stroke="var(--muted-2)" stroke-width="0.4"/>
+											{/each}
+										{/if}
+									</svg>
+								</div>
+								<div class="ds-att-rule-input">{r.input}</div>
+								<div class="ds-att-rule-arrow">→</div>
+								<div class="ds-att-rule-layout">{r.layout}</div>
+							</div>
+						{/each}
+					</div>
+
+					<div class="ds-sub-h">Single media (1 attachment of any kind)</div>
+					<div class="ds-grid ds-grid-3">
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={demoPost([{kind:'photo', src:'samples/falco.png', alt:'still 1985'}])} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">1 photo</span>
+								<span class="ds-spec-note">pickAttachmentLayout → 'single' → PhotoGrid n1</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={demoPost([{kind:'video', poster:'sunset', duration:'0:42', cc:true, caption:'A pan across a windowsill at dusk.'}])} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">1 video</span>
+								<span class="ds-spec-note">'single' → VideoAttachment</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={demoPost([{kind:'audio', title:'after the storm (demo)', byline:'kestrel · 2026', duration:'4:18', cover:'samples/encardia-99.png'}])} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">1 audio</span>
+								<span class="ds-spec-note">'single' → AudioAttachment</span>
+							</div>
+						</div>
+					</div>
+
+					<div class="ds-sub-h">Photo grids (2–4 photos)</div>
+					<div class="ds-grid ds-grid-3">
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={demoPost([{kind:'photo', src:'samples/dragon.png'},{kind:'photo', src:'samples/flute-text.png'}])} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">2 photos</span>
+								<span class="ds-spec-note">photoGrid · n2</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={demoPost([{kind:'photo', src:'samples/cat-door.webp'},{kind:'photo', src:'samples/cat-bank.webp'},{kind:'photo', src:'samples/cats-pair.webp'}])} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">3 photos</span>
+								<span class="ds-spec-note">photoGrid · n3</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={demoPost([{kind:'photo', src:'samples/cat-door.webp'},{kind:'photo', src:'samples/cat-bank.webp'},{kind:'photo', src:'samples/cats-pair.webp'},{kind:'photo', src:'samples/falco.png'}])} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">4 photos</span>
+								<span class="ds-spec-note">photoGrid · n4</span>
+							</div>
+						</div>
+					</div>
+
+					<div class="ds-sub-h">Combos (photo(s) + 1 audio)</div>
+					<div class="ds-grid ds-grid-2">
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={demoPost([{kind:'photo', src:'samples/cat-door.webp', alt:'window in the rain'},{kind:'audio', title:'rain on glass', byline:'lumen · field · 2026', duration:'5:12'}])} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">★ 1 photo + 1 audio</span>
+								<span class="ds-spec-note">photoAudio · photo + compact audio bar</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={demoPost([{kind:'photo', src:'samples/falco.png'},{kind:'photo', src:'samples/dragon.png'},{kind:'photo', src:'samples/cat-door.webp'},{kind:'audio', title:'evening crickets', byline:'orbit · field', duration:'3:48'}])} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">3 photos + 1 audio</span>
+								<span class="ds-spec-note">photosAudio · grid + compact audio bar</span>
+							</div>
+						</div>
+					</div>
+
+					<div class="ds-sub-h">General (anything else) — hero + strip</div>
+					<div class="ds-spec">
+						<div class="ds-spec-stage">
+							<Post post={demoPost([{kind:'photo', src:'samples/falco.png', alt:'station platform at dusk'},{kind:'photo', src:'samples/dragon.png', alt:'shrine path'},{kind:'photo', src:'samples/cat-door.webp', alt:'door with cat'},{kind:'video', poster:'sunset', duration:'0:42', cc:true, caption:'A pan across a windowsill at dusk.'},{kind:'audio', title:'kettle whistle', byline:'orbit · field · 2026', duration:'2:14'},{kind:'audio', title:'evening crickets', byline:'orbit · field · 2026', duration:'3:48'}])} />
+						</div>
+						<div class="ds-spec-foot">
+							<span class="ds-spec-label">3 photos + 1 video + 2 audio</span>
+							<span class="ds-spec-note">heroStrip · click strip thumbs to promote</span>
+						</div>
+					</div>
+
+					<div class="ds-sub-h">Primitives in isolation</div>
+					<div class="ds-grid ds-grid-2">
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<div style="padding:14px">
+									<CompactAudio audio={{title:'kettle whistle', byline:'orbit · field · 2026', duration:'2:14'}} />
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">CompactAudio</span>
+								<span class="ds-spec-note">window.CompactAudio · used in combos + lightbox</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage padded">
+								<div style="display:flex;gap:8px">
+									<div style="position:relative;width:56px;height:56px;border-radius:3px;overflow:hidden;border:1px solid var(--border)">
+										<MediaStripThumb att={{kind:'photo', src:'samples/falco.png'}} />
+										<MediaStripKindBadge kind="photo" />
+									</div>
+									<div style="position:relative;width:56px;height:56px;border-radius:3px;overflow:hidden;border:1px solid var(--border)">
+										<MediaStripThumb att={{kind:'video'}} />
+										<MediaStripKindBadge kind="video" />
+									</div>
+									<div style="position:relative;width:56px;height:56px;border-radius:3px;overflow:hidden;border:1px solid var(--border)">
+										<MediaStripThumb att={{kind:'audio', cover:'samples/encardia-99.png'}} />
+										<MediaStripKindBadge kind="audio" />
+									</div>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">MediaStripThumb</span>
+								<span class="ds-spec-note">thumbnails by kind</span>
+							</div>
+						</div>
+					</div>
+
+					<div class="ds-sub-h">Lightbox</div>
+					<p class="ds-sub" style="margin-bottom:14px">Triggered by clicking any photo or strip thumbnail. Mounted once at the app root as <code style="font-family:var(--mono);font-size:11px">&lt;AttachmentLightboxHost/&gt;</code>, dispatched globally via <code style="font-family:var(--mono);font-size:11px">openLightbox(attachments, idx, attribution)</code>.</p>
+					<div class="ds-spec">
+						<div class="ds-spec-stage">
+							<div style="padding:18px;text-align:center">
+								<Button variant="primary" onclick={() => openLightbox([
+									{kind:'photo', src:'samples/falco.png', alt:'station platform at dusk'},
+									{kind:'photo', src:'samples/dragon.png', alt:'shrine path'},
+									{kind:'photo', src:'samples/cat-door.webp', alt:'door with cat'},
+									{kind:'video', poster:'sunset', duration:'0:42', cc:true},
+									{kind:'audio', title:'kettle whistle', byline:'orbit · field', duration:'2:14'},
+								], 0, {name:'orbit', handle:'@orbit@spacebear.net', avClass:'av-orb'})}>Open lightbox →</Button>
+							</div>
+						</div>
+						<div class="ds-spec-foot">
+							<span class="ds-spec-label">Try it</span>
+							<span class="ds-spec-note">click any photo above, or this button to open with the full sample set</span>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section id="composer" class="ds-slab">
+				<header class="ds-slab-head">
+					<div class="ds-kicker">07</div>
+					<h2 class="ds-h2">Composer</h2>
+					<p class="ds-sub">The post composer. Lives at the top of the feed and inside threads (as a reply composer).</p>
+				</header>
+				<div class="ds-slab-body">
+					<div class="ds-grid ds-grid-2">
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage">
+								<div class="composer">
+									<Avatar variant="compose" avBanner="sunset" />
+									<div>
+										<textarea
+											class="composer-input"
+											placeholder="What's on your mind?"
+											bind:value={composerText}
+										></textarea>
+										<div class="composer-row">
+											<button class="composer-tool" title="Image"><Icon name="image" width={18} height={18} /></button>
+											<button class="composer-tool" title="Draw">
+												<svg viewBox="0 0 24 24" fill="none" style="width:18px;height:18px"><path d="M3 21l4-1 11.5-11.5a2.121 2.121 0 00-3-3L4 17l-1 4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 6l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+											</button>
+											<button class="composer-tool" title="Poll"><Icon name="poll" width={18} height={18} /></button>
+											<button class="composer-tool" title="Emoji"><Icon name="smile" width={18} height={18} /></button>
+											<button class="composer-tool cw">CW</button>
+											<button class="composer-tool privacy"><Icon name="globe" width={13} height={13} /><span>{composerPrivacy}</span><Icon name="chevDown" width={12} height={12} /></button>
+											<span class="composer-spacer"></span>
+											<span class="composer-count">{500 - composerText.length}</span>
+											<Button variant="primary" disabled={!composerText.trim()}>Post</Button>
+										</div>
+									</div>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Composer · feed</span>
+								<span class="ds-spec-note">.composer</span>
 							</div>
 						</div>
 					</div>
@@ -1303,5 +1620,45 @@
 			flex-direction: column;
 			gap: 8px;
 		}
+	}
+
+	/* ===== Attachment rules ===== */
+	:global(.ds-att-rules) {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		margin-bottom: 18px;
+	}
+	:global(.ds-att-rule) {
+		display: grid;
+		grid-template-columns: 80px 1fr auto 1fr;
+		align-items: center;
+		gap: 14px;
+		padding: 10px 14px;
+		border: 1px solid var(--border);
+		border-radius: 2px;
+		background: var(--panel);
+		font-size: 13px;
+	}
+	:global(.ds-att-rule-hi) {
+		border-color: var(--accent);
+		background: var(--accent-soft-2);
+	}
+	:global(.ds-att-rule-input) {
+		color: var(--ink-2);
+	}
+	:global(.ds-att-rule-arrow) {
+		color: var(--accent-ink);
+		font-family: var(--mono);
+		font-weight: 600;
+	}
+	:global(.ds-att-rule-layout) {
+		font-family: var(--mono);
+		font-size: 11px;
+		letter-spacing: 0.06em;
+		color: var(--accent-ink);
+		background: var(--accent-soft);
+		padding: 2px 8px;
+		border-radius: 2px;
 	}
 </style>
