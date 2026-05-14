@@ -111,3 +111,11 @@ export const openLightbox = (
 		})
 	);
 };
+
+export const pickQuoteHero = (
+	attachments: Attachment[] | undefined
+): Attachment | null => {
+	if (!attachments || !attachments.length) return null;
+	const photo = attachments.find((a) => a.kind === 'photo');
+	return photo || attachments[0];
+};

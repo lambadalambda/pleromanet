@@ -1,21 +1,5 @@
 <script lang="ts">
-	const POSTBODY_MENTION_RE = /@[\w.]+(?:@[\w.]+)?/g;
-
-	const renderBodyText = (text: string): (string | { key: string; text: string })[] => {
-		if (!text) return [text];
-		const out: (string | { key: string; text: string })[] = [];
-		let lastIdx = 0;
-		let match: RegExpExecArray | null;
-		let key = 0;
-		POSTBODY_MENTION_RE.lastIndex = 0;
-		while ((match = POSTBODY_MENTION_RE.exec(text)) !== null) {
-			if (match.index > lastIdx) out.push(text.slice(lastIdx, match.index));
-			out.push({ key: 'm' + key++, text: match[0] });
-			lastIdx = match.index + match[0].length;
-		}
-		if (lastIdx < text.length) out.push(text.slice(lastIdx));
-		return out;
-	};
+	import { renderBodyText } from './mentions';
 
 	type Props = {
 		body?: string;
@@ -28,7 +12,7 @@
 </script>
 
 <div class="post-body {className}">
-	{#each parts as part}
+	{#each parts as part (typeof part === 'string' ? part : part.key)}
 		{#if typeof part === 'string'}
 			{part}
 		{:else}

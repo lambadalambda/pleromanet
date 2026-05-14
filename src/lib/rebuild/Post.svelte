@@ -4,6 +4,7 @@
 	import PostBody from './PostBody.svelte';
 	import PostMedia from './PostMedia.svelte';
 	import PostActions from './PostActions.svelte';
+	import QuotedPost from './QuotedPost.svelte';
 	import type { PostLike, Attachment } from './attachments';
 	import { openLightbox } from './attachments';
 
@@ -17,6 +18,7 @@
 			avBanner?: string;
 			body?: string;
 			addressees?: string[];
+			quotedPost?: Record<string, unknown>;
 			replies: number;
 			boosts: number;
 			favs: number;
@@ -51,6 +53,7 @@
 	<div style="min-width:0">
 		<PostHead post={post} />
 		<PostBody body={post.body} addressees={post.addressees} />
+		<QuotedPost quoted={post.quotedPost} />
 		<PostMedia post={post} onOpen={handleLightbox} />
 		<PostActions post={post} onAction={onAction} />
 	</div>
