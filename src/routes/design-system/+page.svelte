@@ -12,6 +12,7 @@
 	import { openLightbox } from '$lib/rebuild/attachments';
 	import MediaStripThumb from '$lib/rebuild/MediaStripThumb.svelte';
 	import MediaStripKindBadge from '$lib/rebuild/MediaStripKindBadge.svelte';
+	import MobilePreview from '$lib/rebuild/MobilePreview.svelte';
 	import NowPlayingLine from '$lib/rebuild/NowPlayingLine.svelte';
 	import NotifRow from '$lib/rebuild/NotifRow.svelte';
 	import NotifsPopover from '$lib/rebuild/NotifsPopover.svelte';
@@ -110,6 +111,10 @@
 		icon: IconName;
 		active?: boolean;
 		count?: number;
+	};
+	type MobilePreviewSpec = {
+		variant: 'home' | 'drawer' | 'thread';
+		label: string;
 	};
 	const THEMES: Theme[] = [
 		{ id: 'cream', label: 'Cream', bg: '#f5f1e8', panel: '#fbfaf3', ink: '#1f2347', accent: '#a48bd9' },
@@ -306,6 +311,12 @@
 		{ label: 'Bookmarks', icon: 'bookmark' },
 		{ label: 'Lists', icon: 'list' },
 		{ label: 'Settings', icon: 'gear' },
+	];
+
+	const MOBILE_PREVIEWS: MobilePreviewSpec[] = [
+		{ variant: 'home', label: 'Home · feed + bottom tab bar' },
+		{ variant: 'drawer', label: 'Drawer · left side menu' },
+		{ variant: 'thread', label: 'Thread · ancestor + focused' },
 	];
 
 	onMount(() => {
@@ -1433,6 +1444,21 @@
 				</div>
 			</section>
 
+			<section id="mobile" class="ds-slab">
+				<header class="ds-slab-head">
+					<div class="ds-kicker">15</div>
+					<h2 class="ds-h2">Mobile</h2>
+					<p class="ds-sub">The same components, scaled into a 375-wide viewport. Bottom tab bar, drawer (left), sheet (right) replace the rails.</p>
+				</header>
+				<div class="ds-slab-body">
+					<div class="ds-phone-row">
+						{#each MOBILE_PREVIEWS as preview}
+							<MobilePreview variant={preview.variant} label={preview.label} />
+						{/each}
+					</div>
+				</div>
+			</section>
+
 			<footer class="ds-foot">
 				<div>End of system · everything else is composed from what's above.</div>
 				<div>PleromaNet™ Design System · v2.4.58 · {new Date().getFullYear()}</div>
@@ -2018,6 +2044,360 @@
 	:global(.ds-side-nav-card) {
 		padding: 6px 0;
 		width: 100%;
+	}
+
+	/* ===== Phone frames ===== */
+	:global(.ds-phone-row) {
+		display: flex;
+		gap: 28px;
+		flex-wrap: wrap;
+		justify-content: center;
+		align-items: flex-start;
+	}
+
+	:global(.ds-phone-wrap) {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 14px;
+		width: min(375px, 100%);
+	}
+
+	:global(.ds-phone) {
+		width: 100%;
+		aspect-ratio: 375 / 720;
+		box-sizing: border-box;
+		background: #15131c;
+		border-radius: 38px;
+		padding: 10px;
+		box-shadow: 0 30px 60px -20px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.1);
+		position: relative;
+		flex-shrink: 0;
+	}
+
+	:global(.ds-phone-notch) {
+		position: absolute;
+		top: 14px;
+		left: 50%;
+		transform: translateX(-50%);
+		width: 110px;
+		height: 26px;
+		background: #15131c;
+		border-radius: 0 0 16px 16px;
+		z-index: 5;
+	}
+
+	:global(.ds-phone-screen) {
+		width: 100%;
+		height: 100%;
+		border-radius: 30px;
+		overflow: hidden;
+		position: relative;
+		background: var(--bg);
+	}
+
+	:global(.ds-phone-label) {
+		font-family: var(--mono);
+		font-size: 11px;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--muted);
+		text-align: center;
+	}
+
+	:global(.ds-mobile-app) {
+		width: 100%;
+		height: 100%;
+		display: flex;
+		flex-direction: column;
+		position: relative;
+		background: var(--bg);
+	}
+
+	:global(.ds-mobile-statusbar) {
+		height: 36px;
+		display: flex;
+		align-items: flex-end;
+		justify-content: space-between;
+		padding: 4px 28px 6px;
+		font-family: var(--sans);
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--ink);
+		flex-shrink: 0;
+	}
+
+	:global(.ds-mobile-battery) {
+		width: 16px;
+		height: 8px;
+		border: 1px solid currentColor;
+		border-radius: 2px;
+		opacity: 0.8;
+	}
+
+	:global(.ds-mobile-header) {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 8px 14px;
+		background: var(--panel);
+		border-bottom: 1px solid var(--border);
+		flex-shrink: 0;
+	}
+
+	:global(.ds-mobile-header .menu-btn),
+	:global(.ds-mobile-header .icon-btn) {
+		display: grid;
+		place-items: center;
+		width: 36px;
+		height: 36px;
+		border-radius: 4px;
+		border: 1px solid var(--border);
+		background: var(--panel);
+		color: var(--ink);
+		position: relative;
+	}
+
+	:global(.ds-mobile-header .badge) {
+		position: absolute;
+		top: 3px;
+		right: 3px;
+		min-width: 14px;
+		height: 14px;
+		border-radius: 7px;
+		background: var(--accent);
+		color: white;
+		font-size: 9px;
+		font-weight: 700;
+		display: grid;
+		place-items: center;
+		padding: 0 4px;
+		border: 2px solid var(--panel);
+	}
+
+	:global(.ds-mobile-app .mobile-brand-name) {
+		font-family: var(--serif);
+		font-size: 20px;
+		font-weight: 500;
+		line-height: 1;
+		color: var(--ink);
+	}
+
+	:global(.ds-mobile-app .mobile-brand-name sup) {
+		font-family: var(--sans);
+		font-size: 8px;
+		color: var(--muted);
+		margin-left: 2px;
+	}
+
+	:global(.ds-mobile-app .brand-mark) {
+		width: 36px;
+		height: 36px;
+		background: #1c2046;
+		border-radius: 4px;
+		display: grid;
+		place-items: center;
+		flex-shrink: 0;
+	}
+
+	:global(.ds-mobile-app .brand-mark svg) {
+		width: 22px;
+		height: 22px;
+	}
+
+	:global(.ds-mobile-feed) {
+		flex: 1;
+		overflow-y: auto;
+		background: var(--bg);
+	}
+
+	:global(.ds-mobile-feed .post),
+	:global(.ds-mobile-thread .post) {
+		padding: 12px 14px;
+		grid-template-columns: 40px minmax(0, 1fr);
+		gap: 10px;
+	}
+
+	:global(.ds-mobile-feed .post-av),
+	:global(.ds-mobile-thread .post-av) {
+		width: 40px;
+		height: 40px;
+	}
+
+	:global(.ds-mobile-feed .post-actions) {
+		gap: 8px;
+	}
+
+	:global(.ds-mobile-feed .post-action) {
+		padding-inline: 3px;
+	}
+
+	:global(.ds-mobile-bottom) {
+		display: grid;
+		grid-template-columns: repeat(5, 1fr);
+		padding: 6px 4px 10px;
+		background: var(--panel);
+		border-top: 1px solid var(--border);
+		flex-shrink: 0;
+	}
+
+	:global(.ds-mobile-bottom .mob-tab) {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 4px;
+		padding: 8px 4px;
+		font-size: 10px;
+		letter-spacing: 0.04em;
+		color: var(--muted);
+		position: relative;
+		border-radius: 4px;
+	}
+
+	:global(.ds-mobile-bottom .mob-tab svg) {
+		width: 18px;
+		height: 18px;
+	}
+
+	:global(.ds-mobile-bottom .mob-tab.active) {
+		color: var(--accent-ink);
+	}
+
+	:global(.ds-mobile-bottom .tab-badge) {
+		position: absolute;
+		top: 4px;
+		right: 50%;
+		margin-right: -16px;
+		background: var(--bad);
+		color: white;
+		font-size: 9px;
+		padding: 1px 4px;
+		border-radius: 6px;
+		min-width: 14px;
+		text-align: center;
+	}
+
+	:global(.ds-mobile-drawer-inner) {
+		flex: 1;
+		overflow-y: auto;
+		padding-bottom: 20px;
+	}
+
+	:global(.drawer-head) {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 12px 14px;
+		border-bottom: 1px solid var(--border);
+	}
+
+	:global(.drawer-brand) {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+	}
+
+	:global(.drawer-close) {
+		width: 30px;
+		height: 30px;
+		display: grid;
+		place-items: center;
+		border-radius: 4px;
+		color: var(--muted);
+	}
+
+	:global(.ds-mobile-drawer-stack) {
+		padding: 0 10px 10px;
+	}
+
+	:global(.ds-mobile-profile-card) {
+		padding: 10px 12px;
+	}
+
+	:global(.ds-mobile-profile-name) {
+		font-family: var(--serif);
+		font-size: 18px;
+		line-height: 1;
+	}
+
+	:global(.ds-mobile-profile-handle) {
+		font-size: 11px;
+		color: var(--muted);
+		margin-top: 3px;
+	}
+
+	:global(.ds-mobile-side-card) {
+		margin-top: 10px;
+		padding: 4px 0;
+	}
+
+	:global(.ds-mobile-thread) {
+		flex: 1;
+		overflow-y: auto;
+		padding: 10px;
+	}
+
+	:global(.ds-mobile-thread .focused-av) {
+		width: 44px;
+		height: 44px;
+	}
+
+	:global(.ds-mobile-thread .focused-post) {
+		padding: 16px 14px 12px;
+	}
+
+	:global(.ds-mobile-thread .focused-post-head) {
+		gap: 9px;
+	}
+
+	:global(.ds-mobile-thread .focused-name) {
+		font-size: 18px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	:global(.ds-mobile-thread .focused-handle) {
+		font-size: 12.5px;
+	}
+
+	:global(.ds-mobile-thread .focused-post-head .btn-follow) {
+		padding: 3px 10px;
+		font-size: 11.5px;
+		min-width: 0;
+	}
+
+	:global(.ds-mobile-thread .focused-post-head .post-more) {
+		width: 26px;
+		height: 26px;
+	}
+
+	:global(.ds-mobile-thread .focused-body) {
+		font-size: 14.5px;
+		line-height: 1.5;
+	}
+
+	:global(.ds-mobile-thread .focused-meta) {
+		font-size: 11px;
+		line-height: 1.45;
+	}
+
+	:global(.ds-mobile-thread .focused-action) {
+		padding: 8px 4px;
+	}
+
+	:global(.ds-mobile-thread .focused-action span) {
+		display: none;
+	}
+
+	:global(.ds-mobile-thread .focused-action svg) {
+		width: 18px;
+		height: 18px;
+	}
+
+	:global(.ds-mobile-thread .thread-head-title) {
+		margin-right: 30px;
 	}
 
 	.ds-nps-stack {

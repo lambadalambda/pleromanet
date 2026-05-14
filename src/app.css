@@ -819,6 +819,12 @@ body[data-theme='simoun'] .pill {
 }
 .post-name { font-weight: 600; color: var(--ink); }
 .post-handle { color: var(--accent-ink); }
+.post-handle {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
 .post-handle:hover { text-decoration: underline; }
 .post-time { color: var(--muted); margin-left: auto; font-size: 12px; font-family: var(--mono); }
 .post-body {
@@ -1845,7 +1851,8 @@ body[data-theme='simoun'] .pill {
 	border-bottom: 1px solid var(--border);
 	position: sticky;
 	top: 0;
-	background: rgba(251, 250, 243, 0.92);
+	background: var(--panel);
+	background: color-mix(in srgb, var(--panel) 92%, transparent);
 	backdrop-filter: blur(10px);
 	z-index: 5;
 }
@@ -1923,6 +1930,10 @@ body[data-theme='simoun'] .pill {
 	color: var(--accent-ink);
 	font-size: 13px;
 	margin-top: 2px;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 .focused-body {
 	font-size: 17px;
