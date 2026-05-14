@@ -12,15 +12,17 @@
 	import { openLightbox } from '$lib/rebuild/attachments';
 	import MediaStripThumb from '$lib/rebuild/MediaStripThumb.svelte';
 	import MediaStripKindBadge from '$lib/rebuild/MediaStripKindBadge.svelte';
+	import NotifRow from '$lib/rebuild/NotifRow.svelte';
+	import NotifsPopover from '$lib/rebuild/NotifsPopover.svelte';
 	import Seg from '$lib/rebuild/Seg.svelte';
 	import Tag from '$lib/rebuild/Tag.svelte';
 	import Toggle from '$lib/rebuild/Toggle.svelte';
 	import VaporBanner from '$lib/rebuild/VaporBanner.svelte';
 	import { iconNames } from '$lib/rebuild/icons';
+	import { SAMPLE_NOTIFS, type NotificationData, type NotificationKind } from '$lib/rebuild/notifications';
 	import type { Attachment, BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import { onMount } from 'svelte';
 
-	type BannerVariant = 'sunset' | 'pixel-window' | 'city' | 'space';
 	type AvatarVariant = 'post' | 'focused' | 'notif' | 'compose';
 
 	const BANNER_VARIANTS: BannerVariant[] = ['sunset', 'pixel-window', 'city', 'space'];
@@ -86,6 +88,11 @@
 		bookmarks?: number;
 		following?: boolean;
 		nestedReplies?: DemoPostData[];
+	};
+	type NotificationPreviewSpec = {
+		label: string;
+		note: string;
+		notification: NotificationData;
 	};
 	const THEMES: Theme[] = [
 		{ id: 'cream', label: 'Cream', bg: '#f5f1e8', panel: '#fbfaf3', ink: '#1f2347', accent: '#a48bd9' },
@@ -248,6 +255,18 @@
 			},
 		],
 	};
+
+	const sampleNotification = (kind: NotificationKind): NotificationData =>
+		SAMPLE_NOTIFS.find((notification) => notification.kind === kind) ?? SAMPLE_NOTIFS[0];
+
+	const NOTIFICATION_PREVIEW_SPECS: NotificationPreviewSpec[] = [
+		{ label: 'Mention · unread', note: 'NotifRow k-mention unread', notification: sampleNotification('mention') },
+		{ label: 'Favorite · grouped', note: 'NotifRow k-fav · 4 actors', notification: sampleNotification('fav') },
+		{ label: 'Boost', note: 'NotifRow k-boost', notification: sampleNotification('boost') },
+		{ label: 'Reply', note: 'NotifRow k-reply', notification: sampleNotification('reply') },
+		{ label: 'Follow', note: 'NotifRow k-follow · Follow back', notification: sampleNotification('follow') },
+		{ label: 'Follow request', note: 'NotifRow k-follow_req · Accept / Decline', notification: sampleNotification('follow_req') },
+	];
 
 	onMount(() => {
 		const storedTheme = localStorage.getItem('pn-theme');
@@ -1180,6 +1199,42 @@
 				</div>
 			</section>
 
+			<section id="notifications" class="ds-slab">
+				<header class="ds-slab-head">
+					<div class="ds-kicker">10</div>
+					<h2 class="ds-h2">Notifications</h2>
+					<p class="ds-sub">Six kinds — mention, fav, boost, reply, follow, follow_req, poll. Each kind has a tint and an icon.</p>
+				</header>
+				<div class="ds-slab-body">
+					<div class="ds-grid ds-grid-2">
+						{#each NOTIFICATION_PREVIEW_SPECS as spec (spec.label)}
+							<div class="ds-spec">
+								<div class="ds-spec-stage">
+									<NotifRow n={spec.notification} />
+								</div>
+								<div class="ds-spec-foot">
+									<span class="ds-spec-label">{spec.label}</span>
+									<span class="ds-spec-note">{spec.note}</span>
+								</div>
+							</div>
+						{/each}
+					</div>
+
+					<div class="ds-sub-h" style="margin-top:18px">Popover (header bell)</div>
+					<div class="ds-spec">
+						<div class="ds-spec-stage ds-notif-pop-stage">
+							<div class="ds-notif-pop-wrap">
+								<NotifsPopover />
+							</div>
+						</div>
+						<div class="ds-spec-foot">
+							<span class="ds-spec-label">NotifsPopover</span>
+							<span class="ds-spec-note">header bell · 8 rows · See all →</span>
+						</div>
+					</div>
+				</div>
+			</section>
+
 			<footer class="ds-foot">
 				<div>End of system · everything else is composed from what's above.</div>
 				<div>PleromaNet™ Design System · v2.4.58 · {new Date().getFullYear()}</div>
@@ -1701,6 +1756,18 @@
 		width: 100%;
 		padding: 18px;
 		background: var(--bg);
+	}
+
+	.ds-notif-pop-stage {
+		padding: 16px;
+		background: var(--bg);
+		align-items: flex-start;
+	}
+
+	.ds-notif-pop-wrap {
+		position: relative;
+		display: inline-block;
+		max-width: 100%;
 	}
 
 	:global(.ds-thread-demo-card) {
