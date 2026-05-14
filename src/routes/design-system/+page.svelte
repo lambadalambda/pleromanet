@@ -90,6 +90,7 @@
 	let mounted = $state(false);
 	let toggleOn = $state(true);
 	let segValue = $state('Popular');
+	let toggleRowOn = $state(true);
 
 	onMount(() => {
 		const storedTheme = localStorage.getItem('pn-theme');
@@ -349,6 +350,75 @@
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Toggle</span>
 								<span class="ds-spec-note">.toggle · .toggle.on</span>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section id="forms" class="ds-slab">
+				<header class="ds-slab-head">
+					<div class="ds-kicker">04</div>
+					<h2 class="ds-h2">Forms</h2>
+					<p class="ds-sub">Inputs, textareas, selects, and the toggle row pattern.</p>
+				</header>
+				<div class="ds-slab-body">
+					<div class="ds-grid ds-grid-2">
+						<div class="ds-spec">
+							<div class="ds-spec-stage padded">
+								<input class="input" value="dreambyte" />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Input</span>
+								<span class="ds-spec-note">.input</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage padded">
+								<select class="select">
+									<option>@pleromanet.social</option>
+									<option>@kolektiva.social</option>
+								</select>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Select</span>
+								<span class="ds-spec-note">.select</span>
+							</div>
+						</div>
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage padded">
+								<div class="split-row">
+									<input class="input" value="dreambyte" />
+									<select class="select"><option>@pleromanet.social</option></select>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Split row</span>
+								<span class="ds-spec-note">.split-row</span>
+							</div>
+						</div>
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage padded">
+								<textarea class="textarea">living in a soft world</textarea>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Textarea</span>
+								<span class="ds-spec-note">.textarea</span>
+							</div>
+						</div>
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage padded">
+								<div class="toggle-row">
+									<div>
+										<div class="toggle-title">Discoverable</div>
+										<div class="toggle-help">Allow others to find you in search and suggestions.</div>
+									</div>
+									<Toggle checked={toggleRowOn} onchange={(v) => (toggleRowOn = v)} />
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Toggle row</span>
+								<span class="ds-spec-note">.toggle-row — used in settings</span>
 							</div>
 						</div>
 					</div>
