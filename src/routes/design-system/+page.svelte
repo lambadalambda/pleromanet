@@ -16,13 +16,14 @@
 	import NotifRow from '$lib/rebuild/NotifRow.svelte';
 	import NotifsPopover from '$lib/rebuild/NotifsPopover.svelte';
 	import OekakiModal from '$lib/rebuild/OekakiModal.svelte';
+	import ProfileMini from '$lib/rebuild/ProfileMini.svelte';
 	import Seg from '$lib/rebuild/Seg.svelte';
 	import Tag from '$lib/rebuild/Tag.svelte';
 	import Toggle from '$lib/rebuild/Toggle.svelte';
 	import Radio from '$lib/rebuild/Radio.svelte';
 	import SurfaceCard from '$lib/rebuild/SurfaceCard.svelte';
 	import VaporBanner from '$lib/rebuild/VaporBanner.svelte';
-	import { iconNames } from '$lib/rebuild/icons';
+	import { iconNames, type IconName } from '$lib/rebuild/icons';
 	import { SAMPLE_NOTIFS, type NotificationData, type NotificationKind } from '$lib/rebuild/notifications';
 	import type { Attachment, BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import { onMount } from 'svelte';
@@ -103,6 +104,12 @@
 		label: string;
 		note: string;
 		span?: number;
+	};
+	type NavPreviewItem = {
+		label: string;
+		icon: IconName;
+		active?: boolean;
+		count?: number;
 	};
 	const THEMES: Theme[] = [
 		{ id: 'cream', label: 'Cream', bg: '#f5f1e8', panel: '#fbfaf3', ink: '#1f2347', accent: '#a48bd9' },
@@ -288,6 +295,17 @@
 		{ kind: 'footer', label: 'FooterCard', note: 'footer-card' },
 		{ kind: 'profile-preview', label: 'ProfilePreviewCard', note: 'settings right rail', span: 2 },
 		{ kind: 'profile-tips', label: 'ProfileTipsCard', note: 'settings right rail' },
+	];
+
+	const NAV_PREVIEW_ITEMS: NavPreviewItem[] = [
+		{ label: 'Home', icon: 'home', active: true },
+		{ label: 'Local', icon: 'users' },
+		{ label: 'Federated', icon: 'globe' },
+		{ label: 'Notifications', icon: 'bell', count: 3 },
+		{ label: 'Messages', icon: 'msg' },
+		{ label: 'Bookmarks', icon: 'bookmark' },
+		{ label: 'Lists', icon: 'list' },
+		{ label: 'Settings', icon: 'gear' },
 	];
 
 	onMount(() => {
@@ -1372,6 +1390,49 @@
 				</div>
 			</section>
 
+			<section id="navigation" class="ds-slab">
+				<header class="ds-slab-head">
+					<div class="ds-kicker">14</div>
+					<h2 class="ds-h2">Navigation</h2>
+					<p class="ds-sub">Header, side nav, profile mini. The shell-level chrome.</p>
+				</header>
+				<div class="ds-slab-body">
+					<div class="ds-grid ds-grid-2">
+						<div class="ds-spec">
+							<div class="ds-spec-stage ds-navigation-stage">
+								<div class="ds-navigation-card-wrap"><ProfileMini /></div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">ProfileMini</span>
+								<span class="ds-spec-note">left column · top of stack</span>
+							</div>
+						</div>
+
+						<div class="ds-spec">
+							<div class="ds-spec-stage ds-navigation-stage">
+								<div class="ds-navigation-card-wrap">
+									<div class="card ds-side-nav-card">
+										<nav class="side-nav" aria-label="Design-system side navigation specimen">
+											{#each NAV_PREVIEW_ITEMS as item}
+												<button type="button" class:active={item.active} class="side-nav-item">
+													<span class="ico"><Icon name={item.icon} width={18} height={18} /></span>
+													<span>{item.label}</span>
+													{#if item.count}<span class="count">{item.count}</span>{/if}
+												</button>
+											{/each}
+										</nav>
+									</div>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">SideNav (placeholder)</span>
+								<span class="ds-spec-note">.side-nav inside a card</span>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
 			<footer class="ds-foot">
 				<div>End of system · everything else is composed from what's above.</div>
 				<div>PleromaNet™ Design System · v2.4.58 · {new Date().getFullYear()}</div>
@@ -1941,6 +2002,21 @@
 	}
 
 	.ds-surface-stage :global(.surface-card) {
+		width: 100%;
+	}
+
+	.ds-navigation-stage {
+		align-items: flex-start;
+		background: var(--bg);
+		padding: 18px;
+	}
+
+	.ds-navigation-card-wrap {
+		width: min(320px, 100%);
+	}
+
+	:global(.ds-side-nav-card) {
+		padding: 6px 0;
 		width: 100%;
 	}
 

@@ -16,6 +16,7 @@ test('shows converted canonical design-system sections and switches themes', asy
 	await expect(page.getByRole('heading', { name: 'Radio · PN.fm' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Oekaki' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Surfaces' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Navigation' })).toBeVisible();
 
 	await expect(page.locator('#controls')).toContainText('Button · primary');
 	await expect(page.locator('#attachments')).toContainText('pickAttachmentLayout →');
@@ -25,6 +26,7 @@ test('shows converted canonical design-system sections and switches themes', asy
 	await expect(page.locator('#radio')).toContainText('Radio · Now playing tab');
 	await expect(page.locator('#oekaki')).toContainText('Tool rail');
 	await expect(page.locator('#surfaces')).toContainText('TrendsCard');
+	await expect(page.locator('#navigation')).toContainText('ProfileMini');
 
 	await page.getByRole('button', { name: 'Simoun' }).click();
 	await expect(page.locator('html')).toHaveAttribute('data-theme', 'simoun');
@@ -55,6 +57,24 @@ test('renders canonical surface and right-rail card specimens', async ({ page })
 
 	await surfaces.getByRole('button', { name: 'Follow' }).first().click();
 	await expect(surfaces.getByRole('button', { name: 'Following' })).toBeVisible();
+	await expectNoHorizontalOverflow(page);
+});
+
+test('renders canonical navigation specimens', async ({ page }) => {
+	await setViewport(page, 'desktop');
+	await page.goto('/design-system');
+
+	const navigation = page.locator('#navigation');
+	await expect(navigation.getByText('ProfileMini')).toBeVisible();
+	await expect(navigation.getByText('dreambyte', { exact: true })).toBeVisible();
+	await expect(navigation.getByText('@dreambyte@pleroma.social')).toBeVisible();
+	await expect(navigation.getByText('living in a soft world')).toBeVisible();
+	await expect(navigation.getByText('pacific hour')).toBeVisible();
+	await expect(navigation.getByText('Followers')).toBeVisible();
+	await expect(navigation.getByText('SideNav (placeholder)')).toBeVisible();
+	await expect(navigation.getByRole('button', { name: /^Home/ })).toBeVisible();
+	await expect(navigation.getByRole('button', { name: /^Notifications/ })).toContainText('3');
+	await expect(navigation.getByRole('button', { name: /^Settings/ })).toBeVisible();
 	await expectNoHorizontalOverflow(page);
 });
 

@@ -703,6 +703,97 @@ body[data-theme='simoun'] .pill {
 	color: var(--ink-2);
 }
 
+/* ===== Profile mini / side nav ===== */
+.profile-mini-banner {
+	height: 110px;
+	background: linear-gradient(180deg, #2a1f4a 0%, #6b4d8e 50%, #d889a0 100%);
+	border-bottom: 1px solid var(--border);
+	position: relative;
+	overflow: hidden;
+	border-radius: 6px 6px 0 0;
+}
+.profile-mini-info {
+	padding: 14px 16px 4px;
+}
+.profile-mini-name {
+	font-family: var(--serif);
+	font-size: 24px;
+	font-weight: 500;
+	line-height: 1;
+}
+.profile-mini-handle {
+	color: var(--accent-ink);
+	font-size: 13px;
+	margin-top: 4px;
+}
+.profile-mini-bio {
+	font-size: 13px;
+	color: var(--ink-2);
+	margin: 12px 0 4px;
+}
+.side-nav {
+	padding: 6px 0;
+}
+.side-nav-item {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	padding: 10px 14px;
+	font-size: 14px;
+	color: var(--ink-2);
+	border-left: 3px solid transparent;
+	text-align: left;
+	position: relative;
+}
+.side-nav-item:hover { background: var(--bg); }
+.side-nav-item.active {
+	background: var(--accent-soft-2);
+	border-left-color: var(--accent);
+	color: var(--ink);
+}
+.side-nav-item .ico {
+	width: 18px;
+	height: 18px;
+	flex-shrink: 0;
+	color: var(--muted);
+	display: grid;
+	place-items: center;
+}
+.side-nav-item.active .ico { color: var(--accent-ink); }
+.side-nav-item .count {
+	margin-left: auto;
+	background: var(--accent-soft);
+	color: var(--accent-ink);
+	font-size: 11px;
+	font-weight: 600;
+	padding: 1px 7px;
+	border-radius: 10px;
+}
+.side-nav-item .grip {
+	margin-left: auto;
+	color: var(--muted-2);
+	opacity: 0;
+}
+.side-nav-item.active .grip { opacity: 1; }
+.side-sub {
+	padding: 4px 0 4px 50px;
+	border-top: 1px solid var(--border);
+}
+.side-sub-item {
+	display: block;
+	width: 100%;
+	text-align: left;
+	padding: 6px 14px 6px 0;
+	font-size: 13px;
+	color: var(--muted);
+}
+.side-sub-item:hover { color: var(--ink); }
+.side-sub-item.active {
+	color: var(--accent-ink);
+	font-weight: 600;
+}
+
 /* ===== Posts ===== */
 .post {
 	display: grid;
