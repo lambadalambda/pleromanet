@@ -1,22 +1,36 @@
-<script lang="ts">
-	import { goto } from '$app/navigation';
-	import SignedOutLanding from '$lib/components/signed-out/SignedOutLanding.svelte';
-	import { getPleromaAuthContext } from '$lib/pleroma/auth';
-	import { onMount } from 'svelte';
-
-	const auth = getPleromaAuthContext();
-
-	onMount(() => {
-		if (auth.refresh().status === 'authenticated') void goto('/app/home', { replaceState: true });
-	});
-</script>
-
 <svelte:head>
-	<title>PleromaNet · Federated social web</title>
-	<meta
-		name="description"
-		content="PleromaNet is an OAuth-first Pleroma frontend for a quieter corner of the federated social web."
-	/>
+	<title>PleromaNet · Design System Rebuild</title>
 </svelte:head>
 
-<SignedOutLanding />
+<main class="reset-home">
+	<h1>PleromaNet Svelte Rebuild</h1>
+	<p>The canonical Claude handoff is now the source of truth.</p>
+	<a href="/design-system">Open design system rebuild</a>
+</main>
+
+<style>
+	.reset-home {
+		display: grid;
+		place-content: center;
+		gap: 12px;
+		min-height: 100vh;
+		padding: 24px;
+		background: var(--bg);
+		color: var(--ink);
+	}
+
+	h1,
+	p {
+		margin: 0;
+	}
+
+	h1 {
+		font-family: var(--serif);
+		font-size: clamp(2rem, 5vw, 3.5rem);
+		font-weight: 500;
+	}
+
+	a {
+		color: var(--accent-ink);
+	}
+</style>
