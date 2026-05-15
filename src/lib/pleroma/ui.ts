@@ -116,6 +116,27 @@ const plainTextContent = (status: PleromaStatus) => {
 	return htmlToPlainText(status.content);
 };
 
+const leadingReplyMentionPattern = /^(@[\w.]+(?:@[\w.-]+)?)(?=\s|$)/;
+
+const extractLeadingReplyAddressees = (text: string, status: PleromaStatus) => {
+	if (!status.in_reply_to_id) return { body: text };
+
+	const addressees: string[] = [];
+	let rest = text.trimStart();
+	while (rest) {
+		const match = leadingReplyMentionPattern.exec(rest);
+		if (!match) break;
+
+		addressees.push(match[1]);
+		rest = rest.slice(match[1].length);
+		const separator = /^\s+/.exec(rest);
+		if (!separator) break;
+		rest = rest.slice(separator[0].length);
+	}
+
+	return addressees.length > 0 ? { body: rest.trimStart(), addressees } : { body: text };
+};
+
 const spoilerText = (status: PleromaStatus) => {
 	const plainText = status.pleroma.spoiler_text?.['text/plain'];
 	if (plainText?.trim()) return plainText.trim();
@@ -182,6 +203,7 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 	const mediaAttachments = source.media_attachments.map(adaptMediaAttachment).filter((attachment) => attachment !== null);
 	const warning = spoilerText(source);
 	const plainText = plainTextContent(source);
+	const body = warning ? { body: `Content warning: ${warning}` } : extractLeadingReplyAddressees(plainText, source);
 	const mediaHidden = mediaAttachments.length > 0 && Boolean(warning || source.sensitive);
 
 	return {
@@ -194,7 +216,8 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		name: account.displayName,
 		handle: account.handle,
 		time: formatStatusDate(source.created_at),
-		body: warning ? `Content warning: ${warning}` : plainText,
+		body: body.body,
+		addressees: body.addressees,
 		avatar: avatarVariant(source.account),
 		media: mediaAttachments.length > 0 && !mediaHidden ? 'city' : undefined,
 		replies: source.replies_count,

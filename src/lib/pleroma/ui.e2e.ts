@@ -41,6 +41,34 @@ test('Pleroma status adapters preserve plain text content and UI action state', 
 	expect(post.mediaHidden).toBe(false);
 });
 
+test('Pleroma status adapters move leading reply recipients into addressees', () => {
+	const reply = withStatus({
+		id: 'reply-with-leading-recipients',
+		in_reply_to_id: 'parent-status',
+		in_reply_to_account_id: 'account-2',
+		content: '<p>@dtluna @feld qwen 0.5b can handle it. has @lain tried it?</p>',
+		pleroma: {
+			content: { 'text/plain': '@dtluna @feld qwen 0.5b can handle it. has @lain tried it?' }
+		}
+	});
+
+	const post = adaptPleromaStatus(reply);
+
+	expect(post.body).toBe('qwen 0.5b can handle it. has @lain tried it?');
+	expect(post.addressees).toEqual(['@dtluna', '@feld']);
+
+	const topLevelPost = adaptPleromaStatus(withStatus({
+		id: 'top-level-leading-mentions',
+		content: '<p>@dtluna @feld qwen 0.5b can handle it.</p>',
+		pleroma: {
+			content: { 'text/plain': '@dtluna @feld qwen 0.5b can handle it.' }
+		}
+	}));
+
+	expect(topLevelPost.body).toBe('@dtluna @feld qwen 0.5b can handle it.');
+	expect(topLevelPost.addressees).toBeUndefined();
+});
+
 test('Pleroma status adapters handle reblogs, remote handles, warnings, and fallback assets', () => {
 	const remoteAccount = {
 		...pleromaFixtures.account,

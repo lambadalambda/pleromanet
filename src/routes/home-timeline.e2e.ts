@@ -86,6 +86,34 @@ test('home timeline renders repeated mention separators without duplicate keyed 
 	await expect(page.getByTestId('home-timeline-list')).toContainText('@one  @two  @three');
 });
 
+test('home timeline moves leading reply recipients into the pinged footer', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [
+			{
+				...pleromaFixtures.status,
+				id: 'status-leading-recipients',
+				in_reply_to_id: 'parent-status',
+				in_reply_to_account_id: 'account-2',
+				content: '<p>@dtluna @feld qwen 0.5b can handle it. has @lain tried it?</p>',
+				pleroma: {
+					...pleromaFixtures.status.pleroma,
+					content: { 'text/plain': '@dtluna @feld qwen 0.5b can handle it. has @lain tried it?' }
+				}
+			}
+		]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('.post').filter({ hasText: 'qwen 0.5b can handle it.' }).first();
+	await expect(post.locator('.post-body')).toHaveText('qwen 0.5b can handle it. has @lain tried it?');
+	await expect(post.locator('.post-pinged')).toContainText('Pinged');
+	await expect(post.locator('.post-pinged')).toContainText('@dtluna');
+	await expect(post.locator('.post-pinged')).toContainText('@feld');
+});
+
 test('home timeline renders empty state from mocked API response', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page, async (route) => {

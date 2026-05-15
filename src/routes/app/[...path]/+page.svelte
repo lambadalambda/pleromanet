@@ -51,6 +51,7 @@
 		replies: number;
 		boosts: number;
 		favs: number;
+		addressees?: string[];
 		actions: { reply: boolean; boost: boolean; fav: boolean };
 	};
 	const defaultProfile: ProfileSettings = {
@@ -117,6 +118,7 @@
 		body: post.body,
 		media: post.media,
 		attachments: post.attachments,
+		addressees: post.addressees,
 		quotedPost: post.quotedPost,
 		replies: post.replies,
 		boosts: post.boosts,
