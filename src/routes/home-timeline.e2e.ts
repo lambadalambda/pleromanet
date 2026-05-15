@@ -421,6 +421,45 @@ test('home timeline new-post check errors keep the timeline usable and recover o
 	expect(checkAttempts).toBe(2);
 });
 
+test('home timeline ignores auth errors from stale new-post checks after the session changes', async ({ page }) => {
+	await authenticate(page);
+	const nextSession = { ...session, accessToken: 'fresh-token', createdAt: 1700000002000 };
+	let releaseCheck: () => void = () => undefined;
+	let markCheckStarted: () => void = () => undefined;
+	const checkStarted = new Promise<void>((resolve) => {
+		markCheckStarted = resolve;
+	});
+	const pendingCheck = new Promise<void>((resolve) => {
+		releaseCheck = resolve;
+	});
+	await mockHomeTimeline(page, async (route) => {
+		const url = new URL(route.request().url());
+		if (url.searchParams.get('since_id') === 'status-1') {
+			markCheckStarted();
+			await pendingCheck;
+			await fulfillHome(route, { error: 'old token expired' }, 401);
+			return;
+		}
+
+		await fulfillHome(route, [statusWithText('status-1', 'stable existing post')]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await expect(page.getByTestId('home-timeline-list')).toContainText('stable existing post');
+	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
+	await checkStarted;
+	await page.evaluate((storedSession) => {
+		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
+	}, nextSession);
+	await page.getByRole('link', { name: 'Explore' }).first().click();
+	await expect(page.getByRole('heading', { name: 'Explore the network' })).toBeVisible();
+
+	releaseCheck();
+	await expect(page).toHaveURL('/app/explore');
+	expect(await page.evaluate(() => JSON.parse(window.localStorage.getItem('pleromanet.session') ?? '{}').accessToken)).toBe('fresh-token');
+});
+
 test('home timeline renders empty state from mocked API response', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page, async (route) => {

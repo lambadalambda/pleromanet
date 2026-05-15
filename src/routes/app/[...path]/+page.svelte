@@ -7,12 +7,21 @@
 	import Post from '$lib/rebuild/Post.svelte';
 	import ProfileMini from '$lib/rebuild/ProfileMini.svelte';
 	import SurfaceCard from '$lib/rebuild/SurfaceCard.svelte';
+	import TimelineLoadMore from '$lib/rebuild/TimelineLoadMore.svelte';
+	import TimelineNewPostsIndicator from '$lib/rebuild/TimelineNewPostsIndicator.svelte';
 	import { createPleromaClient } from '$lib/pleroma/client';
 	import { readPleromaSession, signOutPleroma } from '$lib/pleroma/session';
+	import {
+		mergeTimelineItems,
+		prependTimelineItems,
+		queueNewerTimelineItems,
+		type PaginatedTimelineBaseState,
+		type PaginatedTimelineSuccess
+	} from '$lib/pleroma/timeline-state';
 	import { adaptPleromaStatuses, normalizePleromaRequestError, type PleromaRequestErrorView, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import type { IconName } from '$lib/rebuild/icons';
-	import type { PleromaSession, TimelineCursor } from '$lib/pleroma/types';
+	import type { PleromaSession } from '$lib/pleroma/types';
 	import type { SocialPost } from '$lib/social/types';
 	import { onMount, tick } from 'svelte';
 
@@ -58,20 +67,11 @@
 		copyJson?: unknown;
 		actions: { reply: boolean; boost: boolean; fav: boolean };
 	};
-	type HomeTimelineState =
-		| { status: 'idle' }
-		| { status: 'loading' }
-		| { status: 'empty' }
-		| { status: 'error'; error: PleromaRequestErrorView }
-		| {
-			status: 'success';
-			data: PleromaStatusView[];
-			nextCursor: TimelineCursor | null;
-			loadMoreStatus: 'idle' | 'loading' | 'error';
-			loadMoreError?: PleromaRequestErrorView;
-			newerPosts: PleromaStatusView[];
-			newPostsStatus: 'idle' | 'checking';
-		};
+	type HomeTimelineSuccess = PaginatedTimelineSuccess<PleromaStatusView, PleromaRequestErrorView> & {
+		newerPosts: PleromaStatusView[];
+		newPostsStatus: 'idle' | 'checking';
+	};
+	type HomeTimelineState = PaginatedTimelineBaseState<PleromaRequestErrorView> | HomeTimelineSuccess;
 	const HOME_TIMELINE_CHECK_INTERVAL_MS = 60_000;
 	const HOME_TIMELINE_CHECK_EVENT = 'pleromanet:check-home-timeline';
 	const defaultProfile: ProfileSettings = {
@@ -109,6 +109,13 @@
 	]);
 	let homeTimelineRequestId = 0;
 	let homeTimelineNewPostsRequestId = 0;
+	let loadedHomeTimelineKey = '';
+	const sessionKey = (session: PleromaSession | null) => session ? `${session.instanceUrl}\n${session.accessToken}\n${session.createdAt}` : '';
+	const invalidateHomeTimelineRequests = () => {
+		homeTimelineRequestId += 1;
+		homeTimelineNewPostsRequestId += 1;
+	};
+	const isCurrentSessionRequest = (requestSessionKey: string) => sessionKey(currentSession) === requestSessionKey;
 
 	const navItems: NavItem[] = [
 		{ route: 'home', label: 'Home', icon: 'home', href: '/app/home' },
@@ -154,38 +161,6 @@
 			fav: post.actions.favorite,
 		},
 	});
-	const mergeTimelinePosts = (current: PleromaStatusView[], next: PleromaStatusView[]) => {
-		const seen = new Set(current.map((post) => post.id));
-		return [
-			...current,
-			...next.filter((post) => {
-				if (seen.has(post.id)) return false;
-				seen.add(post.id);
-				return true;
-			})
-		];
-	};
-	const prependTimelinePosts = (current: PleromaStatusView[], next: PleromaStatusView[]) => {
-		const seen = new Set(current.map((post) => post.id));
-		const uniqueNext = next.filter((post) => {
-			if (seen.has(post.id)) return false;
-			seen.add(post.id);
-			return true;
-		});
-
-		return [...uniqueNext, ...current];
-	};
-	const queueNewerTimelinePosts = (queued: PleromaStatusView[], current: PleromaStatusView[], incoming: PleromaStatusView[]) => {
-		const seen = new Set([...current.map((post) => post.id), ...queued.map((post) => post.id)]);
-		const uniqueIncoming = incoming.filter((post) => {
-			if (seen.has(post.id)) return false;
-			seen.add(post.id);
-			return true;
-		});
-
-		return [...uniqueIncoming, ...queued];
-	};
-
 	const route = $derived<AppRoute>(
 		page.url.pathname.startsWith('/app/explore') ? 'explore' :
 		page.url.pathname.startsWith('/app/settings') ? 'settings' :
@@ -326,6 +301,8 @@
 		mobileSheetOpen = false;
 	};
 	const redirectToLanding = () => {
+		invalidateHomeTimelineRequests();
+		loadedHomeTimelineKey = '';
 		currentSession = null;
 		sessionReady = false;
 		goto('/');
@@ -337,11 +314,16 @@
 			return null;
 		}
 
-		currentSession = session;
+		if (sessionKey(currentSession) !== sessionKey(session)) {
+			invalidateHomeTimelineRequests();
+			loadedHomeTimelineKey = '';
+			currentSession = session;
+		}
 		sessionReady = true;
 		return session;
 	};
 	const loadHomeTimeline = async (session: PleromaSession) => {
+		const requestSessionKey = sessionKey(session);
 		const requestId = homeTimelineRequestId + 1;
 		homeTimelineRequestId = requestId;
 		homeTimelineState = { status: 'loading' };
@@ -353,14 +335,14 @@
 				fetch: window.fetch.bind(window)
 			});
 			const timelinePage = await client.getHomeTimelinePage();
-			if (requestId !== homeTimelineRequestId) return;
+			if (requestId !== homeTimelineRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			const posts = adaptPleromaStatuses(timelinePage.items, { timelines: ['home'] });
 			homeTimelineState = posts.length > 0
 				? { status: 'success', data: posts, nextCursor: timelinePage.cursors.next, loadMoreStatus: 'idle', newerPosts: [], newPostsStatus: 'idle' }
 				: { status: 'empty' };
 		} catch (error) {
-			if (requestId !== homeTimelineRequestId) return;
+			if (requestId !== homeTimelineRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			const normalized = normalizePleromaRequestError(error);
 			if (normalized.reauthRequired) {
@@ -373,8 +355,10 @@
 		}
 	};
 	const loadMoreHomeTimeline = async () => {
-		if (!currentSession || homeTimelineState.status !== 'success' || !homeTimelineState.nextCursor || homeTimelineState.loadMoreStatus === 'loading') return;
+		const session = currentSession;
+		if (!session || homeTimelineState.status !== 'success' || !homeTimelineState.nextCursor || homeTimelineState.loadMoreStatus === 'loading') return;
 
+		const requestSessionKey = sessionKey(session);
 		const requestId = homeTimelineRequestId + 1;
 		homeTimelineRequestId = requestId;
 		const nextCursor = homeTimelineState.nextCursor;
@@ -382,23 +366,23 @@
 
 		try {
 			const client = createPleromaClient({
-				instanceUrl: currentSession.instanceUrl,
-				accessToken: currentSession.accessToken,
+				instanceUrl: session.instanceUrl,
+				accessToken: session.accessToken,
 				fetch: window.fetch.bind(window)
 			});
 			const timelinePage = await client.getHomeTimelinePage(nextCursor);
-			if (requestId !== homeTimelineRequestId || homeTimelineState.status !== 'success') return;
+			if (requestId !== homeTimelineRequestId || !isCurrentSessionRequest(requestSessionKey) || homeTimelineState.status !== 'success') return;
 
 			const posts = adaptPleromaStatuses(timelinePage.items, { timelines: ['home'] });
 			homeTimelineState = {
 				...homeTimelineState,
-				data: mergeTimelinePosts(homeTimelineState.data, posts),
+				data: mergeTimelineItems(homeTimelineState.data, posts),
 				nextCursor: timelinePage.cursors.next,
 				loadMoreStatus: 'idle',
 				loadMoreError: undefined
 			};
 		} catch (error) {
-			if (requestId !== homeTimelineRequestId) return;
+			if (requestId !== homeTimelineRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			const normalized = normalizePleromaRequestError(error);
 			if (normalized.reauthRequired) {
@@ -412,32 +396,34 @@
 		}
 	};
 	const checkHomeTimelineForNewPosts = async () => {
-		if (!currentSession || homeTimelineState.status !== 'success' || homeTimelineState.newPostsStatus === 'checking') return;
+		const session = currentSession;
+		if (!session || homeTimelineState.status !== 'success' || homeTimelineState.newPostsStatus === 'checking') return;
 
 		const sinceId = homeTimelineState.newerPosts[0]?.id ?? homeTimelineState.data[0]?.id;
 		if (!sinceId) return;
 
+		const requestSessionKey = sessionKey(session);
 		const requestId = homeTimelineNewPostsRequestId + 1;
 		homeTimelineNewPostsRequestId = requestId;
 		homeTimelineState = { ...homeTimelineState, newPostsStatus: 'checking' };
 
 		try {
 			const client = createPleromaClient({
-				instanceUrl: currentSession.instanceUrl,
-				accessToken: currentSession.accessToken,
+				instanceUrl: session.instanceUrl,
+				accessToken: session.accessToken,
 				fetch: window.fetch.bind(window)
 			});
 			const timelinePage = await client.getHomeTimelinePage({ sinceId });
-			if (requestId !== homeTimelineNewPostsRequestId || homeTimelineState.status !== 'success') return;
+			if (requestId !== homeTimelineNewPostsRequestId || !isCurrentSessionRequest(requestSessionKey) || homeTimelineState.status !== 'success') return;
 
 			const posts = adaptPleromaStatuses(timelinePage.items, { timelines: ['home'] });
 			homeTimelineState = {
 				...homeTimelineState,
-				newerPosts: queueNewerTimelinePosts(homeTimelineState.newerPosts, homeTimelineState.data, posts),
+				newerPosts: queueNewerTimelineItems(homeTimelineState.newerPosts, homeTimelineState.data, posts),
 				newPostsStatus: 'idle'
 			};
 		} catch (error) {
-			if (requestId !== homeTimelineNewPostsRequestId) return;
+			if (requestId !== homeTimelineNewPostsRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			const normalized = normalizePleromaRequestError(error);
 			if (normalized.reauthRequired) {
@@ -457,7 +443,7 @@
 		const beforeScrollY = window.scrollY;
 		homeTimelineState = {
 			...homeTimelineState,
-			data: prependTimelinePosts(homeTimelineState.data, homeTimelineState.newerPosts),
+			data: prependTimelineItems(homeTimelineState.data, homeTimelineState.newerPosts),
 			newerPosts: []
 		};
 		await tick();
@@ -481,6 +467,7 @@
 		const checkInterval = window.setInterval(triggerHomeTimelineCheck, HOME_TIMELINE_CHECK_INTERVAL_MS);
 
 		return () => {
+			invalidateHomeTimelineRequests();
 			window.removeEventListener(HOME_TIMELINE_CHECK_EVENT, triggerHomeTimelineCheck);
 			window.clearInterval(checkInterval);
 		};
@@ -492,7 +479,15 @@
 
 		const session = readSessionOrRedirect();
 		if (!session) return;
-		if (pathname.startsWith('/app/home')) void loadHomeTimeline(session);
+		if (pathname.startsWith('/app/home')) {
+			const loadKey = `${sessionKey(session)}\n${pathname}`;
+			if (loadedHomeTimelineKey !== loadKey) {
+				loadedHomeTimelineKey = loadKey;
+				void loadHomeTimeline(session);
+			}
+		} else {
+			loadedHomeTimelineKey = '';
+		}
 	});
 </script>
 
@@ -593,12 +588,8 @@
 							</div>
 						</form>
 
-						{#if homeTimelineState.status === 'success' && homeTimelineState.newerPosts.length > 0}
-							<div class="timeline-new-posts" aria-live="polite">
-								<Button variant="secondary" className="timeline-new-posts-button" onclick={showNewHomePosts}>
-									New posts available ({homeTimelineState.newerPosts.length})
-								</Button>
-							</div>
+						{#if homeTimelineState.status === 'success'}
+							<TimelineNewPostsIndicator count={homeTimelineState.newerPosts.length} onActivate={showNewHomePosts} />
 						{/if}
 
 						{#if homeTimelineState.status === 'loading'}
@@ -622,26 +613,12 @@
 									<Post {post} onAction={(key) => handlePostAction(post.id, key)} />
 								{/each}
 							</div>
-							{#if homeTimelineState.loadMoreStatus === 'loading'}
-								<div class="request-state request-pagination" role="status" aria-label="Timeline pagination status">Loading older posts</div>
-							{:else if homeTimelineState.loadMoreStatus === 'error' && homeTimelineState.loadMoreError}
-								<div class="request-state request-error request-pagination">
-									<h2>{homeTimelineState.loadMoreError.title}</h2>
-									<p>{homeTimelineState.loadMoreError.message}</p>
-									{#if homeTimelineState.loadMoreError.retryable}
-										<Button variant="secondary" onclick={loadMoreHomeTimeline}>Retry load more</Button>
-									{/if}
-								</div>
-							{:else if homeTimelineState.nextCursor}
-								<div class="request-state request-pagination">
-									<Button variant="secondary" onclick={loadMoreHomeTimeline}>Load more</Button>
-								</div>
-							{:else}
-								<div class="request-state request-empty request-pagination">
-									<h2>No older posts</h2>
-									<p>You have reached the end of this loaded timeline.</p>
-								</div>
-							{/if}
+							<TimelineLoadMore
+								nextCursor={homeTimelineState.nextCursor}
+								loadMoreStatus={homeTimelineState.loadMoreStatus}
+								loadMoreError={homeTimelineState.loadMoreError}
+								onLoadMore={loadMoreHomeTimeline}
+							/>
 						{/if}
 					</section>
 				{:else if route === 'explore'}

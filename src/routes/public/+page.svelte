@@ -3,11 +3,12 @@
 	import Button from '$lib/rebuild/Button.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
 	import Post from '$lib/rebuild/Post.svelte';
+	import TimelineLoadMore from '$lib/rebuild/TimelineLoadMore.svelte';
 	import { createPleromaClient } from '$lib/pleroma/client';
+	import { mergeTimelineItems, type PaginatedTimelineState } from '$lib/pleroma/timeline-state';
 	import { adaptPleromaStatuses, normalizePleromaRequestError, type PleromaRequestErrorView, type PleromaStatusView } from '$lib/pleroma/ui';
 	import { env } from '$env/dynamic/public';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
-	import type { TimelineCursor } from '$lib/pleroma/types';
 	import type { SocialPost } from '$lib/social/types';
 	import { onMount } from 'svelte';
 
@@ -28,18 +29,7 @@
 		favs: number;
 		actions: { reply: boolean; boost: boolean; fav: boolean };
 	};
-	type PublicTimelineState =
-		| { status: 'idle' }
-		| { status: 'loading' }
-		| { status: 'empty' }
-		| { status: 'error'; error: PleromaRequestErrorView }
-		| {
-			status: 'success';
-			data: PleromaStatusView[];
-			nextCursor: TimelineCursor | null;
-			loadMoreStatus: 'idle' | 'loading' | 'error';
-			loadMoreError?: PleromaRequestErrorView;
-		};
+	type PublicTimelineState = PaginatedTimelineState<PleromaStatusView, PleromaRequestErrorView>;
 
 	let view = $state<PublicView>('local');
 	let timelineState = $state<PublicTimelineState>({ status: 'idle' });
@@ -75,17 +65,6 @@
 			fav: post.actions.favorite
 		}
 	});
-	const mergeTimelinePosts = (current: PleromaStatusView[], next: PleromaStatusView[]) => {
-		const seen = new Set(current.map((post) => post.id));
-		return [
-			...current,
-			...next.filter((post) => {
-				if (seen.has(post.id)) return false;
-				seen.add(post.id);
-				return true;
-			})
-		];
-	};
 	const posts = $derived(timelineState.status === 'success' ? timelineState.data.map(postForRebuild) : []);
 
 	const loadTimeline = async (nextView = view) => {
@@ -124,7 +103,7 @@
 			const adapted = adaptPleromaStatuses(timelinePage.items, { timelines: [requestView] });
 			timelineState = {
 				...timelineState,
-				data: mergeTimelinePosts(timelineState.data, adapted),
+				data: mergeTimelineItems(timelineState.data, adapted),
 				nextCursor: timelinePage.cursors.next,
 				loadMoreStatus: 'idle',
 				loadMoreError: undefined
@@ -181,26 +160,12 @@
 					<Post {post} onAction={() => {}} />
 				{/each}
 			</div>
-			{#if timelineState.loadMoreStatus === 'loading'}
-				<div class="request-state request-pagination" role="status" aria-label="Timeline pagination status">Loading older posts</div>
-			{:else if timelineState.loadMoreStatus === 'error' && timelineState.loadMoreError}
-				<div class="request-state request-error request-pagination">
-					<h2>{timelineState.loadMoreError.title}</h2>
-					<p>{timelineState.loadMoreError.message}</p>
-					{#if timelineState.loadMoreError.retryable}
-						<Button variant="secondary" onclick={loadMoreTimeline}>Retry load more</Button>
-					{/if}
-				</div>
-			{:else if timelineState.nextCursor}
-				<div class="request-state request-pagination">
-					<Button variant="secondary" onclick={loadMoreTimeline}>Load more</Button>
-				</div>
-			{:else}
-				<div class="request-state request-empty request-pagination">
-					<h2>No older posts</h2>
-					<p>You have reached the end of this loaded timeline.</p>
-				</div>
-			{/if}
+			<TimelineLoadMore
+				nextCursor={timelineState.nextCursor}
+				loadMoreStatus={timelineState.loadMoreStatus}
+				loadMoreError={timelineState.loadMoreError}
+				onLoadMore={loadMoreTimeline}
+			/>
 		{/if}
 	</section>
 	<a class="public-home-link" href="/"><Icon name="arrowL" width={14} height={14} />Back to sign in</a>

@@ -84,6 +84,42 @@ test('public timeline loads a next cursor page and deduplicates overlapping stat
 	expect(requestedMaxIds).toEqual([null, 'status-1']);
 });
 
+test('public timeline retries load-more errors with the same cursor', async ({ page }) => {
+	let nextAttempts = 0;
+	const requestedMaxIds: Array<string | null> = [];
+	await mockPublicTimeline(page, async (route, url) => {
+		const maxId = url.searchParams.get('max_id');
+		requestedMaxIds.push(maxId);
+
+		if (maxId !== 'status-1') {
+			await fulfillJson(route, [pleromaFixtures.status], 200, {
+				link: `<${timelineUrl}?local=true&max_id=status-1>; rel="next"`
+			});
+			return;
+		}
+
+		nextAttempts += 1;
+		if (nextAttempts === 1) {
+			await fulfillJson(route, { error: 'maintenance' }, 503);
+			return;
+		}
+
+		await fulfillJson(route, [statusWithText('status-public-retry', 'older public post after retry')]);
+	});
+
+	await page.goto('/public');
+
+	const list = page.getByTestId('public-timeline-list');
+	await expect(list).toContainText('quiet CSS can still carry the voice.');
+	await page.getByRole('button', { name: 'Load more' }).click();
+	await expect(page.getByText('Pleroma server error')).toBeVisible();
+	await expect(list).toContainText('quiet CSS can still carry the voice.');
+	await page.getByRole('button', { name: 'Retry load more' }).click();
+	await expect(list).toContainText('older public post after retry');
+	expect(nextAttempts).toBe(2);
+	expect(requestedMaxIds).toEqual([null, 'status-1', 'status-1']);
+});
+
 test('public timeline renders empty state from mocked API response', async ({ page }) => {
 	await mockPublicTimeline(page, async (route) => {
 		await fulfillJson(route, []);
