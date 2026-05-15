@@ -585,7 +585,7 @@ test('home timeline empty-stream fallback refreshes without a stream-only cursor
 	await expect(page.getByRole('button', { name: 'Load more' })).toBeVisible();
 });
 
-test('home timeline fallback trigger shows new-post indicator, prepends on activation, dedupes, and preserves scroll', async ({ page }) => {
+test('home timeline fallback trigger shows new-post indicator, prepends on activation, dedupes, and scrolls to top', async ({ page }) => {
 	await authenticate(page);
 	const initialStatuses = Array.from({ length: 12 }, (_, index) => statusWithText(`status-${index + 1}`, `older timeline post ${index + 1}`));
 	const requestedSinceIds: Array<string | null> = [];
@@ -619,8 +619,7 @@ test('home timeline fallback trigger shows new-post indicator, prepends on activ
 	await expect(list).toContainText('fresh new post from fallback check');
 	await expect(page.locator('[data-status-id="status-new"]')).toHaveCount(1);
 	await expect(page.locator('[data-status-id="status-1"]')).toHaveCount(1);
-	const scrollAfter = await page.evaluate(() => window.scrollY);
-	expect(scrollAfter).toBeGreaterThan(scrollBefore);
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 	expect(requestedSinceIds).toEqual([null, 'status-1']);
 });
 

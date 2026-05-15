@@ -24,7 +24,7 @@
 	import type { IconName } from '$lib/rebuild/icons';
 	import type { PleromaSession, PleromaStatus } from '$lib/pleroma/types';
 	import type { SocialPost } from '$lib/social/types';
-	import { onMount, tick } from 'svelte';
+	import { onMount } from 'svelte';
 
 	type AppRoute = 'home' | 'local' | 'federated' | 'public' | 'thread' | 'profile' | 'notifications' | 'explore' | 'settings';
 	type NavItem = { route: AppRoute; label: string; icon: IconName; href: string; count?: number };
@@ -533,20 +533,15 @@
 			homeTimelineState = { ...homeTimelineState, newPostsStatus: 'idle' };
 		}
 	};
-	const showNewHomePosts = async () => {
+	const showNewHomePosts = () => {
 		if (homeTimelineState.status !== 'success' || homeTimelineState.newerPosts.length === 0) return;
 
-		const beforeHeight = document.documentElement.scrollHeight;
-		const beforeScrollY = window.scrollY;
 		homeTimelineState = {
 			...homeTimelineState,
 			data: prependTimelineItems(homeTimelineState.data, homeTimelineState.newerPosts),
 			newerPosts: []
 		};
-		await tick();
-
-		const heightDelta = document.documentElement.scrollHeight - beforeHeight;
-		if (heightDelta > 0) window.scrollTo(window.scrollX, beforeScrollY + heightDelta);
+		window.scrollTo(window.scrollX, 0);
 	};
 	const retryHomeTimeline = () => {
 		if (currentSession) void loadHomeTimeline(currentSession);
