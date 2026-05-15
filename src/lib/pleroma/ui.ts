@@ -236,6 +236,7 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		addressees: body.addressees,
 		copyJson: status,
 		avatar: avatarVariant(source.account),
+		avatarUrl: account.avatarUrl,
 		media: mediaAttachments.length > 0 && !mediaHidden ? 'city' : undefined,
 		replies: source.replies_count,
 		boosts: countBeforeViewerAction(source.reblogs_count, source.reblogged),

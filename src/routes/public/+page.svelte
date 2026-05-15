@@ -18,6 +18,7 @@
 		time: string;
 		avClass?: string;
 		avBanner?: BannerVariant;
+		avatarUrl?: string | null;
 		body: string;
 		replies: number;
 		boosts: number;
@@ -43,6 +44,7 @@
 		handle: post.handle,
 		time: post.time,
 		avClass: avatarClass(post.avatar),
+		avatarUrl: post.avatarUrl,
 		body: post.body,
 		media: post.media,
 		attachments: post.attachments,

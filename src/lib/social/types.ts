@@ -55,6 +55,7 @@ export type SocialPost = {
 	time: string;
 	body: string;
 	avatar: AvatarVariant;
+	avatarUrl?: string | null;
 	media?: MediaVariant;
 	attachments?: PostAttachment[];
 	addressees?: string[];

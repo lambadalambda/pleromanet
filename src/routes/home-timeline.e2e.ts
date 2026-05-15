@@ -46,6 +46,9 @@ test('authenticated home timeline loads and renders posts through adapters', asy
 	await expect(page.getByTestId('home-timeline-list')).toContainText('quiet CSS can still carry the voice.');
 	await expect(page.getByTestId('home-timeline-list')).toContainText('@quietadmin@pleroma.example');
 	await expect(page.getByTestId('home-timeline-list')).toContainText('@datagram@retro.social');
+	const avatar = page.getByTestId('home-timeline-list').getByRole('img', { name: 'quiet admin avatar' }).first();
+	await expect(avatar).toHaveAttribute('src', 'https://pleroma.example/avatar.png');
+	expect(await avatar.evaluate((node) => node.parentElement?.className ?? '')).not.toContain('av-orb');
 	await expectNoHorizontalOverflow(page);
 });
 
