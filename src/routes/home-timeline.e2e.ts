@@ -64,6 +64,28 @@ test('home timeline sends the OAuth token in the request', async ({ page }) => {
 	expect(authorization).toBe('Bearer access-token');
 });
 
+test('home timeline renders repeated mention separators without duplicate keyed blocks', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [
+			{
+				...pleromaFixtures.status,
+				id: 'status-repeated-separators',
+				content: '<p>@one  @two  @three</p>',
+				pleroma: {
+					...pleromaFixtures.status.pleroma,
+					content: { 'text/plain': '@one  @two  @three' }
+				}
+			}
+		]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	await expect(page.getByTestId('home-timeline-list')).toContainText('@one  @two  @three');
+});
+
 test('home timeline renders empty state from mocked API response', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page, async (route) => {

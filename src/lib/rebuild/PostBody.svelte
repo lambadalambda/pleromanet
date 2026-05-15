@@ -12,7 +12,7 @@
 </script>
 
 <div class="post-body {className}">
-	{#each parts as part (typeof part === 'string' ? part : part.key)}
+	{#each parts as part, i (i)}
 		{#if typeof part === 'string'}
 			{part}
 		{:else}

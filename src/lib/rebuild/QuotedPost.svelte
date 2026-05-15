@@ -40,7 +40,7 @@
 				<span class="quoted-ext">↗</span>
 			</div>
 			<div class="quoted-text">
-				{#each bodyParts as part (typeof part === 'string' ? part : part.key)}
+				{#each bodyParts as part, i (i)}
 					{#if typeof part === 'string'}
 						{part}
 					{:else}
@@ -79,7 +79,7 @@
 			<div class="quoted-body">
 				<div class="quoted-kicker">QUOTE{domain ? ' · ' + domain : ''}</div>
 				<div class="quoted-text">
-					{#each bodyParts as part (typeof part === 'string' ? part : part.key)}
+					{#each bodyParts as part, i (i)}
 						{#if typeof part === 'string'}
 							{part}
 						{:else}
