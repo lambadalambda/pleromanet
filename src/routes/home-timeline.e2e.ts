@@ -14,6 +14,48 @@ const homeUrl = 'https://pleroma.example/api/v1/timelines/home**';
 
 const authenticate = async (page: Page) => {
 	await page.addInitScript((storedSession) => {
+			type MockSocket = {
+				url: string;
+				closeCalled: boolean;
+				onmessage: ((event: { data: string }) => void) | null;
+				onerror: ((event: Event) => void) | null;
+				onclose: ((event: Event) => void) | null;
+				close: () => void;
+			};
+		const testWindow = window as typeof window & {
+			__pleromanetSockets?: MockSocket[];
+		};
+
+		if (!testWindow.__pleromanetSockets) {
+			testWindow.__pleromanetSockets = [];
+			const MockWebSocket = function (url: string) {
+				const socket: MockSocket = {
+					url,
+					closeCalled: false,
+					onmessage: null,
+					onerror: null,
+					onclose: null,
+					close() {
+						this.closeCalled = true;
+					}
+				};
+				testWindow.__pleromanetSockets?.push(socket);
+				return socket;
+			} as unknown as new (url: string) => MockSocket;
+
+			Object.defineProperty(window, 'WebSocket', { configurable: true, value: MockWebSocket });
+		}
+
+		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
+	}, session);
+};
+
+const authenticateWithThrowingWebSocket = async (page: Page) => {
+	await page.addInitScript((storedSession) => {
+		const ThrowingWebSocket = function () {
+			throw new Error('socket blocked');
+		};
+		Object.defineProperty(window, 'WebSocket', { configurable: true, value: ThrowingWebSocket });
 		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
 	}, session);
 };
@@ -42,6 +84,24 @@ const statusWithText = (id: string, text: string) => ({
 		content: { 'text/plain': text }
 	}
 });
+
+const emitStreamUpdate = async (page: Page, status: unknown) => {
+	await page.evaluate((nextStatus) => {
+		type MockSocket = { onmessage: ((event: { data: string }) => void) | null };
+		const testWindow = window as typeof window & { __pleromanetSockets?: MockSocket[] };
+		const socket = testWindow.__pleromanetSockets?.at(-1);
+		socket?.onmessage?.({ data: JSON.stringify({ event: 'update', payload: JSON.stringify(nextStatus) }) });
+	}, status);
+};
+
+const emitStreamError = async (page: Page) => {
+	await page.evaluate(() => {
+		type MockSocket = { onerror: ((event: Event) => void) | null };
+		const testWindow = window as typeof window & { __pleromanetSockets?: MockSocket[] };
+		const socket = testWindow.__pleromanetSockets?.at(-1);
+		socket?.onerror?.(new Event('error'));
+	});
+};
 
 test('authenticated home timeline loads and renders posts through adapters', async ({ page }) => {
 	await authenticate(page);
@@ -346,7 +406,186 @@ test('home timeline retries load-more errors with the same cursor', async ({ pag
 	expect(requestedMaxIds).toEqual([null, 'status-2', 'status-2']);
 });
 
-test('home timeline shows new-post indicator, prepends on activation, dedupes, and preserves scroll', async ({ page }) => {
+test('home timeline opens a user stream and queues streamed posts behind the indicator', async ({ page }) => {
+	await authenticate(page);
+	const requestedSinceIds: Array<string | null> = [];
+	await mockHomeTimeline(page, async (route) => {
+		const url = new URL(route.request().url());
+		requestedSinceIds.push(url.searchParams.get('since_id'));
+		await fulfillHome(route, [statusWithText('status-1', 'stable existing post')]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const list = page.getByTestId('home-timeline-list');
+	await expect(list).toContainText('stable existing post');
+	expect(await page.evaluate(() => {
+		const testWindow = window as typeof window & { __pleromanetSockets?: Array<{ url: string }> };
+		return testWindow.__pleromanetSockets?.[0]?.url;
+	})).toBe('wss://pleroma.example/api/v1/streaming/?stream=user&access_token=access-token');
+
+	await emitStreamUpdate(page, statusWithText('status-stream', 'fresh streamed post'));
+	const indicator = page.getByRole('button', { name: /New posts available/ });
+	await expect(indicator).toBeVisible();
+	await expect(list).not.toContainText('fresh streamed post');
+	await indicator.click();
+	await expect(list).toContainText('fresh streamed post');
+	expect(requestedSinceIds).toEqual([null]);
+
+	await page.getByRole('link', { name: 'Explore' }).first().click();
+	await expect(page.getByRole('heading', { name: 'Explore the network' })).toBeVisible();
+	expect(await page.evaluate(() => {
+		const testWindow = window as typeof window & { __pleromanetSockets?: Array<{ closeCalled: boolean }> };
+		return testWindow.__pleromanetSockets?.[0]?.closeCalled;
+	})).toBe(true);
+});
+
+test('home timeline fallback backfills gaps behind streamed posts', async ({ page }) => {
+	await authenticate(page);
+	const requestedSinceIds: Array<string | null> = [];
+	await mockHomeTimeline(page, async (route) => {
+		const url = new URL(route.request().url());
+		const sinceId = url.searchParams.get('since_id');
+		requestedSinceIds.push(sinceId);
+
+		if (sinceId === 'status-1') {
+			await fulfillHome(route, [
+				statusWithText('status-3', 'streamed newest post'),
+				statusWithText('status-2', 'missed gap post')
+			]);
+			return;
+		}
+
+		await fulfillHome(route, [statusWithText('status-1', 'stable existing post')]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const list = page.getByTestId('home-timeline-list');
+	await expect(list).toContainText('stable existing post');
+
+	await emitStreamUpdate(page, statusWithText('status-3', 'streamed newest post'));
+	await expect(page.getByRole('button', { name: /New posts available/ })).toBeVisible();
+	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
+	await expect.poll(() => requestedSinceIds).toEqual([null, 'status-1']);
+
+	await page.getByRole('button', { name: /New posts available/ }).click();
+	await expect(list).toContainText('streamed newest post');
+	await expect(list).toContainText('missed gap post');
+	const renderedStatusIds = await page.locator('[data-status-id]').evaluateAll((nodes) => nodes.slice(0, 3).map((node) => node.getAttribute('data-status-id')));
+	expect(renderedStatusIds).toEqual(['status-3', 'status-2', 'status-1']);
+});
+
+test('home timeline keeps loaded posts when the user stream cannot open', async ({ page }) => {
+	await authenticateWithThrowingWebSocket(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [statusWithText('status-1', 'stable existing post')]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	await expect(page.getByTestId('home-timeline-list')).toContainText('stable existing post');
+	await expect(page.getByRole('button', { name: 'Retry request' })).toHaveCount(0);
+});
+
+test('home timeline stream errors run a fallback check without dropping loaded posts', async ({ page }) => {
+	await authenticate(page);
+	const requestedSinceIds: Array<string | null> = [];
+	await mockHomeTimeline(page, async (route) => {
+		const url = new URL(route.request().url());
+		const sinceId = url.searchParams.get('since_id');
+		requestedSinceIds.push(sinceId);
+
+		if (sinceId === 'status-1') {
+			await fulfillHome(route, [statusWithText('status-error-recovery', 'fresh post after stream error')]);
+			return;
+		}
+
+		await fulfillHome(route, [statusWithText('status-1', 'stable existing post')]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const list = page.getByTestId('home-timeline-list');
+	await expect(list).toContainText('stable existing post');
+
+	await emitStreamError(page);
+	await expect.poll(() => requestedSinceIds).toEqual([null, 'status-1']);
+	await expect(list).toContainText('stable existing post');
+	await page.getByRole('button', { name: /New posts available/ }).click();
+	await expect(list).toContainText('fresh post after stream error');
+	expect(await page.evaluate(() => {
+		const testWindow = window as typeof window & { __pleromanetSockets?: Array<{ closeCalled: boolean }> };
+		return testWindow.__pleromanetSockets?.[0]?.closeCalled;
+	})).toBe(true);
+});
+
+test('home timeline ignores initial responses after leaving home while loading', async ({ page }) => {
+	await authenticate(page);
+	let releaseRequest: () => void = () => undefined;
+	let responseFulfilled = false;
+	const pending = new Promise<void>((resolve) => {
+		releaseRequest = resolve;
+	});
+	await mockHomeTimeline(page, async (route) => {
+		await pending;
+		await fulfillHome(route, [statusWithText('status-1', 'stable existing post')]);
+		responseFulfilled = true;
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await expect(page.getByRole('status', { name: 'Request status' })).toContainText('Loading Pleroma data');
+	await page.getByRole('link', { name: 'Explore' }).first().click();
+	await expect(page.getByRole('heading', { name: 'Explore the network' })).toBeVisible();
+
+	releaseRequest();
+	await expect.poll(() => responseFulfilled).toBe(true);
+	expect(await page.evaluate(() => {
+		const testWindow = window as typeof window & { __pleromanetSockets?: unknown[] };
+		return testWindow.__pleromanetSockets?.length ?? 0;
+	})).toBe(0);
+});
+
+test('home timeline empty-stream fallback refreshes without a stream-only cursor', async ({ page }) => {
+	await authenticate(page);
+	const requestedSinceIds: Array<string | null> = [];
+	await mockHomeTimeline(page, async (route) => {
+		const url = new URL(route.request().url());
+		requestedSinceIds.push(url.searchParams.get('since_id'));
+
+		if (requestedSinceIds.length === 1) {
+			await fulfillHome(route, []);
+			return;
+		}
+
+		await fulfillHome(route, [
+			statusWithText('status-3', 'streamed empty newest post'),
+			statusWithText('status-2', 'missed empty gap post')
+		], 200, {
+			link: '<https://pleroma.example/api/v1/timelines/home?max_id=status-2>; rel="next"'
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await expect(page.getByText('No posts yet')).toBeVisible();
+
+	await emitStreamUpdate(page, statusWithText('status-3', 'streamed empty newest post'));
+	await page.getByRole('button', { name: /New posts available/ }).click();
+	const list = page.getByTestId('home-timeline-list');
+	await expect(list).toContainText('streamed empty newest post');
+
+	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
+	await expect.poll(() => requestedSinceIds).toEqual([null, null]);
+	await expect(list).toContainText('missed empty gap post');
+	const renderedStatusIds = await page.locator('[data-status-id]').evaluateAll((nodes) => nodes.slice(0, 2).map((node) => node.getAttribute('data-status-id')));
+	expect(renderedStatusIds).toEqual(['status-3', 'status-2']);
+	await expect(page.getByRole('button', { name: 'Load more' })).toBeVisible();
+});
+
+test('home timeline fallback trigger shows new-post indicator, prepends on activation, dedupes, and preserves scroll', async ({ page }) => {
 	await authenticate(page);
 	const initialStatuses = Array.from({ length: 12 }, (_, index) => statusWithText(`status-${index + 1}`, `older timeline post ${index + 1}`));
 	const requestedSinceIds: Array<string | null> = [];
@@ -356,7 +595,7 @@ test('home timeline shows new-post indicator, prepends on activation, dedupes, a
 		requestedSinceIds.push(sinceId);
 
 		if (sinceId === 'status-1') {
-			await fulfillHome(route, [statusWithText('status-new', 'fresh new post from polling'), initialStatuses[0]]);
+			await fulfillHome(route, [statusWithText('status-new', 'fresh new post from fallback check'), initialStatuses[0]]);
 			return;
 		}
 
@@ -374,10 +613,10 @@ test('home timeline shows new-post indicator, prepends on activation, dedupes, a
 	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
 	const indicator = page.getByRole('button', { name: /New posts available/ });
 	await expect(indicator).toBeVisible();
-	await expect(list).not.toContainText('fresh new post from polling');
+	await expect(list).not.toContainText('fresh new post from fallback check');
 	await indicator.click();
 
-	await expect(list).toContainText('fresh new post from polling');
+	await expect(list).toContainText('fresh new post from fallback check');
 	await expect(page.locator('[data-status-id="status-new"]')).toHaveCount(1);
 	await expect(page.locator('[data-status-id="status-1"]')).toHaveCount(1);
 	const scrollAfter = await page.evaluate(() => window.scrollY);

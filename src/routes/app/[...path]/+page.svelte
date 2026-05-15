@@ -11,6 +11,7 @@
 	import TimelineNewPostsIndicator from '$lib/rebuild/TimelineNewPostsIndicator.svelte';
 	import { createPleromaClient } from '$lib/pleroma/client';
 	import { readPleromaSession, signOutPleroma } from '$lib/pleroma/session';
+	import { openPleromaTimelineStream } from '$lib/pleroma/streaming';
 	import {
 		mergeTimelineItems,
 		prependTimelineItems,
@@ -21,7 +22,7 @@
 	import { adaptPleromaStatuses, normalizePleromaRequestError, type PleromaRequestErrorView, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import type { IconName } from '$lib/rebuild/icons';
-	import type { PleromaSession } from '$lib/pleroma/types';
+	import type { PleromaSession, PleromaStatus } from '$lib/pleroma/types';
 	import type { SocialPost } from '$lib/social/types';
 	import { onMount, tick } from 'svelte';
 
@@ -72,8 +73,9 @@
 		newPostsStatus: 'idle' | 'checking';
 	};
 	type HomeTimelineState = PaginatedTimelineBaseState<PleromaRequestErrorView> | HomeTimelineSuccess;
-	const HOME_TIMELINE_CHECK_INTERVAL_MS = 60_000;
 	const HOME_TIMELINE_CHECK_EVENT = 'pleromanet:check-home-timeline';
+	const HOME_TIMELINE_FALLBACK_INTERVAL_MS = 60_000;
+	const HOME_TIMELINE_STREAM_RECONNECT_MS = HOME_TIMELINE_FALLBACK_INTERVAL_MS;
 	const defaultProfile: ProfileSettings = {
 		displayName: 'dreambyte',
 		username: 'dreambyte',
@@ -110,12 +112,27 @@
 	let homeTimelineRequestId = 0;
 	let homeTimelineNewPostsRequestId = 0;
 	let loadedHomeTimelineKey = '';
+	let homeTimelineFallbackSinceId: string | null = null;
+	let homeTimelineStreamKey = '';
+	let closeHomeTimelineStream: (() => void) | null = null;
+	let homeTimelineStreamReconnectTimer: number | null = null;
 	const sessionKey = (session: PleromaSession | null) => session ? `${session.instanceUrl}\n${session.accessToken}\n${session.createdAt}` : '';
 	const invalidateHomeTimelineRequests = () => {
 		homeTimelineRequestId += 1;
 		homeTimelineNewPostsRequestId += 1;
 	};
 	const isCurrentSessionRequest = (requestSessionKey: string) => sessionKey(currentSession) === requestSessionKey;
+	const clearHomeTimelineStreamReconnect = () => {
+		if (homeTimelineStreamReconnectTimer === null) return;
+		window.clearTimeout(homeTimelineStreamReconnectTimer);
+		homeTimelineStreamReconnectTimer = null;
+	};
+	const closeHomeTimelineStreaming = () => {
+		clearHomeTimelineStreamReconnect();
+		closeHomeTimelineStream?.();
+		closeHomeTimelineStream = null;
+		homeTimelineStreamKey = '';
+	};
 
 	const navItems: NavItem[] = [
 		{ route: 'home', label: 'Home', icon: 'home', href: '/app/home' },
@@ -302,7 +319,9 @@
 	};
 	const redirectToLanding = () => {
 		invalidateHomeTimelineRequests();
+		closeHomeTimelineStreaming();
 		loadedHomeTimelineKey = '';
+		homeTimelineFallbackSinceId = null;
 		currentSession = null;
 		sessionReady = false;
 		goto('/');
@@ -316,11 +335,76 @@
 
 		if (sessionKey(currentSession) !== sessionKey(session)) {
 			invalidateHomeTimelineRequests();
+			closeHomeTimelineStreaming();
 			loadedHomeTimelineKey = '';
+			homeTimelineFallbackSinceId = null;
 			currentSession = session;
 		}
 		sessionReady = true;
 		return session;
+	};
+	const queueStreamedHomeStatus = (requestSessionKey: string, status: PleromaStatus) => {
+		if (!isCurrentSessionRequest(requestSessionKey)) return;
+
+		const posts = adaptPleromaStatuses([status], { timelines: ['home'] });
+		if (posts.length === 0) return;
+
+		if (homeTimelineState.status === 'success') {
+			homeTimelineState = {
+				...homeTimelineState,
+				newerPosts: queueNewerTimelineItems(homeTimelineState.newerPosts, homeTimelineState.data, posts),
+				newPostsStatus: 'idle'
+			};
+			return;
+		}
+
+		if (homeTimelineState.status === 'empty') {
+			homeTimelineState = {
+				status: 'success',
+				data: [],
+				nextCursor: null,
+				loadMoreStatus: 'idle',
+				newerPosts: posts,
+				newPostsStatus: 'idle'
+			};
+		}
+	};
+	const scheduleHomeTimelineStreamReconnect = (session: PleromaSession, requestSessionKey: string) => {
+		clearHomeTimelineStreamReconnect();
+		homeTimelineStreamReconnectTimer = window.setTimeout(() => {
+			homeTimelineStreamReconnectTimer = null;
+			if (route !== 'home' || !isCurrentSessionRequest(requestSessionKey)) return;
+			connectHomeTimelineStreaming(session);
+		}, HOME_TIMELINE_STREAM_RECONNECT_MS);
+	};
+	const handleHomeTimelineStreamFailure = (session: PleromaSession, requestSessionKey: string) => {
+		if (!isCurrentSessionRequest(requestSessionKey) || homeTimelineStreamKey !== requestSessionKey) return;
+
+		closeHomeTimelineStream?.();
+		closeHomeTimelineStream = null;
+		homeTimelineStreamKey = '';
+		if (route !== 'home') return;
+
+		void checkHomeTimelineForNewPosts();
+		scheduleHomeTimelineStreamReconnect(session, requestSessionKey);
+	};
+	const connectHomeTimelineStreaming = (session: PleromaSession) => {
+		if (route !== 'home') return;
+
+		const requestSessionKey = sessionKey(session);
+		if (homeTimelineStreamKey === requestSessionKey && closeHomeTimelineStream) return;
+
+		closeHomeTimelineStreaming();
+		homeTimelineStreamKey = requestSessionKey;
+		const stream = openPleromaTimelineStream({
+			instanceUrl: session.instanceUrl,
+			accessToken: session.accessToken,
+			onUpdate: (status) => queueStreamedHomeStatus(requestSessionKey, status),
+			onError: () => handleHomeTimelineStreamFailure(session, requestSessionKey),
+			onClose: () => handleHomeTimelineStreamFailure(session, requestSessionKey)
+		});
+		if (homeTimelineStreamKey === requestSessionKey) closeHomeTimelineStream = stream.close;
+		else stream.close();
 	};
 	const loadHomeTimeline = async (session: PleromaSession) => {
 		const requestSessionKey = sessionKey(session);
@@ -335,12 +419,14 @@
 				fetch: window.fetch.bind(window)
 			});
 			const timelinePage = await client.getHomeTimelinePage();
-			if (requestId !== homeTimelineRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+			if (route !== 'home' || requestId !== homeTimelineRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			const posts = adaptPleromaStatuses(timelinePage.items, { timelines: ['home'] });
+			homeTimelineFallbackSinceId = posts[0]?.id ?? null;
 			homeTimelineState = posts.length > 0
 				? { status: 'success', data: posts, nextCursor: timelinePage.cursors.next, loadMoreStatus: 'idle', newerPosts: [], newPostsStatus: 'idle' }
 				: { status: 'empty' };
+			connectHomeTimelineStreaming(session);
 		} catch (error) {
 			if (requestId !== homeTimelineRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
@@ -399,8 +485,7 @@
 		const session = currentSession;
 		if (!session || homeTimelineState.status !== 'success' || homeTimelineState.newPostsStatus === 'checking') return;
 
-		const sinceId = homeTimelineState.newerPosts[0]?.id ?? homeTimelineState.data[0]?.id;
-		if (!sinceId) return;
+		const sinceId = homeTimelineFallbackSinceId;
 
 		const requestSessionKey = sessionKey(session);
 		const requestId = homeTimelineNewPostsRequestId + 1;
@@ -413,12 +498,24 @@
 				accessToken: session.accessToken,
 				fetch: window.fetch.bind(window)
 			});
-			const timelinePage = await client.getHomeTimelinePage({ sinceId });
+			const timelinePage = await client.getHomeTimelinePage(sinceId ? { sinceId } : undefined);
 			if (requestId !== homeTimelineNewPostsRequestId || !isCurrentSessionRequest(requestSessionKey) || homeTimelineState.status !== 'success') return;
 
 			const posts = adaptPleromaStatuses(timelinePage.items, { timelines: ['home'] });
+			homeTimelineFallbackSinceId = posts[0]?.id ?? homeTimelineFallbackSinceId;
+			if (!sinceId && homeTimelineState.newerPosts.length === 0) {
+				homeTimelineState = {
+					...homeTimelineState,
+					data: mergeTimelineItems(posts, homeTimelineState.data),
+					nextCursor: timelinePage.cursors.next,
+					newPostsStatus: 'idle'
+				};
+				return;
+			}
+
 			homeTimelineState = {
 				...homeTimelineState,
+				nextCursor: sinceId ? homeTimelineState.nextCursor : timelinePage.cursors.next,
 				newerPosts: queueNewerTimelineItems(homeTimelineState.newerPosts, homeTimelineState.data, posts),
 				newPostsStatus: 'idle'
 			};
@@ -464,10 +561,11 @@
 			if (route === 'home') void checkHomeTimelineForNewPosts();
 		};
 		window.addEventListener(HOME_TIMELINE_CHECK_EVENT, triggerHomeTimelineCheck);
-		const checkInterval = window.setInterval(triggerHomeTimelineCheck, HOME_TIMELINE_CHECK_INTERVAL_MS);
+		const checkInterval = window.setInterval(triggerHomeTimelineCheck, HOME_TIMELINE_FALLBACK_INTERVAL_MS);
 
 		return () => {
 			invalidateHomeTimelineRequests();
+			closeHomeTimelineStreaming();
 			window.removeEventListener(HOME_TIMELINE_CHECK_EVENT, triggerHomeTimelineCheck);
 			window.clearInterval(checkInterval);
 		};
@@ -486,7 +584,9 @@
 				void loadHomeTimeline(session);
 			}
 		} else {
+			invalidateHomeTimelineRequests();
 			loadedHomeTimelineKey = '';
+			closeHomeTimelineStreaming();
 		}
 	});
 </script>

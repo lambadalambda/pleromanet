@@ -20,6 +20,7 @@ import {
 	storePendingOAuth,
 	storePleromaSession
 } from './session';
+import { buildPleromaStreamingUrl, openPleromaTimelineStream, parsePleromaStreamingMessage } from './streaming';
 
 type RecordedRequest = {
 	method: string;
@@ -140,6 +141,121 @@ test('Pleroma client converts timeline Link headers into cursor data', async () 
 	expect(page.items[0].id).toBe('status-1');
 	expect(page.cursors).toEqual({ next: { maxId: 'status-2' }, previous: null });
 	expect(requests[0].url.searchParams.get('limit')).toBe('2');
+});
+
+test('Pleroma streaming helpers build WebSocket URLs and parse update events', () => {
+	expect(buildPleromaStreamingUrl({ instanceUrl: 'https://pleroma.example', accessToken: 'access-token' })).toBe(
+		'wss://pleroma.example/api/v1/streaming/?stream=user&access_token=access-token'
+	);
+	expect(buildPleromaStreamingUrl({ instanceUrl: 'http://localhost:4000', accessToken: 'local-token', stream: 'public:local' })).toBe(
+		'ws://localhost:4000/api/v1/streaming/?stream=public%3Alocal&access_token=local-token'
+	);
+
+	const message = parsePleromaStreamingMessage(JSON.stringify({
+		event: 'update',
+		payload: JSON.stringify(pleromaFixtures.status)
+	}));
+
+	expect(message?.event).toBe('update');
+	expect(message?.status?.id).toBe('status-1');
+	expect(parsePleromaStreamingMessage(JSON.stringify({ event: 'update', payload: '{}' }))?.status).toBeUndefined();
+	expect(parsePleromaStreamingMessage('not json')).toBeNull();
+});
+
+test('Pleroma streaming lifecycle handles unavailable and closed sockets', () => {
+	const originalWebSocket = globalThis.WebSocket;
+	try {
+		let unavailableError: unknown;
+		Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: undefined });
+		openPleromaTimelineStream({
+			instanceUrl: 'https://pleroma.example',
+			accessToken: 'access-token',
+			onUpdate: () => undefined,
+			onError: (error) => (unavailableError = error)
+		}).close();
+		expect(unavailableError).toBeInstanceOf(Error);
+
+		let constructorError: unknown;
+		const ThrowingSocket = function () {
+			throw new Error('socket blocked');
+		} as unknown as new (url: string) => {
+			onmessage: ((event: { data: unknown }) => void) | null;
+			onerror: ((event: Event) => void) | null;
+			onclose: ((event: Event) => void) | null;
+			close: () => void;
+		};
+		openPleromaTimelineStream({
+			instanceUrl: 'https://pleroma.example',
+			accessToken: 'access-token',
+			WebSocketImpl: ThrowingSocket,
+			onUpdate: () => undefined,
+			onError: (error) => (constructorError = error)
+		}).close();
+		expect(constructorError).toBeInstanceOf(Error);
+
+		type TestSocket = {
+			url: string;
+			closeCount: number;
+			onmessage: ((event: { data: unknown }) => void) | null;
+			onerror: ((event: Event) => void) | null;
+			onclose: ((event: Event) => void) | null;
+			close: () => void;
+		};
+		const sockets: TestSocket[] = [];
+		const SocketImpl = function (_url: string) {
+			const socket: TestSocket = {
+				url: _url,
+				closeCount: 0,
+				onmessage: null,
+				onerror: null,
+				onclose: null,
+				close() {
+					this.closeCount += 1;
+				}
+			};
+			sockets.push(socket);
+			return socket;
+		} as unknown as new (url: string) => TestSocket;
+		const updates: string[] = [];
+		let errorCount = 0;
+		let closeCount = 0;
+		const stream = openPleromaTimelineStream({
+			instanceUrl: 'https://pleroma.example',
+			accessToken: 'access-token',
+			WebSocketImpl: SocketImpl,
+			onUpdate: (status) => updates.push(status.id),
+			onError: () => (errorCount += 1),
+			onClose: () => (closeCount += 1)
+		});
+
+		const socket = sockets[0];
+		expect(socket.url).toBe('wss://pleroma.example/api/v1/streaming/?stream=user&access_token=access-token');
+		socket.onmessage?.({ data: JSON.stringify({ event: 'update', payload: JSON.stringify({ ...pleromaFixtures.status, id: 'status-open' }) }) });
+		expect(updates).toEqual(['status-open']);
+		socket.onerror?.(new Event('error'));
+		socket.onclose?.(new Event('close'));
+		expect(errorCount).toBe(1);
+		expect(closeCount).toBe(1);
+
+		const retainedMessage = socket.onmessage;
+		const retainedError = socket.onerror;
+		const retainedClose = socket.onclose;
+		stream.close();
+		stream.close();
+		expect(socket.closeCount).toBe(1);
+		expect(socket.onmessage).toBeNull();
+		expect(socket.onerror).toBeNull();
+		expect(socket.onclose).toBeNull();
+
+		retainedMessage?.({ data: JSON.stringify({ event: 'update', payload: JSON.stringify({ ...pleromaFixtures.status, id: 'status-after-close' }) }) });
+		retainedError?.(new Event('error'));
+		retainedClose?.(new Event('close'));
+		expect(updates).toEqual(['status-open']);
+		expect(errorCount).toBe(1);
+		expect(closeCount).toBe(1);
+	} finally {
+		Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: originalWebSocket });
+	}
 });
 
 test('Pleroma client covers mutations, unauthenticated state, and API errors', async () => {
