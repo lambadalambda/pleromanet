@@ -11,7 +11,11 @@
 {#if att.kind === 'photo'}
 	<img src={att.src} alt="" />
 {:else if att.kind === 'video'}
-	<div class="mst-video-bg"></div>
+	{#if att.posterUrl}
+		<img src={att.posterUrl} alt="" />
+	{:else}
+		<div class="mst-video-bg"></div>
+	{/if}
 	<svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="color:white;position:relative;z-index:1;margin-left:1px"><path d="M7 5l12 7-12 7V5z"/></svg>
 {:else if att.kind === 'audio'}
 	<div class="mst-audio-bg">

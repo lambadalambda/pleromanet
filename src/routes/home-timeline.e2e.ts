@@ -191,6 +191,69 @@ test('home timeline truncates long account names without wrapping the post heade
 	await expectNoHorizontalOverflow(page);
 });
 
+test('home timeline renders real media attachments from Pleroma statuses', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [
+			{
+				...pleromaFixtures.status,
+				id: 'status-photo-attachment',
+				content: '<p>photo attached</p>',
+				pleroma: { ...pleromaFixtures.status.pleroma, content: { 'text/plain': 'photo attached' } },
+				media_attachments: [
+					{ id: 'photo-1', type: 'image', url: 'https://cdn.example/media/photo.jpg', preview_url: 'https://cdn.example/media/photo-preview.jpg', description: 'two cats in a window' }
+				]
+			},
+			{
+				...pleromaFixtures.status,
+				id: 'status-video-attachment',
+				content: '<p>video attached</p>',
+				pleroma: { ...pleromaFixtures.status.pleroma, content: { 'text/plain': 'video attached' } },
+				media_attachments: [
+					{ id: 'video-1', type: 'video', url: 'https://cdn.example/media/clip.mp4', preview_url: 'https://cdn.example/media/clip.jpg', description: 'short clip' }
+				]
+			},
+			{
+				...pleromaFixtures.status,
+				id: 'status-audio-attachment',
+				content: '<p>audio attached</p>',
+				pleroma: { ...pleromaFixtures.status.pleroma, content: { 'text/plain': 'audio attached' } },
+				media_attachments: [
+					{ id: 'audio-1', type: 'audio', url: 'https://cdn.example/media/field.mp3', description: 'field recording' }
+				]
+			}
+		]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const list = page.getByTestId('home-timeline-list');
+	await expect(page.locator('filter#duotoneCream')).toHaveCount(1);
+	await expect(list.locator('.post-photos img[alt="two cats in a window"]')).toHaveAttribute('src', 'https://cdn.example/media/photo.jpg');
+	const photo = list.locator('.post-photos img[alt="two cats in a window"]');
+	const duotoneOverlay = list.locator('.post-photos .ph-duotone').first();
+	expect(await photo.evaluate((node) => getComputedStyle(node).filter)).toBe('none');
+	expect(await duotoneOverlay.evaluate((node) => getComputedStyle(node).filter)).toContain('duotoneCream');
+	expect(await duotoneOverlay.evaluate((node) => {
+		const style = getComputedStyle(node);
+		return style.transitionProperty.includes('opacity') && style.transitionDuration === '0.6s';
+	})).toBe(true);
+	const photoVisual = list.locator('.post-photos .ph-visual').first();
+	expect(await photoVisual.evaluate((node) => {
+		const style = getComputedStyle(node);
+		return style.transitionProperty.includes('transform') && style.transitionDuration === '0.6s';
+	})).toBe(true);
+	await list.locator('.post-photos .ph').first().hover();
+	await expect(photo).toHaveCSS('transform', 'none');
+	await expect(photoVisual).toHaveCSS('transform', /matrix\(1\.015/);
+	await expect(list.locator('video')).toHaveAttribute('src', 'https://cdn.example/media/clip.mp4');
+	expect(await list.locator('video').evaluate((node) => getComputedStyle(node).filter)).toContain('duotoneCream');
+	await expect(list.locator('audio')).toHaveAttribute('src', 'https://cdn.example/media/field.mp3');
+	await expect(list.locator('.post-media')).toHaveCount(0);
+	await expectNoHorizontalOverflow(page);
+});
+
 test('home timeline renders empty state from mocked API response', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page, async (route) => {

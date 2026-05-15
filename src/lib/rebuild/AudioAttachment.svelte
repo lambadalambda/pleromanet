@@ -11,8 +11,8 @@
 	let progress = $state(0.32);
 	let seeded = $state(false);
 
-	let dur = $derived(audio.duration || '3:42');
-	let total = $derived(parseDur(dur));
+	let dur = $derived(audio.duration ?? (audio.src ? '' : '3:42'));
+	let total = $derived(dur ? parseDur(dur) : 0);
 	let cur = $derived(fmtDur(total * progress));
 
 	$effect(() => {
@@ -66,11 +66,15 @@
 			{/if}
 		</span>
 	</button>
-	<button type="button" class="pa-bars" onclick={seek} aria-label="Seek audio">
-		{#each BARS as h, i}
-			<span class="pa-bar {i <= playedIdx ? 'played' : ''}" style="height:{h * 100}%"></span>
-		{/each}
-	</button>
+	{#if audio.src}
+		<audio class="pa-native" src={audio.src} controls preload="metadata" aria-label={audio.title ?? 'Audio attachment'}></audio>
+	{:else}
+		<button type="button" class="pa-bars" onclick={seek} aria-label="Seek audio">
+			{#each BARS as h, i}
+				<span class="pa-bar {i <= playedIdx ? 'played' : ''}" style="height:{h * 100}%"></span>
+			{/each}
+		</button>
+	{/if}
 	<div class="pa-meta">
 		<div class="pa-text">
 			<span class="pa-title">{audio.title}</span>
@@ -78,6 +82,8 @@
 				<span class="pa-by"> · {audio.byline}</span>
 			{/if}
 		</div>
-		<span class="pa-time">{cur} / {dur}</span>
+		{#if dur}
+			<span class="pa-time">{cur} / {dur}</span>
+		{/if}
 	</div>
 </div>

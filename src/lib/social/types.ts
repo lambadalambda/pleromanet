@@ -10,25 +10,31 @@ export type PhotoAttachment = {
 	src: string;
 	alt?: string;
 	cw?: boolean;
+	filename?: string;
 };
 
 export type VideoAttachment = {
 	kind: 'video';
+	src?: string;
+	posterUrl?: string;
 	title?: string;
 	duration?: string;
 	poster?: MediaVariant;
 	cc?: boolean;
 	caption?: string;
 	start?: number;
+	filename?: string;
 };
 
 export type AudioAttachment = {
 	kind: 'audio';
+	src?: string;
 	title: string;
 	byline?: string;
 	duration?: string;
 	cover?: string;
 	start?: number;
+	filename?: string;
 };
 
 export type PostAttachment = PhotoAttachment | VideoAttachment | AudioAttachment;

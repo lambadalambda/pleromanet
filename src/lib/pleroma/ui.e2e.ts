@@ -159,11 +159,50 @@ test('Pleroma status adapters handle reblogs, remote handles, warnings, and fall
 			type: 'image',
 			url: 'https://cdn.example/media.png',
 			previewUrl: 'https://cdn.example/preview.png',
-			description: 'screenshot'
+			description: 'screenshot',
+			filename: 'media.png',
+			duration: null
 		}
 	]);
 	expect(post.rebloggedBy).toMatchObject({ displayName: 'booster', handle: '@booster@pleroma.example' });
 	expect(post.timelines).toEqual(['federated']);
+});
+
+test('Pleroma status adapters expose media attachments for shared post rendering', () => {
+	const post = adaptPleromaStatus(withStatus({
+		id: 'status-with-media',
+		media_attachments: [
+			{
+				id: 'image-1',
+				type: 'image',
+				url: 'https://cdn.example/media/photo.jpg',
+				preview_url: 'https://cdn.example/media/photo-preview.jpg',
+				description: 'two cats in a window'
+			},
+			{
+				id: 'video-1',
+				type: 'video',
+				url: 'https://cdn.example/media/clip.mp4',
+				preview_url: 'https://cdn.example/media/clip.jpg',
+				description: 'short clip',
+				meta: { original: { duration: 83.2 } }
+			},
+			{
+				id: 'audio-1',
+				type: 'audio',
+				url: 'https://cdn.example/media/field.mp3',
+				description: 'field recording',
+				meta: { original: { duration: 124 } }
+			}
+		]
+	}));
+
+	expect(post.media).toBeUndefined();
+	expect(post.attachments).toEqual([
+		{ kind: 'photo', src: 'https://cdn.example/media/photo.jpg', alt: 'two cats in a window', filename: 'photo.jpg' },
+		{ kind: 'video', src: 'https://cdn.example/media/clip.mp4', posterUrl: 'https://cdn.example/media/clip.jpg', title: 'short clip', caption: 'short clip', duration: '1:23', filename: 'clip.mp4' },
+		{ kind: 'audio', src: 'https://cdn.example/media/field.mp3', title: 'field recording', byline: 'audio', duration: '2:04', filename: 'field.mp3' }
+	]);
 });
 
 test('Pleroma status list adapter keeps fixture order and covers missing plain-text fallbacks', () => {

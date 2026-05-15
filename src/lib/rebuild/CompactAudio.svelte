@@ -39,10 +39,14 @@
 		<div class="cap-t">{audio.title}</div>
 		<div class="cap-by">{audio.byline}</div>
 	</div>
-	<div class="cap-wave">
-		{#each BARS as h}
-			<span style="height:{h * 100}%"></span>
-		{/each}
-	</div>
-	<span class="cap-d">{audio.duration}</span>
+	{#if audio.src}
+		<audio class="cap-native" src={audio.src} controls preload="metadata" aria-label={audio.title ?? 'Audio attachment'}></audio>
+	{:else}
+		<div class="cap-wave">
+			{#each BARS as h}
+				<span style="height:{h * 100}%"></span>
+			{/each}
+		</div>
+		<span class="cap-d">{audio.duration}</span>
+	{/if}
 </div>

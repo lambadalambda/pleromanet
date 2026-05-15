@@ -15,6 +15,8 @@ export type PhotoAttachment = {
 
 export type VideoAttachment = {
 	kind: 'video';
+	src?: string;
+	posterUrl?: string;
 	poster?: BannerVariant;
 	title?: string;
 	duration?: string;
@@ -26,6 +28,7 @@ export type VideoAttachment = {
 
 export type AudioAttachment = {
 	kind: 'audio';
+	src?: string;
 	title?: string;
 	byline?: string;
 	duration?: string;

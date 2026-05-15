@@ -1,4 +1,4 @@
-import type { AvatarVariant, TimelinePost, TimelineView } from '$lib/social/types';
+import type { AvatarVariant, PostAttachment, TimelinePost, TimelineView } from '$lib/social/types';
 import { isPleromaClientError } from './http';
 import type { PleromaAccount, PleromaStatus } from './types';
 
@@ -22,6 +22,8 @@ export type PleromaMediaAttachmentView = {
 	url: string;
 	previewUrl: string | null;
 	description: string | null;
+	filename: string | null;
+	duration: string | null;
 };
 
 export type PleromaStatusView = TimelinePost & {
@@ -175,6 +177,31 @@ const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(v
 
 const stringValue = (value: unknown) => (typeof value === 'string' && value.trim() ? value : null);
 
+const numberValue = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
+
+const filenameFromUrl = (url: string) => {
+	try {
+		const filename = new URL(url).pathname.split('/').filter(Boolean).pop();
+		return filename ? decodeURIComponent(filename) : null;
+	} catch {
+		const filename = url.split('?')[0]?.split('/').filter(Boolean).pop();
+		return filename ? decodeURIComponent(filename) : null;
+	}
+};
+
+const secondsToDuration = (seconds: number) => {
+	const total = Math.max(0, Math.floor(seconds));
+	const minutes = Math.floor(total / 60);
+	return `${minutes}:${String(total % 60).padStart(2, '0')}`;
+};
+
+const mediaDuration = (attachment: Record<string, unknown>) => {
+	const meta = isRecord(attachment.meta) ? attachment.meta : null;
+	const original = meta && isRecord(meta.original) ? meta.original : null;
+	const duration = numberValue(original?.duration) ?? numberValue(meta?.duration) ?? numberValue(attachment.duration);
+	return duration == null ? null : secondsToDuration(duration);
+};
+
 const adaptMediaAttachment = (attachment: unknown, index: number): PleromaMediaAttachmentView | null => {
 	if (!isRecord(attachment)) return null;
 
@@ -186,8 +213,47 @@ const adaptMediaAttachment = (attachment: unknown, index: number): PleromaMediaA
 		type: stringValue(attachment.type) ?? 'unknown',
 		url,
 		previewUrl: stringValue(attachment.preview_url) ?? stringValue(attachment.previewUrl),
-		description: stringValue(attachment.description)
+		description: stringValue(attachment.description),
+		filename: filenameFromUrl(url),
+		duration: mediaDuration(attachment)
 	};
+};
+
+const adaptPostAttachment = (attachment: PleromaMediaAttachmentView): PostAttachment | null => {
+	const type = attachment.type.toLowerCase();
+	if (type === 'image' || type === 'photo') {
+		return {
+			kind: 'photo',
+			src: attachment.url,
+			alt: attachment.description ?? undefined,
+			filename: attachment.filename ?? undefined
+		};
+	}
+
+	if (type === 'video' || type === 'gifv') {
+		return {
+			kind: 'video',
+			src: attachment.url,
+			posterUrl: attachment.previewUrl ?? undefined,
+			title: attachment.description ?? attachment.filename ?? 'video',
+			caption: attachment.description ?? undefined,
+			duration: attachment.duration ?? undefined,
+			filename: attachment.filename ?? undefined
+		};
+	}
+
+	if (type === 'audio') {
+		return {
+			kind: 'audio',
+			src: attachment.url,
+			title: attachment.description ?? attachment.filename ?? 'audio',
+			byline: 'audio',
+			duration: attachment.duration ?? undefined,
+			filename: attachment.filename ?? undefined
+		};
+	}
+
+	return null;
 };
 
 const timelineMembership = (status: PleromaStatus, options: AdaptPleromaStatusOptions): TimelineView[] => {
@@ -217,10 +283,11 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 	const source = status.reblog ?? status;
 	const account = adaptPleromaAccount(source.account);
 	const mediaAttachments = source.media_attachments.map(adaptMediaAttachment).filter((attachment) => attachment !== null);
+	const postAttachments = mediaAttachments.map(adaptPostAttachment).filter((attachment) => attachment !== null);
 	const warning = spoilerText(source);
 	const plainText = plainTextContent(source);
 	const body = warning ? { body: `Content warning: ${warning}` } : extractLeadingReplyAddressees(plainText, source);
-	const mediaHidden = mediaAttachments.length > 0 && Boolean(warning || source.sensitive);
+	const mediaHidden = postAttachments.length > 0 && Boolean(warning || source.sensitive);
 
 	return {
 		id: status.id,
@@ -237,7 +304,8 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		copyJson: status,
 		avatar: avatarVariant(source.account),
 		avatarUrl: account.avatarUrl,
-		media: mediaAttachments.length > 0 && !mediaHidden ? 'city' : undefined,
+		attachments: mediaHidden ? undefined : postAttachments,
+		media: undefined,
 		replies: source.replies_count,
 		boosts: countBeforeViewerAction(source.reblogs_count, source.reblogged),
 		favorites: countBeforeViewerAction(source.favourites_count, source.favourited),

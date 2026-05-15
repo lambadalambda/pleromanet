@@ -106,6 +106,7 @@ test('opens the attachment lightbox from the design-system specimen', async ({ p
 	await page.locator('#attachments').getByRole('button', { name: 'Open lightbox →' }).click();
 	await expect(page.getByRole('dialog')).toBeVisible();
 	await expect(page.getByText('1 of 5 · station platform at dusk')).toBeVisible();
+	await expect(page.getByRole('dialog').locator('.lightbox-photo')).toHaveCSS('filter', 'none');
 	await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
 	await expect(page.getByRole('dialog')).toBeHidden();
 });

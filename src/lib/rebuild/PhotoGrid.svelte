@@ -26,7 +26,10 @@
 			class="ph{p.cw && !revealed[i] ? ' cw' : ''}"
 			onclick={() => handleClick(i, p)}
 		>
-			<img src={p.src} alt={p.alt || ''} loading="lazy" />
+			<span class="ph-visual">
+				<img class="ph-img ph-raw" src={p.src} alt={p.alt || ''} loading="lazy" />
+				<img class="ph-img ph-duotone" src={p.src} alt="" aria-hidden="true" loading="lazy" />
+			</span>
 			<span class="ph-tag"><em>duotone</em> · hover for raw</span>
 		</button>
 	{/each}
