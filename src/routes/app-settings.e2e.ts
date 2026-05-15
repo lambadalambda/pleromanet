@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { pleromaFixtures } from '../lib/pleroma/fixtures';
 import { expectNoHorizontalOverflow, setViewport } from '../test/playwright';
 
 const session = {
@@ -6,7 +7,8 @@ const session = {
 	accessToken: 'access-token',
 	tokenType: 'Bearer',
 	scope: 'read write follow',
-	createdAt: 1700000001000
+	createdAt: 1700000001000,
+	account: pleromaFixtures.account
 };
 
 const authenticate = async (page: Page) => {

@@ -70,6 +70,7 @@ test('Pleroma client isolates typed endpoints and authorization headers', async 
 		if (request.url.pathname === '/api/v2/instance') return { body: pleromaFixtures.instance };
 		if (request.url.pathname === '/api/v2/search') return { body: pleromaFixtures.search };
 		if (request.url.pathname === '/api/v1/trends/tags') return { body: pleromaFixtures.trends };
+		if (request.url.pathname === '/api/v1/accounts/verify_credentials') return { body: pleromaFixtures.account };
 
 		return { status: 404, body: { error: 'missing fixture' } };
 	});
@@ -86,6 +87,7 @@ test('Pleroma client isolates typed endpoints and authorization headers', async 
 	const status = await client.getStatus('status-1');
 	const context = await client.getStatusContext('status-1');
 	const account = await client.getAccount('account-1');
+	const ownAccount = await client.getOwnAccount();
 	const instance = await client.getInstance();
 	const search = await client.search({ q: 'small web', type: 'statuses', limit: 5 });
 	const trends = await client.getTrendingTags({ limit: 4 });
@@ -96,6 +98,7 @@ test('Pleroma client isolates typed endpoints and authorization headers', async 
 	expect(status.pleroma.content?.['text/plain']).toContain('quiet');
 	expect(context.ancestors[0].id).toBe('ancestor-1');
 	expect(account.pleroma.is_admin).toBe(false);
+	expect(ownAccount.id).toBe('account-1');
 	expect(instance.pleroma.metadata.features).toContain('pleroma_api');
 	expect(search.statuses[0].id).toBe('status-1');
 	expect(trends[0].name).toBe('smallweb');
@@ -109,10 +112,11 @@ test('Pleroma client isolates typed endpoints and authorization headers', async 
 	expectPath(requests[3], '/api/v1/statuses/status-1');
 	expectPath(requests[4], '/api/v1/statuses/status-1/context');
 	expectPath(requests[5], '/api/v1/accounts/account-1');
-	expectPath(requests[6], '/api/v2/instance');
-	expect(requests[7].url.searchParams.get('q')).toBe('small web');
-	expect(requests[7].url.searchParams.get('type')).toBe('statuses');
-	expect(requests[8].url.searchParams.get('limit')).toBe('4');
+	expectPath(requests[6], '/api/v1/accounts/verify_credentials');
+	expectPath(requests[7], '/api/v2/instance');
+	expect(requests[8].url.searchParams.get('q')).toBe('small web');
+	expect(requests[8].url.searchParams.get('type')).toBe('statuses');
+	expect(requests[9].url.searchParams.get('limit')).toBe('4');
 });
 
 test('Pleroma client converts timeline Link headers into cursor data', async () => {

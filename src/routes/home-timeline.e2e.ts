@@ -7,7 +7,8 @@ const session = {
 	accessToken: 'access-token',
 	tokenType: 'Bearer',
 	scope: 'read write follow',
-	createdAt: 1700000001000
+	createdAt: 1700000001000,
+	account: pleromaFixtures.account
 };
 
 const homeUrl = 'https://pleroma.example/api/v1/timelines/home**';

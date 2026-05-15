@@ -1,23 +1,69 @@
 <script lang="ts">
+	import { htmlToPlainText } from '$lib/pleroma/ui';
+	import type { PleromaAccount } from '$lib/pleroma/types';
 	import NowPlayingLine from './NowPlayingLine.svelte';
 	import VaporBanner from './VaporBanner.svelte';
 
-	const stats = [
+	type Props = {
+		account?: PleromaAccount | null;
+		instanceUrl?: string;
+	};
+
+	let { account = null, instanceUrl = '' }: Props = $props();
+
+	const defaultStats = [
 		{ label: 'Posts', value: '1,248' },
 		{ label: 'Following', value: '312' },
 		{ label: 'Followers', value: '1,921' },
 	];
+	const countFormatter = new Intl.NumberFormat('en');
+	const displayName = (nextAccount: PleromaAccount) => nextAccount.display_name.trim() || nextAccount.username || nextAccount.acct;
+	const instanceHost = (url: string) => {
+		try {
+			return new URL(url).hostname;
+		} catch {
+			return '';
+		}
+	};
+	const accountHandle = (nextAccount: PleromaAccount, url: string) => {
+		const acct = nextAccount.acct.replace(/^@/, '');
+		if (acct.includes('@')) return `@${acct}`;
+
+		const host = instanceHost(url);
+		return host ? `@${acct}@${host}` : `@${acct}`;
+	};
+	const accountBio = (nextAccount: PleromaAccount) => htmlToPlainText(nextAccount.note).trim() || 'No bio yet';
+	const accountStats = (nextAccount: PleromaAccount) => [
+		{ label: 'Posts', value: countFormatter.format(nextAccount.statuses_count) },
+		{ label: 'Following', value: countFormatter.format(nextAccount.following_count) },
+		{ label: 'Followers', value: countFormatter.format(nextAccount.followers_count) },
+	];
+	const name = $derived(account ? displayName(account) : 'dreambyte');
+	const handle = $derived(account ? accountHandle(account, instanceUrl) : '@dreambyte@pleroma.social');
+	const bio = $derived(account ? accountBio(account) : 'living in a soft world');
+	const stats = $derived(account ? accountStats(account) : defaultStats);
+	const headerUrl = $derived(account?.header || account?.header_static || null);
+	const avatarUrl = $derived(account?.avatar || account?.avatar_static || null);
 </script>
 
 <div class="card" data-testid="profile-mini">
 	<div class="profile-mini-banner">
-		<VaporBanner variant="pixel-window" />
+		{#if headerUrl}
+			<img class="profile-mini-header" src={headerUrl} alt="" />
+		{:else}
+			<VaporBanner variant="pixel-window" />
+		{/if}
 	</div>
 	<div class="profile-mini-info">
-		<div class="profile-mini-name">dreambyte</div>
-		<div class="profile-mini-handle">@dreambyte@pleroma.social</div>
-		<div class="profile-mini-bio">living in a soft world</div>
-		<NowPlayingLine playing track="pacific hour" artist="neon.cassette" tint="#a48bd9" />
+		{#if avatarUrl}
+			<img class="profile-mini-avatar" src={avatarUrl} alt={`${name} avatar`} />
+		{/if}
+		<div class="profile-mini-name">{name}</div>
+		<div class="profile-mini-handle">{handle}</div>
+		<div class="profile-mini-bio">{bio}</div>
+		{#if !account}
+			<NowPlayingLine playing track="pacific hour" artist="neon.cassette" tint="#a48bd9" />
+		{/if}
 	</div>
 	<div class="stat-row">
 		{#each stats as stat}

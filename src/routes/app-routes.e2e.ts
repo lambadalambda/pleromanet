@@ -7,7 +7,8 @@ const session = {
 	accessToken: 'access-token',
 	tokenType: 'Bearer',
 	scope: 'read write follow',
-	createdAt: 1700000001000
+	createdAt: 1700000001000,
+	account: pleromaFixtures.account
 };
 
 const authenticate = async (page: Page) => {
@@ -85,13 +86,47 @@ test('real app left sidebar keeps profile stats and full settings subnav', async
 	await page.goto('/app/home');
 
 	const profileMini = page.getByTestId('profile-mini');
+	await expect(profileMini).toContainText('quiet admin');
+	await expect(profileMini).toContainText('@quietadmin@pleroma.example');
+	await expect(profileMini).toContainText('keeping the lights low');
 	await expect(profileMini).toContainText('Posts');
+	await expect(profileMini).toContainText('512');
 	await expect(profileMini).toContainText('Following');
+	await expect(profileMini).toContainText('64');
 	await expect(profileMini).toContainText('Followers');
+	await expect(profileMini).toContainText('128');
 
 	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Settings' }).click();
 	await expect(page.getByTestId('settings-subnav')).toContainText('Import / Export');
 	await expect(page.getByTestId('settings-subnav')).toContainText('Development');
+});
+
+test('real app hydrates profile data for existing token-only sessions', async ({ page }) => {
+	await page.addInitScript((storedSession) => {
+		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
+	}, {
+		instanceUrl: session.instanceUrl,
+		accessToken: session.accessToken,
+		tokenType: session.tokenType,
+		scope: session.scope,
+		createdAt: session.createdAt
+	});
+	await page.route('https://pleroma.example/api/v1/accounts/verify_credentials', async (route) => {
+		expect(route.request().headers().authorization).toBe('Bearer access-token');
+		await route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify(pleromaFixtures.account)
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/explore');
+
+	const profileMini = page.getByTestId('profile-mini');
+	await expect(profileMini).toContainText('quiet admin');
+	await expect(profileMini).toContainText('@quietadmin@pleroma.example');
+	expect(await page.evaluate(() => JSON.parse(window.localStorage.getItem('pleromanet.session') ?? '{}').account?.display_name)).toBe('quiet admin');
 });
 
 test('real app right rail keeps timeline and explore card stacks', async ({ page }) => {

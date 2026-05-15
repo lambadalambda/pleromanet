@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { pleromaFixtures } from '../../lib/pleroma/fixtures';
 
 const createPendingOAuth = () => ({
 	instanceUrl: 'https://pleroma.example',
@@ -34,6 +35,14 @@ test('OAuth callback exchanges code and stores token without passwords', async (
 			})
 		});
 	});
+	await page.route('https://pleroma.example/api/v1/accounts/verify_credentials', async (route) => {
+		expect(route.request().headers().authorization).toBe('Bearer access-token');
+		await route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify(pleromaFixtures.account)
+		});
+	});
 	await seedPendingOAuth(page);
 
 	await page.goto('/auth/callback?code=oauth-code&state=oauth-state');
@@ -46,6 +55,38 @@ test('OAuth callback exchanges code and stores token without passwords', async (
 	const session = await page.evaluate(() => window.localStorage.getItem('pleromanet.session'));
 	expect(session).toContain('access-token');
 	expect(session).not.toContain('password');
+	await expect.poll(() => page.evaluate(() => JSON.parse(window.localStorage.getItem('pleromanet.session') ?? '{}').account?.display_name)).toBe('quiet admin');
+	await expect(page.evaluate(() => window.sessionStorage.getItem('pleromanet.oauth.pending'))).resolves.toBeNull();
+});
+
+test('OAuth callback keeps the token when account enrichment fails', async ({ page }) => {
+	await page.route('https://pleroma.example/oauth/token', async (route) => {
+		await route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify({
+				access_token: 'access-token',
+				token_type: 'Bearer',
+				scope: 'read write follow',
+				created_at: 1700000001
+			})
+		});
+	});
+	await page.route('https://pleroma.example/api/v1/accounts/verify_credentials', async (route) => {
+		await route.fulfill({
+			status: 503,
+			contentType: 'application/json',
+			body: JSON.stringify({ error: 'temporarily unavailable' })
+		});
+	});
+	await seedPendingOAuth(page);
+
+	await page.goto('/auth/callback?code=oauth-code&state=oauth-state');
+
+	await expect(page.getByRole('heading', { name: 'Signed in to pleroma.example' })).toBeVisible();
+	const session = await page.evaluate(() => JSON.parse(window.localStorage.getItem('pleromanet.session') ?? '{}'));
+	expect(session.accessToken).toBe('access-token');
+	expect(session.account).toBeUndefined();
 	await expect(page.evaluate(() => window.sessionStorage.getItem('pleromanet.oauth.pending'))).resolves.toBeNull();
 });
 

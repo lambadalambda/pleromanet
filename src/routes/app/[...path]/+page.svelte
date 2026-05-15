@@ -10,7 +10,7 @@
 	import TimelineLoadMore from '$lib/rebuild/TimelineLoadMore.svelte';
 	import TimelineNewPostsIndicator from '$lib/rebuild/TimelineNewPostsIndicator.svelte';
 	import { createPleromaClient } from '$lib/pleroma/client';
-	import { readPleromaSession, signOutPleroma } from '$lib/pleroma/session';
+	import { readPleromaSession, signOutPleroma, writePleromaSession } from '$lib/pleroma/session';
 	import { openPleromaTimelineStream } from '$lib/pleroma/streaming';
 	import {
 		mergeTimelineItems,
@@ -111,7 +111,9 @@
 	]);
 	let homeTimelineRequestId = 0;
 	let homeTimelineNewPostsRequestId = 0;
+	let profileAccountRequestId = 0;
 	let loadedHomeTimelineKey = '';
+	let loadedProfileAccountKey = '';
 	let homeTimelineFallbackSinceId: string | null = null;
 	let homeTimelineStreamKey = '';
 	let closeHomeTimelineStream: (() => void) | null = null;
@@ -120,6 +122,10 @@
 	const invalidateHomeTimelineRequests = () => {
 		homeTimelineRequestId += 1;
 		homeTimelineNewPostsRequestId += 1;
+	};
+	const invalidateProfileAccountRequests = () => {
+		profileAccountRequestId += 1;
+		loadedProfileAccountKey = '';
 	};
 	const isCurrentSessionRequest = (requestSessionKey: string) => sessionKey(currentSession) === requestSessionKey;
 	const clearHomeTimelineStreamReconnect = () => {
@@ -319,6 +325,7 @@
 	};
 	const redirectToLanding = () => {
 		invalidateHomeTimelineRequests();
+		invalidateProfileAccountRequests();
 		closeHomeTimelineStreaming();
 		loadedHomeTimelineKey = '';
 		homeTimelineFallbackSinceId = null;
@@ -335,6 +342,7 @@
 
 		if (sessionKey(currentSession) !== sessionKey(session)) {
 			invalidateHomeTimelineRequests();
+			invalidateProfileAccountRequests();
 			closeHomeTimelineStreaming();
 			loadedHomeTimelineKey = '';
 			homeTimelineFallbackSinceId = null;
@@ -342,6 +350,36 @@
 		}
 		sessionReady = true;
 		return session;
+	};
+	const loadProfileAccount = async (session: PleromaSession) => {
+		const requestSessionKey = sessionKey(session);
+		const requestId = profileAccountRequestId + 1;
+		profileAccountRequestId = requestId;
+
+		try {
+			const client = createPleromaClient({
+				instanceUrl: session.instanceUrl,
+				accessToken: session.accessToken,
+				fetch: window.fetch.bind(window)
+			});
+			const account = await client.getOwnAccount();
+			if (requestId !== profileAccountRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			const nextSession = { ...session, account };
+			currentSession = nextSession;
+			writePleromaSession(localStorage, nextSession);
+		} catch {
+			// Profile data is best-effort; authenticated routes can still load with the token.
+		}
+	};
+	const ensureProfileAccount = (session: PleromaSession) => {
+		if (session.account) return;
+
+		const requestSessionKey = sessionKey(session);
+		if (loadedProfileAccountKey === requestSessionKey) return;
+
+		loadedProfileAccountKey = requestSessionKey;
+		void loadProfileAccount(session);
 	};
 	const queueStreamedHomeStatus = (requestSessionKey: string, status: PleromaStatus) => {
 		if (!isCurrentSessionRequest(requestSessionKey)) return;
@@ -572,6 +610,7 @@
 
 		const session = readSessionOrRedirect();
 		if (!session) return;
+		ensureProfileAccount(session);
 		if (pathname.startsWith('/app/home')) {
 			const loadKey = `${sessionKey(session)}\n${pathname}`;
 			if (loadedHomeTimelineKey !== loadKey) {
@@ -632,7 +671,7 @@
 
 		<div class="app-shell-grid">
 			<aside class="app-left-sidebar" data-testid="left-sidebar">
-				<ProfileMini />
+				<ProfileMini account={currentSession?.account} instanceUrl={currentSession?.instanceUrl} />
 				<div class="card app-side-card">
 					<nav class="side-nav" aria-label="App sections">
 						{#each navItems as item}

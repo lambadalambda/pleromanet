@@ -7,7 +7,8 @@ const session = {
 	accessToken: 'access-token',
 	tokenType: 'Bearer',
 	scope: 'read write follow',
-	createdAt: 1700000001000
+	createdAt: 1700000001000,
+	account: pleromaFixtures.account
 };
 
 const authenticate = async (page: Page) => {

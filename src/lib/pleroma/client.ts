@@ -156,6 +156,12 @@ export const createPleromaClient = (config: ClientConfig) => {
 				auth: 'optional'
 			}),
 
+		getOwnAccount: () =>
+			http.request<PleromaAccount>({
+				path: '/api/v1/accounts/verify_credentials',
+				auth: 'required'
+			}),
+
 		updateAccountProfile: (profile: ProfileUpdate) =>
 			http.request<PleromaAccount>({
 				method: 'PATCH',

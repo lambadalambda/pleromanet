@@ -1,10 +1,12 @@
 <script lang="ts">
 	import {
 		clearPendingOAuth,
+		createPleromaClient,
 		exchangeOAuthCode,
 		parseOAuthCallback,
 		readPendingOAuth,
-		storePleromaSession
+		storePleromaSession,
+		writePleromaSession
 	} from '$lib/pleroma';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
@@ -21,6 +23,19 @@
 	let callbackState = $state<CallbackState>({ status: 'loading' });
 
 	const clearPending = () => clearPendingOAuth(sessionStorage);
+	const enrichStoredSessionAccount = async (session: Parameters<typeof writePleromaSession>[1]) => {
+		try {
+			const client = createPleromaClient({
+				instanceUrl: session.instanceUrl,
+				accessToken: session.accessToken,
+				fetch: window.fetch.bind(window)
+			});
+			const account = await client.getOwnAccount();
+			writePleromaSession(localStorage, { ...session, account });
+		} catch {
+			// The token is valid even if profile enrichment has to wait until app load.
+		}
+	};
 	const completeCallback = async () => {
 		const pending = readPendingOAuth(sessionStorage);
 		if (!pending) {
@@ -59,16 +74,17 @@
 				code: callback.code,
 				fetch: window.fetch.bind(window)
 			});
-
-			storePleromaSession(localStorage, {
+			const session = {
 				instanceUrl: pending.instanceUrl,
 				accessToken: token.accessToken,
 				tokenType: token.tokenType,
 				scope: token.scope,
 				createdAt: token.createdAt ?? Date.now()
-			});
+			};
+			storePleromaSession(localStorage, session);
 			clearPending();
 			callbackState = { status: 'success', instanceHost: new URL(pending.instanceUrl).hostname };
+			void enrichStoredSessionAccount(session);
 		} catch (error) {
 			callbackState = {
 				status: 'error',
