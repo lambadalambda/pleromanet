@@ -52,6 +52,7 @@
 		boosts: number;
 		favs: number;
 		addressees?: string[];
+		copyJson?: unknown;
 		actions: { reply: boolean; boost: boolean; fav: boolean };
 	};
 	const defaultProfile: ProfileSettings = {
@@ -119,6 +120,7 @@
 		media: post.media,
 		attachments: post.attachments,
 		addressees: post.addressees,
+		copyJson: post.copyJson,
 		quotedPost: post.quotedPost,
 		replies: post.replies,
 		boosts: post.boosts,

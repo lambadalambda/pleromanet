@@ -1327,6 +1327,10 @@ body[data-theme='simoun'] .pill {
 .post-action.boost.on { color: #6fa97a; }
 .post-action.reply.on { color: var(--accent-ink); }
 .post-action svg { width: 16px; height: 16px; }
+.post-more-wrap {
+	position: relative;
+	margin-left: auto;
+}
 .post-more {
 	margin-left: auto;
 	color: var(--muted-2);
@@ -1337,6 +1341,39 @@ body[data-theme='simoun'] .pill {
 	border-radius: 4px;
 }
 .post-more:hover { background: var(--bg); color: var(--ink); }
+.post-action-menu {
+	position: absolute;
+	right: 0;
+	bottom: calc(100% + 6px);
+	z-index: 8;
+	min-width: 160px;
+	padding: 5px;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	background: var(--panel);
+	box-shadow: 0 10px 24px rgba(37, 24, 12, 0.14);
+}
+.post-action-menu button {
+	width: 100%;
+	padding: 8px 9px;
+	border-radius: 5px;
+	color: var(--ink-2);
+	font-size: 12px;
+	text-align: left;
+}
+.post-action-menu button:hover {
+	background: var(--accent-soft-2);
+	color: var(--accent-ink);
+}
+.post-copy-status {
+	position: absolute;
+	right: 0;
+	top: calc(100% + 3px);
+	white-space: nowrap;
+	font-family: var(--mono);
+	font-size: 10px;
+	color: var(--accent-ink);
+}
 
 /* ===== Photo grid ===== */
 .post-photos {

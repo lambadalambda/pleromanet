@@ -118,14 +118,30 @@ const plainTextContent = (status: PleromaStatus) => {
 
 const leadingReplyMentionPattern = /^(@[\w.]+(?:@[\w.-]+)?)(?=\s|$)/;
 
+const leadingMentionHandles = (status: PleromaStatus) =>
+	new Set(
+		status.mentions.flatMap((mention) => {
+			if (!mention || typeof mention !== 'object') return [];
+			const values = mention as Record<string, unknown>;
+			const username = typeof values.username === 'string' ? values.username.trim() : '';
+			const acct = typeof values.acct === 'string' ? values.acct.trim() : '';
+
+			return [username ? `@${username}` : '', acct ? `@${acct}` : '']
+				.filter(Boolean)
+				.map((handle) => handle.toLowerCase());
+		})
+	);
+
 const extractLeadingReplyAddressees = (text: string, status: PleromaStatus) => {
-	if (!status.in_reply_to_id) return { body: text };
+	const knownMentionHandles = leadingMentionHandles(status);
+	if (!status.in_reply_to_id && knownMentionHandles.size === 0) return { body: text };
 
 	const addressees: string[] = [];
 	let rest = text.trimStart();
 	while (rest) {
 		const match = leadingReplyMentionPattern.exec(rest);
 		if (!match) break;
+		if (!status.in_reply_to_id && !knownMentionHandles.has(match[1].toLowerCase())) break;
 
 		addressees.push(match[1]);
 		rest = rest.slice(match[1].length);
@@ -218,6 +234,7 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		time: formatStatusDate(source.created_at),
 		body: body.body,
 		addressees: body.addressees,
+		copyJson: status,
 		avatar: avatarVariant(source.account),
 		media: mediaAttachments.length > 0 && !mediaHidden ? 'city' : undefined,
 		replies: source.replies_count,

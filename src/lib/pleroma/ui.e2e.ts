@@ -69,6 +69,28 @@ test('Pleroma status adapters move leading reply recipients into addressees', ()
 	expect(topLevelPost.addressees).toBeUndefined();
 });
 
+test('Pleroma status adapters use mention metadata for leading recipient mentions without visible parents', () => {
+	const post = adaptPleromaStatus(withStatus({
+		id: 'remote-leading-mention-with-hidden-parent',
+		content: '<span class="h-card"><a class="u-url mention" href="https://lizards.live/@vriska" rel="ugc">@<span>vriska</span></a></span> Joseph was always on the side of the good guys.',
+		pleroma: {
+			content: { 'text/plain': '@vriska Joseph was always on the side of the good guys.' },
+			parent_visible: false
+		},
+		mentions: [
+			{
+				id: '9quS1LZ6YIFB6VC6WO',
+				url: 'https://lizards.live/@vriska',
+				username: 'vriska',
+				acct: 'vriska@lizards.live'
+			}
+		]
+	}));
+
+	expect(post.body).toBe('Joseph was always on the side of the good guys.');
+	expect(post.addressees).toEqual(['@vriska']);
+});
+
 test('Pleroma status adapters handle reblogs, remote handles, warnings, and fallback assets', () => {
 	const remoteAccount = {
 		...pleromaFixtures.account,

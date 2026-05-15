@@ -58,6 +58,7 @@ export type SocialPost = {
 	media?: MediaVariant;
 	attachments?: PostAttachment[];
 	addressees?: string[];
+	copyJson?: unknown;
 	quotedPost?: QuotedPostView;
 	replies: number;
 	boosts: number;

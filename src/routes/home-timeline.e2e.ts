@@ -114,6 +114,41 @@ test('home timeline moves leading reply recipients into the pinged footer', asyn
 	await expect(post.locator('.post-pinged')).toContainText('@feld');
 });
 
+test('home timeline post menu copies raw post JSON for bug reports', async ({ page }) => {
+	await authenticate(page);
+	await page.addInitScript(() => {
+		Object.defineProperty(navigator, 'clipboard', {
+			configurable: true,
+			value: {
+				writeText: async (text: string) => {
+					window.localStorage.setItem('pleromanet.copied-post-json', text);
+				}
+			}
+		});
+	});
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, pleromaFixtures.timelines.home);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('.post').filter({ hasText: 'quiet CSS can still carry the voice.' }).first();
+	await post.getByRole('button', { name: 'More post actions' }).click();
+	await post.getByRole('menuitem', { name: 'Copy post JSON' }).click();
+
+	const copied = await page.evaluate(() => window.localStorage.getItem('pleromanet.copied-post-json'));
+	expect(copied).not.toBeNull();
+	expect(JSON.parse(copied ?? '')).toMatchObject({
+		id: 'status-1',
+		content: '<p>quiet CSS can still carry the voice.</p>',
+		pleroma: {
+			content: { 'text/plain': 'quiet CSS can still carry the voice.' }
+		}
+	});
+	await expect(post.getByRole('status', { name: 'Post JSON copy status' })).toHaveText('Copied post JSON');
+});
+
 test('home timeline renders empty state from mocked API response', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page, async (route) => {
