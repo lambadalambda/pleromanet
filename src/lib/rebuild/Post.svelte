@@ -11,6 +11,8 @@
 	type Props = {
 		post: PostLike & {
 			id?: string | number;
+			actionStatusId?: string;
+			threadStatusId?: string;
 			name?: string;
 			handle?: string;
 			time?: string;
@@ -55,6 +57,9 @@
 {#if onOpen}
 	<div
 		class="post"
+		data-status-id={post.id}
+		data-action-status-id={post.actionStatusId}
+		data-thread-status-id={post.threadStatusId}
 		role="button"
 		tabindex="0"
 		onclick={(e) => {
@@ -72,7 +77,7 @@
 		{@render postContents()}
 	</div>
 {:else}
-	<div class="post">
+	<div class="post" data-status-id={post.id} data-action-status-id={post.actionStatusId} data-thread-status-id={post.threadStatusId}>
 		{@render postContents()}
 	</div>
 {/if}

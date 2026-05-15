@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createPleromaClient } from './client';
+import { createPleromaClient, parseTimelinePaginationLinkHeader } from './client';
 import { pleromaFixtures } from './fixtures';
 import { normalizeInstanceUrl } from './http';
 import {
@@ -28,7 +28,7 @@ type RecordedRequest = {
 	body: string;
 };
 
-type MockResponse = { status?: number; body: unknown };
+type MockResponse = { status?: number; body: unknown; headers?: Record<string, string> };
 
 const createJsonFetch = (handler: (request: RecordedRequest) => MockResponse) => {
 	const requests: RecordedRequest[] = [];
@@ -46,7 +46,7 @@ const createJsonFetch = (handler: (request: RecordedRequest) => MockResponse) =>
 
 		return new Response(JSON.stringify(response.body), {
 			status: response.status ?? 200,
-			headers: { 'content-type': 'application/json' }
+			headers: { 'content-type': 'application/json', ...response.headers }
 		});
 	};
 
@@ -112,6 +112,34 @@ test('Pleroma client isolates typed endpoints and authorization headers', async 
 	expect(requests[7].url.searchParams.get('q')).toBe('small web');
 	expect(requests[7].url.searchParams.get('type')).toBe('statuses');
 	expect(requests[8].url.searchParams.get('limit')).toBe('4');
+});
+
+test('Pleroma client converts timeline Link headers into cursor data', async () => {
+	const cursors = parseTimelinePaginationLinkHeader(
+		'<https://pleroma.example/api/v1/timelines/home?max_id=status-2>; rel="next", <https://pleroma.example/api/v1/timelines/home?min_id=status-9>; rel="prev"'
+	);
+	expect(cursors).toEqual({
+		next: { maxId: 'status-2' },
+		previous: { minId: 'status-9' }
+	});
+
+	const { fetchImpl, requests } = createJsonFetch(() => ({
+		body: pleromaFixtures.timelines.home,
+		headers: {
+			link: '<https://pleroma.example/api/v1/timelines/home?max_id=status-2>; rel="next"'
+		}
+	}));
+	const client = createPleromaClient({
+		instanceUrl: 'https://pleroma.example',
+		accessToken: 'access-token',
+		fetch: fetchImpl
+	});
+
+	const page = await client.getHomeTimelinePage({ limit: 2 });
+
+	expect(page.items[0].id).toBe('status-1');
+	expect(page.cursors).toEqual({ next: { maxId: 'status-2' }, previous: null });
+	expect(requests[0].url.searchParams.get('limit')).toBe('2');
 });
 
 test('Pleroma client covers mutations, unauthenticated state, and API errors', async () => {

@@ -131,6 +131,18 @@ export type TimelineQuery = {
 	onlyMedia?: boolean;
 };
 
+export type TimelineCursor = Pick<TimelineQuery, 'maxId' | 'minId' | 'sinceId'>;
+
+export type TimelinePagination = {
+	next: TimelineCursor | null;
+	previous: TimelineCursor | null;
+};
+
+export type TimelinePage<Item> = {
+	items: Item[];
+	cursors: TimelinePagination;
+};
+
 export type SearchQuery = {
 	q: string;
 	type?: 'accounts' | 'hashtags' | 'statuses';

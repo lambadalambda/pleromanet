@@ -22,13 +22,26 @@ const mockHomeTimeline = async (page: Page, handler: (route: Route) => Promise<v
 	await page.route(homeUrl, handler);
 };
 
-const fulfillHome = async (route: Route, body: unknown, status = 200) => {
+const fulfillHome = async (route: Route, body: unknown, status = 200, headers: Record<string, string> = {}) => {
 	await route.fulfill({
 		status,
 		contentType: 'application/json',
+		headers: headers.link ? { 'access-control-expose-headers': 'link', ...headers } : headers,
 		body: JSON.stringify(body)
 	});
 };
+
+const statusWithText = (id: string, text: string) => ({
+	...pleromaFixtures.status,
+	id,
+	uri: `https://pleroma.example/objects/${id}`,
+	url: `https://pleroma.example/notice/${id}`,
+	content: `<p>${text}</p>`,
+	pleroma: {
+		...pleromaFixtures.status.pleroma,
+		content: { 'text/plain': text }
+	}
+});
 
 test('authenticated home timeline loads and renders posts through adapters', async ({ page }) => {
 	await authenticate(page);
@@ -252,6 +265,160 @@ test('home timeline renders real media attachments from Pleroma statuses', async
 	await expect(list.locator('audio')).toHaveAttribute('src', 'https://cdn.example/media/field.mp3');
 	await expect(list.locator('.post-media')).toHaveCount(0);
 	await expectNoHorizontalOverflow(page);
+});
+
+test('home timeline loads the next cursor page, deduplicates overlap, and keeps status ids', async ({ page }) => {
+	await authenticate(page);
+	let releaseNextPage: () => void = () => undefined;
+	const nextPagePending = new Promise<void>((resolve) => {
+		releaseNextPage = resolve;
+	});
+	const requestedMaxIds: Array<string | null> = [];
+	await mockHomeTimeline(page, async (route) => {
+		const url = new URL(route.request().url());
+		const maxId = url.searchParams.get('max_id');
+		requestedMaxIds.push(maxId);
+
+		if (maxId === 'status-2') {
+			await nextPagePending;
+			await fulfillHome(route, [pleromaFixtures.timelines.home[1], statusWithText('status-3', 'older pagination post')]);
+			return;
+		}
+
+		await fulfillHome(route, pleromaFixtures.timelines.home, 200, {
+			link: '<https://pleroma.example/api/v1/timelines/home?max_id=status-2>; rel="next"'
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const list = page.getByTestId('home-timeline-list');
+	await expect(list).toContainText('quiet CSS can still carry the voice.');
+	await page.getByRole('button', { name: 'Load more' }).click();
+	await expect(page.getByRole('status', { name: 'Timeline pagination status' })).toContainText('Loading older posts');
+	releaseNextPage();
+	await expect(list).toContainText('older pagination post');
+	await expect(page.locator('[data-status-id="status-1"]')).toHaveCount(1);
+	await expect(page.locator('[data-status-id="status-2"]')).toHaveCount(1);
+	await expect(page.locator('[data-status-id="status-3"]')).toHaveCount(1);
+	await expect(page.locator('[data-action-status-id="status-3"]')).toHaveCount(1);
+	await expect(page.getByText('No older posts')).toBeVisible();
+	expect(requestedMaxIds).toEqual([null, 'status-2']);
+});
+
+test('home timeline retries load-more errors with the same cursor', async ({ page }) => {
+	await authenticate(page);
+	let nextAttempts = 0;
+	const requestedMaxIds: Array<string | null> = [];
+	await mockHomeTimeline(page, async (route) => {
+		const url = new URL(route.request().url());
+		const maxId = url.searchParams.get('max_id');
+		requestedMaxIds.push(maxId);
+
+		if (maxId !== 'status-2') {
+			await fulfillHome(route, pleromaFixtures.timelines.home, 200, {
+				link: '<https://pleroma.example/api/v1/timelines/home?max_id=status-2>; rel="next"'
+			});
+			return;
+		}
+
+		nextAttempts += 1;
+		if (nextAttempts === 1) {
+			await fulfillHome(route, { error: 'maintenance' }, 503);
+			return;
+		}
+
+		await fulfillHome(route, [statusWithText('status-4', 'older post after retry')]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const list = page.getByTestId('home-timeline-list');
+	await expect(list).toContainText('quiet CSS can still carry the voice.');
+	await page.getByRole('button', { name: 'Load more' }).click();
+	await expect(page.getByText('Pleroma server error')).toBeVisible();
+	await expect(list).toContainText('quiet CSS can still carry the voice.');
+	await page.getByRole('button', { name: 'Retry load more' }).click();
+	await expect(list).toContainText('older post after retry');
+	expect(nextAttempts).toBe(2);
+	expect(requestedMaxIds).toEqual([null, 'status-2', 'status-2']);
+});
+
+test('home timeline shows new-post indicator, prepends on activation, dedupes, and preserves scroll', async ({ page }) => {
+	await authenticate(page);
+	const initialStatuses = Array.from({ length: 12 }, (_, index) => statusWithText(`status-${index + 1}`, `older timeline post ${index + 1}`));
+	const requestedSinceIds: Array<string | null> = [];
+	await mockHomeTimeline(page, async (route) => {
+		const url = new URL(route.request().url());
+		const sinceId = url.searchParams.get('since_id');
+		requestedSinceIds.push(sinceId);
+
+		if (sinceId === 'status-1') {
+			await fulfillHome(route, [statusWithText('status-new', 'fresh new post from polling'), initialStatuses[0]]);
+			return;
+		}
+
+		await fulfillHome(route, initialStatuses);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const list = page.getByTestId('home-timeline-list');
+	await expect(list).toContainText('older timeline post 1');
+	await page.evaluate(() => window.scrollTo(0, 520));
+	const scrollBefore = await page.evaluate(() => window.scrollY);
+	expect(scrollBefore).toBeGreaterThan(0);
+
+	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
+	const indicator = page.getByRole('button', { name: /New posts available/ });
+	await expect(indicator).toBeVisible();
+	await expect(list).not.toContainText('fresh new post from polling');
+	await indicator.click();
+
+	await expect(list).toContainText('fresh new post from polling');
+	await expect(page.locator('[data-status-id="status-new"]')).toHaveCount(1);
+	await expect(page.locator('[data-status-id="status-1"]')).toHaveCount(1);
+	const scrollAfter = await page.evaluate(() => window.scrollY);
+	expect(scrollAfter).toBeGreaterThan(scrollBefore);
+	expect(requestedSinceIds).toEqual([null, 'status-1']);
+});
+
+test('home timeline new-post check errors keep the timeline usable and recover on the next trigger', async ({ page }) => {
+	await authenticate(page);
+	let checkAttempts = 0;
+	await mockHomeTimeline(page, async (route) => {
+		const url = new URL(route.request().url());
+		if (url.searchParams.get('since_id') === 'status-1') {
+			checkAttempts += 1;
+			if (checkAttempts === 1) {
+				await fulfillHome(route, { error: 'maintenance' }, 503);
+				return;
+			}
+
+			await fulfillHome(route, [statusWithText('status-new-after-error', 'fresh post after retry')]);
+			return;
+		}
+
+		await fulfillHome(route, [statusWithText('status-1', 'stable existing post')]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const list = page.getByTestId('home-timeline-list');
+	await expect(list).toContainText('stable existing post');
+
+	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
+	await expect.poll(() => checkAttempts).toBe(1);
+	await expect(list).toContainText('stable existing post');
+	await expect(page.getByText('Pleroma server error')).toHaveCount(0);
+
+	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
+	await expect(page.getByRole('button', { name: /New posts available/ })).toBeVisible();
+	await page.getByRole('button', { name: /New posts available/ }).click();
+	await expect(list).toContainText('fresh post after retry');
+	expect(checkAttempts).toBe(2);
 });
 
 test('home timeline renders empty state from mocked API response', async ({ page }) => {

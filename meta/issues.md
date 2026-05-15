@@ -1,6 +1,4 @@
 
-- [ ] [17 Add cursor-based timeline pagination](issues/17-add-cursor-based-timeline-pagination.md)
-- [ ] [18 Add new-posts timeline indicator](issues/18-add-new-posts-timeline-indicator.md)
 - [ ] [19 Wire status creation and composer](issues/19-wire-status-creation-and-composer.md)
 - [ ] [20 Wire favorite and boost status actions](issues/20-wire-favorite-and-boost-status-actions.md)
 - [ ] [21 Wire thread detail and replies](issues/21-wire-thread-detail-and-replies.md)

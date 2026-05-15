@@ -9,12 +9,12 @@
 	import SurfaceCard from '$lib/rebuild/SurfaceCard.svelte';
 	import { createPleromaClient } from '$lib/pleroma/client';
 	import { readPleromaSession, signOutPleroma } from '$lib/pleroma/session';
-	import { adaptPleromaStatuses, normalizePleromaRequestError, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { adaptPleromaStatuses, normalizePleromaRequestError, type PleromaRequestErrorView, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import type { IconName } from '$lib/rebuild/icons';
-	import type { PleromaSession } from '$lib/pleroma/types';
+	import type { PleromaSession, TimelineCursor } from '$lib/pleroma/types';
 	import type { SocialPost } from '$lib/social/types';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 
 	type AppRoute = 'home' | 'local' | 'federated' | 'public' | 'thread' | 'profile' | 'notifications' | 'explore' | 'settings';
 	type NavItem = { route: AppRoute; label: string; icon: IconName; href: string; count?: number };
@@ -42,6 +42,8 @@
 	};
 	type RebuildPost = PostLike & {
 		id: string | number;
+		actionStatusId?: string;
+		threadStatusId?: string;
 		name: string;
 		handle: string;
 		time: string;
@@ -56,6 +58,22 @@
 		copyJson?: unknown;
 		actions: { reply: boolean; boost: boolean; fav: boolean };
 	};
+	type HomeTimelineState =
+		| { status: 'idle' }
+		| { status: 'loading' }
+		| { status: 'empty' }
+		| { status: 'error'; error: PleromaRequestErrorView }
+		| {
+			status: 'success';
+			data: PleromaStatusView[];
+			nextCursor: TimelineCursor | null;
+			loadMoreStatus: 'idle' | 'loading' | 'error';
+			loadMoreError?: PleromaRequestErrorView;
+			newerPosts: PleromaStatusView[];
+			newPostsStatus: 'idle' | 'checking';
+		};
+	const HOME_TIMELINE_CHECK_INTERVAL_MS = 60_000;
+	const HOME_TIMELINE_CHECK_EVENT = 'pleromanet:check-home-timeline';
 	const defaultProfile: ProfileSettings = {
 		displayName: 'dreambyte',
 		username: 'dreambyte',
@@ -70,7 +88,7 @@
 	let sessionReady = $state(false);
 	let mounted = $state(false);
 	let currentSession = $state<PleromaSession | null>(null);
-	let homeTimelineState = $state<PleromaRequestState<PleromaStatusView[]>>({ status: 'idle' });
+	let homeTimelineState = $state<HomeTimelineState>({ status: 'idle' });
 	let localHomePosts = $state<RebuildPost[]>([]);
 	let composerText = $state('');
 	let mobileDrawerOpen = $state(false);
@@ -90,6 +108,7 @@
 		{ id: 'energy', name: 'lumen', body: 'this is the energy i needed today.', boosts: 7, favorites: 39, boosted: false, favorited: false }
 	]);
 	let homeTimelineRequestId = 0;
+	let homeTimelineNewPostsRequestId = 0;
 
 	const navItems: NavItem[] = [
 		{ route: 'home', label: 'Home', icon: 'home', href: '/app/home' },
@@ -113,6 +132,8 @@
 
 	const postForRebuild = (post: SocialPost): RebuildPost => ({
 		id: post.id,
+		actionStatusId: post.actionStatusId,
+		threadStatusId: post.threadStatusId,
 		name: post.name,
 		handle: post.handle,
 		time: post.time,
@@ -133,6 +154,37 @@
 			fav: post.actions.favorite,
 		},
 	});
+	const mergeTimelinePosts = (current: PleromaStatusView[], next: PleromaStatusView[]) => {
+		const seen = new Set(current.map((post) => post.id));
+		return [
+			...current,
+			...next.filter((post) => {
+				if (seen.has(post.id)) return false;
+				seen.add(post.id);
+				return true;
+			})
+		];
+	};
+	const prependTimelinePosts = (current: PleromaStatusView[], next: PleromaStatusView[]) => {
+		const seen = new Set(current.map((post) => post.id));
+		const uniqueNext = next.filter((post) => {
+			if (seen.has(post.id)) return false;
+			seen.add(post.id);
+			return true;
+		});
+
+		return [...uniqueNext, ...current];
+	};
+	const queueNewerTimelinePosts = (queued: PleromaStatusView[], current: PleromaStatusView[], incoming: PleromaStatusView[]) => {
+		const seen = new Set([...current.map((post) => post.id), ...queued.map((post) => post.id)]);
+		const uniqueIncoming = incoming.filter((post) => {
+			if (seen.has(post.id)) return false;
+			seen.add(post.id);
+			return true;
+		});
+
+		return [...uniqueIncoming, ...queued];
+	};
 
 	const route = $derived<AppRoute>(
 		page.url.pathname.startsWith('/app/explore') ? 'explore' :
@@ -244,7 +296,7 @@
 
 		if (homeTimelineState.status !== 'success') return;
 		homeTimelineState = {
-			status: 'success',
+			...homeTimelineState,
 			data: homeTimelineState.data.map((post) => {
 				if (post.id !== postId) return post;
 				if (key === 'reply') {
@@ -300,11 +352,13 @@
 				accessToken: session.accessToken,
 				fetch: window.fetch.bind(window)
 			});
-			const statuses = await client.getHomeTimeline();
+			const timelinePage = await client.getHomeTimelinePage();
 			if (requestId !== homeTimelineRequestId) return;
 
-			const posts = adaptPleromaStatuses(statuses, { timelines: ['home'] });
-			homeTimelineState = posts.length > 0 ? { status: 'success', data: posts } : { status: 'empty' };
+			const posts = adaptPleromaStatuses(timelinePage.items, { timelines: ['home'] });
+			homeTimelineState = posts.length > 0
+				? { status: 'success', data: posts, nextCursor: timelinePage.cursors.next, loadMoreStatus: 'idle', newerPosts: [], newPostsStatus: 'idle' }
+				: { status: 'empty' };
 		} catch (error) {
 			if (requestId !== homeTimelineRequestId) return;
 
@@ -318,6 +372,99 @@
 			homeTimelineState = { status: 'error', error: normalized };
 		}
 	};
+	const loadMoreHomeTimeline = async () => {
+		if (!currentSession || homeTimelineState.status !== 'success' || !homeTimelineState.nextCursor || homeTimelineState.loadMoreStatus === 'loading') return;
+
+		const requestId = homeTimelineRequestId + 1;
+		homeTimelineRequestId = requestId;
+		const nextCursor = homeTimelineState.nextCursor;
+		homeTimelineState = { ...homeTimelineState, loadMoreStatus: 'loading', loadMoreError: undefined };
+
+		try {
+			const client = createPleromaClient({
+				instanceUrl: currentSession.instanceUrl,
+				accessToken: currentSession.accessToken,
+				fetch: window.fetch.bind(window)
+			});
+			const timelinePage = await client.getHomeTimelinePage(nextCursor);
+			if (requestId !== homeTimelineRequestId || homeTimelineState.status !== 'success') return;
+
+			const posts = adaptPleromaStatuses(timelinePage.items, { timelines: ['home'] });
+			homeTimelineState = {
+				...homeTimelineState,
+				data: mergeTimelinePosts(homeTimelineState.data, posts),
+				nextCursor: timelinePage.cursors.next,
+				loadMoreStatus: 'idle',
+				loadMoreError: undefined
+			};
+		} catch (error) {
+			if (requestId !== homeTimelineRequestId) return;
+
+			const normalized = normalizePleromaRequestError(error);
+			if (normalized.reauthRequired) {
+				signOutPleroma(localStorage);
+				redirectToLanding();
+				return;
+			}
+
+			if (homeTimelineState.status !== 'success') return;
+			homeTimelineState = { ...homeTimelineState, loadMoreStatus: 'error', loadMoreError: normalized };
+		}
+	};
+	const checkHomeTimelineForNewPosts = async () => {
+		if (!currentSession || homeTimelineState.status !== 'success' || homeTimelineState.newPostsStatus === 'checking') return;
+
+		const sinceId = homeTimelineState.newerPosts[0]?.id ?? homeTimelineState.data[0]?.id;
+		if (!sinceId) return;
+
+		const requestId = homeTimelineNewPostsRequestId + 1;
+		homeTimelineNewPostsRequestId = requestId;
+		homeTimelineState = { ...homeTimelineState, newPostsStatus: 'checking' };
+
+		try {
+			const client = createPleromaClient({
+				instanceUrl: currentSession.instanceUrl,
+				accessToken: currentSession.accessToken,
+				fetch: window.fetch.bind(window)
+			});
+			const timelinePage = await client.getHomeTimelinePage({ sinceId });
+			if (requestId !== homeTimelineNewPostsRequestId || homeTimelineState.status !== 'success') return;
+
+			const posts = adaptPleromaStatuses(timelinePage.items, { timelines: ['home'] });
+			homeTimelineState = {
+				...homeTimelineState,
+				newerPosts: queueNewerTimelinePosts(homeTimelineState.newerPosts, homeTimelineState.data, posts),
+				newPostsStatus: 'idle'
+			};
+		} catch (error) {
+			if (requestId !== homeTimelineNewPostsRequestId) return;
+
+			const normalized = normalizePleromaRequestError(error);
+			if (normalized.reauthRequired) {
+				signOutPleroma(localStorage);
+				redirectToLanding();
+				return;
+			}
+
+			if (homeTimelineState.status !== 'success') return;
+			homeTimelineState = { ...homeTimelineState, newPostsStatus: 'idle' };
+		}
+	};
+	const showNewHomePosts = async () => {
+		if (homeTimelineState.status !== 'success' || homeTimelineState.newerPosts.length === 0) return;
+
+		const beforeHeight = document.documentElement.scrollHeight;
+		const beforeScrollY = window.scrollY;
+		homeTimelineState = {
+			...homeTimelineState,
+			data: prependTimelinePosts(homeTimelineState.data, homeTimelineState.newerPosts),
+			newerPosts: []
+		};
+		await tick();
+
+		const heightDelta = document.documentElement.scrollHeight - beforeHeight;
+		if (heightDelta > 0) window.scrollTo(window.scrollX, beforeScrollY + heightDelta);
+	};
 	const retryHomeTimeline = () => {
 		if (currentSession) void loadHomeTimeline(currentSession);
 	};
@@ -326,6 +473,17 @@
 		const storedTheme = localStorage.getItem('pn-theme');
 		if (storedTheme === 'dusk' || storedTheme === 'drive' || storedTheme === 'simoun') applyTheme(storedTheme);
 		mounted = true;
+
+		const triggerHomeTimelineCheck = () => {
+			if (route === 'home') void checkHomeTimelineForNewPosts();
+		};
+		window.addEventListener(HOME_TIMELINE_CHECK_EVENT, triggerHomeTimelineCheck);
+		const checkInterval = window.setInterval(triggerHomeTimelineCheck, HOME_TIMELINE_CHECK_INTERVAL_MS);
+
+		return () => {
+			window.removeEventListener(HOME_TIMELINE_CHECK_EVENT, triggerHomeTimelineCheck);
+			window.clearInterval(checkInterval);
+		};
 	});
 
 	$effect(() => {
@@ -435,6 +593,14 @@
 							</div>
 						</form>
 
+						{#if homeTimelineState.status === 'success' && homeTimelineState.newerPosts.length > 0}
+							<div class="timeline-new-posts" aria-live="polite">
+								<Button variant="secondary" className="timeline-new-posts-button" onclick={showNewHomePosts}>
+									New posts available ({homeTimelineState.newerPosts.length})
+								</Button>
+							</div>
+						{/if}
+
 						{#if homeTimelineState.status === 'loading'}
 							<div class="request-state" role="status" aria-label="Request status">Loading Pleroma data</div>
 						{:else if homeTimelineState.status === 'empty'}
@@ -456,6 +622,26 @@
 									<Post {post} onAction={(key) => handlePostAction(post.id, key)} />
 								{/each}
 							</div>
+							{#if homeTimelineState.loadMoreStatus === 'loading'}
+								<div class="request-state request-pagination" role="status" aria-label="Timeline pagination status">Loading older posts</div>
+							{:else if homeTimelineState.loadMoreStatus === 'error' && homeTimelineState.loadMoreError}
+								<div class="request-state request-error request-pagination">
+									<h2>{homeTimelineState.loadMoreError.title}</h2>
+									<p>{homeTimelineState.loadMoreError.message}</p>
+									{#if homeTimelineState.loadMoreError.retryable}
+										<Button variant="secondary" onclick={loadMoreHomeTimeline}>Retry load more</Button>
+									{/if}
+								</div>
+							{:else if homeTimelineState.nextCursor}
+								<div class="request-state request-pagination">
+									<Button variant="secondary" onclick={loadMoreHomeTimeline}>Load more</Button>
+								</div>
+							{:else}
+								<div class="request-state request-empty request-pagination">
+									<h2>No older posts</h2>
+									<p>You have reached the end of this loaded timeline.</p>
+								</div>
+							{/if}
 						{/if}
 					</section>
 				{:else if route === 'explore'}

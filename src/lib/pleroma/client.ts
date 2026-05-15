@@ -10,6 +10,9 @@ import type {
 	PleromaTag,
 	ProfileUpdate,
 	SearchQuery,
+	TimelineCursor,
+	TimelinePage,
+	TimelinePagination,
 	TimelineQuery
 } from './types';
 
@@ -26,6 +29,39 @@ const timelineQuery = (query: TimelineQuery = {}) => ({
 	since_id: query.sinceId,
 	only_media: query.onlyMedia
 });
+
+const emptyTimelinePagination = (): TimelinePagination => ({ next: null, previous: null });
+
+const cursorFromUrl = (href: string): TimelineCursor | null => {
+	try {
+		const url = new URL(href, 'https://pleromanet.invalid');
+		const cursor = {
+			maxId: url.searchParams.get('max_id') ?? undefined,
+			minId: url.searchParams.get('min_id') ?? undefined,
+			sinceId: url.searchParams.get('since_id') ?? undefined
+		};
+
+		return cursor.maxId || cursor.minId || cursor.sinceId ? cursor : null;
+	} catch {
+		return null;
+	}
+};
+
+export const parseTimelinePaginationLinkHeader = (linkHeader: string | null): TimelinePagination => {
+	const cursors = emptyTimelinePagination();
+	if (!linkHeader) return cursors;
+
+	for (const match of linkHeader.matchAll(/<([^>]+)>\s*;\s*rel="([^"]+)"/g)) {
+		const cursor = cursorFromUrl(match[1]);
+		if (!cursor) continue;
+
+		const rels = match[2].split(/\s+/).map((rel) => rel.toLowerCase());
+		if (rels.includes('next')) cursors.next = cursor;
+		if (rels.includes('prev') || rels.includes('previous')) cursors.previous = cursor;
+	}
+
+	return cursors;
+};
 
 const searchQuery = (query: SearchQuery) => ({
 	q: query.q,
@@ -45,6 +81,11 @@ const profileUpdateBody = (profile: ProfileUpdate) => ({
 	fields_attributes: profile.fields
 });
 
+const timelinePage = <Item>(items: Item[], headers: Headers): TimelinePage<Item> => ({
+	items,
+	cursors: parseTimelinePaginationLinkHeader(headers.get('link'))
+});
+
 export const createPleromaClient = (config: ClientConfig) => {
 	const http = createPleromaHttp(config);
 
@@ -56,6 +97,15 @@ export const createPleromaClient = (config: ClientConfig) => {
 				auth: 'required'
 			}),
 
+		getHomeTimelinePage: async (query?: TimelineQuery) => {
+			const response = await http.requestWithHeaders<PleromaStatus[]>({
+				path: '/api/v1/timelines/home',
+				query: timelineQuery(query),
+				auth: 'required'
+			});
+			return timelinePage(response.body, response.headers);
+		},
+
 		getLocalTimeline: (query?: TimelineQuery) =>
 			http.request<PleromaStatus[]>({
 				path: '/api/v1/timelines/public',
@@ -63,12 +113,30 @@ export const createPleromaClient = (config: ClientConfig) => {
 				auth: 'optional'
 			}),
 
+		getLocalTimelinePage: async (query?: TimelineQuery) => {
+			const response = await http.requestWithHeaders<PleromaStatus[]>({
+				path: '/api/v1/timelines/public',
+				query: { ...timelineQuery(query), local: true },
+				auth: 'optional'
+			});
+			return timelinePage(response.body, response.headers);
+		},
+
 		getFederatedTimeline: (query?: TimelineQuery) =>
 			http.request<PleromaStatus[]>({
 				path: '/api/v1/timelines/public',
 				query: timelineQuery(query),
 				auth: 'optional'
 			}),
+
+		getFederatedTimelinePage: async (query?: TimelineQuery) => {
+			const response = await http.requestWithHeaders<PleromaStatus[]>({
+				path: '/api/v1/timelines/public',
+				query: timelineQuery(query),
+				auth: 'optional'
+			});
+			return timelinePage(response.body, response.headers);
+		},
 
 		getStatus: (id: string) =>
 			http.request<PleromaStatus>({

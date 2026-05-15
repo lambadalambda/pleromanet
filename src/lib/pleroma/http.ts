@@ -15,6 +15,11 @@ type RequestOptions = {
 	auth?: 'required' | 'optional' | 'none';
 };
 
+type PleromaHttpResponse<ResponseBody> = {
+	body: ResponseBody;
+	headers: Headers;
+};
+
 type HttpConfig = {
 	instanceUrl: string;
 	accessToken?: string;
@@ -94,14 +99,14 @@ export const createPleromaHttp = ({ instanceUrl, accessToken, fetch: fetchImpl }
 		throw new Error('A fetch implementation is required for Pleroma requests.');
 	}
 
-	const request = async <ResponseBody>({
+	const requestWithHeaders = async <ResponseBody>({
 		method = 'GET',
 		path,
 		query,
 		body,
 		form,
 		auth = 'optional'
-	}: RequestOptions) => {
+	}: RequestOptions): Promise<PleromaHttpResponse<ResponseBody>> => {
 		if (auth === 'required' && !accessToken) {
 			throw {
 				kind: 'unauthenticated',
@@ -148,8 +153,9 @@ export const createPleromaHttp = ({ instanceUrl, accessToken, fetch: fetchImpl }
 			} satisfies PleromaClientError;
 		}
 
-		return payload as ResponseBody;
+		return { body: payload as ResponseBody, headers: response.headers };
 	};
+	const request = async <ResponseBody>(options: RequestOptions) => (await requestWithHeaders<ResponseBody>(options)).body;
 
-	return { origin, request };
+	return { origin, request, requestWithHeaders };
 };

@@ -6,13 +6,26 @@ import { expectNoHorizontalOverflow, setViewport, viewports } from '../test/play
 const publicInstanceUrl = normalizeInstanceUrl(process.env.PUBLIC_PLEROMA_INSTANCE_URL ?? 'https://pleroma.social');
 const timelineUrl = `${publicInstanceUrl}/api/v1/timelines/public`;
 
-const fulfillJson = async (route: Route, body: unknown, status = 200) => {
+const fulfillJson = async (route: Route, body: unknown, status = 200, headers: Record<string, string> = {}) => {
 	await route.fulfill({
 		status,
 		contentType: 'application/json',
+		headers: headers.link ? { 'access-control-expose-headers': 'link', ...headers } : headers,
 		body: JSON.stringify(body)
 	});
 };
+
+const statusWithText = (id: string, text: string) => ({
+	...pleromaFixtures.status,
+	id,
+	uri: `https://pleroma.example/objects/${id}`,
+	url: `https://pleroma.example/notice/${id}`,
+	content: `<p>${text}</p>`,
+	pleroma: {
+		...pleromaFixtures.status.pleroma,
+		content: { 'text/plain': text }
+	}
+});
 
 const mockPublicTimeline = async (page: Page, handler: (route: Route, url: URL) => Promise<void>) => {
 	await page.route(`${timelineUrl}**`, async (route) => {
@@ -41,6 +54,34 @@ test('anonymous public route loads local and federated timelines through the API
 	await expect(page.getByTestId('public-timeline-list')).toContainText('@datagram@retro.social');
 	await expect(requests[1]).toEqual({ local: null, authorization: null });
 	await expectNoHorizontalOverflow(page);
+});
+
+test('public timeline loads a next cursor page and deduplicates overlapping statuses', async ({ page }) => {
+	const requestedMaxIds: Array<string | null> = [];
+	await mockPublicTimeline(page, async (route, url) => {
+		const maxId = url.searchParams.get('max_id');
+		requestedMaxIds.push(maxId);
+
+		if (maxId === 'status-1') {
+			await fulfillJson(route, [pleromaFixtures.status, statusWithText('status-public-2', 'older public pagination post')]);
+			return;
+		}
+
+		await fulfillJson(route, [pleromaFixtures.status], 200, {
+			link: `<${timelineUrl}?local=true&max_id=status-1>; rel="next"`
+		});
+	});
+
+	await page.goto('/public');
+
+	const list = page.getByTestId('public-timeline-list');
+	await expect(list).toContainText('quiet CSS can still carry the voice.');
+	await page.getByRole('button', { name: 'Load more' }).click();
+	await expect(list).toContainText('older public pagination post');
+	await expect(page.locator('[data-status-id="status-1"]')).toHaveCount(1);
+	await expect(page.locator('[data-status-id="status-public-2"]')).toHaveCount(1);
+	await expect(page.locator('[data-action-status-id="status-public-2"]')).toHaveCount(1);
+	expect(requestedMaxIds).toEqual([null, 'status-1']);
 });
 
 test('public timeline renders empty state from mocked API response', async ({ page }) => {

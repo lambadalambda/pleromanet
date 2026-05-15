@@ -4,15 +4,18 @@
 	import Icon from '$lib/rebuild/Icon.svelte';
 	import Post from '$lib/rebuild/Post.svelte';
 	import { createPleromaClient } from '$lib/pleroma/client';
-	import { adaptPleromaStatuses, normalizePleromaRequestError, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { adaptPleromaStatuses, normalizePleromaRequestError, type PleromaRequestErrorView, type PleromaStatusView } from '$lib/pleroma/ui';
 	import { env } from '$env/dynamic/public';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
+	import type { TimelineCursor } from '$lib/pleroma/types';
 	import type { SocialPost } from '$lib/social/types';
 	import { onMount } from 'svelte';
 
 	type PublicView = 'local' | 'federated';
 	type RebuildPost = PostLike & {
 		id: string | number;
+		actionStatusId?: string;
+		threadStatusId?: string;
 		name: string;
 		handle: string;
 		time: string;
@@ -25,9 +28,21 @@
 		favs: number;
 		actions: { reply: boolean; boost: boolean; fav: boolean };
 	};
+	type PublicTimelineState =
+		| { status: 'idle' }
+		| { status: 'loading' }
+		| { status: 'empty' }
+		| { status: 'error'; error: PleromaRequestErrorView }
+		| {
+			status: 'success';
+			data: PleromaStatusView[];
+			nextCursor: TimelineCursor | null;
+			loadMoreStatus: 'idle' | 'loading' | 'error';
+			loadMoreError?: PleromaRequestErrorView;
+		};
 
 	let view = $state<PublicView>('local');
-	let timelineState = $state<PleromaRequestState<PleromaStatusView[]>>({ status: 'idle' });
+	let timelineState = $state<PublicTimelineState>({ status: 'idle' });
 	let requestId = 0;
 
 	const instanceUrl = env.PUBLIC_PLEROMA_INSTANCE_URL ?? 'https://pleroma.social';
@@ -40,6 +55,8 @@
 		'av-anime';
 	const postForRebuild = (post: PleromaStatusView): RebuildPost => ({
 		id: post.id,
+		actionStatusId: post.actionStatusId,
+		threadStatusId: post.threadStatusId,
 		name: post.name,
 		handle: post.handle,
 		time: post.time,
@@ -58,6 +75,17 @@
 			fav: post.actions.favorite
 		}
 	});
+	const mergeTimelinePosts = (current: PleromaStatusView[], next: PleromaStatusView[]) => {
+		const seen = new Set(current.map((post) => post.id));
+		return [
+			...current,
+			...next.filter((post) => {
+				if (seen.has(post.id)) return false;
+				seen.add(post.id);
+				return true;
+			})
+		];
+	};
 	const posts = $derived(timelineState.status === 'success' ? timelineState.data.map(postForRebuild) : []);
 
 	const loadTimeline = async (nextView = view) => {
@@ -67,14 +95,43 @@
 
 		try {
 			const client = createPleromaClient({ instanceUrl, fetch: window.fetch.bind(window) });
-			const statuses = nextView === 'local' ? await client.getLocalTimeline() : await client.getFederatedTimeline();
+			const timelinePage = nextView === 'local' ? await client.getLocalTimelinePage() : await client.getFederatedTimelinePage();
 			if (nextRequestId !== requestId) return;
 
-			const adapted = adaptPleromaStatuses(statuses, { timelines: [nextView] });
-			timelineState = adapted.length > 0 ? { status: 'success', data: adapted } : { status: 'empty' };
+			const adapted = adaptPleromaStatuses(timelinePage.items, { timelines: [nextView] });
+			timelineState = adapted.length > 0
+				? { status: 'success', data: adapted, nextCursor: timelinePage.cursors.next, loadMoreStatus: 'idle' }
+				: { status: 'empty' };
 		} catch (error) {
 			if (nextRequestId !== requestId) return;
 			timelineState = { status: 'error', error: normalizePleromaRequestError(error) };
+		}
+	};
+	const loadMoreTimeline = async () => {
+		if (timelineState.status !== 'success' || !timelineState.nextCursor || timelineState.loadMoreStatus === 'loading') return;
+
+		const nextRequestId = requestId + 1;
+		requestId = nextRequestId;
+		const requestView = view;
+		const nextCursor = timelineState.nextCursor;
+		timelineState = { ...timelineState, loadMoreStatus: 'loading', loadMoreError: undefined };
+
+		try {
+			const client = createPleromaClient({ instanceUrl, fetch: window.fetch.bind(window) });
+			const timelinePage = requestView === 'local' ? await client.getLocalTimelinePage(nextCursor) : await client.getFederatedTimelinePage(nextCursor);
+			if (nextRequestId !== requestId || timelineState.status !== 'success') return;
+
+			const adapted = adaptPleromaStatuses(timelinePage.items, { timelines: [requestView] });
+			timelineState = {
+				...timelineState,
+				data: mergeTimelinePosts(timelineState.data, adapted),
+				nextCursor: timelinePage.cursors.next,
+				loadMoreStatus: 'idle',
+				loadMoreError: undefined
+			};
+		} catch (error) {
+			if (nextRequestId !== requestId || timelineState.status !== 'success') return;
+			timelineState = { ...timelineState, loadMoreStatus: 'error', loadMoreError: normalizePleromaRequestError(error) };
 		}
 	};
 	const selectView = (nextView: PublicView) => {
@@ -124,6 +181,26 @@
 					<Post {post} onAction={() => {}} />
 				{/each}
 			</div>
+			{#if timelineState.loadMoreStatus === 'loading'}
+				<div class="request-state request-pagination" role="status" aria-label="Timeline pagination status">Loading older posts</div>
+			{:else if timelineState.loadMoreStatus === 'error' && timelineState.loadMoreError}
+				<div class="request-state request-error request-pagination">
+					<h2>{timelineState.loadMoreError.title}</h2>
+					<p>{timelineState.loadMoreError.message}</p>
+					{#if timelineState.loadMoreError.retryable}
+						<Button variant="secondary" onclick={loadMoreTimeline}>Retry load more</Button>
+					{/if}
+				</div>
+			{:else if timelineState.nextCursor}
+				<div class="request-state request-pagination">
+					<Button variant="secondary" onclick={loadMoreTimeline}>Load more</Button>
+				</div>
+			{:else}
+				<div class="request-state request-empty request-pagination">
+					<h2>No older posts</h2>
+					<p>You have reached the end of this loaded timeline.</p>
+				</div>
+			{/if}
 		{/if}
 	</section>
 	<a class="public-home-link" href="/"><Icon name="arrowL" width={14} height={14} />Back to sign in</a>

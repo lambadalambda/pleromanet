@@ -245,7 +245,7 @@ a { color: inherit; text-decoration: none; }
 .app-content,
 .app-right-rail { min-width: 0; }
 .app-side-card { margin-top: 16px; }
-.app-feed-card,
+.app-feed-card { overflow: visible; }
 .app-panel { overflow: hidden; }
 .app-panel { padding: 24px; }
 .app-page-kicker,
@@ -808,6 +808,20 @@ body[data-theme='simoun'] .pill {
 	padding: 0 10px;
 	margin-left: 2px;
 	border: 1px solid var(--border);
+}
+.timeline-new-posts {
+	position: sticky;
+	top: 72px;
+	z-index: 8;
+	display: grid;
+	place-items: center;
+	padding: 10px 16px;
+	border-bottom: 1px solid var(--border);
+	background: color-mix(in srgb, var(--panel) 88%, transparent);
+	backdrop-filter: blur(12px);
+}
+.timeline-new-posts-button {
+	box-shadow: 0 8px 20px rgba(72, 47, 112, 0.12);
 }
 .composer-tool.cw:hover { border-color: var(--accent); }
 .composer-tool.privacy {
