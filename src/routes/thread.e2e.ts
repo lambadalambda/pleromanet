@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { expectNoHorizontalOverflow, setViewport } from '../test/playwright';
 
+test.skip(true, 'Legacy /mockup thread coverage is retired; src/routes/app-thread.e2e.ts covers the real route.');
+
 const softCssPost = (page: Page) =>
 	page
 		.getByTestId('timeline-post')

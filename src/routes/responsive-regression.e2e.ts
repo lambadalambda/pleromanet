@@ -1,5 +1,30 @@
-import { expect, test } from '@playwright/test';
-import { expectElementIsTruncatedWithinParent, expectNoHorizontalOverflow, setViewport, viewports } from '../test/playwright';
+import { expect, test, type Page, type Route } from '@playwright/test';
+import { pleromaFixtures } from '../lib/pleroma/fixtures';
+import { expectNoHorizontalOverflow, setViewport, viewports } from '../test/playwright';
+
+const session = {
+	instanceUrl: 'https://pleroma.example',
+	accessToken: 'access-token',
+	tokenType: 'Bearer',
+	scope: 'read write follow',
+	createdAt: 1700000001000
+};
+
+const authenticate = async (page: Page) => {
+	await page.addInitScript((storedSession) => {
+		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
+	}, session);
+};
+
+const mockHomeTimeline = async (page: Page) => {
+	await page.route('https://pleroma.example/api/v1/timelines/home**', async (route: Route) => {
+		await route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify(pleromaFixtures.timelines.home)
+		});
+	});
+};
 
 test.describe('responsive regression coverage', () => {
 	for (const viewportName of Object.keys(viewports) as Array<keyof typeof viewports>) {
@@ -16,45 +41,46 @@ test.describe('responsive regression coverage', () => {
 			await setViewport(page, viewportName);
 			await page.goto('/design-system');
 
-			await expect(page.getByRole('heading', { name: 'Design System' })).toBeVisible();
-			await expect(page.getByTestId('primitive-grid')).toBeVisible();
+			await expect(page).toHaveTitle('PleromaNet · Design System');
+			await expect(page.getByRole('heading', { name: 'Foundations' })).toBeVisible();
+			await expect(page.getByRole('heading', { name: 'Controls' })).toBeVisible();
 			await expectNoHorizontalOverflow(page);
 		});
 	}
 
-	test('mockup shell documents responsive layout risks across breakpoints', async ({ page }) => {
+	test('real app shell has no horizontal overflow across breakpoints', async ({ page }) => {
+		await authenticate(page);
+		await mockHomeTimeline(page);
+
 		await setViewport(page, 'desktop');
-		await page.goto('/mockup');
+		await page.goto('/app/home');
 
 		await expect(page.getByTestId('left-sidebar')).toBeVisible();
 		await expect(page.getByTestId('right-rail')).toBeVisible();
 		await expect(page.getByRole('form', { name: 'Composer' })).toBeVisible();
-		await expectElementIsTruncatedWithinParent(
-			page
-				.getByTestId('suggestion-handle')
-				.filter({ hasText: '@datagram@a-very-long-retro-instance-name.social' })
-		);
 		await expectNoHorizontalOverflow(page);
 
 		await setViewport(page, 'medium');
+		await expect(page.getByTestId('left-sidebar')).toBeVisible();
 		await expect(page.getByTestId('right-rail')).toBeHidden();
 		await expect(page.getByRole('form', { name: 'Composer' })).toBeVisible();
 		await expectNoHorizontalOverflow(page);
 
 		await setViewport(page, 'tablet');
+		await expect(page.getByTestId('left-sidebar')).toBeHidden();
 		await expect(page.getByTestId('right-rail')).toBeHidden();
 		await expect(page.getByRole('form', { name: 'Composer' })).toBeVisible();
-		await expect(page.getByRole('navigation', { name: 'Mobile primary' })).toBeVisible();
+		await expect(page.getByRole('navigation', { name: 'Mobile app navigation' })).toBeVisible();
 		await expectNoHorizontalOverflow(page);
 
 		await setViewport(page, 'mobile');
 		await expect(page.getByTestId('left-sidebar')).toBeHidden();
-		await expect(page.getByRole('navigation', { name: 'Mobile primary' })).toBeVisible();
+		await expect(page.getByRole('navigation', { name: 'Mobile app navigation' })).toBeVisible();
 
 		await page.getByRole('button', { name: 'Open navigation menu' }).click();
-		await expect(page.getByRole('navigation', { name: 'Mobile drawer' })).toBeVisible();
-		await page.keyboard.press('Escape');
-		await expect(page.getByRole('navigation', { name: 'Mobile drawer' })).toBeHidden();
+		await expect(page.getByTestId('mobile-drawer')).toBeVisible();
+		await page.getByRole('button', { name: 'Close navigation menu' }).last().click();
+		await expect(page.getByTestId('mobile-drawer')).toBeHidden();
 
 		await page.getByTestId('mobile-bottom-nav').getByRole('button', { name: 'More' }).click();
 		await expect(page.getByTestId('mobile-sheet')).toBeVisible();

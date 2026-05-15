@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { expectElementIsTruncatedWithinParent, expectNoHorizontalOverflow, setViewport, viewports } from '../test/playwright';
 
+test.skip(true, 'Legacy /mockup timeline coverage is retired; src/routes/home-timeline.e2e.ts covers the real timeline.');
+
 test('composer starts empty, posts text, and prepends the new post', async ({ page }) => {
 	await setViewport(page, 'desktop');
 	await page.goto('/mockup');

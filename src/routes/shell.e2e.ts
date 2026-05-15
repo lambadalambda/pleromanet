@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { expectNoHorizontalOverflow, setViewport } from '../test/playwright';
 
+test.skip(true, 'Legacy /mockup shell coverage is retired; src/routes/app-routes.e2e.ts covers the real shell.');
+
 test('renders the authenticated desktop shell', async ({ page }) => {
 	await setViewport(page, 'desktop');
 	await page.goto('/mockup');

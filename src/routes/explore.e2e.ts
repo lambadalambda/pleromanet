@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { expectNoHorizontalOverflow, setViewport } from '../test/playwright';
 
+test.skip(true, 'Legacy /mockup explore coverage is retired; src/routes/app-explore.e2e.ts covers the real route.');
+
 const openExplore = async (page: Page) => {
 	await page.goto('/mockup');
 	await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Explore' }).click();

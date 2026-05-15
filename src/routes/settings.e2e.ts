@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { expectNoHorizontalOverflow, setViewport } from '../test/playwright';
 
+test.skip(true, 'Legacy /mockup settings coverage is retired; src/routes/app-settings.e2e.ts covers the real route.');
+
 const openSettings = async (page: Page) => {
 	await page.goto('/mockup');
 	await page.getByTestId('left-sidebar').getByRole('button', { name: 'Settings' }).click();
