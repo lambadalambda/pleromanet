@@ -149,6 +149,45 @@ test('home timeline post menu copies raw post JSON for bug reports', async ({ pa
 	await expect(post.getByRole('status', { name: 'Post JSON copy status' })).toHaveText('Copied post JSON');
 });
 
+test('home timeline truncates long account names without wrapping the post header', async ({ page }) => {
+	await authenticate(page);
+	const longDisplayName = "Khamenei's Top Guy Katze Kattepus :crusaderkitty: ".repeat(4).trim();
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [
+			{
+				...pleromaFixtures.status,
+				id: 'status-long-account-name',
+				created_at: '2026-05-15T09:32:25.000Z',
+				account: {
+					...pleromaFixtures.account,
+					display_name: longDisplayName,
+					username: 'nerthos',
+					acct: 'nerthos@shitposter.world'
+				},
+				content: '<p>Joseph was always on the side of the good guys.</p>',
+				pleroma: {
+					...pleromaFixtures.status.pleroma,
+					content: { 'text/plain': 'Joseph was always on the side of the good guys.' }
+				}
+			}
+		]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('.post').filter({ hasText: 'Joseph was always on the side of the good guys.' }).first();
+	const name = post.locator('.post-name');
+	const time = post.locator('.post-time');
+	const nameBox = await name.boundingBox();
+	const timeBox = await time.boundingBox();
+	expect(nameBox).not.toBeNull();
+	expect(timeBox).not.toBeNull();
+	expect(Math.abs((nameBox?.y ?? 0) - (timeBox?.y ?? 0))).toBeLessThanOrEqual(2);
+	expect(await name.evaluate((node) => node.scrollWidth > node.clientWidth && getComputedStyle(node).textOverflow === 'ellipsis')).toBe(true);
+	await expectNoHorizontalOverflow(page);
+});
+
 test('home timeline renders empty state from mocked API response', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page, async (route) => {

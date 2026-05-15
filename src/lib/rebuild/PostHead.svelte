@@ -13,7 +13,7 @@
 </script>
 
 <div class="post-head">
-	<span class="post-name">{n}</span>
-	<span class="post-handle">{h}</span>
+	<span class="post-name" title={n}>{n}</span>
+	<span class="post-handle" title={h}>{h}</span>
 	<span class="post-time">{t}</span>
 </div>

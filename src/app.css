@@ -1278,18 +1278,36 @@ body[data-theme='simoun'] .pill {
 	align-items: baseline;
 	gap: 6px;
 	font-size: 13.5px;
-	flex-wrap: wrap;
-}
-.post-name { font-weight: 600; color: var(--ink); }
-.post-handle { color: var(--accent-ink); }
-.post-handle {
 	min-width: 0;
+	flex-wrap: nowrap;
+}
+.post-name {
+	min-width: 0;
+	max-width: min(42ch, 55%);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	font-weight: 600;
+	color: var(--ink);
+}
+.post-handle {
+	flex: 1 1 auto;
+	min-width: 0;
+	max-width: min(32ch, 40%);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--accent-ink);
 }
 .post-handle:hover { text-decoration: underline; }
-.post-time { color: var(--muted); margin-left: auto; font-size: 12px; font-family: var(--mono); }
+.post-time {
+	flex: 0 0 auto;
+	color: var(--muted);
+	margin-left: auto;
+	font-size: 12px;
+	font-family: var(--mono);
+	white-space: nowrap;
+}
 .post-body {
 	margin: 6px 0 0;
 	color: var(--ink-2);
