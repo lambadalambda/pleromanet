@@ -17,3 +17,7 @@ run = "bash scripts/test-integration.sh"
 [tasks.build]
 description = "Build the static SPA"
 run = "pnpm build"
+
+[tasks.opencode]
+description = "Run opencode"
+run = "safehouse --enable=playwright-chrome,clipboard --add-dirs-ro=~/Downloads opencode"
