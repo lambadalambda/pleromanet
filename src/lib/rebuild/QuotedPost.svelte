@@ -2,15 +2,18 @@
 	import Avatar from './Avatar.svelte';
 	import { pickQuoteHero } from './attachments';
 	import type { Attachment, BannerVariant } from './attachments';
-	import { renderBodyText } from './mentions';
+	import type { CustomEmoji } from '$lib/social/types';
+	import RichText from './RichText.svelte';
 
 	type QuotedPostData = {
 		name?: string;
+		nameEmojis?: CustomEmoji[];
 		handle?: string;
 		time?: string;
 		avClass?: string;
 		avBanner?: BannerVariant;
 		body?: string;
+		bodyEmojis?: CustomEmoji[];
 		attachments?: Attachment[];
 		replies?: number;
 		boosts?: number;
@@ -26,7 +29,6 @@
 	let hero = $derived(pickQuoteHero(quoted?.attachments));
 	let extraCount = $derived((quoted?.attachments?.length || 0) - (hero ? 1 : 0));
 	let domain = $derived(quoted?.handle ? quoted.handle.split('@').slice(-1)[0] : '');
-	let bodyParts = $derived(renderBodyText(quoted?.body));
 </script>
 
 {#if quoted}
@@ -34,19 +36,13 @@
 		<div class="quoted-card quoted-embedded" data-post-ignore>
 			<div class="quoted-head">
 				<Avatar variant="post" size={28} avClass={quoted.avClass} avBanner={quoted.avBanner} className="quoted-av-sm" />
-				<span class="quoted-name">{quoted.name}</span>
+				<span class="quoted-name"><RichText text={quoted.name} emojis={quoted.nameEmojis} /></span>
 				<span class="quoted-handle">{quoted.handle}</span>
 				<span class="quoted-time">{quoted.time}</span>
 				<span class="quoted-ext">↗</span>
 			</div>
 			<div class="quoted-text">
-				{#each bodyParts as part, i (i)}
-					{#if typeof part === 'string'}
-						{part}
-					{:else}
-						<span class="post-mention-inline">{part.text}</span>
-					{/if}
-				{/each}
+				<RichText text={quoted.body} emojis={quoted.bodyEmojis} mentionClass="post-mention-inline" />
 			</div>
 			<div class="quoted-foot">
 				{#if quoted.replies != null}<span>↩ {quoted.replies}</span>{/if}
@@ -79,17 +75,11 @@
 			<div class="quoted-body">
 				<div class="quoted-kicker">QUOTE{domain ? ' · ' + domain : ''}</div>
 				<div class="quoted-text">
-					{#each bodyParts as part, i (i)}
-						{#if typeof part === 'string'}
-							{part}
-						{:else}
-							<span class="post-mention-inline">{part.text}</span>
-						{/if}
-					{/each}
+					<RichText text={quoted.body} emojis={quoted.bodyEmojis} mentionClass="post-mention-inline" />
 				</div>
 				<div class="quoted-attr">
 					<Avatar variant="post" size={22} avClass={quoted.avClass} avBanner={quoted.avBanner} />
-					<span class="quoted-attr-name">{quoted.name}</span>
+					<span class="quoted-attr-name"><RichText text={quoted.name} emojis={quoted.nameEmojis} /></span>
 					<span class="quoted-handle">{quoted.handle}</span>
 					<span class="quoted-time">· {quoted.time}</span>
 				</div>

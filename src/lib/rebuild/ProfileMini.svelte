@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { htmlToPlainText } from '$lib/pleroma/ui';
+	import { adaptCustomEmojis, htmlToPlainText } from '$lib/pleroma/ui';
 	import type { PleromaAccount } from '$lib/pleroma/types';
 	import NowPlayingLine from './NowPlayingLine.svelte';
+	import RichText from './RichText.svelte';
 	import VaporBanner from './VaporBanner.svelte';
 
 	type Props = {
@@ -40,6 +41,7 @@
 	];
 	const name = $derived(account ? displayName(account) : 'dreambyte');
 	const handle = $derived(account ? accountHandle(account, instanceUrl) : '@dreambyte@pleroma.social');
+	const nameEmojis = $derived(account ? adaptCustomEmojis(account.emojis) : []);
 	const bio = $derived(account ? accountBio(account) : 'living in a soft world');
 	const stats = $derived(account ? accountStats(account) : defaultStats);
 	const headerUrl = $derived(account?.header || account?.header_static || null);
@@ -58,7 +60,7 @@
 		{#if avatarUrl}
 			<img class="profile-mini-avatar" src={avatarUrl} alt={`${name} avatar`} />
 		{/if}
-		<div class="profile-mini-name">{name}</div>
+		<div class="profile-mini-name"><RichText text={name} emojis={nameEmojis} /></div>
 		<div class="profile-mini-handle">{handle}</div>
 		<div class="profile-mini-bio">{bio}</div>
 		{#if !account}

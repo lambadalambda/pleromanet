@@ -42,6 +42,68 @@ test('Pleroma status adapters preserve plain text content and UI action state', 
 	expect(post.mediaHidden).toBe(false);
 });
 
+test('Pleroma status adapters expose custom emoji for display names and body text', () => {
+	const post = adaptPleromaStatus(withStatus({
+		id: 'custom-emoji-status',
+		account: {
+			...pleromaFixtures.account,
+			display_name: 'zonk :fatteratte:',
+			emojis: [
+				{
+					shortcode: 'fatteratte',
+					url: 'https://cdn.example/emoji/fatteratte.png',
+					static_url: 'https://cdn.example/emoji/fatteratte-static.png',
+					visible_in_picker: false
+				}
+			]
+		},
+		content: 'brainfrot :blobcat:',
+		emojis: [
+			{
+				shortcode: 'blobcat',
+				url: 'https://cdn.example/emoji/blobcat.png',
+				static_url: 'https://cdn.example/emoji/blobcat-static.png',
+				visible_in_picker: true
+			}
+		],
+		pleroma: {
+			content: { 'text/plain': 'brainfrot :blobcat:' }
+		}
+	}));
+
+	expect(post.name).toBe('zonk :fatteratte:');
+	expect(post.nameEmojis).toEqual([
+		{
+			shortcode: 'fatteratte',
+			url: 'https://cdn.example/emoji/fatteratte.png',
+			staticUrl: 'https://cdn.example/emoji/fatteratte-static.png'
+		}
+	]);
+	expect(post.body).toBe('brainfrot :blobcat:');
+	expect(post.bodyEmojis).toEqual([
+		{
+			shortcode: 'blobcat',
+			url: 'https://cdn.example/emoji/blobcat.png',
+			staticUrl: 'https://cdn.example/emoji/blobcat-static.png'
+		}
+	]);
+});
+
+test('Pleroma status adapters preserve paragraph breaks when text/plain collapses HTML breaks', () => {
+	const post = adaptPleromaStatus(withStatus({
+		id: 'collapsed-plain-text-paragraphs',
+		content: 'Good analysis.<br/><br/>Risk of getting caught is low because there&#39;s no motive.<br/><br/>Not getting caught comes down to:<br/>1. Don&#39;t bring your phone.<br/>2. Don&#39;t drive a car with a GSM in it.',
+		pleroma: {
+			content: {
+				'text/plain': "Good analysis.Risk of getting caught is low because there's no motive.Not getting caught comes down to:1. Don't bring your phone.2. Don't drive a car with a GSM in it."
+			}
+		}
+	}));
+
+	expect(post.body).toBe("Good analysis.\n\nRisk of getting caught is low because there's no motive.\n\nNot getting caught comes down to:\n1. Don't bring your phone.\n2. Don't drive a car with a GSM in it.");
+	expect(post.contentText).toBe(post.body);
+});
+
 test('Pleroma status adapters move leading reply recipients into addressees', () => {
 	const reply = withStatus({
 		id: 'reply-with-leading-recipients',

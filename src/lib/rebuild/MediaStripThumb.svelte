@@ -1,17 +1,26 @@
 <script lang="ts">
 	import type { Attachment } from './attachments';
+	import { primeVideoPreviewFrame } from './videoPreview';
 
 	type Props = {
 		att: Attachment;
 	};
 
 	let { att }: Props = $props();
+
+	const onPreviewMetadata = (event: Event) => {
+		if (!(event.currentTarget instanceof HTMLVideoElement)) return;
+		primeVideoPreviewFrame(event.currentTarget);
+	};
 </script>
 
 {#if att.kind === 'photo'}
 	<img src={att.src} alt="" />
 {:else if att.kind === 'video'}
-	{#if att.posterUrl}
+	{#if att.src}
+		<!-- svelte-ignore a11y_media_has_caption -->
+		<video class="media-strip-preview" src={att.src} poster={att.posterUrl} muted playsinline preload="metadata" aria-hidden="true" tabindex="-1" onloadedmetadata={onPreviewMetadata}></video>
+	{:else if att.posterUrl}
 		<img src={att.posterUrl} alt="" />
 	{:else}
 		<div class="mst-video-bg"></div>

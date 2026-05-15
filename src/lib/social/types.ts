@@ -5,6 +5,12 @@ export type AvatarVariant = 'grad-1' | 'grad-2' | 'grad-3' | 'orb' | 'pc';
 export type MediaVariant = 'sunset' | 'city' | 'space';
 export type ActionState = Record<PostAction, boolean>;
 
+export type CustomEmoji = {
+	shortcode: string;
+	url: string;
+	staticUrl?: string;
+};
+
 export type PhotoAttachment = {
 	kind: 'photo';
 	src: string;
@@ -41,9 +47,11 @@ export type PostAttachment = PhotoAttachment | VideoAttachment | AudioAttachment
 
 export type QuotedPostView = {
 	name: string;
+	nameEmojis?: CustomEmoji[];
 	handle: string;
 	time: string;
 	body: string;
+	bodyEmojis?: CustomEmoji[];
 	avatar?: AvatarVariant;
 	avatarBanner?: MediaVariant | 'pixel-window';
 	replies?: number;
@@ -57,9 +65,11 @@ export type SocialPost = {
 	actionStatusId?: string;
 	threadStatusId?: string;
 	name: string;
+	nameEmojis?: CustomEmoji[];
 	handle: string;
 	time: string;
 	body: string;
+	bodyEmojis?: CustomEmoji[];
 	avatar: AvatarVariant;
 	avatarUrl?: string | null;
 	media?: MediaVariant;

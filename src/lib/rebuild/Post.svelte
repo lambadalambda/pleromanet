@@ -7,6 +7,7 @@
 	import QuotedPost from './QuotedPost.svelte';
 	import type { PostLike, Attachment, BannerVariant } from './attachments';
 	import { openLightbox } from './attachments';
+	import type { CustomEmoji } from '$lib/social/types';
 
 	type Props = {
 		post: PostLike & {
@@ -14,11 +15,13 @@
 			actionStatusId?: string;
 			threadStatusId?: string;
 			name?: string;
+			nameEmojis?: CustomEmoji[];
 			handle?: string;
 			time?: string;
 			avClass?: string;
 			avBanner?: BannerVariant;
 			body?: string;
+			bodyEmojis?: CustomEmoji[];
 			addressees?: string[];
 			quotedPost?: Record<string, unknown>;
 			replies: number;
@@ -47,7 +50,7 @@
 	<Avatar post={post} />
 	<div style="min-width:0">
 		<PostHead post={post} />
-		<PostBody body={post.body} addressees={post.addressees} />
+		<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} />
 		<QuotedPost quoted={post.quotedPost} />
 		<PostMedia post={post} onOpen={handleLightbox} />
 		<PostActions post={post} onAction={onAction} />

@@ -1,6 +1,6 @@
-import type { AvatarVariant, PostAttachment, TimelinePost, TimelineView } from '$lib/social/types';
+import type { AvatarVariant, CustomEmoji, PostAttachment, TimelinePost, TimelineView } from '$lib/social/types';
 import { isPleromaClientError } from './http';
-import type { PleromaAccount, PleromaStatus } from './types';
+import type { PleromaAccount, PleromaCustomEmoji, PleromaStatus } from './types';
 
 export type PleromaAccountView = {
 	id: string;
@@ -10,6 +10,7 @@ export type PleromaAccountView = {
 	handle: string;
 	url: string;
 	avatarUrl: string | null;
+	emojis: CustomEmoji[];
 	faviconUrl: string | null;
 	isAdmin: boolean;
 	isModerator: boolean;
@@ -111,11 +112,18 @@ export const htmlToPlainText = (html: string) => {
 		.trim();
 };
 
-const plainTextContent = (status: PleromaStatus) => {
-	const plainText = status.pleroma.content?.['text/plain'];
-	if (plainText?.trim()) return plainText.trim();
+const lineBreakCount = (value: string) => value.match(/\n/g)?.length ?? 0;
 
-	return htmlToPlainText(status.content);
+const sameTextIgnoringWhitespace = (left: string, right: string) => left.replace(/\s+/g, '') === right.replace(/\s+/g, '');
+
+const shouldPreferHtmlText = (plainText: string, htmlText: string) => lineBreakCount(htmlText) > lineBreakCount(plainText) && sameTextIgnoringWhitespace(plainText, htmlText);
+
+const plainTextContent = (status: PleromaStatus) => {
+	const plainText = status.pleroma.content?.['text/plain']?.trim();
+	const htmlText = htmlToPlainText(status.content);
+	if (plainText) return shouldPreferHtmlText(plainText, htmlText) ? htmlText : plainText;
+
+	return htmlText;
 };
 
 const leadingReplyMentionPattern = /^(@[\w.]+(?:@[\w.-]+)?)(?=\s|$)/;
@@ -178,6 +186,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(v
 const stringValue = (value: unknown) => (typeof value === 'string' && value.trim() ? value : null);
 
 const numberValue = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
+
+export const adaptCustomEmojis = (emojis: PleromaCustomEmoji[] | undefined): CustomEmoji[] => (emojis ?? [])
+	.map((emoji) => ({
+		shortcode: emoji.shortcode,
+		url: emoji.url,
+		staticUrl: emoji.static_url
+	}))
+	.filter((emoji) => emoji.shortcode && emoji.url);
 
 const filenameFromUrl = (url: string) => {
 	try {
@@ -273,6 +289,7 @@ export const adaptPleromaAccount = (account: PleromaAccount): PleromaAccountView
 	handle: handle(account.acct),
 	url: account.url,
 	avatarUrl: avatarUrl(account),
+	emojis: adaptCustomEmojis(account.emojis),
 	faviconUrl: account.pleroma.favicon ?? null,
 	isAdmin: account.pleroma.is_admin ?? false,
 	isModerator: account.pleroma.is_moderator ?? false,
@@ -297,9 +314,11 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		originalStatusId: source.id,
 		timelines: timelineMembership(source, options),
 		name: account.displayName,
+		nameEmojis: account.emojis,
 		handle: account.handle,
 		time: formatStatusDate(source.created_at),
 		body: body.body,
+		bodyEmojis: adaptCustomEmojis(source.emojis),
 		addressees: body.addressees,
 		copyJson: status,
 		avatar: avatarVariant(source.account),

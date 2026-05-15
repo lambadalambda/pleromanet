@@ -6,6 +6,14 @@ export type PleromaField = {
 	verified_at?: string | null;
 };
 
+export type PleromaCustomEmoji = {
+	shortcode: string;
+	url: string;
+	static_url?: string;
+	visible_in_picker?: boolean;
+	[key: string]: unknown;
+};
+
 export type PleromaRelationship = {
 	id: string;
 	following: boolean;
@@ -41,7 +49,7 @@ export type PleromaAccount = {
 	following_count: number;
 	statuses_count: number;
 	fields: PleromaField[];
-	emojis?: unknown[];
+	emojis?: PleromaCustomEmoji[];
 	pleroma: {
 		ap_id?: string;
 		favicon?: string;
@@ -61,7 +69,7 @@ export type PleromaStatus = {
 	account: PleromaAccount;
 	content: string;
 	created_at: string;
-	emojis: unknown[];
+	emojis: PleromaCustomEmoji[];
 	favourited: boolean;
 	favourites_count: number;
 	in_reply_to_account_id: string | null;

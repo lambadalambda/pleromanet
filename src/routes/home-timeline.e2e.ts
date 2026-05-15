@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 import { pleromaFixtures } from '../lib/pleroma/fixtures';
 import { expectNoHorizontalOverflow, setViewport } from '../test/playwright';
 
@@ -73,6 +73,25 @@ const fulfillHome = async (route: Route, body: unknown, status = 200, headers: R
 		body: JSON.stringify(body)
 	});
 };
+
+const primeVideoMetadata = async (video: Locator) => video.evaluate((node: HTMLVideoElement) => {
+	let currentTime = 0;
+	Object.defineProperty(node, 'duration', { configurable: true, value: 42 });
+	Object.defineProperty(node, 'currentTime', {
+		configurable: true,
+		get: () => currentTime,
+		set: (value: number) => {
+			currentTime = value;
+		}
+	});
+	node.dispatchEvent(new Event('loadedmetadata'));
+	return node.currentTime;
+});
+
+const startPrimedVideo = async (video: Locator) => video.evaluate((node: HTMLVideoElement) => {
+	node.dispatchEvent(new Event('play'));
+	return node.currentTime;
+});
 
 const statusWithText = (id: string, text: string) => ({
 	...pleromaFixtures.status,
@@ -161,6 +180,51 @@ test('home timeline renders repeated mention separators without duplicate keyed 
 	await page.goto('/app/home');
 
 	await expect(page.getByTestId('home-timeline-list')).toContainText('@one  @two  @three');
+});
+
+test('home timeline renders custom emoji in post names and body text', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [
+			{
+				...pleromaFixtures.status,
+				id: 'status-custom-emoji',
+				account: {
+					...pleromaFixtures.status.account,
+					display_name: 'zonk :fatteratte:',
+					emojis: [
+						{
+							shortcode: 'fatteratte',
+							url: 'https://cdn.example/emoji/fatteratte.png',
+							static_url: 'https://cdn.example/emoji/fatteratte-static.png',
+							visible_in_picker: false
+						}
+					]
+				},
+				content: 'brainfrot :blobcat:',
+				emojis: [
+					{
+						shortcode: 'blobcat',
+						url: 'https://cdn.example/emoji/blobcat.png',
+						static_url: 'https://cdn.example/emoji/blobcat-static.png',
+						visible_in_picker: true
+					}
+				],
+				pleroma: {
+					...pleromaFixtures.status.pleroma,
+					content: { 'text/plain': 'brainfrot :blobcat:' }
+				}
+			}
+		]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const post = page.locator('[data-status-id="status-custom-emoji"]');
+	await expect(post).toContainText('zonk');
+	await expect(post).toContainText('brainfrot');
+	await expect(post.locator('.post-name img[alt=":fatteratte:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/fatteratte.png');
+	await expect(post.locator('.post-body img[alt=":blobcat:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/blobcat.png');
 });
 
 test('home timeline moves leading reply recipients into the pinged footer', async ({ page }) => {
@@ -295,6 +359,16 @@ test('home timeline renders real media attachments from Pleroma statuses', async
 				media_attachments: [
 					{ id: 'audio-1', type: 'audio', url: 'https://cdn.example/media/field.mp3', description: 'field recording' }
 				]
+			},
+			{
+				...pleromaFixtures.status,
+				id: 'status-mixed-video-attachment',
+				content: '<p>mixed video attached</p>',
+				pleroma: { ...pleromaFixtures.status.pleroma, content: { 'text/plain': 'mixed video attached' } },
+				media_attachments: [
+					{ id: 'photo-2', type: 'image', url: 'https://cdn.example/media/second-photo.jpg', preview_url: 'https://cdn.example/media/second-photo-preview.jpg', description: 'second photo' },
+					{ id: 'video-2', type: 'video', url: 'https://cdn.example/media/second-clip.mp4', preview_url: 'https://cdn.example/media/blank-video-preview.jpg', description: 'second clip' }
+				]
 			}
 		]);
 	});
@@ -321,9 +395,21 @@ test('home timeline renders real media attachments from Pleroma statuses', async
 	await list.locator('.post-photos .ph').first().hover();
 	await expect(photo).toHaveCSS('transform', 'none');
 	await expect(photoVisual).toHaveCSS('transform', /matrix\(1\.015/);
-	await expect(list.locator('video')).toHaveAttribute('src', 'https://cdn.example/media/clip.mp4');
-	expect(await list.locator('video').evaluate((node) => getComputedStyle(node).filter)).toContain('duotoneCream');
+	const videoPost = list.locator('[data-status-id="status-video-attachment"]');
+	const inlineVideo = videoPost.locator('video');
+	await expect(inlineVideo).toHaveAttribute('src', 'https://cdn.example/media/clip.mp4');
+	await expect(inlineVideo).toHaveAttribute('poster', 'https://cdn.example/media/clip.jpg');
+	expect(await primeVideoMetadata(inlineVideo)).toBe(1);
+	expect(await inlineVideo.getAttribute('poster')).toBeNull();
+	expect(await startPrimedVideo(inlineVideo)).toBe(0);
+	expect(await inlineVideo.evaluate((node) => getComputedStyle(node).filter)).toContain('duotoneCream');
 	await expect(list.locator('audio')).toHaveAttribute('src', 'https://cdn.example/media/field.mp3');
+	const mixedPost = list.locator('[data-status-id="status-mixed-video-attachment"]');
+	const stripVideo = mixedPost.locator('.media-strip-tile video');
+	await expect(stripVideo).toHaveAttribute('src', 'https://cdn.example/media/second-clip.mp4');
+	await expect(stripVideo).toHaveAttribute('poster', 'https://cdn.example/media/blank-video-preview.jpg');
+	expect(await primeVideoMetadata(stripVideo)).toBe(1);
+	expect(await stripVideo.getAttribute('poster')).toBeNull();
 	await expect(list.locator('.post-media')).toHaveCount(0);
 	await expectNoHorizontalOverflow(page);
 });

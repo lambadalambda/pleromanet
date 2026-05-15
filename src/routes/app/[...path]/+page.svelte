@@ -55,12 +55,14 @@
 		actionStatusId?: string;
 		threadStatusId?: string;
 		name: string;
+		nameEmojis?: SocialPost['nameEmojis'];
 		handle: string;
 		time: string;
 		avClass?: string;
 		avBanner?: BannerVariant;
 		avatarUrl?: string | null;
 		body: string;
+		bodyEmojis?: SocialPost['bodyEmojis'];
 		replies: number;
 		boosts: number;
 		favs: number;
@@ -165,11 +167,13 @@
 		actionStatusId: post.actionStatusId,
 		threadStatusId: post.threadStatusId,
 		name: post.name,
+		nameEmojis: post.nameEmojis,
 		handle: post.handle,
 		time: post.time,
 		avClass: avatarClass(post.avatar),
 		avatarUrl: post.avatarUrl,
 		body: post.body,
+		bodyEmojis: post.bodyEmojis,
 		media: post.media,
 		attachments: post.attachments,
 		addressees: post.addressees,

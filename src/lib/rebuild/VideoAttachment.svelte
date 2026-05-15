@@ -2,6 +2,7 @@
 	import VaporBanner from './VaporBanner.svelte';
 	import type { VideoAttachment as VideoAtt } from './attachments';
 	import { parseDur, fmtDur } from './attachments';
+	import { primeVideoPreviewFrame, resetVideoPreviewOnPlay } from './videoPreview';
 
 	type Props = {
 		video: VideoAtt;
@@ -12,6 +13,7 @@
 	let muted = $state(true);
 	let progress = $state(0.18);
 	let seeded = $state(false);
+	let previewPrimed = $state(false);
 
 	let dur = $derived(video.duration ?? (video.src ? '' : '2:14'));
 	let total = $derived(dur ? parseDur(dur) : 0);
@@ -31,13 +33,23 @@
 		}, 80);
 		return () => clearInterval(t);
 	});
+
+	const onPreviewMetadata = (event: Event) => {
+		if (!(event.currentTarget instanceof HTMLVideoElement)) return;
+		previewPrimed = primeVideoPreviewFrame(event.currentTarget);
+	};
+
+	const onPreviewPlay = (event: Event) => {
+		if (!(event.currentTarget instanceof HTMLVideoElement)) return;
+		previewPrimed = resetVideoPreviewOnPlay(event.currentTarget, previewPrimed);
+	};
 </script>
 
 <div class="post-video" data-post-ignore>
 	<div class="pv-frame">
 		{#if video.src}
 			<!-- svelte-ignore a11y_media_has_caption -->
-			<video class="pv-native" src={video.src} poster={video.posterUrl} controls preload="metadata" title={video.title ?? 'Video attachment'}></video>
+			<video class="pv-native" src={video.src} poster={video.posterUrl} controls preload="metadata" title={video.title ?? 'Video attachment'} onloadedmetadata={onPreviewMetadata} onplay={onPreviewPlay}></video>
 		{:else}
 			<VaporBanner variant={video.poster || 'sunset'} />
 			<div class="pv-scrim {playing ? 'on' : ''}"></div>

@@ -1,24 +1,19 @@
 <script lang="ts">
-	import { renderBodyText } from './mentions';
+	import type { CustomEmoji } from '$lib/social/types';
+	import RichText from './RichText.svelte';
 
 	type Props = {
 		body?: string;
+		emojis?: CustomEmoji[];
 		addressees?: string[];
 		className?: string;
 	};
 
-	let { body = '', addressees, className = '' }: Props = $props();
-	let parts = $derived(renderBodyText(body));
+	let { body = '', emojis = [], addressees, className = '' }: Props = $props();
 </script>
 
 <div class="post-body {className}">
-	{#each parts as part, i (i)}
-		{#if typeof part === 'string'}
-			{part}
-		{:else}
-			<span class="post-mention-inline">{part.text}</span>
-		{/if}
-	{/each}
+	<RichText text={body} {emojis} mentionClass="post-mention-inline" />
 </div>
 {#if addressees && addressees.length > 0}
 	<div class="post-pinged">
