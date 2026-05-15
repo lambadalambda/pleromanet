@@ -19,7 +19,7 @@
 		type PaginatedTimelineBaseState,
 		type PaginatedTimelineSuccess
 	} from '$lib/pleroma/timeline-state';
-	import { adaptPleromaStatuses, normalizePleromaRequestError, type PleromaRequestErrorView, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaStatuses, normalizePleromaRequestError, statusCharacterLimit, type PleromaRequestErrorView, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import type { IconName } from '$lib/rebuild/icons';
 	import type { PleromaSession, PleromaStatus } from '$lib/pleroma/types';
@@ -114,12 +114,15 @@
 	let homeTimelineRequestId = 0;
 	let homeTimelineNewPostsRequestId = 0;
 	let profileAccountRequestId = 0;
+	let instanceConfigRequestId = 0;
 	let loadedHomeTimelineKey = '';
 	let loadedProfileAccountKey = '';
+	let loadedInstanceConfigKey = '';
 	let homeTimelineFallbackSinceId: string | null = null;
 	let homeTimelineStreamKey = '';
 	let closeHomeTimelineStream: (() => void) | null = null;
 	let homeTimelineStreamReconnectTimer: number | null = null;
+	let composerCharacterLimit = $state(DEFAULT_STATUS_CHARACTER_LIMIT);
 	const sessionKey = (session: PleromaSession | null) => session ? `${session.instanceUrl}\n${session.accessToken}\n${session.createdAt}` : '';
 	const invalidateHomeTimelineRequests = () => {
 		homeTimelineRequestId += 1;
@@ -128,6 +131,11 @@
 	const invalidateProfileAccountRequests = () => {
 		profileAccountRequestId += 1;
 		loadedProfileAccountKey = '';
+	};
+	const invalidateInstanceConfigRequests = () => {
+		instanceConfigRequestId += 1;
+		loadedInstanceConfigKey = '';
+		composerCharacterLimit = DEFAULT_STATUS_CHARACTER_LIMIT;
 	};
 	const isCurrentSessionRequest = (requestSessionKey: string) => sessionKey(currentSession) === requestSessionKey;
 	const clearHomeTimelineStreamReconnect = () => {
@@ -199,13 +207,15 @@
 		page.url.pathname.startsWith('/app/notifications') ? 'notifications' :
 		'home'
 	);
-	const composerRemaining = $derived(500 - composerText.length);
+	const composerRemaining = $derived(composerCharacterLimit - composerText.length);
+	const canSubmitHomePost = $derived(Boolean(composerText.trim()) && composerRemaining >= 0);
 	const timelinePosts = $derived([
 		...localHomePosts,
 		...(homeTimelineState.status === 'success' ? homeTimelineState.data.map(postForRebuild) : [])
 	]);
 	const profileBioCount = $derived(`${profile.bio.length} / 160`);
-	const replyRemaining = $derived(500 - replyDraft.length);
+	const replyRemaining = $derived(composerCharacterLimit - replyDraft.length);
+	const canSubmitReply = $derived(Boolean(replyDraft.trim()) && replyRemaining >= 0);
 	const sortedThreadReplies = $derived(replySort === 'newest' ? [...threadReplies].reverse() : threadReplies);
 	const exploreFeedText = $derived(
 		exploreFeed === 'popular' ? 'Popular across friendly instances' :
@@ -253,7 +263,7 @@
 	};
 	const submitReply = () => {
 		const body = replyDraft.trim();
-		if (!body) return;
+		if (!body || replyDraft.length > composerCharacterLimit) return;
 
 		threadReplies = [
 			...threadReplies,
@@ -263,7 +273,7 @@
 	};
 	const submitHomePost = () => {
 		const body = composerText.trim();
-		if (!body) return;
+		if (!body || composerText.length > composerCharacterLimit) return;
 
 		localHomePosts = [
 			{
@@ -330,6 +340,7 @@
 	const redirectToLanding = () => {
 		invalidateHomeTimelineRequests();
 		invalidateProfileAccountRequests();
+		invalidateInstanceConfigRequests();
 		closeHomeTimelineStreaming();
 		loadedHomeTimelineKey = '';
 		homeTimelineFallbackSinceId = null;
@@ -347,6 +358,7 @@
 		if (sessionKey(currentSession) !== sessionKey(session)) {
 			invalidateHomeTimelineRequests();
 			invalidateProfileAccountRequests();
+			invalidateInstanceConfigRequests();
 			closeHomeTimelineStreaming();
 			loadedHomeTimelineKey = '';
 			homeTimelineFallbackSinceId = null;
@@ -384,6 +396,32 @@
 
 		loadedProfileAccountKey = requestSessionKey;
 		void loadProfileAccount(session);
+	};
+	const loadInstanceConfig = async (session: PleromaSession) => {
+		const requestSessionKey = sessionKey(session);
+		const requestId = instanceConfigRequestId + 1;
+		instanceConfigRequestId = requestId;
+
+		try {
+			const client = createPleromaClient({
+				instanceUrl: session.instanceUrl,
+				accessToken: session.accessToken,
+				fetch: window.fetch.bind(window)
+			});
+			const instance = await client.getInstance();
+			if (requestId !== instanceConfigRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			composerCharacterLimit = statusCharacterLimit(instance);
+		} catch {
+			// Character limits are best-effort; keep the conservative default if instance metadata is unavailable.
+		}
+	};
+	const ensureInstanceConfig = (session: PleromaSession) => {
+		const requestSessionKey = sessionKey(session);
+		if (loadedInstanceConfigKey === requestSessionKey) return;
+
+		loadedInstanceConfigKey = requestSessionKey;
+		void loadInstanceConfig(session);
 	};
 	const queueStreamedHomeStatus = (requestSessionKey: string, status: PleromaStatus) => {
 		if (!isCurrentSessionRequest(requestSessionKey)) return;
@@ -615,6 +653,7 @@
 		const session = readSessionOrRedirect();
 		if (!session) return;
 		ensureProfileAccount(session);
+		if (pathname.startsWith('/app/home') || pathname.startsWith('/app/thread')) ensureInstanceConfig(session);
 		if (pathname.startsWith('/app/home')) {
 			const loadKey = `${sessionKey(session)}\n${pathname}`;
 			if (loadedHomeTimelineKey !== loadKey) {
@@ -720,8 +759,8 @@
 									<button type="button" class="composer-tool cw" aria-label="Content warning">CW</button>
 									<button type="button" class="composer-tool privacy" aria-label="Privacy Public"><Icon name="globe" width={13} height={13} /><span>Public</span><Icon name="chevDown" width={12} height={12} /></button>
 									<span class="composer-spacer"></span>
-									<span class="composer-count">{composerRemaining}</span>
-									<Button variant="primary" disabled={!composerText.trim()} onclick={submitHomePost}>Post</Button>
+									<span class="composer-count" class:over-limit={composerRemaining < 0}>{composerRemaining}</span>
+									<Button variant="primary" disabled={!canSubmitHomePost} onclick={submitHomePost}>Post</Button>
 								</div>
 							</div>
 						</form>
@@ -825,7 +864,7 @@
 							<span class="composer-av"><span class="av-orb"></span></span>
 							<div>
 								<textarea class="composer-input" aria-label="Reply text" placeholder="Reply to quiet admin" bind:value={replyDraft}></textarea>
-								<div class="composer-row"><span data-testid="reply-composer-count">{replyRemaining}</span><span class="composer-spacer"></span><Button variant="primary" disabled={!replyDraft.trim()} onclick={submitReply}>Reply</Button></div>
+								<div class="composer-row"><span data-testid="reply-composer-count" class="composer-count" class:over-limit={replyRemaining < 0}>{replyRemaining}</span><span class="composer-spacer"></span><Button variant="primary" disabled={!canSubmitReply} onclick={submitReply}>Reply</Button></div>
 							</div>
 						</form>
 						<div class="thread-reply-head">

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, normalizePleromaRequestError } from './ui';
+import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, normalizePleromaRequestError, statusCharacterLimit } from './ui';
 import { pleromaFixtures } from './fixtures';
 import type { PleromaStatus } from './types';
 
@@ -283,6 +283,27 @@ test('Pleroma status list adapter keeps fixture order and covers missing plain-t
 
 test('HTML fallback text keeps malformed entities from breaking list adaptation', () => {
 	expect(htmlToPlainText('<p>remote entity &#999999999999; survives</p>')).toBe('remote entity &#999999999999; survives');
+});
+
+test('Pleroma instance adapters expose the configured status character limit', () => {
+	expect(statusCharacterLimit({
+		...pleromaFixtures.instance,
+		configuration: { statuses: { max_characters: 4096 } }
+	})).toBe(4096);
+	expect(statusCharacterLimit({
+		...pleromaFixtures.instance,
+		pleroma: {
+			metadata: {
+				features: [],
+				max_toot_chars: 1234
+			}
+		}
+	})).toBe(1234);
+	expect(statusCharacterLimit({
+		...pleromaFixtures.instance,
+		configuration: { statuses: { max_characters: 0 } },
+		pleroma: { metadata: { features: [], max_toot_chars: 'nope' } }
+	})).toBe(DEFAULT_STATUS_CHARACTER_LIMIT);
 });
 
 test('Pleroma request error display distinguishes auth, rate limits, server, and network failures', () => {

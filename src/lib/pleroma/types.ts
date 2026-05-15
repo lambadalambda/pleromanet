@@ -120,10 +120,19 @@ export type PleromaInstance = {
 	version: string;
 	source_url?: string;
 	description: string;
+	max_toot_chars?: number | string;
 	usage?: { users?: { active_month?: number } };
+	configuration?: {
+		statuses?: {
+			max_characters?: number | string;
+			[key: string]: unknown;
+		};
+		[key: string]: unknown;
+	};
 	pleroma: {
 		metadata: {
 			features: string[];
+			max_toot_chars?: number | string;
 			[key: string]: unknown;
 		};
 		[key: string]: unknown;

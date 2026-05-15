@@ -861,6 +861,7 @@ body[data-theme='simoun'] .pill {
 	margin-right: 12px;
 	font-variant-numeric: tabular-nums;
 }
+.composer-count.over-limit { color: var(--bad); }
 
 /* ===== Controls ===== */
 .pill {

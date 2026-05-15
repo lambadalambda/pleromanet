@@ -1,6 +1,8 @@
 import type { AvatarVariant, CustomEmoji, PostAttachment, TimelinePost, TimelineView } from '$lib/social/types';
 import { isPleromaClientError } from './http';
-import type { PleromaAccount, PleromaCustomEmoji, PleromaStatus } from './types';
+import type { PleromaAccount, PleromaCustomEmoji, PleromaInstance, PleromaStatus } from './types';
+
+export const DEFAULT_STATUS_CHARACTER_LIMIT = 500;
 
 export type PleromaAccountView = {
 	id: string;
@@ -186,6 +188,22 @@ const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(v
 const stringValue = (value: unknown) => (typeof value === 'string' && value.trim() ? value : null);
 
 const numberValue = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
+
+const positiveIntegerValue = (value: unknown) => {
+	const number = typeof value === 'string' && value.trim() ? Number(value) : numberValue(value);
+	return typeof number === 'number' && Number.isFinite(number) && number > 0 ? Math.floor(number) : null;
+};
+
+export const statusCharacterLimit = (instance: PleromaInstance | null | undefined) => {
+	const configuration = isRecord(instance?.configuration) ? instance.configuration : null;
+	const statuses = isRecord(configuration?.statuses) ? configuration.statuses : null;
+	const metadata = isRecord(instance?.pleroma.metadata) ? instance.pleroma.metadata : null;
+
+	return positiveIntegerValue(statuses?.max_characters)
+		?? positiveIntegerValue(instance?.max_toot_chars)
+		?? positiveIntegerValue(metadata?.max_toot_chars)
+		?? DEFAULT_STATUS_CHARACTER_LIMIT;
+};
 
 export const adaptCustomEmojis = (emojis: PleromaCustomEmoji[] | undefined): CustomEmoji[] => (emojis ?? [])
 	.map((emoji) => ({

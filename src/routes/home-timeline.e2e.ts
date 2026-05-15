@@ -12,6 +12,7 @@ const session = {
 };
 
 const homeUrl = 'https://pleroma.example/api/v1/timelines/home**';
+const instanceUrl = 'https://pleroma.example/api/v2/instance';
 
 const authenticate = async (page: Page) => {
 	await page.addInitScript((storedSession) => {
@@ -63,6 +64,16 @@ const authenticateWithThrowingWebSocket = async (page: Page) => {
 
 const mockHomeTimeline = async (page: Page, handler: (route: Route) => Promise<void>) => {
 	await page.route(homeUrl, handler);
+};
+
+const mockInstance = async (page: Page, instance = pleromaFixtures.instance) => {
+	await page.route(instanceUrl, async (route) => {
+		await route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify(instance)
+		});
+	});
 };
 
 const fulfillHome = async (route: Route, body: unknown, status = 200, headers: Record<string, string> = {}) => {
@@ -158,6 +169,23 @@ test('home timeline sends the OAuth token in the request', async ({ page }) => {
 
 	await expect(page.getByTestId('home-timeline-list')).toContainText('quiet CSS can still carry the voice.');
 	expect(authorization).toBe('Bearer access-token');
+});
+
+test('home timeline composer uses the instance status character limit', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page, {
+		...pleromaFixtures.instance,
+		configuration: { statuses: { max_characters: 5000 } }
+	});
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, pleromaFixtures.timelines.home);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await expect(page.locator('.composer-count')).toHaveText('5000');
+	await page.getByRole('textbox', { name: 'Post text' }).fill('hello from a long-post instance');
+	await expect(page.locator('.composer-count')).toHaveText('4969');
 });
 
 test('home timeline renders repeated mention separators without duplicate keyed blocks', async ({ page }) => {
