@@ -34,6 +34,9 @@ export type PleromaStatusView = TimelinePost & {
 	threadStatusId: string;
 	timelineItemId: string;
 	originalStatusId: string;
+	inReplyToId: string | null;
+	createdAt: string;
+	applicationName: string | null;
 	url: string;
 	uri: string;
 	account: PleromaAccountView;
@@ -330,6 +333,9 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		threadStatusId: source.id,
 		timelineItemId: status.id,
 		originalStatusId: source.id,
+		inReplyToId: source.in_reply_to_id,
+		createdAt: source.created_at,
+		applicationName: source.application?.name ?? null,
 		timelines: timelineMembership(source, options),
 		name: account.displayName,
 		nameEmojis: account.emojis,

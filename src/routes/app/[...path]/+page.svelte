@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import AncestorPost from '$lib/rebuild/AncestorPost.svelte';
 	import AttachmentLightboxHost from '$lib/rebuild/AttachmentLightboxHost.svelte';
 	import Button from '$lib/rebuild/Button.svelte';
+	import FocusedPost from '$lib/rebuild/FocusedPost.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
 	import Post from '$lib/rebuild/Post.svelte';
 	import ProfileMini from '$lib/rebuild/ProfileMini.svelte';
+	import ReplyPost from '$lib/rebuild/ReplyPost.svelte';
 	import SurfaceCard from '$lib/rebuild/SurfaceCard.svelte';
 	import TimelineLoadMore from '$lib/rebuild/TimelineLoadMore.svelte';
 	import TimelineNewPostsIndicator from '$lib/rebuild/TimelineNewPostsIndicator.svelte';
@@ -19,7 +22,7 @@
 		type PaginatedTimelineBaseState,
 		type PaginatedTimelineSuccess
 	} from '$lib/pleroma/timeline-state';
-	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaStatuses, normalizePleromaRequestError, statusCharacterLimit, type PleromaRequestErrorView, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaStatus, adaptPleromaStatuses, normalizePleromaRequestError, statusCharacterLimit, type PleromaRequestErrorView, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import type { IconName } from '$lib/rebuild/icons';
 	import type { PleromaSession, PleromaStatus } from '$lib/pleroma/types';
@@ -41,15 +44,6 @@
 		showFollowers: boolean;
 	};
 	type ReplySort = 'top' | 'newest';
-	type ThreadReply = {
-		id: string;
-		name: string;
-		body: string;
-		boosts: number;
-		favorites: number;
-		boosted: boolean;
-		favorited: boolean;
-	};
 	type RebuildPost = PostLike & {
 		id: string | number;
 		actionStatusId?: string;
@@ -70,11 +64,24 @@
 		copyJson?: unknown;
 		actions: { reply: boolean; boost: boolean; fav: boolean };
 	};
+	type ThreadViewPost = RebuildPost & {
+		bookmarks?: number;
+		fullTime?: string;
+		source?: string;
+		views?: string | null;
+		following?: boolean;
+		nestedReplies?: ThreadViewPost[];
+	};
 	type HomeTimelineSuccess = PaginatedTimelineSuccess<PleromaStatusView, PleromaRequestErrorView> & {
 		newerPosts: PleromaStatusView[];
 		newPostsStatus: 'idle' | 'checking';
 	};
 	type HomeTimelineState = PaginatedTimelineBaseState<PleromaRequestErrorView> | HomeTimelineSuccess;
+	type ThreadState =
+		| { status: 'idle' }
+		| { status: 'loading' }
+		| { status: 'error'; error: PleromaRequestErrorView }
+		| { status: 'success'; focused: ThreadViewPost; ancestors: ThreadViewPost[]; replies: ThreadViewPost[] };
 	const HOME_TIMELINE_CHECK_EVENT = 'pleromanet:check-home-timeline';
 	const HOME_TIMELINE_FALLBACK_INTERVAL_MS = 60_000;
 	const HOME_TIMELINE_STREAM_RECONNECT_MS = HOME_TIMELINE_FALLBACK_INTERVAL_MS;
@@ -93,7 +100,9 @@
 	let mounted = $state(false);
 	let currentSession = $state<PleromaSession | null>(null);
 	let homeTimelineState = $state<HomeTimelineState>({ status: 'idle' });
+	let threadState = $state<ThreadState>({ status: 'idle' });
 	let localHomePosts = $state<RebuildPost[]>([]);
+	let localThreadReplies = $state<ThreadViewPost[]>([]);
 	let composerText = $state('');
 	let mobileDrawerOpen = $state(false);
 	let mobileSheetOpen = $state(false);
@@ -105,17 +114,13 @@
 	let savedProfile = $state<ProfileSettings>({ ...defaultProfile });
 	let replyDraft = $state('');
 	let replySort = $state<ReplySort>('top');
-	let nestedReplyOpen = $state(false);
-	let threadReplies = $state<ThreadReply[]>([
-		{ id: 'logoff', name: 'packet ghost', body: 'we used to log off. when did that stop being a thing.', boosts: 12, favorites: 64, boosted: false, favorited: false },
-		{ id: 'garden', name: 'gridwave', body: 'the timeline is still worth defending.', boosts: 4, favorites: 21, boosted: false, favorited: false },
-		{ id: 'energy', name: 'lumen', body: 'this is the energy i needed today.', boosts: 7, favorites: 39, boosted: false, favorited: false }
-	]);
 	let homeTimelineRequestId = 0;
 	let homeTimelineNewPostsRequestId = 0;
+	let threadRequestId = 0;
 	let profileAccountRequestId = 0;
 	let instanceConfigRequestId = 0;
 	let loadedHomeTimelineKey = '';
+	let loadedThreadKey = '';
 	let loadedProfileAccountKey = '';
 	let loadedInstanceConfigKey = '';
 	let homeTimelineFallbackSinceId: string | null = null;
@@ -127,6 +132,13 @@
 	const invalidateHomeTimelineRequests = () => {
 		homeTimelineRequestId += 1;
 		homeTimelineNewPostsRequestId += 1;
+	};
+	const invalidateThreadRequests = () => {
+		threadRequestId += 1;
+		loadedThreadKey = '';
+		threadState = { status: 'idle' };
+		localThreadReplies = [];
+		replyDraft = '';
 	};
 	const invalidateProfileAccountRequests = () => {
 		profileAccountRequestId += 1;
@@ -196,6 +208,53 @@
 			fav: post.actions.favorite,
 		},
 	});
+	const threadFullTime = (createdAt: string) => {
+		const date = new Date(createdAt);
+		if (Number.isNaN(date.getTime())) return '';
+
+		const time = new Intl.DateTimeFormat('en', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }).format(date);
+		const day = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(date);
+		return `${time} · ${day}`;
+	};
+	const threadPostForRebuild = (post: PleromaStatusView): ThreadViewPost => ({
+		...postForRebuild(post),
+		fullTime: threadFullTime(post.createdAt),
+		source: post.applicationName ?? 'Pleroma',
+		views: null
+	});
+	const threadRepliesForRebuild = (focusedStatusId: string, descendants: PleromaStatusView[]) => {
+		const posts: ThreadViewPost[] = descendants.map((post) => ({ ...threadPostForRebuild(post), nestedReplies: [] }));
+		const byId = new Map(posts.map((post) => [String(post.id), post]));
+		const roots: ThreadViewPost[] = [];
+
+		descendants.forEach((status, index) => {
+			const post = posts[index];
+			const parent = status.inReplyToId ? byId.get(status.inReplyToId) : null;
+			if (parent && status.inReplyToId !== focusedStatusId) {
+				parent.nestedReplies = [...(parent.nestedReplies ?? []), post];
+				return;
+			}
+
+			roots.push(post);
+		});
+
+		return roots;
+	};
+	const threadPostCount = (posts: ThreadViewPost[]): number => posts.reduce((total, post) => total + 1 + threadPostCount(post.nestedReplies ?? []), 0);
+	const togglePostAction = <PostType extends RebuildPost>(post: PostType, key: 'reply' | 'boost' | 'fav'): PostType => {
+		const active = !post.actions[key];
+		return {
+			...post,
+			replies: key === 'reply' ? post.replies + (active ? 1 : -1) : post.replies,
+			actions: { ...post.actions, [key]: active }
+		};
+	};
+	const updatePostListAction = <PostType extends RebuildPost>(posts: PostType[], postId: string | number, key: 'reply' | 'boost' | 'fav') =>
+		posts.map((post) => post.id === postId ? togglePostAction(post, key) : post);
+	const openThread = (post: RebuildPost) => {
+		const statusId = post.threadStatusId ?? post.actionStatusId ?? String(post.id);
+		goto(`/app/thread/${encodeURIComponent(statusId)}`);
+	};
 	const route = $derived<AppRoute>(
 		page.url.pathname.startsWith('/app/explore') ? 'explore' :
 		page.url.pathname.startsWith('/app/settings') ? 'settings' :
@@ -207,6 +266,7 @@
 		page.url.pathname.startsWith('/app/notifications') ? 'notifications' :
 		'home'
 	);
+	const threadStatusId = $derived(route === 'thread' ? decodeURIComponent(page.url.pathname.split('/').filter(Boolean).slice(2).join('/') || '') : '');
 	const composerRemaining = $derived(composerCharacterLimit - composerText.length);
 	const canSubmitHomePost = $derived(Boolean(composerText.trim()) && composerRemaining >= 0);
 	const timelinePosts = $derived([
@@ -216,7 +276,9 @@
 	const profileBioCount = $derived(`${profile.bio.length} / 160`);
 	const replyRemaining = $derived(composerCharacterLimit - replyDraft.length);
 	const canSubmitReply = $derived(Boolean(replyDraft.trim()) && replyRemaining >= 0);
-	const sortedThreadReplies = $derived(replySort === 'newest' ? [...threadReplies].reverse() : threadReplies);
+	const threadReplyPosts = $derived(threadState.status === 'success' ? [...threadState.replies, ...localThreadReplies] : localThreadReplies);
+	const threadReplyCount = $derived((threadState.status === 'success' ? threadPostCount(threadState.replies) : 0) + localThreadReplies.length);
+	const sortedThreadReplyPosts = $derived(replySort === 'newest' ? [...threadReplyPosts].reverse() : threadReplyPosts);
 	const exploreFeedText = $derived(
 		exploreFeed === 'popular' ? 'Popular across friendly instances' :
 		exploreFeed === 'new' ? 'Fresh instance dispatches' :
@@ -249,26 +311,30 @@
 	const toggleCommunity = (community: string) => {
 		joinedCommunities = { ...joinedCommunities, [community]: !joinedCommunities[community] };
 	};
-	const toggleReplyAction = (id: string, action: 'boost' | 'favorite') => {
-		threadReplies = threadReplies.map((reply) => {
-			if (reply.id !== id) return reply;
-			if (action === 'boost') {
-				const boosted = !reply.boosted;
-				return { ...reply, boosted, boosts: reply.boosts + (boosted ? 1 : -1) };
-			}
-
-			const favorited = !reply.favorited;
-			return { ...reply, favorited, favorites: reply.favorites + (favorited ? 1 : -1) };
-		});
-	};
 	const submitReply = () => {
 		const body = replyDraft.trim();
 		if (!body || replyDraft.length > composerCharacterLimit) return;
 
-		threadReplies = [
-			...threadReplies,
-			{ id: `local-${Date.now()}`, name: 'quiet admin', body, boosts: 0, favorites: 0, boosted: false, favorited: false }
+		const account = currentSession?.account;
+		localThreadReplies = [
+			...localThreadReplies,
+			{
+				id: `local-${Date.now()}`,
+				name: account?.display_name?.trim() || account?.username || 'quiet admin',
+				handle: account?.acct ? `@${account.acct.replace(/^@/, '')}` : '@quietadmin@pleroma.example',
+				time: 'now',
+				avatarUrl: account?.avatar || account?.avatar_static || null,
+				avClass: account?.avatar || account?.avatar_static ? 'av-orb' : 'av-grad-2',
+				body,
+				replies: 0,
+				boosts: 0,
+				favs: 0,
+				actions: { reply: false, boost: false, fav: false }
+			}
 		];
+		if (threadState.status === 'success') {
+			threadState = { ...threadState, focused: { ...threadState.focused, replies: threadState.focused.replies + 1 } };
+		}
 		replyDraft = '';
 	};
 	const submitHomePost = () => {
@@ -295,30 +361,29 @@
 	const handlePostAction = (postId: string | number, key: string) => {
 		if (key !== 'reply' && key !== 'boost' && key !== 'fav') return;
 
-		localHomePosts = localHomePosts.map((post) => {
-			if (post.id !== postId) return post;
-			const actionKey = key;
-			const active = !post.actions[actionKey];
-			return {
-				...post,
-				replies: key === 'reply' ? post.replies + (active ? 1 : -1) : post.replies,
-				actions: { ...post.actions, [actionKey]: active }
-			};
-		});
+		localHomePosts = updatePostListAction(localHomePosts, postId, key);
 
 		if (homeTimelineState.status !== 'success') return;
 		homeTimelineState = {
 			...homeTimelineState,
 			data: homeTimelineState.data.map((post) => {
 				if (post.id !== postId) return post;
-				if (key === 'reply') {
-					const reply = !post.actions.reply;
-					return { ...post, replies: post.replies + (reply ? 1 : -1), actions: { ...post.actions, reply } };
-				}
-
-				if (key === 'boost') return { ...post, actions: { ...post.actions, boost: !post.actions.boost } };
-				return { ...post, actions: { ...post.actions, favorite: !post.actions.favorite } };
+				const next = togglePostAction(postForRebuild(post), key);
+				return { ...post, replies: next.replies, actions: { reply: next.actions.reply, boost: next.actions.boost, favorite: next.actions.fav } };
 			})
+		};
+	};
+	const handleThreadPostAction = (postId: string | number | undefined, key: string) => {
+		if (postId == null || (key !== 'reply' && key !== 'boost' && key !== 'fav')) return;
+
+		localThreadReplies = updatePostListAction(localThreadReplies, postId, key);
+		if (threadState.status !== 'success') return;
+
+		threadState = {
+			...threadState,
+			focused: threadState.focused.id === postId ? togglePostAction(threadState.focused, key) : threadState.focused,
+			ancestors: updatePostListAction(threadState.ancestors, postId, key),
+			replies: updatePostListAction(threadState.replies, postId, key)
 		};
 	};
 	const closeMobilePanels = () => {
@@ -339,6 +404,7 @@
 	};
 	const redirectToLanding = () => {
 		invalidateHomeTimelineRequests();
+		invalidateThreadRequests();
 		invalidateProfileAccountRequests();
 		invalidateInstanceConfigRequests();
 		closeHomeTimelineStreaming();
@@ -357,6 +423,7 @@
 
 		if (sessionKey(currentSession) !== sessionKey(session)) {
 			invalidateHomeTimelineRequests();
+			invalidateThreadRequests();
 			invalidateProfileAccountRequests();
 			invalidateInstanceConfigRequests();
 			closeHomeTimelineStreaming();
@@ -520,6 +587,60 @@
 			homeTimelineState = { status: 'error', error: normalized };
 		}
 	};
+	const loadThread = async (session: PleromaSession, statusId: string) => {
+		const requestSessionKey = sessionKey(session);
+		const requestId = threadRequestId + 1;
+		threadRequestId = requestId;
+		localThreadReplies = [];
+		replyDraft = '';
+
+		if (!statusId) {
+			threadState = {
+				status: 'error',
+				error: {
+					kind: 'request',
+					title: 'Thread unavailable',
+					message: 'PleromaNet needs a status id to load a thread.',
+					retryable: false,
+					reauthRequired: false
+				}
+			};
+			return;
+		}
+
+		threadState = { status: 'loading' };
+
+		try {
+			const client = createPleromaClient({
+				instanceUrl: session.instanceUrl,
+				accessToken: session.accessToken,
+				fetch: window.fetch.bind(window)
+			});
+			const [status, context] = await Promise.all([
+				client.getStatus(statusId),
+				client.getStatusContext(statusId)
+			]);
+			if (route !== 'thread' || requestId !== threadRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			threadState = {
+				status: 'success',
+				focused: threadPostForRebuild(adaptPleromaStatus(status)),
+				ancestors: adaptPleromaStatuses(context.ancestors).map(threadPostForRebuild),
+				replies: threadRepliesForRebuild(status.id, adaptPleromaStatuses(context.descendants))
+			};
+		} catch (error) {
+			if (requestId !== threadRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			const normalized = normalizePleromaRequestError(error);
+			if (normalized.reauthRequired) {
+				signOutPleroma(localStorage);
+				redirectToLanding();
+				return;
+			}
+
+			threadState = { status: 'error', error: normalized };
+		}
+	};
 	const loadMoreHomeTimeline = async () => {
 		const session = currentSession;
 		if (!session || homeTimelineState.status !== 'success' || !homeTimelineState.nextCursor || homeTimelineState.loadMoreStatus === 'loading') return;
@@ -626,6 +747,9 @@
 	const retryHomeTimeline = () => {
 		if (currentSession) void loadHomeTimeline(currentSession);
 	};
+	const retryThread = () => {
+		if (currentSession) void loadThread(currentSession, threadStatusId);
+	};
 
 	onMount(() => {
 		const storedTheme = localStorage.getItem('pn-theme');
@@ -664,6 +788,15 @@
 			invalidateHomeTimelineRequests();
 			loadedHomeTimelineKey = '';
 			closeHomeTimelineStreaming();
+		}
+		if (pathname.startsWith('/app/thread')) {
+			const loadKey = `${sessionKey(session)}\n${threadStatusId}`;
+			if (loadedThreadKey !== loadKey) {
+				loadedThreadKey = loadKey;
+				void loadThread(session, threadStatusId);
+			}
+		} else if (loadedThreadKey) {
+			invalidateThreadRequests();
 		}
 	});
 </script>
@@ -787,7 +920,7 @@
 						{:else if homeTimelineState.status === 'success'}
 							<div data-testid="home-timeline-list">
 								{#each timelinePosts as post (post.id)}
-									<Post {post} onAction={(key) => handlePostAction(post.id, key)} />
+									<Post {post} onOpen={() => openThread(post)} onAction={(key) => handlePostAction(post.id, key)} />
 								{/each}
 							</div>
 							<TimelineLoadMore
@@ -849,50 +982,49 @@
 							<button type="button" class="thread-back" aria-label="Back to home timeline" onclick={() => goto('/app/home')}><Icon name="arrowL" width={15} height={15} /></button>
 							<h1>Thread</h1>
 						</div>
-						<article class="thread-ancestor" data-testid="thread-ancestor">
-							<div class="thread-line" data-testid="thread-line"></div>
-							<strong>gridwave</strong>
-							<p>the best interfaces leave enough room for people to breathe.</p>
-						</article>
-						<article class="focused-post" data-testid="focused-post">
-							<div class="focused-name">quiet admin</div>
-							<p class="focused-body">quiet CSS can still carry the voice.</p>
-							<div class="focused-meta">4:18 PM · May 11, 2026 · PleromaNet™ Web · 12.4K views</div>
-							<div class="focused-engagement" data-testid="focused-engagement"><strong>12 Boosts</strong><strong>28 Favorites</strong></div>
-						</article>
-						<form class="thread-reply-composer" aria-label="Thread reply" onsubmit={(event) => { event.preventDefault(); submitReply(); }}>
-							<span class="composer-av"><span class="av-orb"></span></span>
-							<div>
-								<textarea class="composer-input" aria-label="Reply text" placeholder="Reply to quiet admin" bind:value={replyDraft}></textarea>
-								<div class="composer-row"><span data-testid="reply-composer-count" class="composer-count" class:over-limit={replyRemaining < 0}>{replyRemaining}</span><span class="composer-spacer"></span><Button variant="primary" disabled={!canSubmitReply} onclick={submitReply}>Reply</Button></div>
+						{#if threadState.status === 'loading'}
+							<div class="request-state" role="status" aria-label="Request status">Loading thread</div>
+						{:else if threadState.status === 'error'}
+							<div class="request-state request-error">
+								<h2>{threadState.error.title}</h2>
+								<p>{threadState.error.message}</p>
+								{#if threadState.error.retryable && currentSession}
+									<Button variant="secondary" onclick={retryThread}>Retry thread</Button>
+								{/if}
 							</div>
-						</form>
-						<div class="thread-reply-head">
-							<div class="thread-reply-count" data-testid="thread-reply-count">{threadReplies.length} replies</div>
-							<div class="seg" role="group" aria-label="Reply sort">
-								<button type="button" aria-pressed={replySort === 'top'} class:active={replySort === 'top'} onclick={() => (replySort = 'top')}>Top</button>
-								<button type="button" aria-pressed={replySort === 'newest'} class:active={replySort === 'newest'} onclick={() => (replySort = 'newest')}>Newest</button>
-							</div>
-						</div>
-						<div class="thread-replies">
-							{#each sortedThreadReplies as reply (reply.id)}
-								<article class="post post-reply" data-testid="thread-reply">
-									<div class="post-av av-grad-3"></div>
-									<div>
-										<strong>{reply.name}</strong>
-										<p>{reply.body}</p>
-										<div class="focused-actions">
-											<button type="button" class="focused-action" class:active={reply.boosted} aria-pressed={reply.boosted ? 'true' : 'false'} onclick={() => toggleReplyAction(reply.id, 'boost')}>Boost {reply.boosts}</button>
-											<button type="button" class="focused-action" class:active={reply.favorited} aria-pressed={reply.favorited ? 'true' : 'false'} onclick={() => toggleReplyAction(reply.id, 'favorite')}>Favorite {reply.favorites}</button>
+						{:else if threadState.status === 'success'}
+							{#if threadState.ancestors.length > 0}
+								<div class="thread-ancestors">
+									{#each threadState.ancestors as ancestor (ancestor.id)}
+										<div data-testid="thread-ancestor">
+											<AncestorPost post={ancestor} onAction={handleThreadPostAction} />
 										</div>
-										{#if reply.id === 'logoff'}
-											<button type="button" class="show-replies" onclick={() => (nestedReplyOpen = true)}>Show 1 reply</button>
-											{#if nestedReplyOpen}<div class="nested-replies">around the time the algorithm replaced the timeline.</div>{/if}
-										{/if}
+									{/each}
+								</div>
+							{/if}
+							<FocusedPost post={threadState.focused} continuesAbove={threadState.ancestors.length > 0} onAction={handleThreadPostAction} />
+							<form class="thread-reply-composer" aria-label="Thread reply" onsubmit={(event) => { event.preventDefault(); submitReply(); }}>
+								<span class="composer-av"><span class="av-orb"></span></span>
+								<div>
+									<textarea class="composer-input" aria-label="Reply text" placeholder={`Reply to ${threadState.focused.name}`} bind:value={replyDraft}></textarea>
+									<div class="composer-row"><span data-testid="reply-composer-count" class="composer-count" class:over-limit={replyRemaining < 0}>{replyRemaining}</span><span class="composer-spacer"></span><Button variant="primary" disabled={!canSubmitReply} onclick={submitReply}>Reply</Button></div>
+								</div>
+							</form>
+							<div class="thread-reply-head">
+								<div class="thread-reply-count" data-testid="thread-reply-count">{threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}</div>
+								<div class="seg" role="group" aria-label="Reply sort">
+									<button type="button" aria-pressed={replySort === 'top'} class:active={replySort === 'top'} onclick={() => (replySort = 'top')}>Top</button>
+									<button type="button" aria-pressed={replySort === 'newest'} class:active={replySort === 'newest'} onclick={() => (replySort = 'newest')}>Newest</button>
+								</div>
+							</div>
+							<div class="thread-replies">
+								{#each sortedThreadReplyPosts as reply, i (reply.id)}
+									<div data-testid="thread-reply">
+										<ReplyPost post={reply} isLast={i === sortedThreadReplyPosts.length - 1} nestedReplies={reply.nestedReplies} onAction={handleThreadPostAction} />
 									</div>
-								</article>
-							{/each}
-						</div>
+								{/each}
+							</div>
+						{/if}
 					</section>
 				{:else if route === 'settings'}
 					<section class="card app-panel settings-panel">

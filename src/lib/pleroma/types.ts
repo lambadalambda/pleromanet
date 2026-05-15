@@ -66,6 +66,7 @@ export type PleromaStatus = {
 	id: string;
 	uri: string;
 	url: string;
+	application?: { name?: string; website?: string | null } | null;
 	account: PleromaAccount;
 	content: string;
 	created_at: string;

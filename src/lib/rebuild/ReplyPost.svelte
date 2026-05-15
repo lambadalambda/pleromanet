@@ -5,16 +5,19 @@
 	import PostHead from './PostHead.svelte';
 	import PostMedia from './PostMedia.svelte';
 	import QuotedPost from './QuotedPost.svelte';
+	import type { CustomEmoji } from '$lib/social/types';
 	import type { BannerVariant, PostLike } from './attachments';
 
 	type ThreadReply = PostLike & {
 		id?: string | number;
 		name?: string;
+		nameEmojis?: CustomEmoji[];
 		handle?: string;
 		time?: string;
 		avClass?: string;
 		avBanner?: BannerVariant;
 		body?: string;
+		bodyEmojis?: CustomEmoji[];
 		addressees?: string[];
 		quotedPost?: Record<string, unknown>;
 		replies: number;
@@ -44,7 +47,7 @@
 	</div>
 	<div style="min-width:0">
 		<PostHead post={post} />
-		<PostBody body={post.body} addressees={post.addressees} />
+		<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} />
 		<QuotedPost quoted={post.quotedPost} />
 		<PostMedia post={post} />
 		<PostActions post={post} onAction={(key) => onAction?.(post.id, key)} />
@@ -66,7 +69,7 @@
 				</div>
 				<div style="min-width:0">
 					<PostHead post={reply} />
-					<PostBody body={reply.body} addressees={reply.addressees} />
+					<PostBody body={reply.body} emojis={reply.bodyEmojis} addressees={reply.addressees} />
 					<QuotedPost quoted={reply.quotedPost} />
 					<PostMedia post={reply} />
 					<PostActions post={reply} onAction={(key) => onAction?.(reply.id, key)} />

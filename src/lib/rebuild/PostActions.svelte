@@ -48,18 +48,24 @@
 <div class="post-actions">
 	<button
 		class="post-action reply {post.actions.reply ? 'on' : ''}"
+		aria-pressed={post.actions.reply ? 'true' : 'false'}
+		aria-label={`Reply ${post.replies}`}
 		onclick={() => onAction?.('reply')}
 	>
 		<Icon name="reply" /> {post.replies}
 	</button>
 	<button
 		class="post-action boost {post.actions.boost ? 'on' : ''}"
+		aria-pressed={post.actions.boost ? 'true' : 'false'}
+		aria-label={`Boost ${post.boosts + (post.actions.boost ? 1 : 0)}`}
 		onclick={() => onAction?.('boost')}
 	>
 		<Icon name="boost" /> {post.boosts + (post.actions.boost ? 1 : 0)}
 	</button>
 	<button
 		class="post-action fav {post.actions.fav ? 'on' : ''}"
+		aria-pressed={post.actions.fav ? 'true' : 'false'}
+		aria-label={`Favorite ${post.favs + (post.actions.fav ? 1 : 0)}`}
 		onclick={() => onAction?.('fav')}
 	>
 		<Icon name="star" fill={post.actions.fav ? 'currentColor' : 'none'} /> {post.favs + (post.actions.fav ? 1 : 0)}
