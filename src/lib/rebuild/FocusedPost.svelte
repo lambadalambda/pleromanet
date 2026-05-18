@@ -7,7 +7,8 @@
 	import RichText from './RichText.svelte';
 	import VaporBanner from './VaporBanner.svelte';
 	import type { CustomEmoji } from '$lib/social/types';
-	import type { BannerVariant, PostLike } from './attachments';
+	import { openLightbox } from './attachments';
+	import type { Attachment, BannerVariant, PostLike } from './attachments';
 
 	type FocusedThreadPost = PostLike & {
 		id?: string | number;
@@ -38,6 +39,16 @@
 	};
 
 	let { post, continuesAbove = false, onAction }: Props = $props();
+
+	const handleLightbox = (idx: number) => {
+		if (!post.attachments || !post.attachments.length) return;
+		openLightbox(post.attachments as Attachment[], idx, {
+			name: post.name,
+			handle: post.handle,
+			avClass: post.avClass,
+			avBanner: post.avBanner
+		});
+	};
 </script>
 
 <article class="focused-post" data-testid="focused-post">
@@ -72,7 +83,7 @@
 			<VaporBanner variant={post.media} />
 		</div>
 	{/if}
-	<PostMedia post={post} />
+	<PostMedia post={post} onOpen={handleLightbox} />
 
 	<div class="focused-meta">
 		<span>{post.fullTime || '4:18 PM · May 11, 2026'}</span>

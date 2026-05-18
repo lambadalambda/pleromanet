@@ -6,7 +6,8 @@
 	import PostMedia from './PostMedia.svelte';
 	import QuotedPost from './QuotedPost.svelte';
 	import type { CustomEmoji } from '$lib/social/types';
-	import type { BannerVariant, PostLike } from './attachments';
+	import { openLightbox } from './attachments';
+	import type { Attachment, BannerVariant, PostLike } from './attachments';
 
 	type ThreadReply = PostLike & {
 		id?: string | number;
@@ -36,6 +37,16 @@
 
 	let { post, isLast = false, nestedReplies = [], onAction }: Props = $props();
 	let showNested = $state(false);
+
+	const handleLightbox = (target: ThreadReply, idx: number) => {
+		if (!target.attachments || !target.attachments.length) return;
+		openLightbox(target.attachments as Attachment[], idx, {
+			name: target.name,
+			handle: target.handle,
+			avClass: target.avClass,
+			avBanner: target.avBanner
+		});
+	};
 </script>
 
 <div class="post post-reply {isLast && nestedReplies.length === 0 ? 'post-reply-last' : ''}">
@@ -49,7 +60,7 @@
 		<PostHead post={post} />
 		<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} />
 		<QuotedPost quoted={post.quotedPost} />
-		<PostMedia post={post} />
+		<PostMedia post={post} onOpen={(idx) => handleLightbox(post, idx)} />
 		<PostActions post={post} onAction={(key) => onAction?.(post.id, key)} />
 		{#if nestedReplies.length > 0 && !showNested}
 			<button type="button" class="show-replies" onclick={() => (showNested = true)}>
@@ -71,7 +82,7 @@
 					<PostHead post={reply} />
 					<PostBody body={reply.body} emojis={reply.bodyEmojis} addressees={reply.addressees} />
 					<QuotedPost quoted={reply.quotedPost} />
-					<PostMedia post={reply} />
+					<PostMedia post={reply} onOpen={(idx) => handleLightbox(reply, idx)} />
 					<PostActions post={reply} onAction={(key) => onAction?.(reply.id, key)} />
 				</div>
 			</div>

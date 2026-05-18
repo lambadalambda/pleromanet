@@ -104,10 +104,47 @@ test('opens the attachment lightbox from the design-system specimen', async ({ p
 	await page.goto('/design-system');
 
 	await page.locator('#attachments').getByRole('button', { name: 'Open lightbox →' }).click();
-	await expect(page.getByRole('dialog')).toBeVisible();
+	const dialog = page.getByRole('dialog');
+	await expect(dialog).toBeVisible();
 	await expect(page.getByText('1 of 5 · station platform at dusk')).toBeVisible();
-	await expect(page.getByRole('dialog').locator('.lightbox-photo')).toHaveCSS('filter', 'none');
-	await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(dialog.locator('.lightbox-photo')).toHaveCSS('filter', 'none');
+	await dialog.getByRole('button', { name: 'Next' }).click();
+	await dialog.getByRole('button', { name: 'Next' }).click();
+	await expect(page.getByText('3 of 5 · door with cat')).toBeVisible();
+	const bounds = await dialog.evaluate((node) => {
+		const rect = (selector: string) => {
+			const target = node.querySelector(selector);
+			if (!target) return null;
+			const box = target.getBoundingClientRect();
+			return { left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height };
+		};
+		return {
+			head: rect('.lightbox-head'),
+			body: rect('.lightbox-body'),
+			photo: rect('.lightbox-photo'),
+			strip: rect('.lightbox-strip'),
+			foot: rect('.lightbox-foot')
+		};
+	});
+	expect(bounds.head).not.toBeNull();
+	expect(bounds.body).not.toBeNull();
+	expect(bounds.photo).not.toBeNull();
+	expect(bounds.strip).not.toBeNull();
+	expect(bounds.foot).not.toBeNull();
+	expect(bounds.photo?.top ?? 0).toBeGreaterThanOrEqual(bounds.body?.top ?? 0);
+	expect(bounds.photo?.bottom ?? 0).toBeLessThanOrEqual(bounds.body?.bottom ?? 0);
+	expect(bounds.photo?.left ?? 0).toBeGreaterThanOrEqual(bounds.body?.left ?? 0);
+	expect(bounds.photo?.right ?? 0).toBeLessThanOrEqual(bounds.body?.right ?? 0);
+	expect(bounds.photo?.top ?? 0).toBeGreaterThanOrEqual(bounds.head?.bottom ?? 0);
+	expect(bounds.photo?.bottom ?? 0).toBeLessThanOrEqual(bounds.strip?.top ?? bounds.foot?.top ?? 0);
+	await expect(dialog.locator('.lightbox-photo')).toHaveCSS('object-fit', 'contain');
+	const previousIsTopmost = await dialog.getByRole('button', { name: 'Previous' }).evaluate((button) => {
+		const box = button.getBoundingClientRect();
+		const target = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+		return target === button || button.contains(target);
+	});
+	expect(previousIsTopmost).toBe(true);
+	await dialog.getByRole('button', { name: 'Close', exact: true }).click();
 	await expect(page.getByRole('dialog')).toBeHidden();
 });
 

@@ -6,7 +6,8 @@
 	import PostMedia from './PostMedia.svelte';
 	import QuotedPost from './QuotedPost.svelte';
 	import type { CustomEmoji } from '$lib/social/types';
-	import type { BannerVariant, PostLike } from './attachments';
+	import { openLightbox } from './attachments';
+	import type { Attachment, BannerVariant, PostLike } from './attachments';
 
 	type ThreadPost = PostLike & {
 		id?: string | number;
@@ -32,6 +33,16 @@
 	};
 
 	let { post, onAction }: Props = $props();
+
+	const handleLightbox = (idx: number) => {
+		if (!post.attachments || !post.attachments.length) return;
+		openLightbox(post.attachments as Attachment[], idx, {
+			name: post.name,
+			handle: post.handle,
+			avClass: post.avClass,
+			avBanner: post.avBanner
+		});
+	};
 </script>
 
 <div class="post post-ancestor">
@@ -43,7 +54,7 @@
 		<PostHead post={post} />
 		<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} />
 		<QuotedPost quoted={post.quotedPost} />
-		<PostMedia post={post} />
+		<PostMedia post={post} onOpen={handleLightbox} />
 		<PostActions post={post} onAction={(key) => onAction?.(post.id, key)} />
 	</div>
 </div>

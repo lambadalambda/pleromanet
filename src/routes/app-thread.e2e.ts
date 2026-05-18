@@ -167,6 +167,18 @@ test('real thread route opens from the home timeline and returns to home', async
 	await expect(page.getByRole('tablist', { name: 'Timeline sections' })).toBeVisible();
 });
 
+test('real thread route opens focused media in the attachment lightbox', async ({ page }) => {
+	await authenticate(page);
+	await mockThread(page);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	await page.getByTestId('focused-post').locator('.post-photos button').click();
+	const dialog = page.getByRole('dialog');
+	await expect(dialog).toBeVisible();
+	await expect(dialog.locator('.lightbox-photo')).toHaveAttribute('src', 'https://cdn.example/thread-photo.jpg');
+});
+
 test('real thread route reply actions update local state', async ({ page }) => {
 	await authenticate(page);
 	await mockThread(page);
