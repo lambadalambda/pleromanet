@@ -324,7 +324,7 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 	const postAttachments = mediaAttachments.map(adaptPostAttachment).filter((attachment) => attachment !== null);
 	const warning = spoilerText(source);
 	const plainText = plainTextContent(source);
-	const body = warning ? { body: `Content warning: ${warning}` } : extractLeadingReplyAddressees(plainText, source);
+	const body = extractLeadingReplyAddressees(plainText, source);
 	const mediaHidden = postAttachments.length > 0 && Boolean(warning || source.sensitive);
 	const booster = status.reblog ? adaptPleromaAccount(status.account) : undefined;
 
@@ -342,13 +342,14 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		nameEmojis: account.emojis,
 		handle: account.handle,
 		time: formatStatusDate(source.created_at),
+		cw: warning || undefined,
 		body: body.body,
 		bodyEmojis: adaptCustomEmojis(source.emojis),
 		addressees: body.addressees,
 		copyJson: status,
 		avatar: avatarVariant(source.account),
 		avatarUrl: account.avatarUrl,
-		attachments: mediaHidden ? undefined : postAttachments,
+		attachments: source.sensitive && !warning ? undefined : postAttachments,
 		media: undefined,
 		boostedBy: booster ? {
 			name: booster.displayName,

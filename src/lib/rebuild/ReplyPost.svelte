@@ -3,12 +3,13 @@
 	import PostActions from './PostActions.svelte';
 	import PostBoost from './PostBoost.svelte';
 	import PostBody from './PostBody.svelte';
+	import PostCW from './PostCW.svelte';
 	import PostHead from './PostHead.svelte';
 	import PostMedia from './PostMedia.svelte';
 	import QuotedPost from './QuotedPost.svelte';
 	import type { CustomEmoji } from '$lib/social/types';
-	import { openLightbox } from './attachments';
-	import type { Attachment, BannerVariant, PostLike } from './attachments';
+	import { normalizeRenderableAttachments, openLightbox } from './attachments';
+	import type { BannerVariant, PostLike } from './attachments';
 
 	type ThreadReply = PostLike & {
 		id?: string | number;
@@ -40,8 +41,9 @@
 	let showNested = $state(false);
 
 	const handleLightbox = (target: ThreadReply, idx: number) => {
-		if (!target.attachments || !target.attachments.length) return;
-		openLightbox(target.attachments as Attachment[], idx, {
+		const attachments = normalizeRenderableAttachments(target);
+		if (!attachments.length) return;
+		openLightbox(attachments, idx, {
 			name: target.name,
 			handle: target.handle,
 			avClass: target.avClass,
@@ -60,9 +62,11 @@
 		</div>
 		<div style="min-width:0">
 			<PostHead post={post} />
-			<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} />
-			<QuotedPost quoted={post.quotedPost} />
-			<PostMedia post={post} onOpen={(idx) => handleLightbox(post, idx)} />
+			<PostCW post={post}>
+				<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} />
+				<QuotedPost quoted={post.quotedPost} />
+				<PostMedia post={post} onOpen={(idx) => handleLightbox(post, idx)} />
+			</PostCW>
 			<PostActions post={post} onAction={(key) => onAction?.(post.id, key)} />
 			{#if nestedReplies.length > 0 && !showNested}
 				<button type="button" class="show-replies" onclick={() => (showNested = true)}>
@@ -84,9 +88,11 @@
 					</div>
 					<div style="min-width:0">
 						<PostHead post={reply} />
-						<PostBody body={reply.body} emojis={reply.bodyEmojis} addressees={reply.addressees} />
-						<QuotedPost quoted={reply.quotedPost} />
-						<PostMedia post={reply} onOpen={(idx) => handleLightbox(reply, idx)} />
+						<PostCW post={reply}>
+							<PostBody body={reply.body} emojis={reply.bodyEmojis} addressees={reply.addressees} />
+							<QuotedPost quoted={reply.quotedPost} />
+							<PostMedia post={reply} onOpen={(idx) => handleLightbox(reply, idx)} />
+						</PostCW>
 						<PostActions post={reply} onAction={(key) => onAction?.(reply.id, key)} />
 					</div>
 				</div>

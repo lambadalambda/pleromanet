@@ -203,6 +203,67 @@ test('real thread route renders focused reply addressee chips', async ({ page })
 	await expect(focused.locator('.post-pinged-chip')).toContainText('@lumen');
 });
 
+test('real thread route folds content warnings on ancestors, focused posts, replies, and nested replies', async ({ page }) => {
+	await authenticate(page);
+	const withContentWarning = (status: PleromaStatus, summary: string, body: string): PleromaStatus => ({
+		...status,
+		content: `<p>${body}</p>`,
+		spoiler_text: summary,
+		pleroma: {
+			...status.pleroma,
+			content: { 'text/plain': body },
+			spoiler_text: { 'text/plain': summary }
+		}
+	});
+	await mockInstance(page);
+	await page.route('https://pleroma.example/api/v1/statuses/status-1', async (route) => {
+		await fulfillJson(route, withContentWarning(threadStatus, 'focused warning', 'hidden focused thread body'));
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-1/context', async (route) => {
+		await fulfillJson(route, {
+			ancestors: [withContentWarning(threadAncestor, 'ancestor warning', 'hidden ancestor body')],
+			descendants: [
+				withContentWarning(threadReply, 'reply warning', 'hidden reply body'),
+				withContentWarning(nestedThreadReply, 'nested warning', 'hidden nested body'),
+				secondThreadReply
+			]
+		});
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	const ancestor = page.getByTestId('thread-ancestor');
+	await expect(ancestor.locator('.post-cw-card')).toContainText('ancestor warning');
+	await expect(ancestor).not.toContainText('hidden ancestor body');
+	await ancestor.getByRole('button', { name: 'Show post' }).click();
+	await expect(ancestor).toContainText('hidden ancestor body');
+
+	const focused = page.getByTestId('focused-post');
+	await expect(focused.locator('.post-cw-card')).toContainText('focused warning');
+	await expect(focused).not.toContainText('hidden focused thread body');
+	await focused.getByRole('button', { name: 'Show post' }).click();
+	await expect(focused).toContainText('hidden focused thread body');
+	await focused.getByRole('button', { name: 'Hide' }).click();
+	await expect(focused).not.toContainText('hidden focused thread body');
+
+	const reply = page.getByTestId('thread-reply').first();
+	await expect(reply.locator('.post-cw-card')).toContainText('reply warning');
+	await expect(reply).not.toContainText('hidden reply body');
+	await reply.getByRole('button', { name: 'Show post' }).click();
+	await expect(reply).toContainText('hidden reply body');
+
+	await page.getByRole('button', { name: 'Show 1 reply' }).click();
+	const nested = page.locator('.nested-replies .post-reply').first();
+	await expect(nested.locator('.post-cw-card')).toContainText('nested warning');
+	await expect(nested).not.toContainText('hidden nested body');
+	await nested.getByRole('button', { name: 'Show post' }).click();
+	await expect(nested).toContainText('hidden nested body');
+	await nested.getByRole('button', { name: 'Favorite 22' }).click();
+	await expect(nested.getByRole('button', { name: 'Favorite 23' })).toHaveAttribute('aria-pressed', 'true');
+	await nested.getByRole('button', { name: 'Hide' }).click();
+	await expect(nested.getByRole('button', { name: 'Favorite 23' })).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('real thread route reply actions update local state', async ({ page }) => {
 	await authenticate(page);
 	await mockThread(page);

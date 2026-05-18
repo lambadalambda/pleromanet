@@ -37,7 +37,25 @@ export type AudioAttachment = {
 	filename?: string;
 };
 
-export type Attachment = PhotoAttachment | VideoAttachment | AudioAttachment;
+export type PollChoice = {
+	id?: string;
+	label: string;
+	votes?: number;
+};
+
+export type PollAttachment = {
+	kind: 'poll';
+	id?: string;
+	choices?: PollChoice[];
+	totalVotes?: number;
+	multi?: boolean;
+	endsIn?: string;
+	myVote?: string | string[] | null;
+	expired?: boolean;
+};
+
+export type RenderableAttachment = PhotoAttachment | VideoAttachment | AudioAttachment;
+export type Attachment = RenderableAttachment | PollAttachment;
 
 export type BoostAttribution = {
 	name?: string;
@@ -53,6 +71,7 @@ export type LegacyVideoAttachment = Omit<VideoAttachment, 'kind'> & { kind?: 'vi
 export type LegacyAudioAttachment = Omit<AudioAttachment, 'kind'> & { kind?: 'audio' };
 
 export type PostLike = {
+	cw?: string;
 	attachments?: Attachment[];
 	photos?: LegacyPhotoAttachment[];
 	video?: LegacyVideoAttachment;
@@ -64,11 +83,11 @@ export type PostLike = {
 };
 
 export type NoLayout = { type: 'none' };
-export type SingleLayout = { type: 'single'; attachment: Attachment };
+export type SingleLayout = { type: 'single'; attachment: RenderableAttachment };
 export type PhotoGridLayout = { type: 'photoGrid'; photos: PhotoAttachment[] };
 export type PhotoAudioLayout = { type: 'photoAudio'; photo: PhotoAttachment; audio: AudioAttachment };
 export type PhotosAudioLayout = { type: 'photosAudio'; photos: PhotoAttachment[]; audio: AudioAttachment };
-export type HeroStripLayout = { type: 'heroStrip'; attachments: Attachment[] };
+export type HeroStripLayout = { type: 'heroStrip'; attachments: RenderableAttachment[] };
 
 export type AttachmentLayout =
 	| NoLayout
@@ -78,16 +97,19 @@ export type AttachmentLayout =
 	| PhotosAudioLayout
 	| HeroStripLayout;
 
-export const pickAttachmentLayout = (attachments: Attachment[] | undefined): AttachmentLayout => {
-	if (!attachments || attachments.length === 0) return { type: 'none' };
-	const photos = attachments.filter((a): a is PhotoAttachment => a.kind === 'photo');
-	const videos = attachments.filter((a): a is VideoAttachment => a.kind === 'video');
-	const audios = attachments.filter((a): a is AudioAttachment => a.kind === 'audio');
+export const isRenderableAttachment = (attachment: Attachment): attachment is RenderableAttachment => attachment.kind !== 'poll';
 
-	if (attachments.length === 1) {
-		return { type: 'single', attachment: attachments[0] };
+export const pickAttachmentLayout = (attachments: Attachment[] | undefined): AttachmentLayout => {
+	const renderableAttachments = (attachments ?? []).filter(isRenderableAttachment);
+	if (renderableAttachments.length === 0) return { type: 'none' };
+	const photos = renderableAttachments.filter((a): a is PhotoAttachment => a.kind === 'photo');
+	const videos = renderableAttachments.filter((a): a is VideoAttachment => a.kind === 'video');
+	const audios = renderableAttachments.filter((a): a is AudioAttachment => a.kind === 'audio');
+
+	if (renderableAttachments.length === 1) {
+		return { type: 'single', attachment: renderableAttachments[0] };
 	}
-	if (photos.length === attachments.length && photos.length <= 4) {
+	if (photos.length === renderableAttachments.length && photos.length <= 4) {
 		return { type: 'photoGrid', photos };
 	}
 	if (photos.length === 1 && audios.length === 1 && videos.length === 0) {
@@ -96,7 +118,7 @@ export const pickAttachmentLayout = (attachments: Attachment[] | undefined): Att
 	if (photos.length >= 2 && photos.length <= 4 && audios.length === 1 && videos.length === 0) {
 		return { type: 'photosAudio', photos, audio: audios[0] };
 	}
-	return { type: 'heroStrip', attachments };
+	return { type: 'heroStrip', attachments: renderableAttachments };
 };
 
 export const normalizeAttachments = (post: PostLike): Attachment[] => {
@@ -108,9 +130,12 @@ export const normalizeAttachments = (post: PostLike): Attachment[] => {
 	return out;
 };
 
+export const normalizeRenderableAttachments = (post: PostLike): RenderableAttachment[] => normalizeAttachments(post).filter(isRenderableAttachment);
+
 export const attachmentTitle = (attachment: Attachment): string => {
 	if (attachment.kind === 'photo') return attachment.filename || attachment.alt || 'photo';
 	if (attachment.kind === 'video') return attachment.title || attachment.filename || 'video';
+	if (attachment.kind === 'poll') return 'poll';
 	return attachment.title || attachment.filename || 'audio';
 };
 
@@ -133,7 +158,7 @@ export type LightboxAttribution = {
 };
 
 export const openLightbox = (
-	attachments: Attachment[],
+	attachments: RenderableAttachment[],
 	startIdx = 0,
 	attribution: LightboxAttribution | null = null
 ) => {
@@ -149,5 +174,5 @@ export const pickQuoteHero = (
 ): Attachment | null => {
 	if (!attachments || !attachments.length) return null;
 	const photo = attachments.find((a) => a.kind === 'photo');
-	return photo || attachments[0];
+	return photo || attachments.find((a) => a.kind !== 'poll') || null;
 };

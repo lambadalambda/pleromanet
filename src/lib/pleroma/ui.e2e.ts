@@ -206,9 +206,13 @@ test('Pleroma status adapters handle reblogs, remote handles, warnings, and fall
 	expect(post.handle).toBe('@datagram@a-very-long-retro-instance-name.social');
 	expect(post.account.avatarUrl).toBeNull();
 	expect(post.avatar).toBe('grad-2');
-	expect(post.body).toBe('Content warning: plain cw');
+	expect(post.cw).toBe('plain cw');
+	expect(post.body).toBe('HTML fallback with\nline breaks & entities.');
 	expect(post.contentText).toBe('HTML fallback with\nline breaks & entities.');
 	expect(post.media).toBeUndefined();
+	expect(post.attachments).toEqual([
+		{ kind: 'photo', src: 'https://cdn.example/media.png', alt: 'screenshot', filename: 'media.png' }
+	]);
 	expect(post.mediaHidden).toBe(true);
 	expect(post.boosts).toBe(5);
 	expect(post.favorites).toBe(9);

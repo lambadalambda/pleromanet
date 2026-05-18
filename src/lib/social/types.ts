@@ -43,7 +43,24 @@ export type AudioAttachment = {
 	filename?: string;
 };
 
-export type PostAttachment = PhotoAttachment | VideoAttachment | AudioAttachment;
+export type PollChoice = {
+	id?: string;
+	label: string;
+	votes?: number;
+};
+
+export type PollAttachment = {
+	kind: 'poll';
+	id?: string;
+	choices?: PollChoice[];
+	totalVotes?: number;
+	multi?: boolean;
+	endsIn?: string;
+	myVote?: string | string[] | null;
+	expired?: boolean;
+};
+
+export type PostAttachment = PhotoAttachment | VideoAttachment | AudioAttachment | PollAttachment;
 
 export type QuotedPostView = {
 	name: string;
@@ -76,6 +93,7 @@ export type SocialPost = {
 	nameEmojis?: CustomEmoji[];
 	handle: string;
 	time: string;
+	cw?: string;
 	body: string;
 	bodyEmojis?: CustomEmoji[];
 	avatar: AvatarVariant;

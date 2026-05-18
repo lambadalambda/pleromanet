@@ -478,6 +478,43 @@ test('home timeline renders real media attachments from Pleroma statuses', async
 	await expectNoHorizontalOverflow(page);
 });
 
+test('home timeline folds content warnings around body and media until revealed', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [{
+			...statusWithText('status-cw-media', 'hidden timeline words with attached proof'),
+			spoiler_text: 'timeline spoiler',
+			pleroma: {
+				...pleromaFixtures.status.pleroma,
+				content: { 'text/plain': 'hidden timeline words with attached proof' },
+				spoiler_text: { 'text/plain': 'timeline spoiler' }
+			},
+			media_attachments: [
+				{ id: 'cw-photo', type: 'image', url: 'https://cdn.example/media/cw-photo.jpg', preview_url: 'https://cdn.example/media/cw-photo-preview.jpg', description: 'cw hidden photo' }
+			]
+		}]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('[data-status-id="status-cw-media"]');
+	await expect(post.locator('.post-cw-card')).toContainText('timeline spoiler');
+	await expect(post.locator('.post-cw-meta-chip')).toContainText(['1 photo', '~6 words']);
+	await expect(post).not.toContainText('hidden timeline words');
+	await expect(post.locator('.post-photos')).toHaveCount(0);
+	await post.getByRole('button', { name: 'Favorite 9' }).click();
+	await expect(post.getByRole('button', { name: 'Favorite 10' })).toHaveAttribute('aria-pressed', 'true');
+
+	await post.getByRole('button', { name: 'Show post' }).click();
+	await expect(post).toContainText('hidden timeline words with attached proof');
+	await expect(post.locator('.post-photos img[alt="cw hidden photo"]')).toHaveAttribute('src', 'https://cdn.example/media/cw-photo.jpg');
+	await expect(page).toHaveURL('/app/home');
+	await post.getByRole('button', { name: 'Hide' }).click();
+	await expect(post).not.toContainText('hidden timeline words');
+	await expect(post.getByRole('button', { name: 'Favorite 10' })).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('home timeline renders boosted Pleroma statuses with attribution and media actions', async ({ page }) => {
 	await authenticate(page);
 	await mockInstance(page);

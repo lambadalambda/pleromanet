@@ -1,8 +1,9 @@
 <script lang="ts">
 	import Icon from './Icon.svelte';
+	import type { RenderableAttachment } from './attachments';
 
 	type Props = {
-		kind: 'photo' | 'video' | 'audio';
+		kind: RenderableAttachment['kind'];
 	};
 
 	let { kind }: Props = $props();

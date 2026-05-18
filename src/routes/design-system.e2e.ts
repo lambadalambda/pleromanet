@@ -203,6 +203,35 @@ test('renders canonical boosted post specimens', async ({ page }) => {
 	await expectNoHorizontalOverflow(page);
 });
 
+test('renders canonical content warning post specimens', async ({ page }) => {
+	await setViewport(page, 'desktop');
+	await page.goto('/design-system');
+
+	const posts = page.locator('#posts');
+	await expect(posts.getByText('Content warnings')).toBeVisible();
+	await expect(posts.getByText('Folded · with media')).toBeVisible();
+	await expect(posts.getByText('Folded · text only')).toBeVisible();
+	await expect(posts.getByText('Folded · with poll')).toBeVisible();
+
+	const mediaCw = posts.locator('.ds-spec').filter({ hasText: 'Folded · with media' });
+	await expect(mediaCw.locator('.post-cw-card')).toContainText('food, plated photos');
+	await expect(mediaCw.locator('.post-cw-meta-chip')).toContainText(['2 photos', '~27 words']);
+	await expect(mediaCw).not.toContainText('every restaurant photo I take');
+	await expect(mediaCw.locator('.post-photos')).toHaveCount(0);
+	await mediaCw.getByRole('button', { name: 'Show post' }).click();
+	await expect(mediaCw.locator('.post-cw-revealed-summary')).toContainText('food, plated photos');
+	await expect(mediaCw).toContainText('every restaurant photo I take');
+	await expect(mediaCw.locator('.post-photos')).toBeVisible();
+	await mediaCw.getByRole('button', { name: 'Hide' }).click();
+	await expect(mediaCw).not.toContainText('every restaurant photo I take');
+
+	const pollCw = posts.locator('.ds-spec').filter({ hasText: 'Folded · with poll' });
+	await expect(pollCw.locator('.post-cw-meta-chip')).toContainText(['poll', '~16 words']);
+	await expect(pollCw).not.toContainText('rough day');
+	await setViewport(page, 'mobile');
+	await expectNoHorizontalOverflow(page);
+});
+
 test('renders the canonical thread specimen with a working reply composer', async ({ page }) => {
 	await setViewport(page, 'desktop');
 	await page.goto('/design-system');

@@ -1147,6 +1147,92 @@
 						</div>
 					</div>
 
+					<div class="ds-sub-h">Content warnings</div>
+					<p class="ds-sub" style="margin-bottom:14px">Setting <code style="font-family:var(--mono);font-size:11px">post.cw</code> to a summary string folds the body, quoted post, and all media into a warn-tinted card. The reader presses <i>Show post</i> to reveal; once revealed, a compact summary strip with a Hide link replaces the card so the content can be re-folded.</p>
+					<div class="ds-grid ds-grid-2">
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage">
+								<Post post={{
+									...SAMPLE_POST,
+									id: 'ds-cw-1',
+									name: 'mossy',
+									handle: '@mossy@garden.cafe',
+									time: '2h',
+									avClass: 'av-grad-3',
+									cw: 'food, plated photos',
+									body: 'every restaurant photo I take ends up looking like a NYT food review somehow. is there a special app for that or is it just learned posture',
+									attachments: [
+										{ kind: 'photo', src: 'samples/cat-bank.webp', alt: '' },
+										{ kind: 'photo', src: 'samples/cat-door.webp', alt: '' }
+									],
+									replies: 4,
+									boosts: 3,
+									favs: 22
+								}} onAction={() => {}} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Folded · with media</span>
+								<span class="ds-spec-note">post.cw set · body + photos hidden</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={{
+									...SAMPLE_POST,
+									id: 'ds-cw-2',
+									name: 'datagram',
+									handle: '@datagram@retro.social',
+									time: '5h',
+									avClass: 'av-pixel-pc',
+									cw: 'Severance · S2 finale spoilers',
+									body: 'ok the elevator scene. the ELEVATOR scene. I have been thinking about it for 48 hours straight. spoilers for S2E10 in this thread, ye be warned.',
+									replies: 1,
+									boosts: 0,
+									favs: 7
+								}} onAction={() => {}} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Folded · text only</span>
+								<span class="ds-spec-note">no attachments · no media chips</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={{
+									...SAMPLE_POST,
+									id: 'ds-cw-3',
+									name: 'kestrel',
+									handle: '@kestrel@audio.garden',
+									time: '1h',
+									avClass: 'av-grad-3',
+									cw: 'mh, asking for input',
+									body: "rough day. need some external grounding — picking one of these tonight, vote what you'd do",
+									attachments: [{
+										kind: 'poll',
+										id: 'ds-cw-poll',
+										choices: [
+											{ id: 'walk', label: 'long walk', votes: 12 },
+											{ id: 'call', label: 'call a friend', votes: 8 },
+											{ id: 'rest', label: 'just sleep', votes: 4 }
+										],
+										totalVotes: 24,
+										multi: false,
+										endsIn: '4h',
+										myVote: null,
+										expired: false
+									}],
+									replies: 2,
+									boosts: 0,
+									favs: 9
+								}} onAction={() => {}} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Folded · with poll</span>
+								<span class="ds-spec-note">poll counted in meta chips</span>
+							</div>
+						</div>
+					</div>
+
 					<div class="ds-sub-h">Boosts</div>
 					<p class="ds-sub" style="margin-bottom:14px">When a post is reshared, the original post is rendered inside a <code style="font-family:var(--mono);font-size:11px">&lt;PostBoost/&gt;</code> wrapper that adds a 72px attribution rail on the left. The rail has a 4px accent-green edge, a small boost tag pill, the repeater's avatar, name, handle, and short relative time.</p>
 					<div class="ds-grid ds-grid-2">

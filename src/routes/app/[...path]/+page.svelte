@@ -195,6 +195,7 @@
 		time: post.time,
 		avClass: avatarClass(post.avatar),
 		avatarUrl: post.avatarUrl,
+		cw: post.cw,
 		body: post.body,
 		bodyEmojis: post.bodyEmojis,
 		media: post.media,
@@ -259,8 +260,12 @@
 			actions: { ...post.actions, [key]: active }
 		};
 	};
-	const updatePostListAction = <PostType extends RebuildPost>(posts: PostType[], postId: string | number, key: 'reply' | 'boost' | 'fav') =>
-		posts.map((post) => post.id === postId ? togglePostAction(post, key) : post);
+	const updatePostListAction = <PostType extends RebuildPost & { nestedReplies?: PostType[] }>(posts: PostType[], postId: string | number, key: 'reply' | 'boost' | 'fav'): PostType[] =>
+		posts.map((post) => {
+			const updated = post.id === postId ? togglePostAction(post, key) : post;
+
+			return updated.nestedReplies ? { ...updated, nestedReplies: updatePostListAction(updated.nestedReplies, postId, key) } : updated;
+		});
 	const openThread = (post: RebuildPost) => {
 		const statusId = post.threadStatusId ?? post.actionStatusId ?? String(post.id);
 		goto(`/app/thread/${encodeURIComponent(statusId)}`);

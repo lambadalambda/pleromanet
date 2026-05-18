@@ -1,9 +1,9 @@
 <script lang="ts">
-	import type { Attachment, LightboxAttribution } from './attachments';
+	import type { LightboxAttribution, RenderableAttachment } from './attachments';
 	import AttachmentLightbox from './AttachmentLightbox.svelte';
 
 	type LightboxState = {
-		attachments: Attachment[];
+		attachments: RenderableAttachment[];
 		startIdx: number;
 		attribution?: LightboxAttribution | null;
 	};

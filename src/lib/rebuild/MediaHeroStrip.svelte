@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Attachment } from './attachments';
+	import type { RenderableAttachment } from './attachments';
 	import { attachmentTitle } from './attachments';
 	import MediaStripThumb from './MediaStripThumb.svelte';
 	import MediaStripKindBadge from './MediaStripKindBadge.svelte';
@@ -7,7 +7,7 @@
 	import AudioAttachment from './AudioAttachment.svelte';
 
 	type Props = {
-		attachments: Attachment[];
+		attachments: RenderableAttachment[];
 		onOpen?: (i: number) => void;
 	};
 

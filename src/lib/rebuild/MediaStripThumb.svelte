@@ -1,9 +1,9 @@
 <script lang="ts">
-	import type { Attachment } from './attachments';
+	import type { RenderableAttachment } from './attachments';
 	import { primeVideoPreviewFrame } from './videoPreview';
 
 	type Props = {
-		att: Attachment;
+		att: RenderableAttachment;
 	};
 
 	let { att }: Props = $props();

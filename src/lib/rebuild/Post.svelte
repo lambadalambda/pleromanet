@@ -4,10 +4,11 @@
 	import PostBody from './PostBody.svelte';
 	import PostMedia from './PostMedia.svelte';
 	import PostBoost from './PostBoost.svelte';
+	import PostCW from './PostCW.svelte';
 	import PostActions from './PostActions.svelte';
 	import QuotedPost from './QuotedPost.svelte';
-	import type { PostLike, Attachment, BannerVariant } from './attachments';
-	import { openLightbox } from './attachments';
+	import type { PostLike, BannerVariant } from './attachments';
+	import { normalizeRenderableAttachments, openLightbox } from './attachments';
 	import type { CustomEmoji } from '$lib/social/types';
 
 	type Props = {
@@ -37,8 +38,9 @@
 	let { post, onAction, onOpen }: Props = $props();
 
 	const handleLightbox = (idx: number) => {
-		if (!post.attachments || !post.attachments.length) return;
-		openLightbox(post.attachments as Attachment[], idx, {
+		const attachments = normalizeRenderableAttachments(post);
+		if (!attachments.length) return;
+		openLightbox(attachments, idx, {
 			name: post.name,
 			handle: post.handle,
 			avClass: post.avClass,
@@ -51,9 +53,11 @@
 	<Avatar post={post} />
 	<div style="min-width:0">
 		<PostHead post={post} />
-		<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} />
-		<QuotedPost quoted={post.quotedPost} />
-		<PostMedia post={post} onOpen={handleLightbox} />
+		<PostCW post={post}>
+			<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} />
+			<QuotedPost quoted={post.quotedPost} />
+			<PostMedia post={post} onOpen={handleLightbox} />
+		</PostCW>
 		<PostActions post={post} onAction={onAction} />
 	</div>
 {/snippet}

@@ -2,14 +2,15 @@
 	import Avatar from './Avatar.svelte';
 	import Button from './Button.svelte';
 	import Icon from './Icon.svelte';
+	import PostCW from './PostCW.svelte';
 	import PostMedia from './PostMedia.svelte';
 	import PostPinged from './PostPinged.svelte';
 	import QuotedPost from './QuotedPost.svelte';
 	import RichText from './RichText.svelte';
 	import VaporBanner from './VaporBanner.svelte';
 	import type { CustomEmoji } from '$lib/social/types';
-	import { openLightbox } from './attachments';
-	import type { Attachment, BannerVariant, PostLike } from './attachments';
+	import { normalizeRenderableAttachments, openLightbox } from './attachments';
+	import type { BannerVariant, PostLike } from './attachments';
 
 	type FocusedThreadPost = PostLike & {
 		id?: string | number;
@@ -42,8 +43,9 @@
 	let { post, continuesAbove = false, onAction }: Props = $props();
 
 	const handleLightbox = (idx: number) => {
-		if (!post.attachments || !post.attachments.length) return;
-		openLightbox(post.attachments as Attachment[], idx, {
+		const attachments = normalizeRenderableAttachments(post);
+		if (!attachments.length) return;
+		openLightbox(attachments, idx, {
 			name: post.name,
 			handle: post.handle,
 			avClass: post.avClass,
@@ -66,16 +68,18 @@
 		<button type="button" class="post-more" aria-label="More"><Icon name="more" width={16} height={16} /></button>
 	</div>
 
-	<div class="focused-body"><RichText text={post.body} emojis={post.bodyEmojis} mentionClass="post-mention-inline" /></div>
-	<QuotedPost quoted={post.quotedPost} />
-	<PostPinged addressees={post.addressees} focused />
+	<PostCW post={post}>
+		<div class="focused-body"><RichText text={post.body} emojis={post.bodyEmojis} mentionClass="post-mention-inline" /></div>
+		<QuotedPost quoted={post.quotedPost} />
+		<PostPinged addressees={post.addressees} focused />
 
-	{#if post.media}
-		<div class="focused-media">
-			<VaporBanner variant={post.media} />
-		</div>
-	{/if}
-	<PostMedia post={post} onOpen={handleLightbox} />
+		{#if post.media}
+			<div class="focused-media">
+				<VaporBanner variant={post.media} />
+			</div>
+		{/if}
+		<PostMedia post={post} onOpen={handleLightbox} />
+	</PostCW>
 
 	<div class="focused-meta">
 		<span>{post.fullTime || '4:18 PM · May 11, 2026'}</span>

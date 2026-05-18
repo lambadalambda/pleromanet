@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Attachment, BannerVariant } from './attachments';
+	import type { BannerVariant, RenderableAttachment } from './attachments';
 	import { attachmentTitle } from './attachments';
 	import Avatar from './Avatar.svelte';
 	import Icon from './Icon.svelte';
@@ -9,7 +9,7 @@
 	import AudioAttachment from './AudioAttachment.svelte';
 
 	type Props = {
-		attachments: Attachment[];
+		attachments: RenderableAttachment[];
 		startIdx: number;
 		attribution?: {
 			name?: string;
