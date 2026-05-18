@@ -102,7 +102,6 @@
 	let homeTimelineState = $state<HomeTimelineState>({ status: 'idle' });
 	let threadState = $state<ThreadState>({ status: 'idle' });
 	let localHomePosts = $state<RebuildPost[]>([]);
-	let localThreadReplies = $state<ThreadViewPost[]>([]);
 	let composerText = $state('');
 	let mobileDrawerOpen = $state(false);
 	let mobileSheetOpen = $state(false);
@@ -112,17 +111,13 @@
 	let settingsSaveState = $state('Saved');
 	let profile = $state<ProfileSettings>({ ...defaultProfile });
 	let savedProfile = $state<ProfileSettings>({ ...defaultProfile });
-	let replyDraft = $state('');
 	let homePostSubmitState = $state<'idle' | 'submitting'>('idle');
 	let homePostSubmitError = $state<PleromaRequestErrorView | null>(null);
-	let replySubmitState = $state<'idle' | 'submitting'>('idle');
-	let replySubmitError = $state<PleromaRequestErrorView | null>(null);
 	let replySort = $state<ReplySort>('top');
 	let homeTimelineRequestId = 0;
 	let homeTimelineNewPostsRequestId = 0;
 	let threadRequestId = 0;
 	let homePostSubmitRequestId = 0;
-	let replySubmitRequestId = 0;
 	let profileAccountRequestId = 0;
 	let instanceConfigRequestId = 0;
 	let loadedHomeTimelineKey = '';
@@ -144,13 +139,8 @@
 	};
 	const invalidateThreadRequests = () => {
 		threadRequestId += 1;
-		replySubmitRequestId += 1;
-		replySubmitState = 'idle';
-		replySubmitError = null;
 		loadedThreadKey = '';
 		threadState = { status: 'idle' };
-		localThreadReplies = [];
-		replyDraft = '';
 	};
 	const invalidateProfileAccountRequests = () => {
 		profileAccountRequestId += 1;
@@ -286,10 +276,8 @@
 		...(homeTimelineState.status === 'success' ? homeTimelineState.data.map(postForRebuild) : [])
 	]);
 	const profileBioCount = $derived(`${profile.bio.length} / 160`);
-	const replyRemaining = $derived(composerCharacterLimit - replyDraft.length);
-	const canSubmitReply = $derived(Boolean(replyDraft.trim()) && replyRemaining >= 0 && replySubmitState !== 'submitting');
-	const threadReplyPosts = $derived(threadState.status === 'success' ? [...threadState.replies, ...localThreadReplies] : localThreadReplies);
-	const threadReplyCount = $derived((threadState.status === 'success' ? threadPostCount(threadState.replies) : 0) + localThreadReplies.length);
+	const threadReplyPosts = $derived(threadState.status === 'success' ? threadState.replies : []);
+	const threadReplyCount = $derived(threadState.status === 'success' ? threadPostCount(threadState.replies) : 0);
 	const sortedThreadReplyPosts = $derived(replySort === 'newest' ? [...threadReplyPosts].reverse() : threadReplyPosts);
 	const exploreFeedText = $derived(
 		exploreFeed === 'popular' ? 'Popular across friendly instances' :
@@ -322,46 +310,6 @@
 	};
 	const toggleCommunity = (community: string) => {
 		joinedCommunities = { ...joinedCommunities, [community]: !joinedCommunities[community] };
-	};
-	const submitReply = async () => {
-		const body = replyDraft.trim();
-		const session = currentSession;
-		if (!body || replyDraft.length > composerCharacterLimit || replySubmitState === 'submitting' || !session || threadState.status !== 'success') return;
-
-		const requestSessionKey = sessionKey(session);
-		const requestId = replySubmitRequestId + 1;
-		replySubmitRequestId = requestId;
-		replySubmitState = 'submitting';
-		replySubmitError = null;
-
-		try {
-			const client = createPleromaClient({
-				instanceUrl: session.instanceUrl,
-				accessToken: session.accessToken,
-				fetch: window.fetch.bind(window)
-			});
-			const status = await client.createStatus({ status: body, visibility: 'public', inReplyToId: threadStatusId });
-			if (requestId !== replySubmitRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
-
-			localThreadReplies = [...localThreadReplies, threadPostForRebuild(adaptPleromaStatus(status))];
-			if (threadState.status === 'success') {
-				threadState = { ...threadState, focused: { ...threadState.focused, replies: threadState.focused.replies + 1 } };
-			}
-			replyDraft = '';
-			replySubmitState = 'idle';
-		} catch (error) {
-			if (requestId !== replySubmitRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
-
-			const normalized = normalizePleromaRequestError(error);
-			if (normalized.reauthRequired) {
-				signOutPleroma(localStorage);
-				redirectToLanding();
-				return;
-			}
-
-			replySubmitError = normalized;
-			replySubmitState = 'idle';
-		}
 	};
 	const submitHomePost = async () => {
 		const body = composerText.trim();
@@ -437,7 +385,6 @@
 	const handleThreadPostAction = (postId: string | number | undefined, key: string) => {
 		if (postId == null || (key !== 'reply' && key !== 'boost' && key !== 'fav')) return;
 
-		localThreadReplies = updatePostListAction(localThreadReplies, postId, key);
 		if (threadState.status !== 'success') return;
 
 		threadState = {
@@ -652,8 +599,6 @@
 		const requestSessionKey = sessionKey(session);
 		const requestId = threadRequestId + 1;
 		threadRequestId = requestId;
-		localThreadReplies = [];
-		replyDraft = '';
 
 		if (!statusId) {
 			threadState = {
@@ -1067,23 +1012,10 @@
 											<AncestorPost post={ancestor} onAction={handleThreadPostAction} />
 										</div>
 									{/each}
-								</div>
-							{/if}
-							<FocusedPost post={threadState.focused} continuesAbove={threadState.ancestors.length > 0} onAction={handleThreadPostAction} />
-							<form class="thread-reply-composer" aria-label="Thread reply" onsubmit={(event) => { event.preventDefault(); submitReply(); }}>
-								<span class="composer-av"><span class="av-orb"></span></span>
-								<div>
-									<textarea class="composer-input" aria-label="Reply text" placeholder={`Reply to ${threadState.focused.name}`} bind:value={replyDraft}></textarea>
-									<div class="composer-row"><span data-testid="reply-composer-count" class="composer-count" class:over-limit={replyRemaining < 0}>{replyRemaining}</span><span class="composer-spacer"></span><Button variant="primary" disabled={!canSubmitReply} onclick={submitReply}>{replySubmitState === 'submitting' ? 'Replying...' : 'Reply'}</Button></div>
-									{#if replySubmitError}
-										<div class="request-state request-error" role="alert">
-											<h2>{replySubmitError.title}</h2>
-											<p>{replySubmitError.message}</p>
-										</div>
-									{/if}
-								</div>
-							</form>
-							<div class="thread-reply-head">
+				</div>
+			{/if}
+			<FocusedPost post={threadState.focused} continuesAbove={threadState.ancestors.length > 0} onAction={handleThreadPostAction} />
+			<div class="thread-reply-head">
 								<div class="thread-reply-count" data-testid="thread-reply-count">{threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}</div>
 								<div class="seg" role="group" aria-label="Reply sort">
 									<button type="button" aria-pressed={replySort === 'top'} class:active={replySort === 'top'} onclick={() => (replySort = 'top')}>Top</button>

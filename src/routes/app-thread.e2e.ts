@@ -142,50 +142,13 @@ test('real thread route loads focused status, ancestors, and replies from Plerom
 	await expect(page.getByTestId('focused-post')).toContainText('Pleroma Web');
 	await expect(page.getByTestId('focused-post').locator('.post-photos img[alt="thread photo"]')).toHaveAttribute('src', 'https://cdn.example/thread-photo.jpg');
 	await expect(page.getByTestId('focused-engagement')).toContainText('Boost');
-	await expect(page.getByRole('textbox', { name: 'Reply text' })).toBeVisible();
-	await expect(page.getByTestId('reply-composer-count')).toContainText('500');
+	await expect(page.getByRole('form', { name: 'Thread reply' })).toHaveCount(0);
 	await expect(page.getByTestId('thread-reply-count')).toContainText('3 replies');
 	await expect(page.getByTestId('thread-reply').first()).toContainText('we used to log off. when did that stop being a thing.');
 	await expect(page.getByTestId('thread-reply').nth(1)).toContainText('this is the energy i needed today.');
 	await expect(page.getByText('around the time the algorithm replaced the timeline.')).toBeHidden();
 	await page.getByRole('button', { name: 'Show 1 reply' }).click();
 	await expect(page.getByText('around the time the algorithm replaced the timeline.')).toBeVisible();
-	await expect(page.getByRole('textbox', { name: 'Reply text' })).toBeVisible();
-});
-
-test('real thread route reply composer creates a Pleroma reply', async ({ page }) => {
-	await authenticate(page);
-	await mockThread(page);
-	let createMethod: string | undefined;
-	let createAuthorization: string | undefined;
-	let createBody = '';
-	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
-		createMethod = route.request().method();
-		createAuthorization = route.request().headers().authorization;
-		createBody = route.request().postData() ?? '';
-		await fulfillJson(route, statusWithText('created-thread-reply', 'replying through real thread composer', {
-			account: pleromaFixtures.account,
-			in_reply_to_id: 'status-1',
-			in_reply_to_account_id: 'account-1',
-			replies_count: 0,
-			reblogs_count: 0,
-			favourites_count: 0
-		}));
-	});
-	await setViewport(page, 'desktop');
-	await page.goto('/app/thread/status-1');
-
-	await page.getByRole('textbox', { name: 'Reply text' }).fill('replying through real thread composer');
-	await page.getByRole('button', { name: 'Reply', exact: true }).click();
-
-	await expect(page.getByTestId('thread-reply-count')).toContainText('4 replies');
-	await expect(page.getByTestId('thread-reply').filter({ hasText: 'replying through real thread composer' })).toBeVisible();
-	expect(createMethod).toBe('POST');
-	expect(createAuthorization).toBe('Bearer access-token');
-	const params = new URLSearchParams(createBody);
-	expect(params.get('status')).toBe('replying through real thread composer');
-	expect(params.get('visibility')).toBe('public');
-	expect(params.get('in_reply_to_id')).toBe('status-1');
 });
 
 test('real thread route opens from the home timeline and returns to home', async ({ page }) => {
@@ -288,6 +251,6 @@ test('real thread layout remains readable on mobile without horizontal overflow'
 
 	await expect(page.getByTestId('thread-view')).toBeVisible();
 	await expect(page.getByTestId('focused-post')).toBeVisible();
-	await expect(page.getByRole('textbox', { name: 'Reply text' })).toBeVisible();
+	await expect(page.getByRole('form', { name: 'Thread reply' })).toHaveCount(0);
 	await expectNoHorizontalOverflow(page);
 });
