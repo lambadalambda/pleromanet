@@ -3,6 +3,7 @@
 	import Button from './Button.svelte';
 	import Icon from './Icon.svelte';
 	import PostMedia from './PostMedia.svelte';
+	import PostPinged from './PostPinged.svelte';
 	import QuotedPost from './QuotedPost.svelte';
 	import RichText from './RichText.svelte';
 	import VaporBanner from './VaporBanner.svelte';
@@ -67,16 +68,7 @@
 
 	<div class="focused-body"><RichText text={post.body} emojis={post.bodyEmojis} mentionClass="post-mention-inline" /></div>
 	<QuotedPost quoted={post.quotedPost} />
-	{#if post.addressees && post.addressees.length > 0}
-		<div class="post-pinged focused-pinged">
-			<span class="post-pinged-l">Pinged</span>
-			<span class="post-pinged-list">
-				{#each post.addressees as address}
-					<span class="post-pinged-chip">{address}</span>
-				{/each}
-			</span>
-		</div>
-	{/if}
+	<PostPinged addressees={post.addressees} focused />
 
 	{#if post.media}
 		<div class="focused-media">

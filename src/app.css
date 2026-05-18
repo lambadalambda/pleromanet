@@ -2465,6 +2465,7 @@ body[data-theme='simoun'] .pill {
 	text-transform: uppercase;
 	color: var(--muted-2);
 	flex-shrink: 0;
+	white-space: nowrap;
 }
 .post-pinged-list {
 	display: inline-flex;
@@ -2487,6 +2488,41 @@ body[data-theme='simoun'] .pill {
 .post-pinged-chip:hover {
 	background: var(--accent-soft);
 	border-color: var(--accent-soft);
+}
+.post-pinged-chip-parent {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	font-family: var(--mono);
+	font-size: 10.5px;
+	color: white;
+	padding: 2px 9px 2px 7px;
+	background: var(--accent);
+	border-radius: 8px;
+	border: 1px solid var(--accent);
+	cursor: pointer;
+	font-weight: 600;
+	text-decoration: none;
+	transition: filter 0.12s;
+}
+.post-pinged-chip-parent svg {
+	opacity: 0.85;
+	flex-shrink: 0;
+}
+.post-pinged-chip-parent:hover { filter: brightness(1.08); }
+.post-pinged-also {
+	font-family: var(--mono);
+	font-size: 9.5px;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--muted-2);
+	margin: 0 2px;
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+.focused-pinged {
+	margin-top: 12px;
+	padding-top: 10px;
 }
 
 /* ===== Thread view ===== */

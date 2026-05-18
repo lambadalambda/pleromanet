@@ -148,6 +148,34 @@ test('opens the attachment lightbox from the design-system specimen', async ({ p
 	await expect(page.getByRole('dialog')).toBeHidden();
 });
 
+test('renders canonical reply addressee chip specimens', async ({ page }) => {
+	await setViewport(page, 'desktop');
+	await page.goto('/design-system');
+
+	const posts = page.locator('#posts');
+	await expect(posts.getByText('Body, mentions & reply addressees')).toBeVisible();
+	await expect(posts.getByText('Reply · parent only')).toBeVisible();
+	await expect(posts.getByText('Reply + cc-list')).toBeVisible();
+	await expect(posts.getByText('Long cc-chain')).toBeVisible();
+
+	const parentOnly = posts.locator('.ds-spec').filter({ hasText: 'Reply · parent only' });
+	const parentChip = parentOnly.locator('.post-pinged-chip-parent');
+	await expect(parentOnly.locator('.post-pinged-l')).toHaveText('Replying to');
+	await expect(parentChip).toContainText('@gridwave');
+	await expect(parentChip.locator('svg')).toBeVisible();
+	await expect(parentChip).toHaveCSS('font-weight', '600');
+	await expect(parentOnly.locator('.post-pinged-also')).toHaveCount(0);
+
+	const ccList = posts.locator('.ds-spec').filter({ hasText: 'Reply + cc-list' });
+	await expect(ccList.locator('.post-pinged-chip-parent')).toContainText('@dtluna');
+	await expect(ccList.locator('.post-pinged-also')).toContainText('also');
+	await expect(ccList.locator('.post-pinged-chip')).toHaveCount(2);
+	await expect(ccList.locator('.post-pinged-chip').first()).toContainText('@feld');
+
+	await setViewport(page, 'mobile');
+	await expectNoHorizontalOverflow(page);
+});
+
 test('renders the canonical thread specimen with a working reply composer', async ({ page }) => {
 	await setViewport(page, 'desktop');
 	await page.goto('/design-system');

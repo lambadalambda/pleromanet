@@ -112,10 +112,10 @@ const mockHomeTimeline = async (page: Page) => {
 	});
 };
 
-const mockThread = async (page: Page) => {
+const mockThread = async (page: Page, focusedStatus: PleromaStatus = threadStatus) => {
 	await mockInstance(page);
 	await page.route('https://pleroma.example/api/v1/statuses/status-1', async (route) => {
-		await fulfillJson(route, threadStatus);
+		await fulfillJson(route, focusedStatus);
 	});
 	await page.route('https://pleroma.example/api/v1/statuses/status-1/context', async (route) => {
 		await fulfillJson(route, { ancestors: [threadAncestor], descendants: [threadReply, nestedThreadReply, secondThreadReply] });
@@ -177,6 +177,30 @@ test('real thread route opens focused media in the attachment lightbox', async (
 	const dialog = page.getByRole('dialog');
 	await expect(dialog).toBeVisible();
 	await expect(dialog.locator('.lightbox-photo')).toHaveAttribute('src', 'https://cdn.example/thread-photo.jpg');
+});
+
+test('real thread route renders focused reply addressee chips', async ({ page }) => {
+	await authenticate(page);
+	await mockThread(page, {
+		...threadStatus,
+		content: '<p>@gridwave @lumen quiet CSS can still carry the voice.</p>',
+		in_reply_to_id: 'ancestor-1',
+		in_reply_to_account_id: 'gridwave',
+		pleroma: {
+			...threadStatus.pleroma,
+			content: { 'text/plain': '@gridwave @lumen quiet CSS can still carry the voice.' }
+		}
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	const focused = page.getByTestId('focused-post');
+	await expect(focused.locator('.focused-body')).toHaveText('quiet CSS can still carry the voice.');
+	await expect(focused.locator('.post-pinged-l')).toHaveText('Replying to');
+	await expect(focused.locator('.post-pinged-chip-parent')).toContainText('@gridwave');
+	await expect(focused.locator('.post-pinged-chip-parent svg')).toBeVisible();
+	await expect(focused.locator('.post-pinged-also')).toContainText('also');
+	await expect(focused.locator('.post-pinged-chip')).toContainText('@lumen');
 });
 
 test('real thread route reply actions update local state', async ({ page }) => {

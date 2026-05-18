@@ -998,8 +998,8 @@
 						</ul>
 					</div>
 
-					<div class="ds-sub-h">Body &amp; mentions</div>
-					<p class="ds-sub" style="margin-bottom:14px">The <code style="font-family:var(--mono);font-size:11px">&lt;PostBody/&gt;</code> primitive auto-parses <code style="font-family:var(--mono);font-size:11px">@handle</code> patterns in the body string and renders them as inline links. A separate <code style="font-family:var(--mono);font-size:11px">addressees</code> array (the leading recipient pile-up from a fediverse reply) renders as a compact "PINGED" footer below the body, so the first line of a reply stays content, not a recipient list.</p>
+					<div class="ds-sub-h">Body, mentions &amp; reply addressees</div>
+					<p class="ds-sub" style="margin-bottom:14px">The <code style="font-family:var(--mono);font-size:11px">&lt;PostBody/&gt;</code> primitive auto-parses <code style="font-family:var(--mono);font-size:11px">@handle</code> patterns in the body string and renders them as inline links. A separate <code style="font-family:var(--mono);font-size:11px">addressees</code> array (the leading recipient pile-up from a fediverse reply) renders as a "Replying to" footer below the body, so the first line of a reply stays content, not a recipient list. The <b>first</b> addressee is the direct parent and uses a filled chip; inherited cc addressees render as ghost chips after <code style="font-family:var(--mono);font-size:11px">· also</code>.</p>
 					<div class="ds-grid ds-grid-2">
 						<div class="ds-spec">
 							<div class="ds-spec-stage">
@@ -1012,20 +1012,29 @@
 						</div>
 						<div class="ds-spec">
 							<div class="ds-spec-stage">
-								<Post post={{...demoPost([]), body: "qwen 0.5b can handle some limited summary tasks. theres also the JOSIE models which are jailbroken qwens.", addressees: ['@dtluna', '@feld', '@lain']}} />
+								<Post post={{...demoPost([]), body: 'agreed — this is exactly what I needed to hear today.', addressees: ['@gridwave']}} />
 							</div>
 							<div class="ds-spec-foot">
-								<span class="ds-spec-label">Body + addressees</span>
-								<span class="ds-spec-note">leading addressees → footer chip row</span>
+								<span class="ds-spec-label">Reply · parent only</span>
+								<span class="ds-spec-note">addressees=[parent] · single filled chip · no 'also'</span>
 							</div>
 						</div>
 						<div class="ds-spec ds-spec-span-2">
 							<div class="ds-spec-stage">
-								<Post post={{...demoPost([]), body: "agreed with @datagram — the slow web feels possible again. tagging @soft.hertz too, this was your point yesterday", addressees: ['@datagram', '@gridwave', '@nyan', '@soft.hertz', '@orbit', '@lumen', '@kestrel.fm']}} />
+								<Post post={{...demoPost([]), body: 'qwen 0.5b can handle some limited summary tasks. theres also the JOSIE models which are jailbroken qwens.', addressees: ['@dtluna', '@feld', '@lain']}} />
 							</div>
 							<div class="ds-spec-foot">
-								<span class="ds-spec-label">Long addressee chain</span>
-								<span class="ds-spec-note">scales horizontally · wraps if needed</span>
+								<span class="ds-spec-label">Reply + cc-list</span>
+								<span class="ds-spec-note">addressees=[parent, …cc] · parent filled · cc ghost</span>
+							</div>
+						</div>
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage">
+								<Post post={{...demoPost([]), body: 'agreed with @datagram — the slow web feels possible again. tagging @soft.hertz too, this was your point yesterday', addressees: ['@datagram', '@gridwave', '@nyan', '@soft.hertz', '@orbit', '@lumen', '@kestrel.fm']}} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Long cc-chain</span>
+								<span class="ds-spec-note">parent stays prominent · cc-list wraps to second row</span>
 							</div>
 						</div>
 					</div>
