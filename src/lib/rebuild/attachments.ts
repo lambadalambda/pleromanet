@@ -39,6 +39,15 @@ export type AudioAttachment = {
 
 export type Attachment = PhotoAttachment | VideoAttachment | AudioAttachment;
 
+export type BoostAttribution = {
+	name?: string;
+	handle?: string;
+	time?: string;
+	avClass?: string;
+	avBanner?: BannerVariant;
+	avatarUrl?: string | null;
+};
+
 export type LegacyPhotoAttachment = Omit<PhotoAttachment, 'kind'> & { kind?: 'photo' };
 export type LegacyVideoAttachment = Omit<VideoAttachment, 'kind'> & { kind?: 'video' };
 export type LegacyAudioAttachment = Omit<AudioAttachment, 'kind'> & { kind?: 'audio' };
@@ -50,6 +59,7 @@ export type PostLike = {
 	audio?: LegacyAudioAttachment;
 	media?: BannerVariant;
 	avBanner?: BannerVariant;
+	boostedBy?: BoostAttribution;
 	[key: string]: unknown;
 };
 

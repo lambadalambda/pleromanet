@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Avatar from './Avatar.svelte';
 	import PostActions from './PostActions.svelte';
+	import PostBoost from './PostBoost.svelte';
 	import PostBody from './PostBody.svelte';
 	import PostHead from './PostHead.svelte';
 	import PostMedia from './PostMedia.svelte';
@@ -49,43 +50,47 @@
 	};
 </script>
 
-<div class="post post-reply {isLast && nestedReplies.length === 0 ? 'post-reply-last' : ''}">
-	<div class="thread-line-wrap">
-		<Avatar post={post} />
-		{#if nestedReplies.length > 0 && !isLast}
-			<div class="thread-line"></div>
-		{/if}
+<PostBoost boostedBy={post.boostedBy}>
+	<div class="post post-reply {isLast && nestedReplies.length === 0 ? 'post-reply-last' : ''}">
+		<div class="thread-line-wrap">
+			<Avatar post={post} />
+			{#if nestedReplies.length > 0 && !isLast}
+				<div class="thread-line"></div>
+			{/if}
+		</div>
+		<div style="min-width:0">
+			<PostHead post={post} />
+			<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} />
+			<QuotedPost quoted={post.quotedPost} />
+			<PostMedia post={post} onOpen={(idx) => handleLightbox(post, idx)} />
+			<PostActions post={post} onAction={(key) => onAction?.(post.id, key)} />
+			{#if nestedReplies.length > 0 && !showNested}
+				<button type="button" class="show-replies" onclick={() => (showNested = true)}>
+					<span class="show-replies-line"></span>
+					Show {nestedReplies.length} {nestedReplies.length === 1 ? 'reply' : 'replies'} →
+				</button>
+			{/if}
+		</div>
 	</div>
-	<div style="min-width:0">
-		<PostHead post={post} />
-		<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} />
-		<QuotedPost quoted={post.quotedPost} />
-		<PostMedia post={post} onOpen={(idx) => handleLightbox(post, idx)} />
-		<PostActions post={post} onAction={(key) => onAction?.(post.id, key)} />
-		{#if nestedReplies.length > 0 && !showNested}
-			<button type="button" class="show-replies" onclick={() => (showNested = true)}>
-				<span class="show-replies-line"></span>
-				Show {nestedReplies.length} {nestedReplies.length === 1 ? 'reply' : 'replies'} →
-			</button>
-		{/if}
-	</div>
-</div>
+</PostBoost>
 
 {#if showNested && nestedReplies.length > 0}
 	<div class="nested-replies">
 		{#each nestedReplies as reply, i}
-			<div class="post post-reply {i === nestedReplies.length - 1 ? 'post-reply-last' : ''}">
-				<div class="thread-line-wrap">
-					<Avatar post={reply} />
+			<PostBoost boostedBy={reply.boostedBy}>
+				<div class="post post-reply {i === nestedReplies.length - 1 ? 'post-reply-last' : ''}">
+					<div class="thread-line-wrap">
+						<Avatar post={reply} />
+					</div>
+					<div style="min-width:0">
+						<PostHead post={reply} />
+						<PostBody body={reply.body} emojis={reply.bodyEmojis} addressees={reply.addressees} />
+						<QuotedPost quoted={reply.quotedPost} />
+						<PostMedia post={reply} onOpen={(idx) => handleLightbox(reply, idx)} />
+						<PostActions post={reply} onAction={(key) => onAction?.(reply.id, key)} />
+					</div>
 				</div>
-				<div style="min-width:0">
-					<PostHead post={reply} />
-					<PostBody body={reply.body} emojis={reply.bodyEmojis} addressees={reply.addressees} />
-					<QuotedPost quoted={reply.quotedPost} />
-					<PostMedia post={reply} onOpen={(idx) => handleLightbox(reply, idx)} />
-					<PostActions post={reply} onAction={(key) => onAction?.(reply.id, key)} />
-				</div>
-			</div>
+			</PostBoost>
 		{/each}
 	</div>
 {/if}

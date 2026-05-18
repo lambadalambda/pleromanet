@@ -226,6 +226,7 @@ test('Pleroma status adapters handle reblogs, remote handles, warnings, and fall
 			duration: null
 		}
 	]);
+	expect(post.boostedBy).toMatchObject({ name: 'booster', handle: '@booster@pleroma.example' });
 	expect(post.rebloggedBy).toMatchObject({ displayName: 'booster', handle: '@booster@pleroma.example' });
 	expect(post.timelines).toEqual(['federated']);
 });

@@ -60,6 +60,14 @@ export type QuotedPostView = {
 	attachments?: PostAttachment[];
 };
 
+export type BoostAttributionView = {
+	name: string;
+	handle: string;
+	time?: string;
+	avatar?: AvatarVariant;
+	avatarUrl?: string | null;
+};
+
 export type SocialPost = {
 	id: string;
 	actionStatusId?: string;
@@ -75,6 +83,7 @@ export type SocialPost = {
 	media?: MediaVariant;
 	attachments?: PostAttachment[];
 	addressees?: string[];
+	boostedBy?: BoostAttributionView;
 	copyJson?: unknown;
 	quotedPost?: QuotedPostView;
 	replies: number;

@@ -1146,6 +1146,54 @@
 							</div>
 						</div>
 					</div>
+
+					<div class="ds-sub-h">Boosts</div>
+					<p class="ds-sub" style="margin-bottom:14px">When a post is reshared, the original post is rendered inside a <code style="font-family:var(--mono);font-size:11px">&lt;PostBoost/&gt;</code> wrapper that adds a 72px attribution rail on the left. The rail has a 4px accent-green edge, a small boost tag pill, the repeater's avatar, name, handle, and short relative time.</p>
+					<div class="ds-grid ds-grid-2">
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage">
+								<Post post={{
+									...SAMPLE_POST,
+									id: 'ds-boost-1',
+									name: 'soft.hertz',
+									handle: '@soft.hertz@kolektiva.social',
+									time: '3h',
+									avClass: 'av-grad-3',
+									boostedBy: { name: 'FiestaBun', handle: '@FiestaBun@decayable.ink', avClass: 'av-pixel-pc', time: '35m' },
+									body: "the algorithm doesn't care about you. the timeline doesn't either. but the people in it do, and that's worth keeping.",
+									replies: 8,
+									boosts: 34,
+									favs: 142
+								}} onAction={() => {}} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Boosted · text post</span>
+								<span class="ds-spec-note">post.boostedBy = {'{ name, handle, avClass, time }'}</span>
+							</div>
+						</div>
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage">
+								<Post post={{
+									...SAMPLE_POST,
+									id: 'ds-boost-2',
+									name: 'orbit',
+									handle: '@orbit@spacebear.net',
+									time: '8h',
+									avClass: 'av-orb',
+									boostedBy: { name: 'datagram', handle: '@datagram@retro.social', avClass: 'av-pixel-pc', time: '12m' },
+									body: 'dusk in the city 🌆',
+									attachments: [{ kind: 'photo', src: 'samples/falco.png', alt: 'station platform at dusk' }],
+									replies: 4,
+									boosts: 15,
+									favs: 120
+								}} onAction={() => {}} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Boosted · with photo</span>
+								<span class="ds-spec-note">rail aligns with post regardless of content height</span>
+							</div>
+						</div>
+					</div>
 				</div>
 			</section>
 

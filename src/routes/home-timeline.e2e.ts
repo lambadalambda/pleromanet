@@ -478,6 +478,65 @@ test('home timeline renders real media attachments from Pleroma statuses', async
 	await expectNoHorizontalOverflow(page);
 });
 
+test('home timeline renders boosted Pleroma statuses with attribution and media actions', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	const original = {
+		...statusWithText('boosted-original', 'dusk in the city'),
+		account: {
+			...pleromaFixtures.account,
+			id: 'orbit-account',
+			username: 'orbit',
+			acct: 'orbit@spacebear.net',
+			display_name: 'orbit'
+		},
+		media_attachments: [
+			{
+				id: 'boost-photo',
+				type: 'image',
+				url: 'https://cdn.example/boost-photo.jpg',
+				preview_url: 'https://cdn.example/boost-photo-preview.jpg',
+				description: 'boosted photo'
+			}
+		]
+	};
+	const wrapper = {
+		...statusWithText('boost-wrapper', ''),
+		account: {
+			...pleromaFixtures.account,
+			id: 'booster-account',
+			username: 'booster',
+			acct: 'booster@pleroma.example',
+			display_name: 'booster-with-a-very-long-unbroken-display-name-that-should-clip'
+		},
+		reblog: original
+	};
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [wrapper]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const boost = page.locator('.post-boost').first();
+	await expect(boost.locator('.post-boost-tag')).toContainText('boost');
+	await expect(boost.locator('.post-boost-name')).toContainText('booster');
+	await expect(boost.locator('.post')).toContainText('orbit');
+	await expect(boost.locator('.post')).toContainText('dusk in the city');
+	await setViewport(page, 'mobile');
+	await expectNoHorizontalOverflow(page);
+	await setViewport(page, 'desktop');
+	await boost.locator('.post-photos button').click();
+	const dialog = page.getByRole('dialog');
+	await expect(dialog).toBeVisible();
+	await expect(dialog.locator('.lightbox-photo')).toHaveAttribute('src', 'https://cdn.example/boost-photo.jpg');
+	await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(dialog).toBeHidden();
+
+	await boost.locator('.post-body').click();
+	await expect(page).toHaveURL('/app/thread/boosted-original');
+});
+
 test('home timeline loads the next cursor page, deduplicates overlap, and keeps status ids', async ({ page }) => {
 	await authenticate(page);
 	let releaseNextPage: () => void = () => undefined;

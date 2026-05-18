@@ -176,6 +176,33 @@ test('renders canonical reply addressee chip specimens', async ({ page }) => {
 	await expectNoHorizontalOverflow(page);
 });
 
+test('renders canonical boosted post specimens', async ({ page }) => {
+	await setViewport(page, 'desktop');
+	await page.goto('/design-system');
+
+	const posts = page.locator('#posts');
+	await expect(posts.getByText('Boosts')).toBeVisible();
+	await expect(posts.getByText('Boosted · text post')).toBeVisible();
+	await expect(posts.getByText('Boosted · with photo')).toBeVisible();
+
+	const boostedText = posts.locator('.ds-spec').filter({ hasText: 'Boosted · text post' });
+	await expect(boostedText.locator('.post-boost')).toBeVisible();
+	await expect(boostedText.locator('.post-boost-tag')).toContainText('boost');
+	await expect(boostedText.locator('.post-boost-name')).toContainText('FiestaBun');
+	await expect(boostedText.locator('.post-boost-time')).toContainText('35m');
+	await expect(boostedText.locator('.post')).toContainText("the algorithm doesn't care about you");
+
+	const boostedPhoto = posts.locator('.ds-spec').filter({ hasText: 'Boosted · with photo' });
+	await boostedPhoto.locator('.post-photos button').click();
+	const dialog = page.getByRole('dialog');
+	await expect(dialog).toBeVisible();
+	await expect(dialog.locator('.lightbox-photo')).toHaveAttribute('src', 'samples/falco.png');
+	await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+
+	await setViewport(page, 'mobile');
+	await expectNoHorizontalOverflow(page);
+});
+
 test('renders the canonical thread specimen with a working reply composer', async ({ page }) => {
 	await setViewport(page, 'desktop');
 	await page.goto('/design-system');

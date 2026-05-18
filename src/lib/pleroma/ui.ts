@@ -326,6 +326,7 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 	const plainText = plainTextContent(source);
 	const body = warning ? { body: `Content warning: ${warning}` } : extractLeadingReplyAddressees(plainText, source);
 	const mediaHidden = postAttachments.length > 0 && Boolean(warning || source.sensitive);
+	const booster = status.reblog ? adaptPleromaAccount(status.account) : undefined;
 
 	return {
 		id: status.id,
@@ -349,6 +350,13 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		avatarUrl: account.avatarUrl,
 		attachments: mediaHidden ? undefined : postAttachments,
 		media: undefined,
+		boostedBy: booster ? {
+			name: booster.displayName,
+			handle: booster.handle,
+			time: formatStatusDate(status.created_at),
+			avatar: avatarVariant(status.account),
+			avatarUrl: booster.avatarUrl
+		} : undefined,
 		replies: source.replies_count,
 		boosts: countBeforeViewerAction(source.reblogs_count, source.reblogged),
 		favorites: countBeforeViewerAction(source.favourites_count, source.favourited),
@@ -362,7 +370,7 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		hasContentWarning: Boolean(warning),
 		mediaHidden,
 		mediaAttachments,
-		rebloggedBy: status.reblog ? adaptPleromaAccount(status.account) : undefined,
+		rebloggedBy: booster,
 		pleroma: {
 			conversationId: source.pleroma.conversation_id,
 			local: source.pleroma.local,

@@ -12,6 +12,5 @@
 - [ ] [29 Port poll attachments from updated handoff](issues/29-port-poll-attachments-from-updated-handoff.md)
 - [ ] [30 Port composer CW and poll editor panels](issues/30-port-composer-cw-and-poll-editor-panels.md)
 - [ ] [31 Port post content warning wrapper](issues/31-port-post-content-warning-wrapper.md)
-- [ ] [32 Port boosted post rendering](issues/32-port-boosted-post-rendering.md)
 - [ ] [34 Port inline thread reply composer](issues/34-port-inline-thread-reply-composer.md)
 - [ ] [35 Align Svelte design system with updated canonical handoff](issues/35-align-svelte-design-system-with-updated-canonical-handoff.md)

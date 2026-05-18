@@ -24,6 +24,7 @@
 		avBanner?: BannerVariant;
 		avatarUrl?: string | null;
 		body: string;
+		boostedBy?: PostLike['boostedBy'];
 		replies: number;
 		boosts: number;
 		favs: number;
@@ -55,6 +56,13 @@
 		body: post.body,
 		media: post.media,
 		attachments: post.attachments,
+		boostedBy: post.boostedBy ? {
+			name: post.boostedBy.name,
+			handle: post.boostedBy.handle,
+			time: post.boostedBy.time,
+			avClass: post.boostedBy.avatar ? avatarClass(post.boostedBy.avatar) : undefined,
+			avatarUrl: post.boostedBy.avatarUrl
+		} : undefined,
 		quotedPost: post.quotedPost,
 		replies: post.replies,
 		boosts: post.boosts,

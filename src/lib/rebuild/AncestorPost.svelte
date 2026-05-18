@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Avatar from './Avatar.svelte';
 	import PostActions from './PostActions.svelte';
+	import PostBoost from './PostBoost.svelte';
 	import PostBody from './PostBody.svelte';
 	import PostHead from './PostHead.svelte';
 	import PostMedia from './PostMedia.svelte';
@@ -45,16 +46,18 @@
 	};
 </script>
 
-<div class="post post-ancestor">
-	<div class="thread-line-wrap">
-		<Avatar post={post} />
-		<div class="thread-line" data-testid="thread-line"></div>
+<PostBoost boostedBy={post.boostedBy}>
+	<div class="post post-ancestor">
+		<div class="thread-line-wrap">
+			<Avatar post={post} />
+			<div class="thread-line" data-testid="thread-line"></div>
+		</div>
+		<div style="min-width:0">
+			<PostHead post={post} />
+			<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} />
+			<QuotedPost quoted={post.quotedPost} />
+			<PostMedia post={post} onOpen={handleLightbox} />
+			<PostActions post={post} onAction={(key) => onAction?.(post.id, key)} />
+		</div>
 	</div>
-	<div style="min-width:0">
-		<PostHead post={post} />
-		<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} />
-		<QuotedPost quoted={post.quotedPost} />
-		<PostMedia post={post} onOpen={handleLightbox} />
-		<PostActions post={post} onAction={(key) => onAction?.(post.id, key)} />
-	</div>
-</div>
+</PostBoost>

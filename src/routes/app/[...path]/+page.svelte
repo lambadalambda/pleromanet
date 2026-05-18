@@ -61,6 +61,7 @@
 		boosts: number;
 		favs: number;
 		addressees?: string[];
+		boostedBy?: PostLike['boostedBy'];
 		copyJson?: unknown;
 		actions: { reply: boolean; boost: boolean; fav: boolean };
 	};
@@ -199,6 +200,13 @@
 		media: post.media,
 		attachments: post.attachments,
 		addressees: post.addressees,
+		boostedBy: post.boostedBy ? {
+			name: post.boostedBy.name,
+			handle: post.boostedBy.handle,
+			time: post.boostedBy.time,
+			avClass: post.boostedBy.avatar ? avatarClass(post.boostedBy.avatar) : undefined,
+			avatarUrl: post.boostedBy.avatarUrl
+		} : undefined,
 		copyJson: post.copyJson,
 		quotedPost: post.quotedPost,
 		replies: post.replies,

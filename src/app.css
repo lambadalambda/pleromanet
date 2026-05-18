@@ -2525,6 +2525,92 @@ body[data-theme='simoun'] .pill {
 	padding-top: 10px;
 }
 
+/* ===== Post boost attribution ===== */
+.post-boost {
+	display: grid;
+	grid-template-columns: 72px 1fr;
+	align-items: stretch;
+	border-bottom: 1px solid var(--border);
+	min-width: 0;
+}
+.post-boost:hover { background: rgba(164, 139, 217, 0.03); }
+.post-boost-rail {
+	position: relative;
+	padding: 12px 6px;
+	border-left: 4px solid var(--good);
+	background: rgba(168, 213, 177, 0.06);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	text-align: center;
+}
+.post-boost-tag {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-family: var(--mono);
+	font-size: 9px;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--good-ink);
+	padding: 1px 6px;
+	background: rgba(168, 213, 177, 0.18);
+	border-radius: 8px;
+}
+.post-boost-tag svg {
+	width: 9px;
+	height: 9px;
+}
+.post-boost-av {
+	width: 32px;
+	height: 32px;
+	border-radius: 4px;
+	flex-shrink: 0;
+}
+.post-boost-name {
+	font-family: var(--sans);
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--ink);
+	max-width: 100%;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	text-align: center;
+	line-height: 1.2;
+	letter-spacing: -0.01em;
+	padding: 0 2px;
+}
+.post-boost-handle {
+	font-family: var(--mono);
+	font-size: 9.5px;
+	color: var(--accent-ink);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 100%;
+	padding: 0 2px;
+}
+.post-boost-time {
+	font-family: var(--mono);
+	font-size: 9px;
+	color: var(--muted);
+	margin-top: auto;
+}
+.post-boost-postcol { min-width: 0; }
+.post-boost-postcol > .post {
+	border-bottom: none;
+	padding-left: 12px;
+}
+.post-boost-postcol > .post:hover { background: transparent; }
+.post-boost > .post-boost-postcol > .post-ancestor,
+.post-boost > .post-boost-postcol > .post-reply {
+	border-bottom: none;
+}
+
 /* ===== Thread view ===== */
 .thread {
 	overflow: hidden;
@@ -4205,6 +4291,20 @@ body[data-theme='simoun'] .composer { background: linear-gradient(180deg, #1c254
 	.focused-action svg { width: 18px; height: 18px; }
 	.thread-head-title { margin-right: 30px; }
 	.nested-replies { padding-left: 28px; margin-left: 14px; }
+	.post-boost { grid-template-columns: 1fr; }
+	.post-boost-rail {
+		flex-direction: row;
+		border-left: none;
+		border-top: 4px solid var(--good);
+		padding: 8px 14px;
+		justify-content: flex-start;
+		text-align: left;
+	}
+	.post-boost-av { width: 22px; height: 22px; }
+	.post-boost-name { flex: 1; font-size: 12.5px; text-align: left; }
+	.post-boost-tag { flex-shrink: 0; }
+	.post-boost-handle { display: none; }
+	.post-boost-time { margin-top: 0; margin-left: auto; }
 }
 @media (max-width: 560px) {
 	.post-audio { padding: 8px; column-gap: 10px; }
