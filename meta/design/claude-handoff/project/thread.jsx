@@ -1,8 +1,8 @@
-/* global React, I, VaporBanner, Avatar, PostHead, PostBody, PostMedia, PostActions, QuotedPost, Button */
+/* global React, I, VaporBanner, Avatar, PostHead, PostBody, PostPinged, PostCW, PostBoost, PostMedia, PostActions, QuotedPost, Button */
 const { useState: useStateT } = React;
 
 // ============ Thread view ============
-function ThreadView({ thread, focusedId, onBack, onAction, onReply, replyDraft, setReplyDraft }) {
+function ThreadView({ thread, focusedId, onBack, onAction, onReply, replyDraft, setReplyDraft, onVote, inlineReplyTo, onSetInlineReply, inlineReplyDraft, setInlineReplyDraft, onSubmitInlineReply }) {
   const ancestors = thread.ancestors || [];
   const focused = thread.focused;
   const replies = thread.replies || [];
@@ -25,13 +25,13 @@ function ThreadView({ thread, focusedId, onBack, onAction, onReply, replyDraft, 
       {ancestors.length > 0 && (
         <div className="thread-ancestors">
           {ancestors.map((p, i) => (
-            <AncestorPost key={p.id} post={p} onAction={onAction} hasLine={true}/>
+            <AncestorPost key={p.id} post={p} onAction={onAction} onVote={onVote} hasLine={true}/>
           ))}
         </div>
       )}
 
       {/* Focused post */}
-      <FocusedPost post={focused} onAction={onAction} continuesAbove={ancestors.length > 0}/>
+      <FocusedPost post={focused} onAction={onAction} onVote={onVote} continuesAbove={ancestors.length > 0}/>
 
       {/* Inline reply composer */}
       <div className="thread-reply-composer">
@@ -79,8 +79,14 @@ function ThreadView({ thread, focusedId, onBack, onAction, onReply, replyDraft, 
             key={r.id}
             post={r}
             onAction={onAction}
+            onVote={onVote}
             isLast={i === replies.length - 1}
-            nestedReplies={r.nestedReplies || []}/>
+            nestedReplies={r.nestedReplies || []}
+            inlineReplyTo={inlineReplyTo}
+            onSetInlineReply={onSetInlineReply}
+            inlineReplyDraft={inlineReplyDraft}
+            setInlineReplyDraft={setInlineReplyDraft}
+            onSubmitInlineReply={onSubmitInlineReply}/>
         ))}
         {replies.length === 0 && (
           <div className="thread-empty">No replies yet. Be the first.</div>
@@ -90,25 +96,31 @@ function ThreadView({ thread, focusedId, onBack, onAction, onReply, replyDraft, 
   );
 }
 
-function AncestorPost({ post, onAction, hasLine }) {
+function AncestorPost({ post, onAction, onVote, hasLine }) {
   return (
-    <div className="post post-ancestor">
-      <div className="thread-line-wrap">
-        <Avatar post={post}/>
-        <div className="thread-line"></div>
+    <PostBoost post={post}>
+      <div className="post post-ancestor">
+        <div className="thread-line-wrap">
+          <Avatar post={post}/>
+          <div className="thread-line"></div>
+        </div>
+        <div style={{minWidth: 0}}>
+          <PostHead post={post}/>
+          <PostCW post={post}>
+            <PostBody body={post.body} addressees={post.addressees}/>
+            <QuotedPost quoted={post.quotedPost}/>
+            <PostMedia post={post} onVote={onVote}/>
+          </PostCW>
+          <PostActions post={post} onAction={(k) => onAction(post.id, k)}/>
+        </div>
       </div>
-      <div style={{minWidth: 0}}>
-        <PostHead post={post}/>
-        <PostBody body={post.body} addressees={post.addressees}/>
-        <QuotedPost quoted={post.quotedPost}/>
-        <PostMedia post={post}/>
-        <PostActions post={post} onAction={(k) => onAction(post.id, k)}/>
-      </div>
-    </div>
+    </PostBoost>
   );
 }
 
-function FocusedPost({ post, onAction, continuesAbove }) {
+function FocusedPost({ post, onAction, onVote, continuesAbove }) {
+  const [cwRevealed, setCwRevealed] = useStateT(false);
+  const hidden = post.cw && !cwRevealed;
   return (
     <article className="focused-post">
       {continuesAbove && <div className="thread-line-top"></div>}
@@ -124,21 +136,51 @@ function FocusedPost({ post, onAction, continuesAbove }) {
         <button className="post-more"><I.more style={{width: 16, height: 16}}/></button>
       </div>
 
-      <div className="focused-body">{post.body}</div>
-      {post.quotedPost && <QuotedPost quoted={post.quotedPost}/>}
-      {post.addressees && post.addressees.length > 0 && (
-        <div className="post-pinged focused-pinged">
-          <span className="post-pinged-l">Pinged</span>
-          <span className="post-pinged-list">
-            {post.addressees.map(a => <a key={a} className="post-pinged-chip">{a}</a>)}
-          </span>
+      {hidden && (
+        <div className="post-cw-card" onClick={(e) => e.stopPropagation()}>
+          <div className="post-cw-head">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width: 13, height: 13, color: 'var(--warn)'}}>
+              <path d="M8 1.5l7 12.5H1L8 1.5z"/><path d="M8 6v4M8 12v.5"/>
+            </svg>
+            Content warning
+          </div>
+          <div className="post-cw-summary">{post.cw}</div>
+          <div className="post-cw-foot">
+            <button className="post-cw-reveal" onClick={() => setCwRevealed(true)}>Show post</button>
+            <button className="post-cw-link">Always show from @{post.handle ? post.handle.split('@').filter(Boolean)[0] : 'author'} →</button>
+          </div>
         </div>
       )}
 
-      {post.media && (
-        <div className="focused-media">
-          <VaporBanner variant={post.media}/>
+      {!hidden && post.cw && (
+        <div className="post-cw-revealed-summary">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width: 13, height: 13}}>
+            <path d="M8 1.5l7 12.5H1L8 1.5z"/><path d="M8 6v4M8 12v.5"/>
+          </svg>
+          <span className="post-cw-revealed-l">CW</span>
+          <span className="post-cw-revealed-text">{post.cw}</span>
+          <button className="post-cw-revealed-hide" onClick={() => setCwRevealed(false)}>Hide</button>
         </div>
+      )}
+
+      {!hidden && (
+        <React.Fragment>
+          <div className="focused-body">{post.body}</div>
+          {post.quotedPost && <QuotedPost quoted={post.quotedPost}/>}
+          <PostPinged addressees={post.addressees} focused={true}/>
+
+          {post.media && (
+            <div className="focused-media">
+              <VaporBanner variant={post.media}/>
+            </div>
+          )}
+
+          {post.attachments && post.attachments.length > 0 && (
+            <div className="focused-media-attach">
+              <PostMedia post={post} onVote={onVote}/>
+            </div>
+          )}
+        </React.Fragment>
       )}
 
       <div className="focused-meta">
@@ -179,29 +221,50 @@ function FocusedPost({ post, onAction, continuesAbove }) {
   );
 }
 
-function ReplyPost({ post, onAction, isLast, nestedReplies, depth = 0 }) {
+function ReplyPost({ post, onAction, onVote, isLast, nestedReplies, depth = 0, inlineReplyTo, onSetInlineReply, inlineReplyDraft, setInlineReplyDraft, onSubmitInlineReply }) {
   const [showNested, setShowNested] = useStateT(false);
+  const isReplyTarget = inlineReplyTo === post.id;
+  const handleReply = (k) => {
+    if (k === 'reply') {
+      onSetInlineReply && onSetInlineReply(isReplyTarget ? null : post.id);
+    } else {
+      onAction(post.id, k);
+    }
+  };
   return (
     <React.Fragment>
-      <div className={"post post-reply " + (isLast && nestedReplies.length === 0 ? 'post-reply-last' : '')}>
-        <div className="thread-line-wrap">
-          <Avatar post={post}/>
-          {(nestedReplies.length > 0 || depth > 0) && !isLast && <div className="thread-line"></div>}
+      <PostBoost post={post}>
+        <div className={"post post-reply " + (isLast && nestedReplies.length === 0 && !isReplyTarget ? 'post-reply-last' : '') + (isReplyTarget ? ' post-reply-target' : '')}>
+          <div className="thread-line-wrap">
+            <Avatar post={post}/>
+            {(nestedReplies.length > 0 || depth > 0 || isReplyTarget) && !isLast && <div className="thread-line"></div>}
+          </div>
+          <div style={{minWidth: 0}}>
+            <PostHead post={post}/>
+            <PostCW post={post}>
+              <PostBody body={post.body} addressees={post.addressees}/>
+              <QuotedPost quoted={post.quotedPost}/>
+              <PostMedia post={post} onVote={onVote}/>
+            </PostCW>
+            <PostActions post={post} onAction={handleReply}/>
+            {nestedReplies.length > 0 && !showNested && (
+              <button className="show-replies" onClick={() => setShowNested(true)}>
+                <span className="show-replies-line"></span>
+                Show {nestedReplies.length} {nestedReplies.length === 1 ? 'reply' : 'replies'} →
+              </button>
+            )}
+          </div>
         </div>
-        <div style={{minWidth: 0}}>
-          <PostHead post={post}/>
-          <PostBody body={post.body} addressees={post.addressees}/>
-          <QuotedPost quoted={post.quotedPost}/>
-          <PostMedia post={post}/>
-          <PostActions post={post} onAction={(k) => onAction(post.id, k)}/>
-          {nestedReplies.length > 0 && !showNested && (
-            <button className="show-replies" onClick={() => setShowNested(true)}>
-              <span className="show-replies-line"></span>
-              Show {nestedReplies.length} {nestedReplies.length === 1 ? 'reply' : 'replies'} →
-            </button>
-          )}
-        </div>
-      </div>
+      </PostBoost>
+      {isReplyTarget && (
+        <InlineReplyComposer
+          target={post}
+          draft={inlineReplyDraft}
+          setDraft={setInlineReplyDraft}
+          onCancel={() => onSetInlineReply(null)}
+          onSubmit={() => onSubmitInlineReply && onSubmitInlineReply(post.id)}
+        />
+      )}
       {showNested && nestedReplies.length > 0 && (
         <div className="nested-replies">
           {nestedReplies.map((r, i) => (
@@ -209,9 +272,15 @@ function ReplyPost({ post, onAction, isLast, nestedReplies, depth = 0 }) {
               key={r.id}
               post={r}
               onAction={onAction}
+              onVote={onVote}
               isLast={i === nestedReplies.length - 1}
               nestedReplies={r.nestedReplies || []}
               depth={depth + 1}
+              inlineReplyTo={inlineReplyTo}
+              onSetInlineReply={onSetInlineReply}
+              inlineReplyDraft={inlineReplyDraft}
+              setInlineReplyDraft={setInlineReplyDraft}
+              onSubmitInlineReply={onSubmitInlineReply}
             />
           ))}
         </div>
@@ -220,4 +289,42 @@ function ReplyPost({ post, onAction, isLast, nestedReplies, depth = 0 }) {
   );
 }
 
-Object.assign(window, { ThreadView, AncestorPost, FocusedPost, ReplyPost });
+// Inline reply composer (V1 — slides in below the targeted post)
+function InlineReplyComposer({ target, draft, setDraft, onCancel, onSubmit }) {
+  const remaining = 500 - (draft || '').length;
+  const targetHandle = '@' + (target.handle || '').split('@').filter(Boolean)[0];
+  return (
+    <div className="thread-inline-reply">
+      <div className="thread-inline-reply-av"/>
+      <div>
+        <div className="thread-inline-reply-addr">
+          <span>Replying to</span>
+          <span className="thread-inline-reply-addr-chip">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width: 10, height: 10}}>
+              <path d="M6 4L2 8l4 4"/><path d="M2 8h7a4 4 0 014 4v1"/>
+            </svg>
+            {targetHandle}
+          </span>
+        </div>
+        <textarea
+          placeholder={`Reply to ${targetHandle}…`}
+          value={draft || ''}
+          onChange={e => setDraft(e.target.value)}
+          autoFocus
+        />
+        <div className="thread-inline-reply-row">
+          <button className="thread-inline-reply-tool" title="Image"><I.image style={{width: 16, height: 16}}/></button>
+          <button className="thread-inline-reply-tool" title="Emoji"><I.smile style={{width: 16, height: 16}}/></button>
+          <button className="thread-inline-reply-tool" title="Poll"><I.poll style={{width: 16, height: 16}}/></button>
+          <button className="thread-inline-reply-cw">CW</button>
+          <span className="thread-inline-reply-spacer"/>
+          <button className="thread-inline-reply-cancel" onClick={onCancel}>Cancel</button>
+          <span className="thread-inline-reply-count" style={{color: remaining < 50 ? 'var(--bad)' : 'var(--muted)'}}>{remaining}</span>
+          <button className="thread-inline-reply-submit" onClick={onSubmit} disabled={!(draft || '').trim()}>Reply</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { ThreadView, AncestorPost, FocusedPost, ReplyPost, InlineReplyComposer });

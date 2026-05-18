@@ -395,10 +395,108 @@ function openLightbox(attachments, startIdx = 0, attribution = null) {
   window.dispatchEvent(new CustomEvent('pn-open-lightbox', { detail: { attachments, startIdx, attribution } }));
 }
 
+// ============================================================
+// PollAttachment — single-choice / multi-choice polls.
+// Renders in three states:
+//   - voting: hasn't voted yet, options are click-to-pick + Vote button
+//   - results: has voted (or poll expired): horizontal bar chart
+// Pure UI — vote state is owned by the host (post.attachments[i]).
+// Click the option row to select; Vote button commits via onVote(pollId, choiceIds).
+// ============================================================
+function PollAttachment({ poll, onVote }) {
+  const [picked, setPicked] = React.useState(new Set());
+  const expired = poll.expired;
+  const showResults = poll.myVote != null || expired;
+  const total = poll.totalVotes || 0;
+
+  if (showResults) {
+    const winnerIdx = poll.choices.reduce((best, c, i) =>
+      c.votes > poll.choices[best].votes ? i : best, 0);
+    return (
+      <div className="post-poll" onClick={e => e.stopPropagation()}>
+        {poll.choices.map((c, i) => {
+          const pct = total > 0 ? Math.round((c.votes / total) * 100) : 0;
+          const isMe = poll.multi
+            ? (poll.myVote || []).includes(c.id)
+            : poll.myVote === c.id;
+          const isWinner = i === winnerIdx && c.votes > 0;
+          return (
+            <div key={c.id} className={"post-poll-row " + (isWinner ? 'winner ' : '') + (isMe ? 'me ' : '')}>
+              <div>
+                <div className="post-poll-label">
+                  {c.label}
+                  {isMe && <span className="post-poll-you">You</span>}
+                </div>
+                <div className="post-poll-track">
+                  <div className="post-poll-fill" style={{width: pct + '%'}}/>
+                </div>
+              </div>
+              <div>
+                <div className="post-poll-pct">{pct}%</div>
+                <div className="post-poll-num">{c.votes}</div>
+              </div>
+            </div>
+          );
+        })}
+        <div className="post-poll-meta">
+          <span className={"post-poll-pill " + (expired ? '' : 'live')}>
+            <span className="pp-dot"/>
+            {expired ? `Ended ${poll.endedAgo || ''}` : `Ends in ${poll.endsIn || ''}`}
+          </span>
+          <span>{total} {total === 1 ? 'vote' : 'votes'}</span>
+          {poll.myVote != null && <><span className="dot">·</span><span>you voted</span></>}
+        </div>
+      </div>
+    );
+  }
+
+  // Voting state
+  const toggle = (id) => {
+    setPicked(s => {
+      const n = new Set(s);
+      if (poll.multi) {
+        n.has(id) ? n.delete(id) : n.add(id);
+      } else {
+        n.clear();
+        n.add(id);
+      }
+      return n;
+    });
+  };
+  const submit = () => {
+    if (picked.size === 0) return;
+    const choice = poll.multi ? [...picked] : [...picked][0];
+    onVote && onVote(poll.id, choice);
+  };
+  return (
+    <div className="post-poll" onClick={e => e.stopPropagation()}>
+      {poll.choices.map(c => (
+        <button
+          key={c.id}
+          className={"post-poll-vote-row " + (picked.has(c.id) ? 'selected' : '')}
+          onClick={() => toggle(c.id)}>
+          <span className={poll.multi ? 'post-poll-check' : 'post-poll-radio'}/>
+          <span style={{fontSize: 14, color: 'var(--ink)', flex: 1, textAlign: 'left'}}>{c.label}</span>
+        </button>
+      ))}
+      <div className="post-poll-foot">
+        <button className="post-poll-vote-btn" disabled={picked.size === 0} onClick={submit}>
+          {poll.multi && picked.size > 1 ? `Vote · ${picked.size} selected` : 'Vote'}
+        </button>
+        <button className="post-poll-results-link">View results →</button>
+        <span style={{marginLeft: 'auto', fontFamily: 'var(--mono)', fontSize: 10.5, color: 'var(--muted)'}}>
+          {poll.endsIn ? `${poll.endsIn} left` : ''} · {total} {total === 1 ? 'vote' : 'votes'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 Object.assign(window, {
   PhotoGrid, VideoAttachment, AudioAttachment,
   CompactAudio, MediaHeroStrip, MediaStripThumb, MediaStripKindBadge,
   AttachmentLightbox, AttachmentLightboxHost,
   openLightbox,
+  PollAttachment,
   parseDur, fmtDur,
 });

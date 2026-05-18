@@ -1,10 +1,10 @@
-/* global React, I, VaporBanner, Avatar, PostHead, PostBody, PostMedia, PostActions,
+/* global React, I, VaporBanner, Avatar, PostHead, PostBody, PostCW, PostBoost, PostMedia, PostActions,
    Card, CardHead, CardFoot, Button, Pill, StatusRow,
    OekakiModal */
 const { useState: useStateF } = React;
 
 // ============ Home feed ============
-function HomeView({ tweaks, posts, onToggleAction, composer, setComposer, onPost, onOpenThread }) {
+function HomeView({ tweaks, posts, onToggleAction, composer, setComposer, onPost, onOpenThread, onVote }) {
   const [tab, setTab] = useStateF('Home');
   return (
     <div className="card">
@@ -17,7 +17,7 @@ function HomeView({ tweaks, posts, onToggleAction, composer, setComposer, onPost
       </div>
       <Composer composer={composer} setComposer={setComposer} onPost={onPost}/>
       <div>
-        {posts.map(p => <Post key={p.id} post={p} onAction={(k) => onToggleAction(p.id, k)} onOpen={() => onOpenThread && onOpenThread(p.id)}/>)}
+        {posts.map(p => <Post key={p.id} post={p} onAction={(k) => onToggleAction(p.id, k)} onOpen={() => onOpenThread && onOpenThread(p.id)} onVote={onVote}/>)}
       </div>
     </div>
   );
@@ -26,6 +26,32 @@ function HomeView({ tweaks, posts, onToggleAction, composer, setComposer, onPost
 function Composer({ composer, setComposer, onPost }) {
   const [oekOpen, setOekOpen] = React.useState(false);
   const remaining = 500 - (composer.text || '').length;
+  const hasCW = composer.cw != null;
+  const hasPoll = composer.poll != null;
+
+  const toggleCW = () => {
+    if (hasCW) setComposer({...composer, cw: null});
+    else setComposer({...composer, cw: ''});
+  };
+  const togglePoll = () => {
+    if (hasPoll) setComposer({...composer, poll: null});
+    else setComposer({
+      ...composer,
+      poll: { choices: ['', '', ''], duration: '24h', multi: false, hideUntil: true },
+    });
+  };
+  const setCW = (v) => setComposer({...composer, cw: v});
+  const setPoll = (p) => setComposer({...composer, poll: {...composer.poll, ...p}});
+  const setChoice = (i, v) => setPoll({ choices: composer.poll.choices.map((x, j) => j === i ? v : x) });
+  const removeChoice = (i) => {
+    if (composer.poll.choices.length <= 2) return;
+    setPoll({ choices: composer.poll.choices.filter((_, j) => j !== i) });
+  };
+  const addChoice = () => {
+    if (composer.poll.choices.length >= 6) return;
+    setPoll({ choices: [...composer.poll.choices, ''] });
+  };
+
   return (
     <div className="composer">
       <Avatar variant="compose" avBanner="sunset"/>
@@ -36,6 +62,103 @@ function Composer({ composer, setComposer, onPost }) {
           value={composer.text}
           onChange={e => setComposer({...composer, text: e.target.value})}
         />
+        {hasCW && (
+          <div className="composer-cw">
+            <span className="composer-cw-l">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{width: 13, height: 13}}>
+                <path d="M8 1.5l7 12.5H1L8 1.5z"/><path d="M8 6v4M8 12v.5"/>
+              </svg>
+              CW
+            </span>
+            <input
+              className="composer-cw-input"
+              value={composer.cw}
+              onChange={e => setCW(e.target.value)}
+              placeholder="One short line · what readers see before opening"
+              maxLength={100}
+              autoFocus
+            />
+            <button className="composer-cw-x" onClick={toggleCW} title="Remove CW">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" style={{width: 14, height: 14}}>
+                <path d="M4 4l8 8M12 4l-8 8"/>
+              </svg>
+            </button>
+          </div>
+        )}
+        {hasPoll && (
+          <div className="composer-poll">
+            <div className="composer-poll-head">
+              <I.poll style={{width: 13, height: 13}}/>
+              Poll · 2–6 choices
+              <button className="composer-poll-x" onClick={togglePoll} title="Remove poll">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" style={{width: 13, height: 13}}>
+                  <path d="M4 4l8 8M12 4l-8 8"/>
+                </svg>
+              </button>
+            </div>
+            {composer.poll.choices.map((c, i) => (
+              <div key={i} className="composer-poll-opt">
+                <span className="composer-poll-handle">
+                  <svg viewBox="0 0 16 16" fill="currentColor" style={{width: 12, height: 12}}>
+                    <circle cx="6" cy="4" r="1"/><circle cx="10" cy="4" r="1"/>
+                    <circle cx="6" cy="8" r="1"/><circle cx="10" cy="8" r="1"/>
+                    <circle cx="6" cy="12" r="1"/><circle cx="10" cy="12" r="1"/>
+                  </svg>
+                </span>
+                <input
+                  className="composer-poll-input"
+                  value={c}
+                  onChange={e => setChoice(i, e.target.value)}
+                  placeholder={`Choice ${i + 1}`}
+                  maxLength={50}
+                />
+                <span className={"composer-poll-counter " + ((c || '').length > 40 ? 'over' : '')}>{(c || '').length}/50</span>
+                <button
+                  className={"composer-poll-rm " + (composer.poll.choices.length <= 2 ? 'disabled' : '')}
+                  onClick={() => removeChoice(i)}>
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" style={{width: 12, height: 12}}>
+                    <path d="M4 4l8 8M12 4l-8 8"/>
+                  </svg>
+                </button>
+              </div>
+            ))}
+            <button
+              className={"composer-poll-add " + (composer.poll.choices.length >= 6 ? 'disabled' : '')}
+              onClick={addChoice}>
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" style={{width: 12, height: 12}}>
+                <path d="M8 3v10M3 8h10"/>
+              </svg>
+              Add choice
+            </button>
+            <div className="composer-poll-settings">
+              <div className="composer-poll-setting">
+                <label className="composer-poll-setting-l">Duration</label>
+                <select className="composer-poll-select" value={composer.poll.duration} onChange={e => setPoll({duration: e.target.value})}>
+                  <option value="5m">5 minutes</option>
+                  <option value="1h">1 hour</option>
+                  <option value="6h">6 hours</option>
+                  <option value="24h">24 hours</option>
+                  <option value="3d">3 days</option>
+                  <option value="7d">7 days</option>
+                </select>
+              </div>
+              <div className="composer-poll-setting">
+                <label className="composer-poll-setting-l">Voting</label>
+                <select className="composer-poll-select" value={composer.poll.multi ? 'multi' : 'single'} onChange={e => setPoll({multi: e.target.value === 'multi'})}>
+                  <option value="single">Single choice</option>
+                  <option value="multi">Multiple choices</option>
+                </select>
+              </div>
+              <button
+                className="composer-poll-toggle"
+                onClick={(e) => { e.preventDefault(); setPoll({hideUntil: !composer.poll.hideUntil}); }}
+                style={{background: 'none', border: 'none', padding: 0}}>
+                <span className={"pp-tog " + (composer.poll.hideUntil ? 'on' : '')}/>
+                <span>Hide totals until poll ends</span>
+              </button>
+            </div>
+          </div>
+        )}
         <div className="composer-row">
           <button className="composer-tool" title="Image"><I.image style={{width: 18, height: 18}}/></button>
           <button className="composer-tool" title="Draw (Oekaki)" onClick={() => setOekOpen(true)}>
@@ -45,9 +168,11 @@ function Composer({ composer, setComposer, onPost }) {
               <path d="M5 19l1.5-1.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
             </svg>
           </button>
-          <button className="composer-tool" title="Poll"><I.poll style={{width: 18, height: 18}}/></button>
+          <button className={"composer-tool " + (hasPoll ? 'active' : '')} title="Poll" onClick={togglePoll}>
+            <I.poll style={{width: 18, height: 18}}/>
+          </button>
           <button className="composer-tool" title="Emoji"><I.smile style={{width: 18, height: 18}}/></button>
-          <button className="composer-tool cw" title="Content warning">CW</button>
+          <button className={"composer-tool cw " + (hasCW ? 'active' : '')} title="Content warning" onClick={toggleCW}>CW</button>
           <button className="composer-tool privacy">
             <I.globe style={{width: 13, height: 13}}/>
             <span>{composer.privacy}</span>
@@ -74,7 +199,7 @@ function Composer({ composer, setComposer, onPost }) {
   );
 }
 
-function Post({ post, onAction, onOpen }) {
+function Post({ post, onAction, onOpen, onVote }) {
   const click = (e) => {
     if (e.target.closest('button') || e.target.closest('a')) return;
     onOpen && onOpen();
@@ -88,16 +213,20 @@ function Post({ post, onAction, onOpen }) {
     });
   };
   return (
-    <div className="post" onClick={click} style={{cursor: onOpen ? 'pointer' : 'default'}}>
-      <Avatar post={post}/>
-      <div style={{minWidth: 0}}>
-        <PostHead post={post}/>
-        <PostBody body={post.body} addressees={post.addressees}/>
-        <QuotedPost quoted={post.quotedPost}/>
-        <PostMedia post={post} onOpen={openLightbox}/>
-        <PostActions post={post} onAction={onAction}/>
+    <PostBoost post={post}>
+      <div className="post" onClick={click} style={{cursor: onOpen ? 'pointer' : 'default'}}>
+        <Avatar post={post}/>
+        <div style={{minWidth: 0}}>
+          <PostHead post={post}/>
+          <PostCW post={post}>
+            <PostBody body={post.body} addressees={post.addressees}/>
+            <QuotedPost quoted={post.quotedPost}/>
+            <PostMedia post={post} onOpen={openLightbox} onVote={onVote}/>
+          </PostCW>
+          <PostActions post={post} onAction={onAction}/>
+        </div>
       </div>
-    </div>
+    </PostBoost>
   );
 }
 

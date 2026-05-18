@@ -15,6 +15,45 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 
 const initialPosts = [
   {
+    id: 13, name: 'soft.hertz', handle: '@soft.hertz@kolektiva.social', time: '3h',
+    avClass: 'av-grad-3',
+    boostedBy: { name: 'FiestaBun', handle: '@FiestaBun@decayable.ink', avClass: 'av-pixel-pc', time: '35m' },
+    body: "the algorithm doesn't care about you. the timeline doesn't either. but the people in it do, and that's worth keeping.",
+    replies: 8, boosts: 34, favs: 142,
+    actions: { reply: false, boost: false, fav: false },
+  },
+  {
+    id: 11, name: 'kestrel.fm', handle: '@kestrel@audio.garden', time: '14m',
+    avClass: 'av-grad-3',
+    body: "which side wins?",
+    attachments: [
+      {
+        kind: 'poll', id: 'p1',
+        choices: [
+          { id: 'warm',  label: 'warm cassette',  votes: 142 },
+          { id: 'cold',  label: 'cold terminal',  votes: 38 },
+          { id: 'vinyl', label: 'spinning vinyl', votes: 214 },
+        ],
+        totalVotes: 394, multi: false, endsIn: '6h 12m',
+        myVote: null, expired: false,
+      },
+    ],
+    replies: 24, boosts: 12, favs: 48,
+    actions: { reply: false, boost: false, fav: false },
+  },
+  {
+    id: 12, name: 'mossy', handle: '@mossy@garden.cafe', time: '32m',
+    avClass: 'av-grad-3',
+    cw: 'food, plated photos',
+    body: "every restaurant photo I take ends up looking like a NYT food review somehow. is there a special app for that or is it just learned posture\n\n📍 home cooking · saturday breakfast",
+    attachments: [
+      { kind: 'photo', src: 'samples/cat-bank.webp', alt: 'plate of breakfast food' },
+      { kind: 'photo', src: 'samples/cat-door.webp', alt: 'morning light' },
+    ],
+    replies: 4, boosts: 3, favs: 22,
+    actions: { reply: false, boost: false, fav: false },
+  },
+  {
     id: 9, name: 'orbit', handle: '@orbit@spacebear.net', time: '14m',
     avClass: 'av-orb',
     body: "this perfectly captures my feelings about saturday morning",
@@ -156,6 +195,8 @@ function App() {
   const [threadId, setThreadId] = useState(null);
   const [prevView, setPrevView] = useState('home');
   const [replyDraft, setReplyDraft] = useState('');
+  const [inlineReplyTo, setInlineReplyTo] = useState(null);
+  const [inlineReplyDraft, setInlineReplyDraft] = useState('');
   const [theme, setTheme] = useState(() => localStorage.getItem('pn-theme') || 'cream');
   const [signedIn, setSignedIn] = useState(true);
 
@@ -188,6 +229,34 @@ function App() {
   const onToggleAction = (id, key) => {
     setPosts(ps => ps.map(p => p.id === id ? { ...p, actions: { ...p.actions, [key]: !p.actions[key] } } : p));
   };
+
+  // Vote on a poll attached to a post. Mutates the matching attachment in-place
+  // by incrementing the chosen choice and recording the user's vote.
+  const onVote = (pollId, choice) => {
+    setPosts(ps => ps.map(p => {
+      if (!p.attachments) return p;
+      let touched = false;
+      const next = p.attachments.map(a => {
+        if (a.kind !== 'poll' || a.id !== pollId) return a;
+        touched = true;
+        const choices = a.choices.map(c =>
+          (Array.isArray(choice) ? choice.includes(c.id) : c.id === choice)
+            ? { ...c, votes: c.votes + 1 }
+            : c
+        );
+        const inc = Array.isArray(choice) ? choice.length : 1;
+        return { ...a, choices, totalVotes: (a.totalVotes || 0) + inc, myVote: choice };
+      });
+      return touched ? { ...p, attachments: next } : p;
+    }));
+  };
+
+  const onSubmitInlineReply = (parentId) => {
+    if (!inlineReplyDraft.trim()) return;
+    // No-op for state; the reply draft is reset and the composer closes.
+    setInlineReplyDraft('');
+    setInlineReplyTo(null);
+  };
   const toggleFollow = (id) => setFollowing(f => ({ ...f, [id]: !f[id] }));
 
   const openThread = (id) => {
@@ -197,7 +266,12 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const closeThread = () => { setView(prevView || 'home'); setThreadId(null); };
+  const closeThread = () => {
+    setView(prevView || 'home');
+    setThreadId(null);
+    setInlineReplyTo(null);
+    setInlineReplyDraft('');
+  };
 
   // Build a synthetic thread for the given post
   const buildThread = (id) => {
@@ -334,13 +408,14 @@ function App() {
                 composer={composer}
                 setComposer={setComposer}
                 onPost={onPost}
-                onOpenThread={openThread}/>
+                onOpenThread={openThread}
+                onVote={onVote}/>
             )}
             {view === 'local' && (
-              <HomeView tweaks={tweaks} posts={posts.slice(2)} onToggleAction={onToggleAction} composer={composer} setComposer={setComposer} onPost={onPost} onOpenThread={openThread}/>
+              <HomeView tweaks={tweaks} posts={posts.slice(2)} onToggleAction={onToggleAction} composer={composer} setComposer={setComposer} onPost={onPost} onOpenThread={openThread} onVote={onVote}/>
             )}
             {view === 'federated' && (
-              <HomeView tweaks={tweaks} posts={posts} onToggleAction={onToggleAction} composer={composer} setComposer={setComposer} onPost={onPost} onOpenThread={openThread}/>
+              <HomeView tweaks={tweaks} posts={posts} onToggleAction={onToggleAction} composer={composer} setComposer={setComposer} onPost={onPost} onOpenThread={openThread} onVote={onVote}/>
             )}
             {view === 'thread' && (
               <ThreadView
@@ -350,7 +425,13 @@ function App() {
                 onAction={onToggleAction}
                 onReply={onReplySubmit}
                 replyDraft={replyDraft}
-                setReplyDraft={setReplyDraft}/>
+                setReplyDraft={setReplyDraft}
+                onVote={onVote}
+                inlineReplyTo={inlineReplyTo}
+                onSetInlineReply={setInlineReplyTo}
+                inlineReplyDraft={inlineReplyDraft}
+                setInlineReplyDraft={setInlineReplyDraft}
+                onSubmitInlineReply={onSubmitInlineReply}/>
             )}
             {view === 'profile-settings' && (
               <ProfileSettings tab={settingsTab} profile={profile} setProfile={setProfile}/>
