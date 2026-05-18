@@ -1021,7 +1021,7 @@
 						</div>
 						<div class="ds-spec ds-spec-span-2">
 							<div class="ds-spec-stage">
-								<Post post={{...demoPost([]), body: 'qwen 0.5b can handle some limited summary tasks. theres also the JOSIE models which are jailbroken qwens.', addressees: ['@dtluna', '@feld', '@lain']}} />
+								<Post post={{...demoPost([]), body: 'qwen 0.5b can handle some limited summary tasks. theres also the JOSIE models which are jailbroken qwens.', addressees: ['@dtluna@retro.social', '@feld@queer.party', '@lain']}} />
 							</div>
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Reply + cc-list</span>

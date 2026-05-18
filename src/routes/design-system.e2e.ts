@@ -167,10 +167,14 @@ test('renders canonical reply addressee chip specimens', async ({ page }) => {
 	await expect(parentOnly.locator('.post-pinged-also')).toHaveCount(0);
 
 	const ccList = posts.locator('.ds-spec').filter({ hasText: 'Reply + cc-list' });
-	await expect(ccList.locator('.post-pinged-chip-parent')).toContainText('@dtluna');
+	await expect(ccList.locator('.post-pinged-chip-parent .post-pinged-handle')).toHaveText('@dtluna');
+	await expect(ccList.locator('.post-pinged-chip-parent')).toHaveAttribute('title', '@dtluna@retro.social');
 	await expect(ccList.locator('.post-pinged-also')).toContainText('also');
 	await expect(ccList.locator('.post-pinged-chip')).toHaveCount(2);
-	await expect(ccList.locator('.post-pinged-chip').first()).toContainText('@feld');
+	await expect(ccList.locator('.post-pinged-chip').first()).toHaveText('@feld');
+	await expect(ccList.locator('.post-pinged-chip').first()).toHaveAttribute('title', '@feld@queer.party');
+	await expect(ccList.locator('.post-pinged-list')).not.toContainText('@dtluna@retro.social');
+	await expect(ccList.locator('.post-pinged-list')).not.toContainText('@feld@queer.party');
 
 	await setViewport(page, 'mobile');
 	await expectNoHorizontalOverflow(page);

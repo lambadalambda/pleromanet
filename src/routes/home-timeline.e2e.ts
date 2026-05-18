@@ -298,10 +298,10 @@ test('home timeline moves leading reply recipients into parent and cc chips', as
 				id: 'status-leading-recipients',
 				in_reply_to_id: 'parent-status',
 				in_reply_to_account_id: 'account-2',
-				content: '<p>@dtluna @feld qwen 0.5b can handle it. has @lain tried it?</p>',
+				content: '<p>@dtluna@retro.social @feld@queer.party qwen 0.5b can handle it. has @lain tried it?</p>',
 				pleroma: {
 					...pleromaFixtures.status.pleroma,
-					content: { 'text/plain': '@dtluna @feld qwen 0.5b can handle it. has @lain tried it?' }
+					content: { 'text/plain': '@dtluna@retro.social @feld@queer.party qwen 0.5b can handle it. has @lain tried it?' }
 				}
 			}
 		]);
@@ -313,10 +313,14 @@ test('home timeline moves leading reply recipients into parent and cc chips', as
 	const post = page.locator('.post').filter({ hasText: 'qwen 0.5b can handle it.' }).first();
 	await expect(post.locator('.post-body')).toHaveText('qwen 0.5b can handle it. has @lain tried it?');
 	await expect(post.locator('.post-pinged-l')).toHaveText('Replying to');
-	await expect(post.locator('.post-pinged-chip-parent')).toContainText('@dtluna');
+	await expect(post.locator('.post-pinged-chip-parent .post-pinged-handle')).toHaveText('@dtluna');
+	await expect(post.locator('.post-pinged-chip-parent')).toHaveAttribute('title', '@dtluna@retro.social');
 	await expect(post.locator('.post-pinged-chip-parent svg')).toBeVisible();
 	await expect(post.locator('.post-pinged-also')).toContainText('also');
-	await expect(post.locator('.post-pinged-chip')).toContainText('@feld');
+	await expect(post.locator('.post-pinged-chip')).toHaveText('@feld');
+	await expect(post.locator('.post-pinged-chip')).toHaveAttribute('title', '@feld@queer.party');
+	await expect(post.locator('.post-pinged-list')).not.toContainText('@dtluna@retro.social');
+	await expect(post.locator('.post-pinged-list')).not.toContainText('@feld@queer.party');
 });
 
 test('home timeline post menu copies raw post JSON for bug reports', async ({ page }) => {
