@@ -482,6 +482,63 @@ test('home timeline renders real media attachments from Pleroma statuses', async
 	await expectNoHorizontalOverflow(page);
 });
 
+test('home timeline renders poll attachments below media without opening the thread', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [{
+			...pleromaFixtures.status,
+			id: 'status-media-poll',
+			content: '<p>which side wins?</p>',
+			pleroma: { ...pleromaFixtures.status.pleroma, content: { 'text/plain': 'which side wins?' } },
+			media_attachments: [
+				{ id: 'poll-photo', type: 'image', url: 'https://cdn.example/media/poll-photo.jpg', preview_url: 'https://cdn.example/media/poll-photo-preview.jpg', description: 'poll photo' }
+			],
+			poll: {
+				id: 'poll-home',
+				options: [
+					{ title: 'warm cassette', votes_count: 142 },
+					{ title: 'cold terminal', votes_count: 38 },
+					{ title: 'spinning vinyl', votes_count: 214 }
+				],
+				votes_count: 394,
+				multiple: false,
+				expired: false,
+				ends_in: '6h 12m',
+				own_votes: []
+			}
+		}]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('[data-status-id="status-media-poll"]');
+	await expect(post.locator('.post-photos img[alt="poll photo"]')).toHaveAttribute('src', 'https://cdn.example/media/poll-photo.jpg');
+	await expect(post.locator('.post-poll')).toContainText('warm cassette');
+	const boxes = await post.evaluate((node) => {
+		const photo = node.querySelector('.post-photos')?.getBoundingClientRect();
+		const poll = node.querySelector('.post-poll')?.getBoundingClientRect();
+		return photo && poll ? { photoBottom: photo.bottom, pollTop: poll.top } : null;
+	});
+	expect(boxes).not.toBeNull();
+	expect(boxes?.pollTop ?? 0).toBeGreaterThanOrEqual(boxes?.photoBottom ?? 0);
+
+	await post.locator('.post-poll-vote-row').filter({ hasText: 'warm cassette' }).click();
+	await expect(post.getByRole('radio', { name: 'warm cassette' })).toBeChecked();
+	await expect(post.getByRole('button', { name: 'Vote' })).toBeDisabled();
+	await expect(post.locator('.post-poll-row')).toHaveCount(0);
+	await expect(post.locator('.post-poll')).not.toContainText('you voted');
+	await expect(page).toHaveURL('/app/home');
+
+	await post.locator('.post-photos button').click();
+	const dialog = page.getByRole('dialog');
+	await expect(dialog).toBeVisible();
+	await expect(dialog.locator('.lightbox-photo')).toHaveAttribute('src', 'https://cdn.example/media/poll-photo.jpg');
+	await expect(dialog).toContainText('1 of 1');
+	await expect(dialog).not.toContainText('warm cassette');
+	await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+});
+
 test('home timeline folds content warnings around body and media until revealed', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page, async (route) => {

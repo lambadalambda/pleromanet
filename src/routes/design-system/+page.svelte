@@ -199,7 +199,7 @@
 	});
 
 	const ATT_RULES = [
-		{ input: '1 attachment of any kind', layout: 'single', highlight: false },
+		{ input: '1 media attachment', layout: 'single', highlight: false },
 		{ input: '2–4 photos only', layout: 'photoGrid', highlight: false },
 		{ input: '1 photo + 1 audio', layout: 'photoAudio', highlight: true },
 		{ input: '2–4 photos + 1 audio', layout: 'photosAudio', highlight: false },
@@ -244,6 +244,12 @@
 		avClass: '', avBanner: 'sunset',
 		body: "🤍",
 	};
+	const POLL_CHOICES = [
+		{ id: 'warm', label: 'warm cassette', votes: 142 },
+		{ id: 'cold', label: 'cold terminal', votes: 38 },
+		{ id: 'vinyl', label: 'spinning vinyl', votes: 214 }
+	];
+	const pollPost = (attachment: Attachment, body = 'which side wins?'): DemoPostData => demoPost([attachment], body);
 
 	const THREAD_DEMO: { ancestors: DemoPostData[]; focused: DemoPostData; replies: DemoPostData[] } = {
 		ancestors: [{
@@ -775,7 +781,7 @@
 						{/each}
 					</div>
 
-					<div class="ds-sub-h">Single media (1 attachment of any kind)</div>
+					<div class="ds-sub-h">Single media (1 media attachment)</div>
 					<div class="ds-grid ds-grid-3">
 						<div class="ds-spec">
 							<div class="ds-spec-stage">
@@ -903,6 +909,87 @@
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">MediaStripThumb</span>
 								<span class="ds-spec-note">thumbnails by kind</span>
+							</div>
+						</div>
+					</div>
+
+					<div class="ds-sub-h">Polls</div>
+					<p class="ds-sub" style="margin-bottom:14px">Polls live alongside media as <code style="font-family:var(--mono);font-size:11px">kind: 'poll'</code> attachments, but render in a dedicated slot below the media block. Pre-vote rows use radio/check controls; voted and expired polls render horizontal result bars.</p>
+					<div class="ds-grid ds-grid-2">
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={pollPost({
+									kind: 'poll',
+									id: 'ds-p1',
+									choices: POLL_CHOICES,
+									totalVotes: 394,
+									multi: false,
+									endsIn: '6h 12m',
+									myVote: null,
+									expired: false
+								})} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Voting · single choice</span>
+								<span class="ds-spec-note">myVote = null · radio rows</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<Post post={pollPost({
+									kind: 'poll',
+									id: 'ds-p2',
+									choices: [
+										{ id: 'a', label: 'CW redesign', votes: 22 },
+										{ id: 'b', label: 'Inline replies', votes: 15 },
+										{ id: 'c', label: 'Polls', votes: 31 }
+									],
+									totalVotes: 68,
+									multi: true,
+									endsIn: '1d 4h',
+									myVote: null,
+									expired: false
+								}, 'what should we ship first this week?')} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Voting · multiple choices</span>
+								<span class="ds-spec-note">poll.multi = true · check rows</span>
+							</div>
+						</div>
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage">
+								<Post post={pollPost({
+									kind: 'poll',
+									id: 'ds-p3',
+									choices: POLL_CHOICES,
+									totalVotes: 394,
+									multi: false,
+									endsIn: '6h 12m',
+									myVote: 'vinyl',
+									expired: false
+								})} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Results · with vote</span>
+								<span class="ds-spec-note">myVote = 'vinyl' · bar chart</span>
+							</div>
+						</div>
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage">
+								<Post post={pollPost({
+									kind: 'poll',
+									id: 'ds-p4',
+									choices: POLL_CHOICES,
+									totalVotes: 394,
+									multi: false,
+									endedAgo: '2d ago',
+									myVote: 'warm',
+									expired: true
+								}, 'which side won?')} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Ended</span>
+								<span class="ds-spec-note">expired = true · Ended pill</span>
 							</div>
 						</div>
 					</div>

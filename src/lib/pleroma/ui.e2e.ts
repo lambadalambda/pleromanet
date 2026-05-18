@@ -272,6 +272,74 @@ test('Pleroma status adapters expose media attachments for shared post rendering
 	]);
 });
 
+test('Pleroma status adapters expose poll attachments for shared post rendering', () => {
+	const post = adaptPleromaStatus(withStatus({
+		id: 'status-with-poll',
+		poll: {
+			id: 'poll-1',
+			options: [
+				{ title: 'warm cassette', votes_count: 142 },
+				{ title: 'cold terminal', votes_count: 38 },
+				{ title: 'spinning vinyl', votes_count: 214 }
+			],
+			votes_count: 394,
+			multiple: false,
+			expired: false,
+			ends_in: '6h 12m',
+			own_votes: [2]
+		}
+	}));
+
+	expect(post.attachments).toEqual([
+		{
+			kind: 'poll',
+			id: 'poll-1',
+			choices: [
+				{ id: '0', label: 'warm cassette', votes: 142 },
+				{ id: '1', label: 'cold terminal', votes: 38 },
+				{ id: '2', label: 'spinning vinyl', votes: 214 }
+			],
+			totalVotes: 394,
+			multi: false,
+			endsIn: '6h 12m',
+			endedAgo: undefined,
+			myVote: '2',
+			voted: true,
+			expired: false
+		}
+	]);
+});
+
+test('Pleroma status adapters use real poll expiry and voted metadata', () => {
+	const expiresAt = new Date(Date.now() + (6 * 60 + 12) * 60000).toISOString();
+	const post = adaptPleromaStatus(withStatus({
+		id: 'status-with-expiring-poll',
+		poll: {
+			id: 'poll-expiring',
+			options: [
+				{ title: 'one', votes_count: 1 },
+				{ title: 'two', votes_count: 2 }
+			],
+			votes_count: 3,
+			multiple: true,
+			expires_at: expiresAt,
+			voted: true
+		}
+	}));
+	const poll = post.attachments?.[0];
+
+	expect(poll).toEqual(expect.objectContaining({
+		kind: 'poll',
+		id: 'poll-expiring',
+		multi: true,
+		myVote: null,
+		voted: true,
+		expired: false,
+		endedAgo: undefined
+	}));
+	expect(poll?.kind === 'poll' ? poll.endsIn : undefined).toMatch(/^6h 1[12]m$/);
+});
+
 test('Pleroma status list adapter keeps fixture order and covers missing plain-text fallbacks', () => {
 	const noPlainText = withStatus({
 		id: 'html-only',

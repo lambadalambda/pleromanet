@@ -1,6 +1,7 @@
 <script lang="ts">
-	import type { Attachment, PostLike } from './attachments';
+	import type { PollAttachment as PollAttachmentData, PostLike } from './attachments';
 	import { normalizeAttachments, pickAttachmentLayout } from './attachments';
+	import PollAttachment from './PollAttachment.svelte';
 	import PhotoGrid from './PhotoGrid.svelte';
 	import VideoAttachment from './VideoAttachment.svelte';
 	import AudioAttachment from './AudioAttachment.svelte';
@@ -14,7 +15,9 @@
 	};
 
 	let { post, onOpen }: Props = $props();
-	let layout = $derived(pickAttachmentLayout(normalizeAttachments(post)));
+	let attachments = $derived(normalizeAttachments(post));
+	let polls = $derived(attachments.filter((attachment): attachment is PollAttachmentData => attachment.kind === 'poll'));
+	let layout = $derived(pickAttachmentLayout(attachments));
 </script>
 
 {#if post.media}
@@ -47,3 +50,7 @@
 {:else if layout.type === 'heroStrip'}
 	<MediaHeroStrip attachments={layout.attachments} onOpen={onOpen} />
 {/if}
+
+{#each polls as poll}
+	<PollAttachment {poll} />
+{/each}

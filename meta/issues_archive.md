@@ -16,6 +16,7 @@
 - [x] [16 Wire authenticated home timeline](issues/16-wire-authenticated-home-timeline.md)
 - [x] [17 Add cursor-based timeline pagination](issues/17-add-cursor-based-timeline-pagination.md)
 - [x] [18 Add new-posts timeline indicator](issues/18-add-new-posts-timeline-indicator.md)
+- [x] [29 Port poll attachments from updated handoff](issues/29-port-poll-attachments-from-updated-handoff.md)
 - [x] [31 Port post content warning wrapper](issues/31-port-post-content-warning-wrapper.md)
 - [x] [32 Port boosted post rendering](issues/32-port-boosted-post-rendering.md)
 - [x] [33 Update reply addressee chips](issues/33-update-reply-addressee-chips.md)

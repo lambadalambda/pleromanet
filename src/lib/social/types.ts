@@ -56,7 +56,9 @@ export type PollAttachment = {
 	totalVotes?: number;
 	multi?: boolean;
 	endsIn?: string;
+	endedAgo?: string;
 	myVote?: string | string[] | null;
+	voted?: boolean;
 	expired?: boolean;
 };
 

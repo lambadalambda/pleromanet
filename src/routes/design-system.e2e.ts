@@ -148,6 +148,55 @@ test('opens the attachment lightbox from the design-system specimen', async ({ p
 	await expect(page.getByRole('dialog')).toBeHidden();
 });
 
+test('renders canonical poll attachment specimens', async ({ page }) => {
+	await setViewport(page, 'desktop');
+	await page.goto('/design-system');
+
+	const attachments = page.locator('#attachments');
+	await expect(attachments.locator('.ds-sub-h').filter({ hasText: /^Polls$/ })).toBeVisible();
+	await expect(attachments.getByText('Voting · single choice')).toBeVisible();
+	await expect(attachments.getByText('Voting · multiple choices')).toBeVisible();
+	await expect(attachments.getByText('Results · with vote')).toBeVisible();
+	await expect(attachments.locator('.ds-spec-label').filter({ hasText: /^Ended$/ })).toBeVisible();
+
+	const single = attachments.locator('.ds-spec').filter({ hasText: 'Voting · single choice' });
+	await expect(single.locator('.post-poll-vote-row')).toHaveCount(3);
+	await expect(single.locator('.post-poll-radio')).toHaveCount(3);
+	await expect(single.getByRole('button', { name: 'Vote' })).toBeDisabled();
+	await single.locator('.post-poll-vote-row').filter({ hasText: 'warm cassette' }).click();
+	await expect(single.getByRole('radio', { name: 'warm cassette' })).toBeChecked();
+	await expect(single.locator('.post-poll-vote-row').filter({ hasText: 'warm cassette' })).toHaveClass(/selected/);
+	await expect(single.getByRole('button', { name: 'Vote' })).toBeDisabled();
+	await single.getByRole('radio', { name: 'warm cassette' }).focus();
+	await expect(single.locator('.post-poll-vote-row').filter({ hasText: 'warm cassette' })).toHaveCSS('outline-style', 'solid');
+	await single.getByRole('button', { name: 'View results ->' }).click();
+	await expect(single.locator('.post-poll-row')).toHaveCount(3);
+	await single.getByRole('button', { name: 'Back to voting' }).click();
+	await expect(single.getByRole('radio', { name: 'warm cassette' })).toBeChecked();
+
+	const multi = attachments.locator('.ds-spec').filter({ hasText: 'Voting · multiple choices' });
+	await expect(multi.locator('.post-poll-check')).toHaveCount(3);
+	await multi.locator('.post-poll-vote-row').filter({ hasText: 'CW redesign' }).click();
+	await multi.locator('.post-poll-vote-row').filter({ hasText: 'Polls' }).click();
+	await expect(multi.getByRole('checkbox', { name: 'CW redesign' })).toBeChecked();
+	await expect(multi.getByRole('checkbox', { name: 'Polls' })).toBeChecked();
+	await expect(multi.getByRole('button', { name: 'Vote · 2 selected' })).toBeDisabled();
+
+	const results = attachments.locator('.ds-spec').filter({ hasText: 'Results · with vote' });
+	await expect(results.locator('.post-poll-row')).toHaveCount(3);
+	await expect(results.locator('.post-poll-row.winner')).toContainText('spinning vinyl');
+	await expect(results.locator('.post-poll-row.me')).toContainText('spinning vinyl');
+	await expect(results.locator('.post-poll-you')).toContainText('You');
+	await expect(results.locator('.post-poll-meta')).toContainText('394 votes');
+	await expect(results.locator('.post-poll-meta')).toContainText('you voted');
+
+	const ended = attachments.locator('.ds-spec').filter({ hasText: 'Ended' });
+	await expect(ended.locator('.post-poll-pill')).toContainText('Ended 2d ago');
+	await expect(ended.locator('.post-poll-row.winner')).toContainText('spinning vinyl');
+	await setViewport(page, 'mobile');
+	await expectNoHorizontalOverflow(page);
+});
+
 test('renders canonical reply addressee chip specimens', async ({ page }) => {
 	await setViewport(page, 'desktop');
 	await page.goto('/design-system');

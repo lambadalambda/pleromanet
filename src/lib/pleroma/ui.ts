@@ -192,6 +192,8 @@ const stringValue = (value: unknown) => (typeof value === 'string' && value.trim
 
 const numberValue = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
 
+const booleanValue = (value: unknown) => (typeof value === 'boolean' ? value : null);
+
 const positiveIntegerValue = (value: unknown) => {
 	const number = typeof value === 'string' && value.trim() ? Number(value) : numberValue(value);
 	return typeof number === 'number' && Number.isFinite(number) && number > 0 ? Math.floor(number) : null;
@@ -293,6 +295,86 @@ const adaptPostAttachment = (attachment: PleromaMediaAttachmentView): PostAttach
 	return null;
 };
 
+const pollChoices = (poll: Record<string, unknown>) => {
+	const options = Array.isArray(poll.options) ? poll.options : Array.isArray(poll.choices) ? poll.choices : [];
+
+	return options
+		.map((option, index) => {
+			if (!isRecord(option)) return null;
+			const label = stringValue(option.title) ?? stringValue(option.label);
+			if (!label) return null;
+
+			return {
+				id: stringValue(option.id) ?? String(index),
+				label,
+				votes: numberValue(option.votes_count) ?? numberValue(option.votes) ?? 0
+			};
+		})
+		.filter((choice) => choice !== null);
+};
+
+const pollOwnVote = (poll: Record<string, unknown>, multi: boolean) => {
+	const rawVote = poll.own_votes ?? poll.myVote;
+	if (!Array.isArray(rawVote)) {
+		return typeof rawVote === 'string' || typeof rawVote === 'number' ? String(rawVote) : null;
+	}
+
+	const votes = rawVote
+		.map((vote) => typeof vote === 'string' || typeof vote === 'number' ? String(vote) : '')
+		.filter(Boolean);
+	if (votes.length === 0) return null;
+
+	return multi ? votes : votes[0];
+};
+
+const compactRelativeTime = (targetMs: number) => {
+	const minutes = Math.max(1, Math.ceil(Math.abs(targetMs - Date.now()) / 60000));
+	const days = Math.floor(minutes / 1440);
+	const hours = Math.floor((minutes % 1440) / 60);
+	const mins = minutes % 60;
+
+	if (days > 0) return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+	if (hours > 0) return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+	return `${mins}m`;
+};
+
+const pollExpiration = (poll: Record<string, unknown>) => {
+	const explicitExpired = booleanValue(poll.expired) ?? false;
+	const expiresAt = stringValue(poll.expires_at) ?? stringValue(poll.expiresAt);
+	if (!expiresAt) return { expired: explicitExpired, relative: undefined };
+
+	const expiresMs = Date.parse(expiresAt);
+	if (!Number.isFinite(expiresMs)) return { expired: explicitExpired, relative: undefined };
+
+	return {
+		expired: explicitExpired || expiresMs <= Date.now(),
+		relative: compactRelativeTime(expiresMs)
+	};
+};
+
+const adaptPollAttachment = (poll: unknown): PostAttachment | null => {
+	if (!isRecord(poll)) return null;
+	const choices = pollChoices(poll);
+	if (choices.length === 0) return null;
+
+	const multi = booleanValue(poll.multiple) ?? booleanValue(poll.multi) ?? false;
+	const ownVote = pollOwnVote(poll, multi);
+	const expiration = pollExpiration(poll);
+	const voted = (booleanValue(poll.voted) ?? false) || ownVote !== null;
+	return {
+		kind: 'poll',
+		id: stringValue(poll.id) ?? undefined,
+		choices,
+		totalVotes: numberValue(poll.votes_count) ?? numberValue(poll.totalVotes) ?? choices.reduce((sum, choice) => sum + (choice.votes ?? 0), 0),
+		multi,
+		endsIn: stringValue(poll.ends_in) ?? stringValue(poll.endsIn) ?? (expiration.expired ? undefined : expiration.relative),
+		endedAgo: stringValue(poll.ended_ago) ?? stringValue(poll.endedAgo) ?? (expiration.expired ? expiration.relative ? `${expiration.relative} ago` : undefined : undefined),
+		myVote: ownVote,
+		voted,
+		expired: expiration.expired
+	};
+};
+
 const timelineMembership = (status: PleromaStatus, options: AdaptPleromaStatusOptions): TimelineView[] => {
 	if (options.timelines) return options.timelines;
 	if (typeof status.pleroma.local !== 'boolean') return [];
@@ -321,7 +403,11 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 	const source = status.reblog ?? status;
 	const account = adaptPleromaAccount(source.account);
 	const mediaAttachments = source.media_attachments.map(adaptMediaAttachment).filter((attachment) => attachment !== null);
-	const postAttachments = mediaAttachments.map(adaptPostAttachment).filter((attachment) => attachment !== null);
+	const pollAttachment = adaptPollAttachment(source.poll);
+	const postAttachments = [
+		...mediaAttachments.map(adaptPostAttachment).filter((attachment) => attachment !== null),
+		...(pollAttachment ? [pollAttachment] : [])
+	];
 	const warning = spoilerText(source);
 	const plainText = plainTextContent(source);
 	const body = extractLeadingReplyAddressees(plainText, source);
