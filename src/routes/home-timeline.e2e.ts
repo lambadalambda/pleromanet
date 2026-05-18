@@ -188,6 +188,40 @@ test('home timeline composer uses the instance status character limit', async ({
 	await expect(page.locator('.composer-count')).toHaveText('4969');
 });
 
+test('home timeline composer creates statuses through Pleroma', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, pleromaFixtures.timelines.home);
+	});
+
+	let createMethod: string | undefined;
+	let createAuthorization: string | undefined;
+	let createBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createMethod = route.request().method();
+		createAuthorization = route.request().headers().authorization;
+		createBody = route.request().postData() ?? '';
+		await fulfillHome(route, statusWithText('created-home-status', 'posting through Pleroma composer'));
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await expect(page.getByTestId('home-timeline-list')).toContainText('quiet CSS can still carry the voice.');
+
+	const composer = page.getByRole('textbox', { name: 'Post text' });
+	await composer.fill('posting through Pleroma composer');
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+
+	await expect(page.locator('[data-status-id="created-home-status"]')).toContainText('posting through Pleroma composer');
+	await expect(composer).toHaveValue('');
+	expect(createMethod).toBe('POST');
+	expect(createAuthorization).toBe('Bearer access-token');
+	const params = new URLSearchParams(createBody);
+	expect(params.get('status')).toBe('posting through Pleroma composer');
+	expect(params.get('visibility')).toBe('public');
+});
+
 test('home timeline renders repeated mention separators without duplicate keyed blocks', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page, async (route) => {

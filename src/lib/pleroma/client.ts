@@ -10,6 +10,7 @@ import type {
 	PleromaTag,
 	ProfileUpdate,
 	SearchQuery,
+	StatusCreateRequest,
 	TimelineCursor,
 	TimelinePage,
 	TimelinePagination,
@@ -81,6 +82,14 @@ const profileUpdateBody = (profile: ProfileUpdate) => ({
 	fields_attributes: profile.fields
 });
 
+const statusCreateForm = (input: StatusCreateRequest) => {
+	const form = new URLSearchParams({ status: input.status });
+	if (input.visibility) form.set('visibility', input.visibility);
+	if (input.inReplyToId) form.set('in_reply_to_id', input.inReplyToId);
+
+	return form;
+};
+
 const timelinePage = <Item>(items: Item[], headers: Headers): TimelinePage<Item> => ({
 	items,
 	cursors: parseTimelinePaginationLinkHeader(headers.get('link'))
@@ -148,6 +157,14 @@ export const createPleromaClient = (config: ClientConfig) => {
 			http.request<PleromaStatusContext>({
 				path: `/api/v1/statuses/${encodePathSegment(id)}/context`,
 				auth: 'optional'
+			}),
+
+		createStatus: (input: StatusCreateRequest) =>
+			http.request<PleromaStatus>({
+				method: 'POST',
+				path: '/api/v1/statuses',
+				form: statusCreateForm(input),
+				auth: 'required'
 			}),
 
 		getAccount: (id: string) =>

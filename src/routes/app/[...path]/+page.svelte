@@ -113,10 +113,16 @@
 	let profile = $state<ProfileSettings>({ ...defaultProfile });
 	let savedProfile = $state<ProfileSettings>({ ...defaultProfile });
 	let replyDraft = $state('');
+	let homePostSubmitState = $state<'idle' | 'submitting'>('idle');
+	let homePostSubmitError = $state<PleromaRequestErrorView | null>(null);
+	let replySubmitState = $state<'idle' | 'submitting'>('idle');
+	let replySubmitError = $state<PleromaRequestErrorView | null>(null);
 	let replySort = $state<ReplySort>('top');
 	let homeTimelineRequestId = 0;
 	let homeTimelineNewPostsRequestId = 0;
 	let threadRequestId = 0;
+	let homePostSubmitRequestId = 0;
+	let replySubmitRequestId = 0;
 	let profileAccountRequestId = 0;
 	let instanceConfigRequestId = 0;
 	let loadedHomeTimelineKey = '';
@@ -132,9 +138,15 @@
 	const invalidateHomeTimelineRequests = () => {
 		homeTimelineRequestId += 1;
 		homeTimelineNewPostsRequestId += 1;
+		homePostSubmitRequestId += 1;
+		homePostSubmitState = 'idle';
+		homePostSubmitError = null;
 	};
 	const invalidateThreadRequests = () => {
 		threadRequestId += 1;
+		replySubmitRequestId += 1;
+		replySubmitState = 'idle';
+		replySubmitError = null;
 		loadedThreadKey = '';
 		threadState = { status: 'idle' };
 		localThreadReplies = [];
@@ -268,14 +280,14 @@
 	);
 	const threadStatusId = $derived(route === 'thread' ? decodeURIComponent(page.url.pathname.split('/').filter(Boolean).slice(2).join('/') || '') : '');
 	const composerRemaining = $derived(composerCharacterLimit - composerText.length);
-	const canSubmitHomePost = $derived(Boolean(composerText.trim()) && composerRemaining >= 0);
+	const canSubmitHomePost = $derived(Boolean(composerText.trim()) && composerRemaining >= 0 && homePostSubmitState !== 'submitting');
 	const timelinePosts = $derived([
 		...localHomePosts,
 		...(homeTimelineState.status === 'success' ? homeTimelineState.data.map(postForRebuild) : [])
 	]);
 	const profileBioCount = $derived(`${profile.bio.length} / 160`);
 	const replyRemaining = $derived(composerCharacterLimit - replyDraft.length);
-	const canSubmitReply = $derived(Boolean(replyDraft.trim()) && replyRemaining >= 0);
+	const canSubmitReply = $derived(Boolean(replyDraft.trim()) && replyRemaining >= 0 && replySubmitState !== 'submitting');
 	const threadReplyPosts = $derived(threadState.status === 'success' ? [...threadState.replies, ...localThreadReplies] : localThreadReplies);
 	const threadReplyCount = $derived((threadState.status === 'success' ? threadPostCount(threadState.replies) : 0) + localThreadReplies.length);
 	const sortedThreadReplyPosts = $derived(replySort === 'newest' ? [...threadReplyPosts].reverse() : threadReplyPosts);
@@ -311,52 +323,101 @@
 	const toggleCommunity = (community: string) => {
 		joinedCommunities = { ...joinedCommunities, [community]: !joinedCommunities[community] };
 	};
-	const submitReply = () => {
+	const submitReply = async () => {
 		const body = replyDraft.trim();
-		if (!body || replyDraft.length > composerCharacterLimit) return;
+		const session = currentSession;
+		if (!body || replyDraft.length > composerCharacterLimit || replySubmitState === 'submitting' || !session || threadState.status !== 'success') return;
 
-		const account = currentSession?.account;
-		localThreadReplies = [
-			...localThreadReplies,
-			{
-				id: `local-${Date.now()}`,
-				name: account?.display_name?.trim() || account?.username || 'quiet admin',
-				handle: account?.acct ? `@${account.acct.replace(/^@/, '')}` : '@quietadmin@pleroma.example',
-				time: 'now',
-				avatarUrl: account?.avatar || account?.avatar_static || null,
-				avClass: account?.avatar || account?.avatar_static ? 'av-orb' : 'av-grad-2',
-				body,
-				replies: 0,
-				boosts: 0,
-				favs: 0,
-				actions: { reply: false, boost: false, fav: false }
+		const requestSessionKey = sessionKey(session);
+		const requestId = replySubmitRequestId + 1;
+		replySubmitRequestId = requestId;
+		replySubmitState = 'submitting';
+		replySubmitError = null;
+
+		try {
+			const client = createPleromaClient({
+				instanceUrl: session.instanceUrl,
+				accessToken: session.accessToken,
+				fetch: window.fetch.bind(window)
+			});
+			const status = await client.createStatus({ status: body, visibility: 'public', inReplyToId: threadStatusId });
+			if (requestId !== replySubmitRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			localThreadReplies = [...localThreadReplies, threadPostForRebuild(adaptPleromaStatus(status))];
+			if (threadState.status === 'success') {
+				threadState = { ...threadState, focused: { ...threadState.focused, replies: threadState.focused.replies + 1 } };
 			}
-		];
-		if (threadState.status === 'success') {
-			threadState = { ...threadState, focused: { ...threadState.focused, replies: threadState.focused.replies + 1 } };
-		}
-		replyDraft = '';
-	};
-	const submitHomePost = () => {
-		const body = composerText.trim();
-		if (!body || composerText.length > composerCharacterLimit) return;
+			replyDraft = '';
+			replySubmitState = 'idle';
+		} catch (error) {
+			if (requestId !== replySubmitRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
-		localHomePosts = [
-			{
-				id: `local-${Date.now()}`,
-				name: 'quiet admin',
-				handle: '@quietadmin@pleroma.example',
-				time: 'now',
-				avClass: 'av-orb',
-				body,
-				replies: 0,
-				boosts: 0,
-				favs: 0,
-				actions: { reply: false, boost: false, fav: false }
-			},
-			...localHomePosts
-		];
-		composerText = '';
+			const normalized = normalizePleromaRequestError(error);
+			if (normalized.reauthRequired) {
+				signOutPleroma(localStorage);
+				redirectToLanding();
+				return;
+			}
+
+			replySubmitError = normalized;
+			replySubmitState = 'idle';
+		}
+	};
+	const submitHomePost = async () => {
+		const body = composerText.trim();
+		const session = currentSession;
+		if (!body || composerText.length > composerCharacterLimit || homePostSubmitState === 'submitting' || !session) return;
+
+		const requestSessionKey = sessionKey(session);
+		const requestId = homePostSubmitRequestId + 1;
+		homePostSubmitRequestId = requestId;
+		homePostSubmitState = 'submitting';
+		homePostSubmitError = null;
+
+		try {
+			const client = createPleromaClient({
+				instanceUrl: session.instanceUrl,
+				accessToken: session.accessToken,
+				fetch: window.fetch.bind(window)
+			});
+			const status = await client.createStatus({ status: body, visibility: 'public' });
+			if (requestId !== homePostSubmitRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			const createdPost = adaptPleromaStatus(status, { timelines: ['home'] });
+			homeTimelineFallbackSinceId = String(createdPost.id);
+			if (homeTimelineState.status === 'success') {
+				homeTimelineState = {
+					...homeTimelineState,
+					data: prependTimelineItems(homeTimelineState.data, [createdPost]),
+					newerPosts: homeTimelineState.newerPosts.filter((post) => post.id !== createdPost.id)
+				};
+			} else if (homeTimelineState.status === 'empty') {
+				homeTimelineState = {
+					status: 'success',
+					data: [createdPost],
+					nextCursor: null,
+					loadMoreStatus: 'idle',
+					newerPosts: [],
+					newPostsStatus: 'idle'
+				};
+			} else {
+				localHomePosts = prependTimelineItems(localHomePosts, [postForRebuild(createdPost)]);
+			}
+			composerText = '';
+			homePostSubmitState = 'idle';
+		} catch (error) {
+			if (requestId !== homePostSubmitRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			const normalized = normalizePleromaRequestError(error);
+			if (normalized.reauthRequired) {
+				signOutPleroma(localStorage);
+				redirectToLanding();
+				return;
+			}
+
+			homePostSubmitError = normalized;
+			homePostSubmitState = 'idle';
+		}
 	};
 	const handlePostAction = (postId: string | number, key: string) => {
 		if (key !== 'reply' && key !== 'boost' && key !== 'fav') return;
@@ -893,8 +954,14 @@
 									<button type="button" class="composer-tool privacy" aria-label="Privacy Public"><Icon name="globe" width={13} height={13} /><span>Public</span><Icon name="chevDown" width={12} height={12} /></button>
 									<span class="composer-spacer"></span>
 									<span class="composer-count" class:over-limit={composerRemaining < 0}>{composerRemaining}</span>
-									<Button variant="primary" disabled={!canSubmitHomePost} onclick={submitHomePost}>Post</Button>
+									<Button variant="primary" disabled={!canSubmitHomePost} onclick={submitHomePost}>{homePostSubmitState === 'submitting' ? 'Posting...' : 'Post'}</Button>
 								</div>
+								{#if homePostSubmitError}
+									<div class="request-state request-error" role="alert">
+										<h2>{homePostSubmitError.title}</h2>
+										<p>{homePostSubmitError.message}</p>
+									</div>
+								{/if}
 							</div>
 						</form>
 
@@ -1007,7 +1074,13 @@
 								<span class="composer-av"><span class="av-orb"></span></span>
 								<div>
 									<textarea class="composer-input" aria-label="Reply text" placeholder={`Reply to ${threadState.focused.name}`} bind:value={replyDraft}></textarea>
-									<div class="composer-row"><span data-testid="reply-composer-count" class="composer-count" class:over-limit={replyRemaining < 0}>{replyRemaining}</span><span class="composer-spacer"></span><Button variant="primary" disabled={!canSubmitReply} onclick={submitReply}>Reply</Button></div>
+									<div class="composer-row"><span data-testid="reply-composer-count" class="composer-count" class:over-limit={replyRemaining < 0}>{replyRemaining}</span><span class="composer-spacer"></span><Button variant="primary" disabled={!canSubmitReply} onclick={submitReply}>{replySubmitState === 'submitting' ? 'Replying...' : 'Reply'}</Button></div>
+									{#if replySubmitError}
+										<div class="request-state request-error" role="alert">
+											<h2>{replySubmitError.title}</h2>
+											<p>{replySubmitError.message}</p>
+										</div>
+									{/if}
 								</div>
 							</form>
 							<div class="thread-reply-head">

@@ -161,6 +161,12 @@ export type TimelinePage<Item> = {
 	cursors: TimelinePagination;
 };
 
+export type StatusCreateRequest = {
+	status: string;
+	visibility?: 'public' | 'unlisted' | 'private' | 'direct' | string;
+	inReplyToId?: string;
+};
+
 export type SearchQuery = {
 	q: string;
 	type?: 'accounts' | 'hashtags' | 'statuses';
