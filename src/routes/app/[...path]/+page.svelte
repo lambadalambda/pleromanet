@@ -789,7 +789,6 @@
 	const handleThreadPostAction = (postId: string | number | undefined, key: string) => {
 		if (postId == null || (key !== 'reply' && key !== 'boost' && key !== 'fav')) return;
 		if (key === 'reply') {
-			if (threadState.status === 'success' && threadState.ancestors.some((ancestor) => String(ancestor.id) === String(postId))) return;
 			const post = findThreadPost(postId);
 			if (post) openInlineReply(post, 'thread');
 			return;
@@ -1647,7 +1646,7 @@
 								<div class="thread-ancestors">
 									{#each threadState.ancestors as ancestor (ancestor.id)}
 										<div data-testid="thread-ancestor">
-											<AncestorPost post={ancestor} disableReplyAction onAction={handleThreadPostAction} />
+											<AncestorPost post={ancestor} onAction={handleThreadPostAction} />
 										</div>
 										{#if inlineReplyOpenFor('thread', ancestor) && inlineReplyTarget}
 											<InlineReplyComposer

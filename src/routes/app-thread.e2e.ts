@@ -136,7 +136,11 @@ test('real thread route loads focused status, ancestors, and replies from Plerom
 	expect(await threadTitle.evaluate((node) => Number.parseFloat(getComputedStyle(node).fontSize))).toBeLessThanOrEqual(14);
 	await expect(page.getByTestId('thread-ancestor')).toContainText('gridwave');
 	await expect(page.getByTestId('thread-ancestor')).toContainText('the earlier context from gridwave');
-	await expect(page.getByTestId('thread-ancestor').getByRole('button', { name: 'Reply 1' })).toBeDisabled();
+	await page.getByTestId('thread-ancestor').getByRole('button', { name: 'Reply 1' }).click();
+	const ancestorReplyForm = page.getByRole('form', { name: 'Inline reply to @gridwave' });
+	await expect(ancestorReplyForm).toBeVisible();
+	await ancestorReplyForm.getByRole('button', { name: 'Cancel' }).click();
+	await expect(ancestorReplyForm).toHaveCount(0);
 	await expect(page.getByTestId('thread-line')).toBeVisible();
 	await expect(page.getByTestId('focused-post')).toContainText('quiet CSS can still carry the voice.');
 	await expect(page.getByTestId('focused-post')).toContainText('4:18 PM · May 11, 2026');
