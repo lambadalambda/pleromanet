@@ -21,6 +21,7 @@
 - [x] [21 Wire thread detail and replies](issues/21-wire-thread-detail-and-replies.md)
 - [x] [27 Add notification API polling and badge count](issues/27-add-notification-api-polling-and-badge-count.md)
 - [x] [29 Port poll attachments from updated handoff](issues/29-port-poll-attachments-from-updated-handoff.md)
+- [x] [30 Port composer CW and poll editor panels](issues/30-port-composer-cw-and-poll-editor-panels.md)
 - [x] [31 Port post content warning wrapper](issues/31-port-post-content-warning-wrapper.md)
 - [x] [32 Port boosted post rendering](issues/32-port-boosted-post-rendering.md)
 - [x] [33 Update reply addressee chips](issues/33-update-reply-addressee-chips.md)

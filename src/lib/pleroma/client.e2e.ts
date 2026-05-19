@@ -319,7 +319,18 @@ test('Pleroma client covers mutations, unauthenticated state, and API errors', a
 	await client.unfavoriteStatus('status-1');
 	await client.boostStatus('status-1');
 	await client.unboostStatus('status-1');
-	const createdStatus = await client.createStatus({ status: 'new post from client', visibility: 'unlisted', spoilerText: 'quiet spoiler', inReplyToId: 'status-1' });
+	const createdStatus = await client.createStatus({
+		status: 'new post from client',
+		visibility: 'unlisted',
+		spoilerText: 'quiet spoiler',
+		inReplyToId: 'status-1',
+		poll: {
+			options: ['warm cassette', 'cold terminal'],
+			expiresIn: 3600,
+			multiple: true,
+			hideTotals: false
+		}
+	});
 	await client.followAccount('account-1');
 	await client.unfollowAccount('account-1');
 	const account = await client.updateAccountProfile({ displayName: 'quiet admin', note: 'no ads' });
@@ -341,6 +352,10 @@ test('Pleroma client covers mutations, unauthenticated state, and API errors', a
 	expect(createBody.get('visibility')).toBe('unlisted');
 	expect(createBody.get('spoiler_text')).toBe('quiet spoiler');
 	expect(createBody.get('in_reply_to_id')).toBe('status-1');
+	expect(createBody.getAll('poll[options][]')).toEqual(['warm cassette', 'cold terminal']);
+	expect(createBody.get('poll[expires_in]')).toBe('3600');
+	expect(createBody.get('poll[multiple]')).toBe('true');
+	expect(createBody.get('poll[hide_totals]')).toBe('false');
 	expect(requests[7].body).toContain('display_name');
 	expect(requests[7].body).toContain('quiet admin');
 

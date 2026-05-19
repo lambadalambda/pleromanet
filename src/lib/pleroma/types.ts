@@ -182,6 +182,12 @@ export type StatusCreateRequest = {
 	visibility?: 'public' | 'unlisted' | 'private' | 'direct' | string;
 	spoilerText?: string;
 	inReplyToId?: string;
+	poll?: {
+		options: string[];
+		expiresIn: number;
+		multiple?: boolean;
+		hideTotals?: boolean;
+	};
 };
 
 export type SearchQuery = {

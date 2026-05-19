@@ -5,6 +5,7 @@
 	import AttachmentLightboxHost from '$lib/rebuild/AttachmentLightboxHost.svelte';
 	import Button from '$lib/rebuild/Button.svelte';
 	import ComposerCWPanel from '$lib/rebuild/ComposerCWPanel.svelte';
+	import ComposerPollPanel from '$lib/rebuild/ComposerPollPanel.svelte';
 	import FocusedPost from '$lib/rebuild/FocusedPost.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
 	import InlineReplyComposer from '$lib/rebuild/InlineReplyComposer.svelte';
@@ -30,6 +31,7 @@
 	} from '$lib/pleroma/timeline-state';
 	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, normalizePleromaRequestError, statusCharacterLimit, type PleromaNotificationView, type PleromaRequestErrorView, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
+	import { composerPollPayload, createComposerPollDraft, type ComposerPollDraft } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
 	import type { PleromaSession, PleromaStatus } from '$lib/pleroma/types';
 	import type { SocialNotificationData, SocialPost } from '$lib/social/types';
@@ -139,6 +141,7 @@
 	let composerText = $state('');
 	let composerSpoilerActive = $state(false);
 	let composerSpoilerText = $state('');
+	let composerPoll = $state<ComposerPollDraft | null>(null);
 	let mobileDrawerOpen = $state(false);
 	let mobileSheetOpen = $state(false);
 	let userMenuOpen = $state(false);
@@ -595,7 +598,8 @@
 	const threadStatusId = $derived(route === 'thread' ? decodeURIComponent(page.url.pathname.split('/').filter(Boolean).slice(2).join('/') || '') : '');
 	const composerRemaining = $derived(composerCharacterLimit - composerText.length);
 	const inlineReplyRemaining = $derived(composerCharacterLimit - inlineReplyDraft.length);
-	const canSubmitHomePost = $derived(Boolean(composerText.trim()) && composerRemaining >= 0 && homePostSubmitState !== 'submitting');
+	const preparedComposerPoll = $derived(composerPoll ? composerPollPayload(composerPoll) : undefined);
+	const canSubmitHomePost = $derived(Boolean(composerText.trim()) && composerRemaining >= 0 && (!composerPoll || Boolean(preparedComposerPoll)) && homePostSubmitState !== 'submitting');
 	const timelinePosts = $derived([
 		...localHomePosts,
 		...(homeTimelineState.status === 'success' ? homeTimelineState.data.map(postForRebuild) : [])
@@ -639,8 +643,10 @@
 	const submitHomePost = async () => {
 		const body = composerText.trim();
 		const spoilerText = composerSpoilerActive ? composerSpoilerText.trim() : '';
+		const pollPayload = composerPoll ? preparedComposerPoll : undefined;
+		const poll = pollPayload ?? undefined;
 		const session = currentSession;
-		if (!body || composerText.length > composerCharacterLimit || homePostSubmitState === 'submitting' || !session) return;
+		if (!body || composerText.length > composerCharacterLimit || (composerPoll && !pollPayload) || homePostSubmitState === 'submitting' || !session) return;
 
 		const requestSessionKey = sessionKey(session);
 		const requestId = homePostSubmitRequestId + 1;
@@ -654,7 +660,7 @@
 				accessToken: session.accessToken,
 				fetch: window.fetch.bind(window)
 			});
-			const status = await client.createStatus({ status: body, visibility: 'public', spoilerText: spoilerText || undefined });
+			const status = await client.createStatus({ status: body, visibility: 'public', spoilerText: spoilerText || undefined, poll });
 			if (requestId !== homePostSubmitRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			const createdPost = adaptPleromaStatus(status, { timelines: ['home'] });
@@ -680,6 +686,7 @@
 			composerText = '';
 			composerSpoilerActive = false;
 			composerSpoilerText = '';
+			composerPoll = null;
 			homePostSubmitState = 'idle';
 		} catch (error) {
 			if (requestId !== homePostSubmitRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
@@ -706,6 +713,9 @@
 		}
 
 		composerSpoilerActive = true;
+	};
+	const toggleComposerPoll = () => {
+		composerPoll = composerPoll ? null : createComposerPollDraft();
 	};
 	const openInlineReply = (post: RebuildPost, targetRoute: StatusActionOrigin) => {
 		if (inlineReplySubmitState === 'submitting') return;
@@ -1500,9 +1510,12 @@
 								{#if composerSpoilerActive}
 									<ComposerCWPanel value={composerSpoilerText} onInput={(value) => (composerSpoilerText = value)} onRemove={clearComposerSpoiler} focusOnMount />
 								{/if}
+								{#if composerPoll}
+									<ComposerPollPanel poll={composerPoll} onPollChange={(poll) => (composerPoll = poll)} onRemove={() => (composerPoll = null)} focusOnMount idPrefix="home-composer-poll" />
+								{/if}
 								<div class="composer-row">
 									<button type="button" class="composer-tool" title="Image" aria-label="Image"><Icon name="image" width={18} height={18} /></button>
-									<button type="button" class="composer-tool" title="Poll" aria-label="Poll"><Icon name="poll" width={18} height={18} /></button>
+									<button type="button" class="composer-tool" class:active={Boolean(composerPoll)} title="Poll" aria-label="Poll" aria-pressed={Boolean(composerPoll)} onclick={toggleComposerPoll}><Icon name="poll" width={18} height={18} /></button>
 									<button type="button" class="composer-tool" title="Emoji" aria-label="Emoji"><Icon name="smile" width={18} height={18} /></button>
 									<button type="button" class="composer-tool cw" class:active={composerSpoilerActive} aria-label="Content warning" aria-pressed={composerSpoilerActive} onclick={toggleComposerSpoiler}>CW</button>
 									<button type="button" class="composer-tool privacy" aria-label="Privacy Public"><Icon name="globe" width={13} height={13} /><span>Public</span><Icon name="chevDown" width={12} height={12} /></button>

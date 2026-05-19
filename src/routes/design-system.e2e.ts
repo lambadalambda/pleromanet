@@ -43,9 +43,13 @@ test('renders canonical composer content-warning specimen', async ({ page }) => 
 	const composer = page.locator('#composer');
 	await expect(composer.getByText('Composer · idle')).toBeVisible();
 	await expect(composer.getByText('Composer · with CW input')).toBeVisible();
+	await expect(composer.getByText('Composer · with poll editor')).toBeVisible();
+	await expect(composer.getByText('Composer · CW + poll together')).toBeVisible();
 	const cwSpec = composer.locator('.ds-spec').filter({ hasText: 'Composer · with CW input' });
 	await expect(cwSpec.locator('.composer-cw')).toBeVisible();
 	await expect(cwSpec.locator('.composer-cw-l')).toContainText('CW');
+	await expect(cwSpec.locator('.composer-cw')).toHaveCSS('margin-left', '0px');
+	await expect(cwSpec.locator('.composer-cw-l')).toHaveCSS('color', 'rgb(138, 106, 48)');
 	await expect(cwSpec.getByRole('textbox', { name: 'Content warning text' })).toHaveAttribute('placeholder', 'One short line · what readers see before opening');
 	await expect(cwSpec.getByRole('button', { name: 'CW' })).toHaveAttribute('aria-pressed', 'true');
 
@@ -57,6 +61,28 @@ test('renders canonical composer content-warning specimen', async ({ page }) => 
 	await cwSpec.getByRole('button', { name: 'CW' }).click();
 	await expect(cwSpec.locator('.composer-cw')).toBeVisible();
 	await expectNoHorizontalOverflow(page);
+
+	await setViewport(page, 'desktop');
+	const pollSpec = composer.locator('.ds-spec').filter({ hasText: 'Composer · with poll editor' });
+	await expect(pollSpec.locator('.composer-poll')).toBeVisible();
+	await expect(pollSpec.locator('.composer-poll')).toHaveCSS('margin-left', '0px');
+	await expect(pollSpec.locator('.composer-poll-head')).toContainText('Poll · 2–6 choices');
+	await expect(pollSpec.getByRole('textbox', { name: 'Poll choice 1' })).toHaveValue('warm cassette');
+	await expect(pollSpec.getByRole('textbox', { name: 'Poll choice 3' })).toHaveValue('spinning vinyl');
+	await expect(pollSpec.getByLabel('Duration')).toHaveValue('24h');
+	await expect(pollSpec.getByLabel('Voting')).toHaveValue('single');
+	await expect(pollSpec.getByRole('button', { name: 'Poll', exact: true })).toHaveAttribute('aria-pressed', 'true');
+	await expect(pollSpec.getByRole('button', { name: 'Hide totals until poll ends' })).toHaveAttribute('aria-pressed', 'true');
+	await pollSpec.getByRole('button', { name: 'Add choice' }).click();
+	await expect(pollSpec.getByRole('textbox', { name: 'Poll choice 4' })).toBeVisible();
+	await pollSpec.getByRole('button', { name: 'Remove choice 4' }).click();
+	await expect(pollSpec.getByRole('textbox', { name: 'Poll choice 4' })).toHaveCount(0);
+
+	const combinedSpec = composer.locator('.ds-spec').filter({ hasText: 'Composer · CW + poll together' });
+	await expect(combinedSpec.locator('.composer-cw')).toBeVisible();
+	await expect(combinedSpec.locator('.composer-poll')).toBeVisible();
+	await expect(combinedSpec.getByRole('button', { name: 'CW' })).toHaveAttribute('aria-pressed', 'true');
+	await expect(combinedSpec.getByRole('button', { name: 'Poll', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('renders canonical surface and right-rail card specimens', async ({ page }) => {

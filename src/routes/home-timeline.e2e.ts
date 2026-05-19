@@ -230,6 +230,72 @@ test('home timeline composer creates statuses through Pleroma', async ({ page })
 	expect(params.get('spoiler_text')).toBe('soft spoiler');
 });
 
+test('home timeline composer toggles poll editor and submits poll fields', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, pleromaFixtures.timelines.home);
+	});
+
+	let createBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createBody = route.request().postData() ?? '';
+		await fulfillHome(route, statusWithText('created-poll-status', 'poll attached to this post'));
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const composer = page.getByRole('textbox', { name: 'Post text' });
+	await composer.fill('poll attached to this post');
+	await page.getByRole('button', { name: 'Poll', exact: true }).click();
+	await expect(composer).toHaveValue('poll attached to this post');
+	await expect(page.getByRole('button', { name: 'Poll', exact: true })).toHaveAttribute('aria-pressed', 'true');
+	await expect(page.locator('.composer-poll')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Post', exact: true })).toBeDisabled();
+
+	await page.getByRole('textbox', { name: 'Poll choice 1' }).fill('warm cassette');
+	await page.getByRole('textbox', { name: 'Poll choice 2' }).fill('cold terminal');
+	await expect(page.getByRole('button', { name: 'Post', exact: true })).toBeEnabled();
+	await expect(page.getByRole('textbox', { name: /Poll choice/ })).toHaveCount(3);
+	await page.getByRole('button', { name: 'Add choice' }).click();
+	await page.getByRole('button', { name: 'Add choice' }).click();
+	await page.getByRole('button', { name: 'Add choice' }).click();
+	await expect(page.getByRole('textbox', { name: /Poll choice/ })).toHaveCount(6);
+	await expect(page.getByRole('button', { name: 'Add choice' })).toBeDisabled();
+	await page.getByRole('button', { name: 'Remove choice 6' }).click();
+	await page.getByRole('button', { name: 'Remove choice 5' }).click();
+	await page.getByRole('button', { name: 'Remove choice 4' }).click();
+	await page.getByRole('button', { name: 'Remove choice 3' }).click();
+	await expect(page.getByRole('textbox', { name: /Poll choice/ })).toHaveCount(2);
+	await expect(page.getByRole('button', { name: 'Remove choice 1' })).toBeDisabled();
+	await expect(page.getByRole('button', { name: 'Remove choice 2' })).toBeDisabled();
+
+	await page.getByRole('button', { name: 'Content warning', exact: true }).click();
+	await expect(composer).toHaveValue('poll attached to this post');
+	await page.getByRole('textbox', { name: 'Content warning text' }).fill('poll spoiler');
+	await page.getByLabel('Duration').selectOption('1h');
+	await page.getByLabel('Voting').selectOption('multi');
+	await page.getByRole('button', { name: 'Hide totals until poll ends' }).click();
+	await expect(page.getByRole('button', { name: 'Hide totals until poll ends' })).toHaveAttribute('aria-pressed', 'false');
+	await setViewport(page, 'mobile');
+	await expect(page.locator('.composer-poll')).toBeVisible();
+	await expectNoHorizontalOverflow(page);
+	await setViewport(page, 'desktop');
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+
+	await expect(page.locator('[data-status-id="created-poll-status"]')).toContainText('poll attached to this post');
+	await expect(composer).toHaveValue('');
+	await expect(page.locator('.composer-poll')).toHaveCount(0);
+	const params = new URLSearchParams(createBody);
+	expect(params.get('status')).toBe('poll attached to this post');
+	expect(params.get('spoiler_text')).toBe('poll spoiler');
+	expect(params.getAll('poll[options][]')).toEqual(['warm cassette', 'cold terminal']);
+	expect(params.get('poll[expires_in]')).toBe('3600');
+	expect(params.get('poll[multiple]')).toBe('true');
+	expect(params.get('poll[hide_totals]')).toBe('false');
+});
+
 test('home timeline composer preserves drafts and shows inline errors on status creation failure', async ({ page }) => {
 	await authenticate(page);
 	await mockInstance(page);

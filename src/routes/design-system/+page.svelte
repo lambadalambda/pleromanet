@@ -3,6 +3,7 @@
 	import AncestorPost from '$lib/rebuild/AncestorPost.svelte';
 	import Button from '$lib/rebuild/Button.svelte';
 	import ComposerCWPanel from '$lib/rebuild/ComposerCWPanel.svelte';
+	import ComposerPollPanel from '$lib/rebuild/ComposerPollPanel.svelte';
 	import FocusedPost from '$lib/rebuild/FocusedPost.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
 	import Pill from '$lib/rebuild/Pill.svelte';
@@ -11,6 +12,7 @@
 	import CompactAudio from '$lib/rebuild/CompactAudio.svelte';
 	import AttachmentLightboxHost from '$lib/rebuild/AttachmentLightboxHost.svelte';
 	import { openLightbox } from '$lib/rebuild/attachments';
+	import { createComposerPollDraft, type ComposerPollDraft } from '$lib/rebuild/composer';
 	import MediaStripThumb from '$lib/rebuild/MediaStripThumb.svelte';
 	import MediaStripKindBadge from '$lib/rebuild/MediaStripKindBadge.svelte';
 	import MobilePreview from '$lib/rebuild/MobilePreview.svelte';
@@ -182,6 +184,8 @@
 	let composerText = $state('drafting in the design system');
 	let composerCwSpecActive = $state(true);
 	let composerCwText = $state('food, plated photos');
+	let composerPollSpec = $state<ComposerPollDraft>({ ...createComposerPollDraft(), choices: ['warm cassette', 'cold terminal', 'spinning vinyl'] });
+	let composerCombinedPollSpec = $state<ComposerPollDraft>({ ...createComposerPollDraft(), choices: ['long walk', 'call a friend', 'just sleep'], duration: '6h', hideUntil: false });
 	let composerPrivacy = $state('Public');
 	let composerRemaining = $derived(500 - composerText.length);
 	let threadInlineReplyId = $state<string | number | null>(null);
@@ -1055,7 +1059,7 @@
 				<header class="ds-slab-head">
 					<div class="ds-kicker">07</div>
 					<h2 class="ds-h2">Composer</h2>
-					<p class="ds-sub">The post composer. Lives at the top of the feed and inside threads (as a reply composer).</p>
+					<p class="ds-sub">The post composer. Lives at the top of the feed and inside threads (as a reply composer). Tool rail buttons toggle in-line panels for content warnings and polls; both panels persist as composer state until posting.</p>
 				</header>
 				<div class="ds-slab-body">
 					<div class="ds-grid ds-grid-2">
@@ -1123,6 +1127,73 @@
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Composer · with CW input</span>
 								<span class="ds-spec-note">composer.cw is a string · warn-tinted row above tool rail</span>
+							</div>
+						</div>
+
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<div class="composer">
+									<Avatar variant="compose" avBanner="sunset" />
+									<div>
+										<textarea
+											class="composer-input"
+											placeholder="What's on your mind?"
+											value="which side wins?"
+										></textarea>
+										<ComposerPollPanel poll={composerPollSpec} onPollChange={(poll) => (composerPollSpec = poll)} onRemove={() => (composerPollSpec = createComposerPollDraft())} idPrefix="ds-poll-only" />
+										<div class="composer-row">
+											<button class="composer-tool" title="Image"><Icon name="image" width={18} height={18} /></button>
+											<button class="composer-tool" title="Draw">
+												<svg viewBox="0 0 24 24" fill="none" style="width:18px;height:18px"><path d="M3 21l4-1 11.5-11.5a2.121 2.121 0 00-3-3L4 17l-1 4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 6l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+											</button>
+											<button class="composer-tool active" title="Poll" aria-label="Poll" aria-pressed="true"><Icon name="poll" width={18} height={18} /></button>
+											<button class="composer-tool" title="Emoji"><Icon name="smile" width={18} height={18} /></button>
+											<button class="composer-tool cw" aria-pressed="false">CW</button>
+											<button class="composer-tool privacy"><Icon name="globe" width={13} height={13} /><span>Public</span><Icon name="chevDown" width={12} height={12} /></button>
+											<span class="composer-spacer"></span>
+											<span class="composer-count">484</span>
+											<Button variant="primary">Post</Button>
+										</div>
+									</div>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Composer · with poll editor</span>
+								<span class="ds-spec-note">composer.poll · 2–6 choices · duration · single/multi</span>
+							</div>
+						</div>
+
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<div class="composer">
+									<Avatar variant="compose" avBanner="sunset" />
+									<div>
+										<textarea
+											class="composer-input"
+											placeholder="What's on your mind?"
+											value="rough day. need some external grounding — picking one of these tonight"
+										></textarea>
+										<ComposerCWPanel value="mh, asking for input" onInput={() => undefined} onRemove={() => undefined} />
+										<ComposerPollPanel poll={composerCombinedPollSpec} onPollChange={(poll) => (composerCombinedPollSpec = poll)} onRemove={() => (composerCombinedPollSpec = createComposerPollDraft())} idPrefix="ds-cw-poll" />
+										<div class="composer-row">
+											<button class="composer-tool" title="Image"><Icon name="image" width={18} height={18} /></button>
+											<button class="composer-tool" title="Draw">
+												<svg viewBox="0 0 24 24" fill="none" style="width:18px;height:18px"><path d="M3 21l4-1 11.5-11.5a2.121 2.121 0 00-3-3L4 17l-1 4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 6l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+											</button>
+											<button class="composer-tool active" title="Poll" aria-label="Poll" aria-pressed="true"><Icon name="poll" width={18} height={18} /></button>
+											<button class="composer-tool" title="Emoji"><Icon name="smile" width={18} height={18} /></button>
+											<button class="composer-tool cw active" aria-pressed="true">CW</button>
+											<button class="composer-tool privacy"><Icon name="globe" width={13} height={13} /><span>Public</span><Icon name="chevDown" width={12} height={12} /></button>
+											<span class="composer-spacer"></span>
+											<span class="composer-count">431</span>
+											<Button variant="primary">Post</Button>
+										</div>
+									</div>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Composer · CW + poll together</span>
+								<span class="ds-spec-note">both panels stack flush inside composer body</span>
 							</div>
 						</div>
 					</div>

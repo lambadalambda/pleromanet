@@ -99,6 +99,12 @@ const statusCreateForm = (input: StatusCreateRequest) => {
 	if (input.visibility) form.set('visibility', input.visibility);
 	if (input.spoilerText) form.set('spoiler_text', input.spoilerText);
 	if (input.inReplyToId) form.set('in_reply_to_id', input.inReplyToId);
+	if (input.poll) {
+		for (const option of input.poll.options) form.append('poll[options][]', option);
+		form.set('poll[expires_in]', String(input.poll.expiresIn));
+		form.set('poll[multiple]', String(Boolean(input.poll.multiple)));
+		form.set('poll[hide_totals]', String(Boolean(input.poll.hideTotals)));
+	}
 
 	return form;
 };
