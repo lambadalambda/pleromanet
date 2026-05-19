@@ -1391,7 +1391,7 @@
 					</div>
 
 					<div class="ds-sub-h">Boosts</div>
-					<p class="ds-sub" style="margin-bottom:14px">When a post is reshared, the original post is rendered inside a <code style="font-family:var(--mono);font-size:11px">&lt;PostBoost/&gt;</code> wrapper that adds a 72px attribution rail on the left. The rail has a 4px accent-green edge, a small boost tag pill, the repeater's avatar, name, handle, and short relative time.</p>
+					<p class="ds-sub" style="margin-bottom:14px">When a post is reshared, the original post is rendered inside a <code style="font-family:var(--mono);font-size:11px">&lt;PostBoost/&gt;</code> wrapper with a full-height accent-green left edge and a horizontal top attribution row. The row holds a boost tag pill, mini repeater avatar, name, handle, and short relative time without stealing a side rail from the post.</p>
 					<div class="ds-grid ds-grid-2">
 						<div class="ds-spec ds-spec-span-2">
 							<div class="ds-spec-stage">
@@ -1433,7 +1433,7 @@
 							</div>
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Boosted · with photo</span>
-								<span class="ds-spec-note">rail aligns with post regardless of content height</span>
+								<span class="ds-spec-note">left edge spans full post height · top row stays compact</span>
 							</div>
 						</div>
 					</div>

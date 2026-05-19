@@ -317,13 +317,23 @@ test('renders canonical boosted post specimens', async ({ page }) => {
 	await expect(posts.getByText('Boosted · with photo')).toBeVisible();
 
 	const boostedText = posts.locator('.ds-spec').filter({ hasText: 'Boosted · text post' });
-	await expect(boostedText.locator('.post-boost')).toBeVisible();
-	await expect(boostedText.locator('.post-boost-tag')).toContainText('boost');
-	await expect(boostedText.locator('.post-boost-name')).toContainText('FiestaBun');
-	await expect(boostedText.locator('.post-boost-time')).toContainText('35m');
+	const boostedTextWrapper = boostedText.locator('.post-boost');
+	const boostedTextAttr = boostedTextWrapper.locator('> .post-boost-attr');
+	await expect(boostedTextWrapper).toBeVisible();
+	await expect(boostedTextWrapper).toHaveCSS('border-left-width', '4px');
+	await expect(boostedTextWrapper.locator('> .post-boost-rail')).toHaveCount(0);
+	await expect(boostedTextAttr).toBeVisible();
+	await expect(boostedTextAttr.locator('.post-boost-tag')).toContainText('boost');
+	await expect(boostedTextAttr.locator('.post-boost-av')).toBeVisible();
+	await expect(boostedTextAttr.locator('.post-boost-name')).toContainText('FiestaBun');
+	await expect(boostedTextAttr.locator('.post-boost-handle')).toContainText('@FiestaBun@decayable.ink');
+	await expect(boostedTextAttr.locator('.post-boost-time')).toContainText('35m');
+	const extraNameWidth = await boostedTextAttr.locator('.post-boost-name').evaluate((element) => element.clientWidth - element.scrollWidth);
+	expect(extraNameWidth).toBeLessThan(8);
 	await expect(boostedText.locator('.post')).toContainText("the algorithm doesn't care about you");
 
 	const boostedPhoto = posts.locator('.ds-spec').filter({ hasText: 'Boosted · with photo' });
+	await expect(boostedPhoto.locator('.post-boost > .post-boost-attr')).toBeVisible();
 	await boostedPhoto.locator('.post-photos button').click();
 	const dialog = page.getByRole('dialog');
 	await expect(dialog).toBeVisible();

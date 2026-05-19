@@ -112,13 +112,18 @@ const mockHomeTimeline = async (page: Page) => {
 	});
 };
 
-const mockThread = async (page: Page, focusedStatus: PleromaStatus = threadStatus, descendants: PleromaStatus[] = [threadReply, nestedThreadReply, secondThreadReply]) => {
+const mockThread = async (
+	page: Page,
+	focusedStatus: PleromaStatus = threadStatus,
+	descendants: PleromaStatus[] = [threadReply, nestedThreadReply, secondThreadReply],
+	ancestors: PleromaStatus[] = [threadAncestor]
+) => {
 	await mockInstance(page);
 	await page.route('https://pleroma.example/api/v1/statuses/status-1', async (route) => {
 		await fulfillJson(route, focusedStatus);
 	});
 	await page.route('https://pleroma.example/api/v1/statuses/status-1/context', async (route) => {
-		await fulfillJson(route, { ancestors: [threadAncestor], descendants });
+		await fulfillJson(route, { ancestors, descendants });
 	});
 };
 
@@ -242,6 +247,64 @@ test('real thread route renders focused reply addressee chips', async ({ page })
 	await expect(focused.locator('.post-pinged-chip-parent svg')).toBeVisible();
 	await expect(focused.locator('.post-pinged-also')).toContainText('also');
 	await expect(focused.locator('.post-pinged-chip')).toContainText('@lumen');
+});
+
+test('real thread route renders boosted ancestors and replies with attribution rows', async ({ page }) => {
+	await authenticate(page);
+	const boostedAncestorOriginal = statusWithText('ancestor-boosted-original', 'boosted ancestor context survives the redesign', {
+		account: accountWithName('ancestor-original-account', 'gridwave', 'gridwave@retro.social'),
+		created_at: '2026-05-11T15:42:00.000Z',
+		replies_count: 1,
+		reblogs_count: 5,
+		favourites_count: 9
+	});
+	const boostedAncestor = statusWithText('ancestor-boost-wrapper', '', {
+		account: accountWithName('ancestor-booster-account', 'FiestaBun', 'FiestaBun@decayable.ink'),
+		created_at: '2026-05-11T16:00:00.000Z',
+		reblog: boostedAncestorOriginal
+	});
+	const boostedReplyBody = 'content warning still wraps a boosted thread reply';
+	const boostedReplyOriginal = statusWithText('reply-boosted-original', boostedReplyBody, {
+		account: accountWithName('reply-original-account', 'mossy', 'mossy@garden.cafe'),
+		created_at: '2026-05-11T16:36:00.000Z',
+		in_reply_to_id: 'status-1',
+		in_reply_to_account_id: 'account-1',
+		spoiler_text: 'boosted reply warning',
+		pleroma: {
+			...pleromaFixtures.status.pleroma,
+			content: { 'text/plain': boostedReplyBody },
+			conversation_id: 99,
+			spoiler_text: { 'text/plain': 'boosted reply warning' }
+		},
+		replies_count: 0,
+		reblogs_count: 2,
+		favourites_count: 6
+	});
+	const boostedReply = statusWithText('reply-boost-wrapper', '', {
+		account: accountWithName('reply-booster-account', 'datagram', 'datagram@retro.social'),
+		created_at: '2026-05-11T16:41:00.000Z',
+		reblog: boostedReplyOriginal
+	});
+	await mockThread(page, threadStatus, [boostedReply], [boostedAncestor]);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	const ancestor = page.getByTestId('thread-ancestor');
+	await expect(ancestor.locator('.post-boost > .post-boost-attr')).toBeVisible();
+	await expect(ancestor.locator('.post-boost-rail')).toHaveCount(0);
+	await expect(ancestor.locator('.post-boost-name')).toContainText('FiestaBun');
+	await expect(ancestor).toContainText('boosted ancestor context survives the redesign');
+
+	const reply = page.getByTestId('thread-reply');
+	await expect(reply.locator('.post-boost > .post-boost-attr')).toBeVisible();
+	await expect(reply.locator('.post-boost-rail')).toHaveCount(0);
+	await expect(reply.locator('.post-boost-name')).toContainText('datagram');
+	await expect(reply.locator('.post-cw-card')).toContainText('boosted reply warning');
+	await reply.getByRole('button', { name: 'Show post' }).click();
+	await expect(reply).toContainText(boostedReplyBody);
+
+	await setViewport(page, 'mobile');
+	await expectNoHorizontalOverflow(page);
 });
 
 test('real thread route folds content warnings on ancestors, focused posts, replies, and nested replies', async ({ page }) => {

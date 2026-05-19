@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 import { pleromaFixtures } from '../lib/pleroma/fixtures';
-import { expectNoHorizontalOverflow, setViewport } from '../test/playwright';
+import { expectElementIsTruncatedWithinParent, expectNoHorizontalOverflow, setViewport } from '../test/playwright';
 
 const session = {
 	instanceUrl: 'https://pleroma.example',
@@ -1035,8 +1035,8 @@ test('home timeline renders boosted Pleroma statuses with attribution and media 
 		account: {
 			...pleromaFixtures.account,
 			id: 'booster-account',
-			username: 'booster',
-			acct: 'booster@pleroma.example',
+			username: 'booster-with-a-very-long-unbroken-handle',
+			acct: 'booster-with-a-very-long-unbroken-handle@pleroma.example',
 			display_name: 'booster-with-a-very-long-unbroken-display-name-that-should-clip'
 		},
 		reblog: original
@@ -1054,14 +1054,27 @@ test('home timeline renders boosted Pleroma statuses with attribution and media 
 	await page.goto('/app/home');
 
 	const boost = page.locator('.post-boost').first();
-	await expect(boost.locator('.post-boost-tag')).toContainText('boost');
-	await expect(boost.locator('.post-boost-name')).toContainText('booster');
+	const boostAttr = boost.locator('> .post-boost-attr');
+	await expect(boost).toHaveCSS('border-left-width', '4px');
+	await expect(boost.locator('> .post-boost-rail')).toHaveCount(0);
+	await expect(boostAttr.locator('.post-boost-tag')).toContainText('boost');
+	await expect(boostAttr.locator('.post-boost-av')).toBeVisible();
+	await expect(boostAttr.locator('.post-boost-name')).toContainText('booster');
+	await expect(boostAttr.locator('.post-boost-handle')).toContainText('@booster-with-a-very-long-unbroken-handle@pleroma.example');
+	await expect(boostAttr.locator('.post-boost-name')).toHaveCSS('text-overflow', 'ellipsis');
+	await expect(boostAttr.locator('.post-boost-handle')).toHaveCSS('text-overflow', 'ellipsis');
 	await expect(boost.locator('.post')).toContainText('orbit');
 	await expect(boost.locator('.post')).toContainText('dusk in the city');
 	await boost.locator('.post').getByRole('button', { name: 'Boost 4' }).click();
 	await expect(boost.locator('.post').getByRole('button', { name: 'Boost 5' })).toHaveAttribute('aria-pressed', 'true');
 	await expect.poll(() => boostActionPath).toBe('/api/v1/statuses/boosted-original/reblog');
 	await setViewport(page, 'mobile');
+	const mobileNameBox = await boostAttr.locator('.post-boost-name').boundingBox();
+	const mobileHandleBox = await boostAttr.locator('.post-boost-handle').boundingBox();
+	expect(mobileNameBox?.width ?? 0).toBeGreaterThan(40);
+	expect(mobileHandleBox?.width ?? 0).toBeGreaterThan(40);
+	await expectElementIsTruncatedWithinParent(boostAttr.locator('.post-boost-name'));
+	await expectElementIsTruncatedWithinParent(boostAttr.locator('.post-boost-handle'));
 	await expectNoHorizontalOverflow(page);
 	await setViewport(page, 'desktop');
 	await boost.locator('.post-photos button').click();
