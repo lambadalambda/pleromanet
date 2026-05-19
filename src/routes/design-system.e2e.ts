@@ -22,7 +22,7 @@ test('shows converted canonical design-system sections and switches themes', asy
 	await expect(page.locator('#controls')).toContainText('Button · primary');
 	await expect(page.locator('#attachments')).toContainText('pickAttachmentLayout →');
 	await expect(page.locator('#posts')).toContainText('Quoted posts');
-	await expect(page.locator('#thread')).toContainText('AncestorPost → FocusedPost → ReplyPost');
+	await expect(page.locator('#thread')).toContainText('ReplyPost → InlineReplyComposer below selected reply');
 	await expect(page.locator('#notifications')).toContainText('NotifRow k-mention unread');
 	await expect(page.locator('#radio')).toContainText('Radio · Now playing tab');
 	await expect(page.locator('#oekaki')).toContainText('Tool rail');
@@ -285,7 +285,7 @@ test('renders canonical content warning post specimens', async ({ page }) => {
 	await expectNoHorizontalOverflow(page);
 });
 
-test('renders the canonical thread specimen with a working reply composer', async ({ page }) => {
+test('renders the canonical thread specimen with targeted inline reply composers', async ({ page }) => {
 	await setViewport(page, 'desktop');
 	await page.goto('/design-system');
 
@@ -293,13 +293,45 @@ test('renders the canonical thread specimen with a working reply composer', asyn
 	await expect(thread.getByText('gridwave', { exact: true })).toBeVisible();
 	await expect(thread.getByText('nyan.binary', { exact: true })).toBeVisible();
 	await expect(thread.getByText('2 replies')).toBeVisible();
+	await expect(thread.locator('.thread-reply-composer')).toHaveCount(0);
+	await expect(thread.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
 
-	const composer = thread.locator('.thread-reply-composer');
-	const submitReply = composer.locator('.btn-primary');
-	await expect(composer.getByRole('textbox')).toHaveAttribute('placeholder', 'Reply to @emichan...');
-	await expect(submitReply).toBeDisabled();
-	await composer.getByRole('textbox').fill('soft web yes');
-	await expect(submitReply).toBeEnabled();
+	const nyanReply = thread.locator('.post-reply').filter({ hasText: 'this is the energy i needed today' }).first();
+	await nyanReply.getByRole('button', { name: 'Reply 2' }).click();
+	const nyanComposer = thread.getByRole('form', { name: 'Inline reply to @nyan' });
+	await expect(nyanComposer).toBeVisible();
+	await expect(nyanComposer).toContainText('Replying to');
+	await expect(nyanComposer).toContainText('@nyan');
+	await expect(nyanComposer.getByRole('button', { name: 'Reply', exact: true })).toBeDisabled();
+	await nyanComposer.getByRole('textbox', { name: 'Reply text' }).fill('soft web yes');
+	await expect(nyanComposer.getByRole('button', { name: 'Reply', exact: true })).toBeEnabled();
+	await nyanReply.getByRole('button', { name: 'Reply 2' }).click();
+	await expect(thread.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+
+	await nyanReply.getByRole('button', { name: 'Reply 2' }).click();
+	const reopenedNyanComposer = thread.getByRole('form', { name: 'Inline reply to @nyan' });
+	await expect(reopenedNyanComposer.getByRole('textbox', { name: 'Reply text' })).toHaveValue('');
+	await reopenedNyanComposer.getByRole('textbox', { name: 'Reply text' }).fill('soft web yes');
+
+	const softReply = thread.locator('.post-reply').filter({ hasText: 'touched grass too' }).first();
+	await softReply.getByRole('button', { name: 'Reply 0' }).click();
+	await expect(thread.getByRole('form', { name: /Inline reply/ })).toHaveCount(1);
+	const softComposer = thread.getByRole('form', { name: 'Inline reply to @soft.hertz' });
+	await expect(softComposer).toBeVisible();
+	await expect(softComposer.getByRole('textbox', { name: 'Reply text' })).toHaveValue('');
+
+	await softComposer.getByRole('button', { name: 'Cancel' }).click();
+	await expect(thread.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+
+	await softReply.getByRole('button', { name: 'Reply 0' }).click();
+	await softComposer.getByRole('textbox', { name: 'Reply text' }).fill('submit closes this composer');
+	await softComposer.getByRole('button', { name: 'Reply', exact: true }).click();
+	await expect(thread.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+
+	await setViewport(page, 'mobile');
+	await softReply.getByRole('button', { name: 'Reply 0' }).click();
+	await expect(thread.getByRole('form', { name: 'Inline reply to @soft.hertz' })).toBeVisible();
+	await expectNoHorizontalOverflow(page);
 });
 
 test('renders canonical notification rows and popover controls', async ({ page }) => {

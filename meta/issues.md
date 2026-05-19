@@ -8,5 +8,4 @@
 - [ ] [26 Wire trends and instance metadata](issues/26-wire-trends-and-instance-metadata.md)
 - [ ] [28 Retire mockup prototype](issues/28-retire-mockup-prototype.md)
 - [ ] [30 Port composer CW and poll editor panels](issues/30-port-composer-cw-and-poll-editor-panels.md)
-- [ ] [34 Port inline thread reply composer](issues/34-port-inline-thread-reply-composer.md)
 - [ ] [35 Align Svelte design system with updated canonical handoff](issues/35-align-svelte-design-system-with-updated-canonical-handoff.md)

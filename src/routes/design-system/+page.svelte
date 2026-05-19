@@ -81,6 +81,7 @@
 		time: string;
 		avClass?: string;
 		avBanner?: BannerVariant;
+		avatarUrl?: string | null;
 		body: string;
 		addressees?: string[];
 		quotedPost?: QuotedDemoPost;
@@ -179,8 +180,9 @@
 	let composerText = $state('drafting in the design system');
 	let composerPrivacy = $state('Public');
 	let composerRemaining = $derived(500 - composerText.length);
-	let threadReplyDraft = $state('');
-	let threadRemaining = $derived(500 - threadReplyDraft.length);
+	let threadInlineReplyId = $state<string | number | null>(null);
+	let threadInlineReplyDraft = $state('');
+	let threadInlineReplyRemaining = $derived(500 - threadInlineReplyDraft.length);
 	let oekakiOpen = $state(false);
 
 	const demoPost = (attachments: Attachment[], body = '', quotedPost?: QuotedDemoPost): DemoPostData => ({
@@ -244,6 +246,34 @@
 		avClass: '', avBanner: 'sunset',
 		body: "🤍",
 	};
+	const inlineReplyTargetHandle = (handle = '') => {
+		const normalized = handle.startsWith('@') ? handle.slice(1) : handle;
+		const local = normalized.split('@').filter(Boolean)[0] ?? normalized;
+		return `@${local || 'user'}`;
+	};
+	const findDemoPost = (posts: DemoPostData[], id: string | number): DemoPostData | null => {
+		for (const post of posts) {
+			if (String(post.id) === String(id)) return post;
+			const nested = post.nestedReplies ? findDemoPost(post.nestedReplies, id) : null;
+			if (nested) return nested;
+		}
+
+		return null;
+	};
+	const clearThreadInlineReply = () => {
+		threadInlineReplyId = null;
+		threadInlineReplyDraft = '';
+	};
+	const handleThreadReplyAction = (id: string | number | undefined, key: string) => {
+		if (key !== 'reply' || id == null) return;
+		if (String(threadInlineReplyId) === String(id)) {
+			clearThreadInlineReply();
+			return;
+		}
+
+		threadInlineReplyId = id;
+		threadInlineReplyDraft = '';
+	};
 	const POLL_CHOICES = [
 		{ id: 'warm', label: 'warm cassette', votes: 142 },
 		{ id: 'cold', label: 'cold terminal', votes: 38 },
@@ -284,6 +314,7 @@
 			},
 		],
 	};
+	let threadInlineReplyTarget = $derived(threadInlineReplyId == null ? null : findDemoPost(THREAD_DEMO.replies, threadInlineReplyId));
 
 	const sampleNotification = (kind: NotificationKind): NotificationData =>
 		SAMPLE_NOTIFS.find((notification) => notification.kind === kind) ?? SAMPLE_NOTIFS[0];
@@ -1399,27 +1430,6 @@
 
 								<FocusedPost post={THREAD_DEMO.focused} continuesAbove={THREAD_DEMO.ancestors.length > 0} />
 
-								<div class="thread-reply-composer">
-									<Avatar variant="compose" avBanner="sunset" />
-									<div style="min-width:0;flex:1">
-										<textarea
-											class="composer-input"
-											placeholder="Reply to @emichan..."
-											bind:value={threadReplyDraft}
-											style="min-height:44px"
-										></textarea>
-										<div class="composer-row" style="border-top:1px solid var(--border)">
-											<button type="button" class="composer-tool" title="Image"><Icon name="image" width={18} height={18} /></button>
-											<button type="button" class="composer-tool" title="Emoji"><Icon name="smile" width={18} height={18} /></button>
-											<button type="button" class="composer-tool cw">CW</button>
-											<button type="button" class="composer-tool privacy"><Icon name="reply" width={13} height={13} /><span>Reply</span><Icon name="chevDown" width={12} height={12} /></button>
-											<span class="composer-spacer"></span>
-											<span class="composer-count" style={threadRemaining < 50 ? 'color:var(--bad)' : 'color:var(--muted)'}>{threadRemaining}</span>
-											<Button variant="primary" disabled={!threadReplyDraft.trim()} onclick={() => (threadReplyDraft = '')}>Reply</Button>
-										</div>
-									</div>
-								</div>
-
 								<div class="thread-reply-head">
 									<div class="thread-reply-count"><Icon name="reply" width={13} height={13} /><span>{THREAD_DEMO.replies.length} replies</span></div>
 									<div class="seg" style="margin-left:auto">
@@ -1430,14 +1440,31 @@
 
 								<div class="thread-replies">
 									{#each THREAD_DEMO.replies as reply, i (reply.id)}
-										<ReplyPost post={reply} isLast={i === THREAD_DEMO.replies.length - 1} nestedReplies={reply.nestedReplies} />
+										<ReplyPost
+											post={reply}
+											isLast={i === THREAD_DEMO.replies.length - 1}
+											nestedReplies={reply.nestedReplies}
+											onAction={handleThreadReplyAction}
+											inlineReplyRenderId={threadInlineReplyId == null ? null : String(threadInlineReplyId)}
+											inlineReplyTargetHandle={threadInlineReplyTarget ? inlineReplyTargetHandle(threadInlineReplyTarget.handle) : ''}
+											inlineReplyTargetName={threadInlineReplyTarget?.name ?? ''}
+											inlineReplyTargetAvClass={threadInlineReplyTarget?.avClass}
+											inlineReplyTargetAvBanner={threadInlineReplyTarget?.avBanner}
+											inlineReplyTargetAvatarUrl={threadInlineReplyTarget?.avatarUrl}
+											inlineReplyDraft={threadInlineReplyDraft}
+											inlineReplyRemaining={threadInlineReplyRemaining}
+											onInlineReplyDraftInput={(value) => (threadInlineReplyDraft = value)}
+											onInlineReplyCancel={clearThreadInlineReply}
+											onInlineReplySubmit={clearThreadInlineReply}
+											onShowNested={() => {}}
+										/>
 									{/each}
 								</div>
 							</div>
 						</div>
 						<div class="ds-spec-foot">
-							<span class="ds-spec-label">Full thread</span>
-							<span class="ds-spec-note">AncestorPost → FocusedPost → ReplyPost</span>
+							<span class="ds-spec-label">Thread · targeted inline replies</span>
+							<span class="ds-spec-note">ReplyPost → InlineReplyComposer below selected reply</span>
 						</div>
 					</div>
 				</div>

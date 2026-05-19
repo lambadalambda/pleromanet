@@ -22,3 +22,4 @@
 - [x] [31 Port post content warning wrapper](issues/31-port-post-content-warning-wrapper.md)
 - [x] [32 Port boosted post rendering](issues/32-port-boosted-post-rendering.md)
 - [x] [33 Update reply addressee chips](issues/33-update-reply-addressee-chips.md)
+- [x] [34 Port inline thread reply composer](issues/34-port-inline-thread-reply-composer.md)

@@ -31,7 +31,7 @@ Bring `/design-system` back into parity with the updated canonical handoff after
 ## Current Status
 
 - Partially done: several canonical specimen groups are present, including polls, content warnings, boosted posts, reply addressee chips, notifications, radio, and oekaki.
-- Still open: the sidebar still reports `0 shared primitives`, issue 30 composer specimens are missing, and issue 34's design-system thread update is incomplete.
+- Still open: the sidebar still reports `0 shared primitives`, and issue 30 composer specimens are missing.
 - Still open: final parity with `design-system.jsx` v2.4.58 has not been audited section-by-section.
 
 ## Notes

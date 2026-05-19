@@ -22,9 +22,9 @@ Port the updated targeted inline reply composer for thread replies and reconcile
 
 ## Current Status
 
-- Partially done: the real app has targeted inline reply composers for home timeline posts, focused thread posts, top-level replies, and expanded nested replies.
-- Done in real app: the composer pre-addresses the target, shows the target avatar, toggles closed when the same Reply button is pressed, moves between targets without leaking drafts, submits through Pleroma, and stays usable on mobile.
-- Still open: the `/design-system` thread specimen still uses the old terminal `.thread-reply-composer` and has not been reconciled with the canonical inline reply handoff.
+- Completed: the real app has targeted inline reply composers for home timeline posts, focused thread posts, top-level replies, and expanded nested replies.
+- Completed: the composer pre-addresses the target, shows the target avatar, toggles closed when the same Reply button is pressed, moves between targets without leaking drafts, submits through Pleroma, and stays usable on mobile.
+- Completed: the `/design-system` thread specimen no longer uses the old terminal `.thread-reply-composer` and now demonstrates targeted inline reply behavior below selected replies.
 
 ## Notes
 
