@@ -277,16 +277,29 @@ test('renders canonical reply addressee chip specimens', async ({ page }) => {
 	await expect(parentOnly.locator('.post-pinged-l')).toHaveText('Replying to');
 	await expect(parentChip).toContainText('@gridwave');
 	await expect(parentChip.locator('svg')).toBeVisible();
-	await expect(parentChip).toHaveCSS('font-weight', '600');
+	await expect(parentChip).toHaveCSS('font-weight', '500');
+	await expect(parentChip).not.toHaveCSS('color', 'rgb(255, 255, 255)');
+	await expect(parentChip).not.toHaveCSS('background-color', 'rgb(164, 139, 217)');
 	await expect(parentOnly.locator('.post-pinged-also')).toHaveCount(0);
 
 	const ccList = posts.locator('.ds-spec').filter({ hasText: 'Reply + cc-list' });
+	const ccParentChip = ccList.locator('.post-pinged-chip-parent');
+	const firstCcChip = ccList.locator('.post-pinged-chip').first();
+	const firstCcStyles = await firstCcChip.evaluate((element) => {
+		const styles = getComputedStyle(element);
+		return {
+			backgroundColor: styles.backgroundColor,
+			color: styles.color
+		};
+	});
 	await expect(ccList.locator('.post-pinged-chip-parent .post-pinged-handle')).toHaveText('@dtluna');
-	await expect(ccList.locator('.post-pinged-chip-parent')).toHaveAttribute('title', '@dtluna@retro.social');
+	await expect(ccParentChip).toHaveAttribute('title', '@dtluna@retro.social');
+	await expect(ccParentChip).toHaveCSS('background-color', firstCcStyles.backgroundColor);
+	await expect(ccParentChip).toHaveCSS('color', firstCcStyles.color);
 	await expect(ccList.locator('.post-pinged-also')).toContainText('also');
 	await expect(ccList.locator('.post-pinged-chip')).toHaveCount(2);
-	await expect(ccList.locator('.post-pinged-chip').first()).toHaveText('@feld');
-	await expect(ccList.locator('.post-pinged-chip').first()).toHaveAttribute('title', '@feld@queer.party');
+	await expect(firstCcChip).toHaveText('@feld');
+	await expect(firstCcChip).toHaveAttribute('title', '@feld@queer.party');
 	await expect(ccList.locator('.post-pinged-list')).not.toContainText('@dtluna@retro.social');
 	await expect(ccList.locator('.post-pinged-list')).not.toContainText('@feld@queer.party');
 

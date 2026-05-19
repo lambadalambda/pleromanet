@@ -3001,27 +3001,31 @@ body[data-theme='simoun'] .pill {
 	background: var(--accent-soft);
 	border-color: var(--accent-soft);
 }
+/* The glyph, not a filled color, marks the direct parent addressee. */
 .post-pinged-chip-parent {
 	display: inline-flex;
 	align-items: center;
 	gap: 3px;
 	font-family: var(--mono);
 	font-size: 10.5px;
-	color: white;
-	padding: 2px 9px 2px 7px;
-	background: var(--accent);
+	color: var(--accent-ink);
+	padding: 1px 8px 1px 6px;
+	background: var(--accent-soft-2);
 	border-radius: 8px;
-	border: 1px solid var(--accent);
+	border: 1px solid transparent;
 	cursor: pointer;
-	font-weight: 600;
+	font-weight: 500;
 	text-decoration: none;
-	transition: filter 0.12s;
+	transition: background 0.12s, border-color 0.12s;
 }
 .post-pinged-chip-parent svg {
-	opacity: 0.85;
+	opacity: 0.65;
 	flex-shrink: 0;
 }
-.post-pinged-chip-parent:hover { filter: brightness(1.08); }
+.post-pinged-chip-parent:hover {
+	background: var(--accent-soft);
+	border-color: var(--accent-soft);
+}
 .post-pinged-also {
 	font-family: var(--mono);
 	font-size: 9.5px;

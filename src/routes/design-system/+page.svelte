@@ -1156,7 +1156,7 @@
 					</div>
 
 					<div class="ds-sub-h">Body, mentions &amp; reply addressees</div>
-					<p class="ds-sub" style="margin-bottom:14px">The <code style="font-family:var(--mono);font-size:11px">&lt;PostBody/&gt;</code> primitive auto-parses <code style="font-family:var(--mono);font-size:11px">@handle</code> patterns in the body string and renders them as inline links. A separate <code style="font-family:var(--mono);font-size:11px">addressees</code> array (the leading recipient pile-up from a fediverse reply) renders as a "Replying to" footer below the body, so the first line of a reply stays content, not a recipient list. The <b>first</b> addressee is the direct parent and uses a filled chip; inherited cc addressees render as ghost chips after <code style="font-family:var(--mono);font-size:11px">· also</code>.</p>
+					<p class="ds-sub" style="margin-bottom:14px">The <code style="font-family:var(--mono);font-size:11px">&lt;PostBody/&gt;</code> primitive auto-parses <code style="font-family:var(--mono);font-size:11px">@handle</code> patterns in the body string and renders them as inline links. A separate <code style="font-family:var(--mono);font-size:11px">addressees</code> array (the leading recipient pile-up from a fediverse reply) renders as a "Replying to" footer below the body, so the first line of a reply stays content, not a recipient list. The <b>first</b> addressee is the direct parent and renders as a ghost chip prefixed with a reply glyph; inherited cc addressees render as the same ghost chip without the glyph after <code style="font-family:var(--mono);font-size:11px">· also</code>.</p>
 					<div class="ds-grid ds-grid-2">
 						<div class="ds-spec">
 							<div class="ds-spec-stage">
@@ -1173,7 +1173,7 @@
 							</div>
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Reply · parent only</span>
-								<span class="ds-spec-note">addressees=[parent] · single filled chip · no 'also'</span>
+								<span class="ds-spec-note">addressees=[parent] · ghost chip + glyph · no 'also'</span>
 							</div>
 						</div>
 						<div class="ds-spec ds-spec-span-2">
@@ -1182,7 +1182,7 @@
 							</div>
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Reply + cc-list</span>
-								<span class="ds-spec-note">addressees=[parent, …cc] · parent filled · cc ghost</span>
+								<span class="ds-spec-note">addressees=[parent, …cc] · parent glyph · all ghost</span>
 							</div>
 						</div>
 						<div class="ds-spec ds-spec-span-2">
@@ -1191,7 +1191,7 @@
 							</div>
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Long cc-chain</span>
-								<span class="ds-spec-note">parent stays prominent · cc-list wraps to second row</span>
+								<span class="ds-spec-note">parent uses glyph role marker · cc-list wraps to second row</span>
 							</div>
 						</div>
 					</div>
