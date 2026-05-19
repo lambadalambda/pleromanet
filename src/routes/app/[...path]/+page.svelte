@@ -48,6 +48,11 @@
 		showFollowers: boolean;
 	};
 	type ReplySort = 'top' | 'newest';
+	type StatusActionKey = 'boost' | 'fav';
+	type StatusActionOrigin = 'home' | 'thread';
+	type StatusActionScope = StatusActionOrigin | 'all';
+	type StatusActionOriginSnapshot = { route: StatusActionOrigin; requestId: number };
+	type StatusActionValue = { active: boolean; count: number };
 	type RebuildPost = PostLike & {
 		id: string | number;
 		actionStatusId?: string;
@@ -93,6 +98,7 @@
 		| { status: 'empty' }
 		| { status: 'error'; error: PleromaRequestErrorView }
 		| { status: 'success'; data: PleromaNotificationView[] };
+	type StatusActionErrorState = { targetId: string; key: StatusActionKey; route: StatusActionOrigin; error: PleromaRequestErrorView };
 	type NotificationPopoverStatus = 'ready' | 'loading' | 'empty' | 'error';
 	const HOME_TIMELINE_CHECK_EVENT = 'pleromanet:check-home-timeline';
 	const HOME_TIMELINE_FALLBACK_INTERVAL_MS = 60_000;
@@ -127,12 +133,15 @@
 	let savedProfile = $state<ProfileSettings>({ ...defaultProfile });
 	let homePostSubmitState = $state<'idle' | 'submitting'>('idle');
 	let homePostSubmitError = $state<PleromaRequestErrorView | null>(null);
+	let statusActionErrors = $state<StatusActionErrorState[]>([]);
+	let statusActionPending = $state<Record<string, number>>({});
 	let profileAccountLoadError = $state<PleromaRequestErrorView | null>(null);
 	let replySort = $state<ReplySort>('top');
 	let homeTimelineRequestId = 0;
 	let homeTimelineNewPostsRequestId = 0;
 	let threadRequestId = 0;
 	let notificationRequestId = 0;
+	let statusActionRequestId = 0;
 	let homePostSubmitRequestId = 0;
 	let profileAccountRequestId = 0;
 	let instanceConfigRequestId = 0;
@@ -152,17 +161,42 @@
 	let notificationAbortController: AbortController | null = null;
 	let composerCharacterLimit = $state(DEFAULT_STATUS_CHARACTER_LIMIT);
 	const sessionKey = (session: PleromaSession | null) => session ? `${session.instanceUrl}\n${session.accessToken}\n${session.createdAt}` : '';
+	const clearStatusActionErrors = (route?: StatusActionOrigin) => {
+		if (!route) {
+			if (statusActionErrors.length > 0) statusActionErrors = [];
+			return;
+		}
+
+		if (!statusActionErrors.some((error) => error.route === route)) return;
+		statusActionErrors = statusActionErrors.filter((error) => error.route !== route);
+	};
+	const removeStatusActionError = (targetId: string, key: StatusActionKey) => {
+		statusActionErrors = statusActionErrors.filter((error) => error.targetId !== targetId || error.key !== key);
+	};
+	const addStatusActionError = (nextError: StatusActionErrorState) => {
+		statusActionErrors = [
+			...statusActionErrors.filter((error) => error.targetId !== nextError.targetId || error.key !== nextError.key || error.route !== nextError.route),
+			nextError
+		];
+	};
+	const invalidateStatusActionRequests = () => {
+		statusActionRequestId += 1;
+		statusActionPending = {};
+		clearStatusActionErrors();
+	};
 	const invalidateHomeTimelineRequests = () => {
 		homeTimelineRequestId += 1;
 		homeTimelineNewPostsRequestId += 1;
 		homePostSubmitRequestId += 1;
 		homePostSubmitState = 'idle';
 		homePostSubmitError = null;
+		clearStatusActionErrors('home');
 	};
 	const invalidateThreadRequests = () => {
 		threadRequestId += 1;
 		loadedThreadKey = '';
 		threadState = { status: 'idle' };
+		clearStatusActionErrors('thread');
 	};
 	const invalidateNotificationRequests = () => {
 		notificationRequestId += 1;
@@ -208,6 +242,8 @@
 	let headerAccountName = $derived(headerAccount?.displayName ?? 'Account');
 	let headerAccountAvatarUrl = $derived(headerAccount?.avatarUrl ?? null);
 	let headerAccountLabel = $derived(`${headerAccountName} account menu`);
+	let homeStatusActionErrors = $derived(statusActionErrors.filter((error) => error.route === 'home'));
+	let threadStatusActionErrors = $derived(statusActionErrors.filter((error) => error.route === 'thread'));
 
 	let navItems = $derived<NavItem[]>([
 		{ route: 'home', label: 'Home', icon: 'home', href: '/app/home' },
@@ -304,12 +340,142 @@
 			actions: { ...post.actions, [key]: active }
 		};
 	};
+	const actionStateKey = (key: StatusActionKey) => key === 'fav' ? 'favorite' : 'boost';
+	const statusActionPendingKey = (targetId: string, key: StatusActionKey) => `${targetId}:${key}`;
+	const statusActionOriginRequestId = (originRoute: StatusActionOrigin) => originRoute === 'home' ? homeTimelineRequestId : threadRequestId;
+	const statusActionOriginActive = (origin: StatusActionOriginSnapshot) => origin.route === 'home'
+		? route === 'home' && homeTimelineRequestId === origin.requestId
+		: route === 'thread' && threadRequestId === origin.requestId;
+	const statusActionTargetId = (post: { id?: string | number; actionStatusId?: string }) => String(post.actionStatusId ?? post.id ?? '');
+	const matchesStatusActionTarget = (post: { id?: string | number; actionStatusId?: string }, targetId: string) => statusActionTargetId(post) === targetId;
+	const statusViewActionValue = (post: PleromaStatusView, key: StatusActionKey): StatusActionValue =>
+		key === 'fav'
+			? { active: post.actions.favorite, count: post.favorites }
+			: { active: post.actions.boost, count: post.boosts };
+	const rebuildPostActionValue = (post: RebuildPost, key: StatusActionKey): StatusActionValue =>
+		key === 'fav'
+			? { active: post.actions.fav, count: post.favs }
+			: { active: post.actions.boost, count: post.boosts };
+	const setStatusViewAction = <PostType extends PleromaStatusView>(post: PostType, key: StatusActionKey, value: StatusActionValue): PostType => {
+		const actionKey = actionStateKey(key);
+		return {
+			...post,
+			boosts: key === 'boost' ? value.count : post.boosts,
+			favorites: key === 'fav' ? value.count : post.favorites,
+			actions: { ...post.actions, [actionKey]: value.active }
+		};
+	};
+	const setRebuildPostAction = <PostType extends RebuildPost>(post: PostType, key: StatusActionKey, value: StatusActionValue): PostType => ({
+		...post,
+		boosts: key === 'boost' ? value.count : post.boosts,
+		favs: key === 'fav' ? value.count : post.favs,
+		actions: { ...post.actions, [key]: value.active }
+	});
 	const updatePostListAction = <PostType extends RebuildPost & { nestedReplies?: PostType[] }>(posts: PostType[], postId: string | number, key: 'reply' | 'boost' | 'fav'): PostType[] =>
 		posts.map((post) => {
 			const updated = post.id === postId ? togglePostAction(post, key) : post;
 
 			return updated.nestedReplies ? { ...updated, nestedReplies: updatePostListAction(updated.nestedReplies, postId, key) } : updated;
 		});
+	const updateRebuildPostsByActionTarget = <PostType extends RebuildPost & { nestedReplies?: PostType[] }>(posts: PostType[], targetId: string, update: (post: PostType) => PostType): PostType[] =>
+		posts.map((post) => {
+			const updated = matchesStatusActionTarget(post, targetId) ? update(post) : post;
+
+			return updated.nestedReplies ? { ...updated, nestedReplies: updateRebuildPostsByActionTarget(updated.nestedReplies, targetId, update) } : updated;
+		});
+	const updateStatusViewsByActionTarget = (posts: PleromaStatusView[], targetId: string, update: (post: PleromaStatusView) => PleromaStatusView) =>
+		posts.map((post) => matchesStatusActionTarget(post, targetId) ? update(post) : post);
+	const findPostInList = <PostType extends RebuildPost & { nestedReplies?: PostType[] }>(posts: PostType[], postId: string | number): PostType | null => {
+		for (const post of posts) {
+			if (String(post.id) === String(postId)) return post;
+			const nested = post.nestedReplies ? findPostInList(post.nestedReplies, postId) : null;
+			if (nested) return nested;
+		}
+
+		return null;
+	};
+	const findThreadPost = (postId: string | number) => {
+		if (threadState.status !== 'success') return null;
+		if (String(threadState.focused.id) === String(postId)) return threadState.focused;
+		return findPostInList([...threadState.ancestors, ...threadState.replies], postId);
+	};
+	const applyStatusActionUpdate = (scope: StatusActionScope, targetId: string, statusUpdate: <PostType extends PleromaStatusView>(post: PostType) => PostType, rebuildUpdate: <PostType extends RebuildPost>(post: PostType) => PostType) => {
+		if (scope === 'home' || scope === 'all') {
+			localHomePosts = updateRebuildPostsByActionTarget(localHomePosts, targetId, rebuildUpdate);
+		}
+		if ((scope === 'home' || scope === 'all') && homeTimelineState.status === 'success') {
+			homeTimelineState = {
+				...homeTimelineState,
+				data: updateStatusViewsByActionTarget(homeTimelineState.data, targetId, statusUpdate),
+				newerPosts: updateStatusViewsByActionTarget(homeTimelineState.newerPosts, targetId, statusUpdate)
+			};
+		}
+		if ((scope === 'thread' || scope === 'all') && threadState.status === 'success') {
+			threadState = {
+				...threadState,
+				focused: matchesStatusActionTarget(threadState.focused, targetId) ? rebuildUpdate(threadState.focused) : threadState.focused,
+				ancestors: updateRebuildPostsByActionTarget(threadState.ancestors, targetId, rebuildUpdate),
+				replies: updateRebuildPostsByActionTarget(threadState.replies, targetId, rebuildUpdate)
+			};
+		}
+	};
+	const clearStatusActionPending = (pendingKey: string, requestId: number) => {
+		if (statusActionPending[pendingKey] !== requestId) return;
+		const { [pendingKey]: _cleared, ...rest } = statusActionPending;
+		statusActionPending = rest;
+	};
+	const mutateStatusAction = (targetId: string, key: StatusActionKey, previous: StatusActionValue, originRoute: StatusActionOrigin) => {
+		const session = currentSession;
+		if (!session) return;
+		const pendingKey = statusActionPendingKey(targetId, key);
+		if (statusActionPending[pendingKey]) return;
+
+		const requestSessionKey = sessionKey(session);
+		const origin = { route: originRoute, requestId: statusActionOriginRequestId(originRoute) };
+		const requestId = statusActionRequestId + 1;
+		statusActionRequestId = requestId;
+		statusActionPending = { ...statusActionPending, [pendingKey]: requestId };
+		removeStatusActionError(targetId, key);
+		const optimistic = { active: !previous.active, count: previous.count };
+		applyStatusActionUpdate(originRoute, targetId, (post) => setStatusViewAction(post, key, optimistic), (post) => setRebuildPostAction(post, key, optimistic));
+
+		void (async () => {
+			try {
+				const client = createPleromaClient({
+					instanceUrl: session.instanceUrl,
+					accessToken: session.accessToken,
+					fetch: window.fetch.bind(window)
+				});
+				const status = key === 'fav'
+					? previous.active ? await client.unfavoriteStatus(targetId) : await client.favoriteStatus(targetId)
+					: previous.active ? await client.unboostStatus(targetId) : await client.boostStatus(targetId);
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+				if (statusActionPending[pendingKey] !== requestId) return;
+
+				const serverPost = adaptPleromaStatus(status);
+				const reconciled = statusViewActionValue(serverPost, key);
+				applyStatusActionUpdate('all', targetId, (post) => setStatusViewAction(post, key, reconciled), (post) => setRebuildPostAction(post, key, reconciled));
+				clearStatusActionPending(pendingKey, requestId);
+			} catch (error) {
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+				if (statusActionPending[pendingKey] !== requestId) return;
+
+				const normalized = normalizePleromaRequestError(error);
+				if (normalized.reauthRequired) {
+					clearStatusActionPending(pendingKey, requestId);
+					signOutPleroma(localStorage);
+					redirectToLanding();
+					return;
+				}
+
+				clearStatusActionPending(pendingKey, requestId);
+				if (!statusActionOriginActive(origin)) return;
+
+				applyStatusActionUpdate(origin.route, targetId, (post) => setStatusViewAction(post, key, previous), (post) => setRebuildPostAction(post, key, previous));
+				addStatusActionError({ targetId, key, route: origin.route, error: normalized });
+			}
+		})();
+	};
 	const openThread = (post: RebuildPost) => {
 		const statusId = post.threadStatusId ?? post.actionStatusId ?? String(post.id);
 		goto(`/app/thread/${encodeURIComponent(statusId)}`);
@@ -424,23 +590,34 @@
 			homePostSubmitState = 'idle';
 		}
 	};
-	const handlePostAction = (postId: string | number, key: string) => {
+	const handlePostAction = (clickedPost: RebuildPost, key: string) => {
 		if (key !== 'reply' && key !== 'boost' && key !== 'fav') return;
+		if (key === 'boost' || key === 'fav') {
+			const targetId = statusActionTargetId(clickedPost);
+			if (targetId) mutateStatusAction(targetId, key, rebuildPostActionValue(clickedPost, key), 'home');
+			return;
+		}
 
-		localHomePosts = updatePostListAction(localHomePosts, postId, key);
+		localHomePosts = updatePostListAction(localHomePosts, clickedPost.id, key);
 
 		if (homeTimelineState.status !== 'success') return;
 		homeTimelineState = {
 			...homeTimelineState,
-			data: homeTimelineState.data.map((post) => {
-				if (post.id !== postId) return post;
-				const next = togglePostAction(postForRebuild(post), key);
-				return { ...post, replies: next.replies, actions: { reply: next.actions.reply, boost: next.actions.boost, favorite: next.actions.fav } };
+			data: homeTimelineState.data.map((status) => {
+				if (status.id !== clickedPost.id) return status;
+				const next = togglePostAction(postForRebuild(status), key);
+				return { ...status, replies: next.replies, actions: { reply: next.actions.reply, boost: next.actions.boost, favorite: next.actions.fav } };
 			})
 		};
 	};
 	const handleThreadPostAction = (postId: string | number | undefined, key: string) => {
 		if (postId == null || (key !== 'reply' && key !== 'boost' && key !== 'fav')) return;
+		if (key === 'boost' || key === 'fav') {
+			const post = findThreadPost(postId);
+			const targetId = post ? statusActionTargetId(post) : '';
+			if (post && targetId) mutateStatusAction(targetId, key, rebuildPostActionValue(post, key), 'thread');
+			return;
+		}
 
 		if (threadState.status !== 'success') return;
 
@@ -471,10 +648,12 @@
 	const redirectToLanding = () => {
 		invalidateHomeTimelineRequests();
 		invalidateThreadRequests();
+		invalidateStatusActionRequests();
 		invalidateNotificationRequests();
 		invalidateProfileAccountRequests();
 		invalidateInstanceConfigRequests();
 		closeHomeTimelineStreaming();
+		localHomePosts = [];
 		loadedHomeTimelineKey = '';
 		homeTimelineFallbackSinceId = null;
 		currentSession = null;
@@ -491,10 +670,12 @@
 		if (sessionKey(currentSession) !== sessionKey(session)) {
 			invalidateHomeTimelineRequests();
 			invalidateThreadRequests();
+			invalidateStatusActionRequests();
 			invalidateNotificationRequests();
 			invalidateProfileAccountRequests();
 			invalidateInstanceConfigRequests();
 			closeHomeTimelineStreaming();
+			localHomePosts = [];
 			loadedHomeTimelineKey = '';
 			homeTimelineFallbackSinceId = null;
 			currentSession = session;
@@ -981,6 +1162,7 @@
 
 		return () => {
 			invalidateHomeTimelineRequests();
+			invalidateStatusActionRequests();
 			invalidateNotificationRequests();
 			closeHomeTimelineStreaming();
 			window.removeEventListener(HOME_TIMELINE_CHECK_EVENT, triggerHomeTimelineCheck);
@@ -1017,6 +1199,7 @@
 		if (pathname.startsWith('/app/thread')) {
 			const loadKey = `${sessionKey(session)}\n${threadStatusId}`;
 			if (loadedThreadKey !== loadKey) {
+				clearStatusActionErrors('thread');
 				loadedThreadKey = loadKey;
 				void loadThread(session, threadStatusId);
 			}
@@ -1161,6 +1344,12 @@
 								{/if}
 							</div>
 						</form>
+						{#each homeStatusActionErrors as actionError (`${actionError.targetId}:${actionError.key}`)}
+							<div class="status-action-error" role="alert">
+								<strong>{actionError.error.title}</strong>
+								<span>{actionError.error.message}</span>
+							</div>
+						{/each}
 
 						{#if homeTimelineState.status === 'success'}
 							<TimelineNewPostsIndicator count={homeTimelineState.newerPosts.length} onActivate={showNewHomePosts} />
@@ -1184,7 +1373,7 @@
 						{:else if homeTimelineState.status === 'success'}
 							<div data-testid="home-timeline-list">
 								{#each timelinePosts as post (post.id)}
-									<Post {post} onOpen={() => openThread(post)} onAction={(key) => handlePostAction(post.id, key)} />
+									<Post {post} onOpen={() => openThread(post)} onAction={(key) => handlePostAction(post, key)} />
 								{/each}
 							</div>
 							<TimelineLoadMore
@@ -1246,6 +1435,12 @@
 							<button type="button" class="thread-back" aria-label="Back to home timeline" onclick={() => goto('/app/home')}><Icon name="arrowL" width={15} height={15} /></button>
 							<h1>Thread</h1>
 						</div>
+						{#each threadStatusActionErrors as actionError (`${actionError.targetId}:${actionError.key}`)}
+							<div class="status-action-error" role="alert">
+								<strong>{actionError.error.title}</strong>
+								<span>{actionError.error.message}</span>
+							</div>
+						{/each}
 						{#if threadState.status === 'loading'}
 							<div class="request-state" role="status" aria-label="Request status">Loading thread</div>
 						{:else if threadState.status === 'error'}

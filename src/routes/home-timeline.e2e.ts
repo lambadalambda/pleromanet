@@ -222,6 +222,267 @@ test('home timeline composer creates statuses through Pleroma', async ({ page })
 	expect(params.get('visibility')).toBe('public');
 });
 
+test('home timeline favorite and boost actions reconcile with Pleroma responses', async ({ page }) => {
+	await authenticate(page);
+	const actionStatus = { ...statusWithText('status-action', 'wire this post to real actions'), favourites_count: 9, reblogs_count: 4 };
+	let favoriteAuthorization = '';
+	let boostAuthorization = '';
+	let unfavoriteAuthorization = '';
+	let unboostAuthorization = '';
+	let resolveFavorite: () => void = () => undefined;
+	let resolveBoost: () => void = () => undefined;
+	const favoritePending = new Promise<void>((resolve) => {
+		resolveFavorite = resolve;
+	});
+	const boostPending = new Promise<void>((resolve) => {
+		resolveBoost = resolve;
+	});
+
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [actionStatus]);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-action/favourite', async (route) => {
+		favoriteAuthorization = route.request().headers().authorization ?? '';
+		await favoritePending;
+		await fulfillHome(route, { ...actionStatus, favourited: true, favourites_count: 12 });
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-action/reblog', async (route) => {
+		boostAuthorization = route.request().headers().authorization ?? '';
+		await boostPending;
+		await fulfillHome(route, { ...actionStatus, reblogged: true, reblogs_count: 7 });
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-action/unfavourite', async (route) => {
+		unfavoriteAuthorization = route.request().headers().authorization ?? '';
+		await fulfillHome(route, { ...actionStatus, favourited: false, favourites_count: 11 });
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-action/unreblog', async (route) => {
+		unboostAuthorization = route.request().headers().authorization ?? '';
+		await fulfillHome(route, { ...actionStatus, reblogged: false, reblogs_count: 6 });
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('[data-status-id="status-action"]');
+	await post.getByRole('button', { name: 'Favorite 9' }).click();
+	await expect(post.getByRole('button', { name: 'Favorite 10' })).toHaveAttribute('aria-pressed', 'true');
+	await expect.poll(() => favoriteAuthorization).toBe('Bearer access-token');
+	resolveFavorite();
+	await expect(post.getByRole('button', { name: 'Favorite 12' })).toHaveAttribute('aria-pressed', 'true');
+	await post.getByRole('button', { name: 'Favorite 12' }).click();
+	await expect(post.getByRole('button', { name: 'Favorite 11' })).toHaveAttribute('aria-pressed', 'false');
+	await expect.poll(() => unfavoriteAuthorization).toBe('Bearer access-token');
+
+	await post.getByRole('button', { name: 'Boost 4' }).click();
+	await expect(post.getByRole('button', { name: 'Boost 5' })).toHaveAttribute('aria-pressed', 'true');
+	await expect.poll(() => boostAuthorization).toBe('Bearer access-token');
+	resolveBoost();
+	await expect(post.getByRole('button', { name: 'Boost 7' })).toHaveAttribute('aria-pressed', 'true');
+	await post.getByRole('button', { name: 'Boost 7' }).click();
+	await expect(post.getByRole('button', { name: 'Boost 6' })).toHaveAttribute('aria-pressed', 'false');
+	await expect.poll(() => unboostAuthorization).toBe('Bearer access-token');
+});
+
+test('home timeline status action failures rollback the optimistic state', async ({ page }) => {
+	await authenticate(page);
+	const actionStatus = { ...statusWithText('status-action-failure', 'rollback this favorite'), favourites_count: 9 };
+	let resolveFavorite: () => void = () => undefined;
+	const favoritePending = new Promise<void>((resolve) => {
+		resolveFavorite = resolve;
+	});
+
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [actionStatus]);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-action-failure/favourite', async (route) => {
+		await favoritePending;
+		await fulfillHome(route, { error: 'favorite failed temporarily' }, 503);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('[data-status-id="status-action-failure"]');
+	await post.getByRole('button', { name: 'Favorite 9' }).click();
+	await expect(post.getByRole('button', { name: 'Favorite 10' })).toHaveAttribute('aria-pressed', 'true');
+	resolveFavorite();
+	await expect(post.getByRole('button', { name: 'Favorite 9' })).toHaveAttribute('aria-pressed', 'false');
+	await expect(page.getByRole('alert')).toContainText('favorite failed temporarily');
+});
+
+test('home timeline keeps separate scoped errors for multiple failed actions', async ({ page }) => {
+	await authenticate(page);
+	const favoriteStatus = { ...statusWithText('status-action-error-a', 'first failed action'), favourites_count: 2 };
+	const boostStatus = { ...statusWithText('status-action-error-b', 'second failed action'), reblogs_count: 3 };
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [favoriteStatus, boostStatus]);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-action-error-a/favourite', async (route) => {
+		await fulfillHome(route, { error: 'first favorite failed' }, 503);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-action-error-b/reblog', async (route) => {
+		await fulfillHome(route, { error: 'second boost failed' }, 503);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	await page.locator('[data-status-id="status-action-error-a"]').getByRole('button', { name: 'Favorite 2' }).click();
+	await expect(page.getByText('first favorite failed')).toBeVisible();
+	await page.locator('[data-status-id="status-action-error-b"]').getByRole('button', { name: 'Boost 3' }).click();
+
+	await expect(page.getByText('first favorite failed')).toBeVisible();
+	await expect(page.getByText('second boost failed')).toBeVisible();
+});
+
+test('home timeline keeps independent action state across out-of-order responses', async ({ page }) => {
+	await authenticate(page);
+	const actionStatus = { ...statusWithText('status-action-race', 'race these actions'), favourites_count: 9, reblogs_count: 4 };
+	let resolveFavorite: () => void = () => undefined;
+	let resolveBoost: () => void = () => undefined;
+	const favoritePending = new Promise<void>((resolve) => {
+		resolveFavorite = resolve;
+	});
+	const boostPending = new Promise<void>((resolve) => {
+		resolveBoost = resolve;
+	});
+
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [actionStatus]);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-action-race/favourite', async (route) => {
+		await favoritePending;
+		await fulfillHome(route, { ...actionStatus, favourited: true, favourites_count: 12, reblogged: false, reblogs_count: 4 });
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-action-race/reblog', async (route) => {
+		await boostPending;
+		await fulfillHome(route, { ...actionStatus, favourited: false, favourites_count: 9, reblogged: true, reblogs_count: 7 });
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('[data-status-id="status-action-race"]');
+	await post.getByRole('button', { name: 'Favorite 9' }).click();
+	await post.getByRole('button', { name: 'Boost 4' }).click();
+	await expect(post.getByRole('button', { name: 'Favorite 10' })).toHaveAttribute('aria-pressed', 'true');
+	await expect(post.getByRole('button', { name: 'Boost 5' })).toHaveAttribute('aria-pressed', 'true');
+
+	resolveFavorite();
+	await expect(post.getByRole('button', { name: 'Favorite 12' })).toHaveAttribute('aria-pressed', 'true');
+	await expect(post.getByRole('button', { name: 'Boost 5' })).toHaveAttribute('aria-pressed', 'true');
+
+	resolveBoost();
+	await expect(post.getByRole('button', { name: 'Boost 7' })).toHaveAttribute('aria-pressed', 'true');
+	await expect(post.getByRole('button', { name: 'Favorite 12' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('home timeline status action failure after navigation does not clobber thread state', async ({ page }) => {
+	await authenticate(page);
+	const actionStatus = { ...statusWithText('status-action-navigation', 'keep the thread after failure'), favourites_count: 9 };
+	const threadLoadedStatus = { ...actionStatus, favourited: true, favourites_count: 14 };
+	let resolveFavorite: () => void = () => undefined;
+	const favoritePending = new Promise<void>((resolve) => {
+		resolveFavorite = resolve;
+	});
+
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [actionStatus]);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-action-navigation/favourite', async (route) => {
+		await favoritePending;
+		await fulfillHome(route, { error: 'favorite failed after navigation' }, 503);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-action-navigation', async (route) => {
+		await fulfillHome(route, threadLoadedStatus);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-action-navigation/context', async (route) => {
+		await fulfillHome(route, { ancestors: [], descendants: [] });
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const post = page.locator('[data-status-id="status-action-navigation"]');
+	await post.getByRole('button', { name: 'Favorite 9' }).click();
+	await expect(post.getByRole('button', { name: 'Favorite 10' })).toHaveAttribute('aria-pressed', 'true');
+	await post.locator('.post-body').click();
+	await expect(page).toHaveURL('/app/thread/status-action-navigation');
+	const focused = page.getByTestId('focused-post');
+	await expect(focused).toContainText('keep the thread after failure');
+	await expect(focused.getByRole('button', { name: 'Favorite 14' })).toHaveAttribute('aria-pressed', 'true');
+
+	const favoriteResponse = page.waitForResponse('https://pleroma.example/api/v1/statuses/status-action-navigation/favourite');
+	resolveFavorite();
+	await favoriteResponse;
+	await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+	await expect(focused).toContainText('keep the thread after failure');
+	await expect(focused.getByRole('button', { name: 'Favorite 14' })).toHaveAttribute('aria-pressed', 'true');
+	await expect(page).toHaveURL('/app/thread/status-action-navigation');
+	await expect(page.getByText('favorite failed after navigation')).toHaveCount(0);
+});
+
+test('home timeline status action auth failures sign out and redirect', async ({ page }) => {
+	await authenticate(page);
+	const actionStatus = { ...statusWithText('status-action-auth', 'expired token action'), favourites_count: 9 };
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [actionStatus]);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-action-auth/favourite', async (route) => {
+		await fulfillHome(route, { error: 'The access token is invalid' }, 401);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await page.locator('[data-status-id="status-action-auth"]').getByRole('button', { name: 'Favorite 9' }).click();
+
+	await expect(page).toHaveURL('/');
+	await expect(page.getByRole('heading', { name: /quieter corner of the social web/i })).toBeVisible();
+});
+
+test('home timeline clears stale pending actions after session changes', async ({ page }) => {
+	await authenticate(page);
+	const nextSession = { ...session, accessToken: 'second-token', createdAt: 1700000002000 };
+	const actionStatus = { ...statusWithText('status-action-session-change', 'clear stale pending actions'), favourites_count: 9 };
+	const favoriteAuthorizations: string[] = [];
+	let resolveFirstFavorite: () => void = () => undefined;
+	const firstFavoritePending = new Promise<void>((resolve) => {
+		resolveFirstFavorite = resolve;
+	});
+
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [actionStatus]);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-action-session-change/favourite', async (route) => {
+		favoriteAuthorizations.push(route.request().headers().authorization ?? '');
+		if (favoriteAuthorizations.length === 1) {
+			await firstFavoritePending;
+			await fulfillHome(route, { ...actionStatus, favourited: true, favourites_count: 10 });
+			return;
+		}
+
+		await fulfillHome(route, { ...actionStatus, favourited: true, favourites_count: 12 });
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const post = page.locator('[data-status-id="status-action-session-change"]');
+	await post.getByRole('button', { name: 'Favorite 9' }).click();
+	await expect(post.getByRole('button', { name: 'Favorite 10' })).toHaveAttribute('aria-pressed', 'true');
+	await expect.poll(() => favoriteAuthorizations.join('|')).toContain('Bearer access-token');
+
+	await page.evaluate((storedSession) => {
+		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
+	}, nextSession);
+	await page.getByRole('link', { name: 'Explore' }).first().click();
+	await expect(page).toHaveURL('/app/explore');
+	await page.getByRole('link', { name: 'Home' }).first().click();
+	await expect(page).toHaveURL('/app/home');
+	await page.locator('[data-status-id="status-action-session-change"]').getByRole('button', { name: 'Favorite 9' }).click();
+
+	await expect.poll(() => favoriteAuthorizations.join('|')).toContain('Bearer second-token');
+	resolveFirstFavorite();
+});
+
 test('home timeline renders repeated mention separators without duplicate keyed blocks', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page, async (route) => {
@@ -555,6 +816,9 @@ test('home timeline folds content warnings around body and media until revealed'
 			]
 		}]);
 	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-cw-media/favourite', async (route) => {
+		await fulfillHome(route, { ...statusWithText('status-cw-media', 'hidden timeline words with attached proof'), favourited: true, favourites_count: 10 });
+	});
 
 	await setViewport(page, 'desktop');
 	await page.goto('/app/home');
@@ -612,6 +876,11 @@ test('home timeline renders boosted Pleroma statuses with attribution and media 
 	await mockHomeTimeline(page, async (route) => {
 		await fulfillHome(route, [wrapper]);
 	});
+	let boostActionPath = '';
+	await page.route('https://pleroma.example/api/v1/statuses/boosted-original/reblog', async (route) => {
+		boostActionPath = new URL(route.request().url()).pathname;
+		await fulfillHome(route, { ...original, reblogged: true, reblogs_count: 5 });
+	});
 
 	await setViewport(page, 'desktop');
 	await page.goto('/app/home');
@@ -621,6 +890,9 @@ test('home timeline renders boosted Pleroma statuses with attribution and media 
 	await expect(boost.locator('.post-boost-name')).toContainText('booster');
 	await expect(boost.locator('.post')).toContainText('orbit');
 	await expect(boost.locator('.post')).toContainText('dusk in the city');
+	await boost.locator('.post').getByRole('button', { name: 'Boost 4' }).click();
+	await expect(boost.locator('.post').getByRole('button', { name: 'Boost 5' })).toHaveAttribute('aria-pressed', 'true');
+	await expect.poll(() => boostActionPath).toBe('/api/v1/statuses/boosted-original/reblog');
 	await setViewport(page, 'mobile');
 	await expectNoHorizontalOverflow(page);
 	await setViewport(page, 'desktop');
@@ -657,6 +929,11 @@ test('home timeline loads the next cursor page, deduplicates overlap, and keeps 
 			link: '<https://pleroma.example/api/v1/timelines/home?max_id=status-2>; rel="next"'
 		});
 	});
+	let favoriteActionPath = '';
+	await page.route('https://pleroma.example/api/v1/statuses/status-3/favourite', async (route) => {
+		favoriteActionPath = new URL(route.request().url()).pathname;
+		await fulfillHome(route, { ...statusWithText('status-3', 'older pagination post'), favourited: true, favourites_count: 10 });
+	});
 
 	await setViewport(page, 'desktop');
 	await page.goto('/app/home');
@@ -671,6 +948,8 @@ test('home timeline loads the next cursor page, deduplicates overlap, and keeps 
 	await expect(page.locator('[data-status-id="status-2"]')).toHaveCount(1);
 	await expect(page.locator('[data-status-id="status-3"]')).toHaveCount(1);
 	await expect(page.locator('[data-action-status-id="status-3"]')).toHaveCount(1);
+	await page.locator('[data-status-id="status-3"]').getByRole('button', { name: 'Favorite 9' }).click();
+	await expect.poll(() => favoriteActionPath).toBe('/api/v1/statuses/status-3/favourite');
 	await expect(page.getByText('No older posts')).toBeVisible();
 	expect(requestedMaxIds).toEqual([null, 'status-2']);
 });

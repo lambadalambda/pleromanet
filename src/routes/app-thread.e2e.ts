@@ -216,6 +216,9 @@ test('real thread route folds content warnings on ancestors, focused posts, repl
 		}
 	});
 	await mockInstance(page);
+	await page.route('https://pleroma.example/api/v1/statuses/reply-1-child/favourite', async (route) => {
+		await fulfillJson(route, { ...nestedThreadReply, favourited: true, favourites_count: 23 });
+	});
 	await page.route('https://pleroma.example/api/v1/statuses/status-1', async (route) => {
 		await fulfillJson(route, withContentWarning(threadStatus, 'focused warning', 'hidden focused thread body'));
 	});
@@ -267,6 +270,16 @@ test('real thread route folds content warnings on ancestors, focused posts, repl
 test('real thread route reply actions update local state', async ({ page }) => {
 	await authenticate(page);
 	await mockThread(page);
+	let boostAuthorization = '';
+	let favoriteAuthorization = '';
+	await page.route('https://pleroma.example/api/v1/statuses/reply-1/reblog', async (route) => {
+		boostAuthorization = route.request().headers().authorization ?? '';
+		await fulfillJson(route, { ...threadReply, reblogged: true, reblogs_count: 13 });
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/reply-1/favourite', async (route) => {
+		favoriteAuthorization = route.request().headers().authorization ?? '';
+		await fulfillJson(route, { ...threadReply, favourited: true, favourites_count: 65 });
+	});
 	await setViewport(page, 'desktop');
 	await page.goto('/app/thread/status-1');
 
@@ -275,10 +288,137 @@ test('real thread route reply actions update local state', async ({ page }) => {
 	await reply.getByRole('button', { name: 'Boost 12' }).click();
 	await expect(reply.getByRole('button', { name: 'Boost 13' })).toHaveAttribute('aria-pressed', 'true');
 	await expect(reply.getByRole('button', { name: 'Boost 13' })).toHaveClass(/on/);
+	await expect.poll(() => boostAuthorization).toBe('Bearer access-token');
 
 	await reply.getByRole('button', { name: 'Favorite 64' }).click();
 	await expect(reply.getByRole('button', { name: 'Favorite 65' })).toHaveAttribute('aria-pressed', 'true');
 	await expect(reply.getByRole('button', { name: 'Favorite 65' })).toHaveClass(/on/);
+	await expect.poll(() => favoriteAuthorization).toBe('Bearer access-token');
+});
+
+test('real thread route action failures rollback and show scoped errors', async ({ page }) => {
+	await authenticate(page);
+	await mockThread(page);
+	let resolveFavorite: () => void = () => undefined;
+	const favoritePending = new Promise<void>((resolve) => {
+		resolveFavorite = resolve;
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/reply-1/favourite', async (route) => {
+		await favoritePending;
+		await fulfillJson(route, { error: 'thread favorite failed temporarily' }, 503);
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	const reply = page.getByTestId('thread-reply').filter({ hasText: 'we used to log off. when did that stop being a thing.' });
+	await reply.getByRole('button', { name: 'Favorite 64' }).click();
+	await expect(reply.getByRole('button', { name: 'Favorite 65' })).toHaveAttribute('aria-pressed', 'true');
+
+	resolveFavorite();
+	await expect(reply.getByRole('button', { name: 'Favorite 64' })).toHaveAttribute('aria-pressed', 'false');
+	await expect(page.getByRole('alert')).toContainText('thread favorite failed temporarily');
+});
+
+test('real thread route action auth failures sign out and redirect', async ({ page }) => {
+	await authenticate(page);
+	await mockThread(page);
+	await page.route('https://pleroma.example/api/v1/statuses/reply-1/reblog', async (route) => {
+		await fulfillJson(route, { error: 'forbidden token' }, 403);
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	const reply = page.getByTestId('thread-reply').filter({ hasText: 'we used to log off. when did that stop being a thing.' });
+	await reply.getByRole('button', { name: 'Boost 12' }).click();
+
+	await expect(page).toHaveURL('/');
+	await expect(page.getByRole('heading', { name: /quieter corner of the social web/i })).toBeVisible();
+});
+
+test('real thread route keeps independent action state across out-of-order responses', async ({ page }) => {
+	await authenticate(page);
+	await mockThread(page);
+	let resolveFavorite: () => void = () => undefined;
+	let resolveBoost: () => void = () => undefined;
+	const favoritePending = new Promise<void>((resolve) => {
+		resolveFavorite = resolve;
+	});
+	const boostPending = new Promise<void>((resolve) => {
+		resolveBoost = resolve;
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/reply-1/favourite', async (route) => {
+		await favoritePending;
+		await fulfillJson(route, { ...threadReply, favourited: true, favourites_count: 70, reblogged: false, reblogs_count: 12 });
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/reply-1/reblog', async (route) => {
+		await boostPending;
+		await fulfillJson(route, { ...threadReply, favourited: false, favourites_count: 64, reblogged: true, reblogs_count: 14 });
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	const reply = page.getByTestId('thread-reply').filter({ hasText: 'we used to log off. when did that stop being a thing.' });
+	await reply.getByRole('button', { name: 'Favorite 64' }).click();
+	await reply.getByRole('button', { name: 'Boost 12' }).click();
+	await expect(reply.getByRole('button', { name: 'Favorite 65' })).toHaveAttribute('aria-pressed', 'true');
+	await expect(reply.getByRole('button', { name: 'Boost 13' })).toHaveAttribute('aria-pressed', 'true');
+
+	resolveBoost();
+	await expect(reply.getByRole('button', { name: 'Boost 14' })).toHaveAttribute('aria-pressed', 'true');
+	await expect(reply.getByRole('button', { name: 'Favorite 65' })).toHaveAttribute('aria-pressed', 'true');
+
+	resolveFavorite();
+	await expect(reply.getByRole('button', { name: 'Favorite 70' })).toHaveAttribute('aria-pressed', 'true');
+	await expect(reply.getByRole('button', { name: 'Boost 14' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('real thread route does not leak action failures across thread id changes', async ({ page }) => {
+	await authenticate(page);
+	const secondThreadStatus = statusWithText('status-2', 'a different thread should not inherit action errors', {
+		replies_count: 0,
+		reblogs_count: 1,
+		favourites_count: 5
+	});
+	let resolveFavorite: () => void = () => undefined;
+	const favoritePending = new Promise<void>((resolve) => {
+		resolveFavorite = resolve;
+	});
+	await mockInstance(page);
+	await page.route('https://pleroma.example/api/v1/statuses/status-1', async (route) => {
+		await fulfillJson(route, threadStatus);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-1/context', async (route) => {
+		await fulfillJson(route, { ancestors: [threadAncestor], descendants: [threadReply] });
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-2', async (route) => {
+		await fulfillJson(route, secondThreadStatus);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-2/context', async (route) => {
+		await fulfillJson(route, { ancestors: [], descendants: [] });
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/reply-1/favourite', async (route) => {
+		await favoritePending;
+		await fulfillJson(route, { error: 'late thread favorite failed' }, 503);
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	const reply = page.getByTestId('thread-reply').filter({ hasText: 'we used to log off. when did that stop being a thing.' });
+	await reply.getByRole('button', { name: 'Favorite 64' }).click();
+	await expect(reply.getByRole('button', { name: 'Favorite 65' })).toHaveAttribute('aria-pressed', 'true');
+	await page.evaluate(() => {
+		window.history.pushState({}, '', '/app/thread/status-2');
+		window.dispatchEvent(new PopStateEvent('popstate'));
+	});
+	await expect(page).toHaveURL('/app/thread/status-2');
+	await expect(page.getByTestId('focused-post')).toContainText('a different thread should not inherit action errors');
+
+	const favoriteResponse = page.waitForResponse('https://pleroma.example/api/v1/statuses/reply-1/favourite');
+	resolveFavorite();
+	await favoriteResponse;
+	await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+	await expect(page.getByText('late thread favorite failed')).toHaveCount(0);
+	await expect(page.getByTestId('focused-post').getByRole('button', { name: 'Favorite 5' })).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('real thread route reply sort changes selected state and order', async ({ page }) => {
