@@ -152,6 +152,42 @@ test('real thread route loads focused status, ancestors, and replies from Plerom
 	await expect(page.getByText('around the time the algorithm replaced the timeline.')).toBeVisible();
 });
 
+test('real thread route handles an empty descendant context and accepts the first reply', async ({ page }) => {
+	await authenticate(page);
+	await mockThread(page, { ...threadStatus, replies_count: 0 }, []);
+	let createBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createBody = route.request().postData() ?? '';
+		await fulfillJson(route, statusWithText('created-first-thread-reply', 'the first reply lands in an empty thread', {
+			in_reply_to_id: 'status-1',
+			in_reply_to_account_id: 'account-1',
+			replies_count: 0,
+			reblogs_count: 0,
+			favourites_count: 0
+		}));
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	await expect(page.getByTestId('focused-post')).toContainText('quiet CSS can still carry the voice.');
+	await expect(page.getByTestId('thread-reply-count')).toContainText('0 replies');
+	await expect(page.getByTestId('thread-reply')).toHaveCount(0);
+	await expect(page.getByRole('group', { name: 'Reply sort' })).toBeVisible();
+
+	await page.getByTestId('focused-post').getByRole('button', { name: 'Reply 0' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
+	await replyForm.getByRole('textbox', { name: 'Reply text' }).fill('the first reply lands in an empty thread');
+	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
+
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+	await expect(page.getByTestId('thread-reply-count')).toContainText('1 reply');
+	await expect(page.getByTestId('thread-reply')).toHaveCount(1);
+	await expect(page.getByText('the first reply lands in an empty thread')).toBeVisible();
+	const params = new URLSearchParams(createBody);
+	expect(params.get('status')).toBe('the first reply lands in an empty thread');
+	expect(params.get('in_reply_to_id')).toBe('status-1');
+});
+
 test('real thread route opens from the home timeline and returns to home', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page);

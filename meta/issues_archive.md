@@ -17,6 +17,7 @@
 - [x] [17 Add cursor-based timeline pagination](issues/17-add-cursor-based-timeline-pagination.md)
 - [x] [18 Add new-posts timeline indicator](issues/18-add-new-posts-timeline-indicator.md)
 - [x] [20 Wire favorite and boost status actions](issues/20-wire-favorite-and-boost-status-actions.md)
+- [x] [21 Wire thread detail and replies](issues/21-wire-thread-detail-and-replies.md)
 - [x] [27 Add notification API polling and badge count](issues/27-add-notification-api-polling-and-badge-count.md)
 - [x] [29 Port poll attachments from updated handoff](issues/29-port-poll-attachments-from-updated-handoff.md)
 - [x] [31 Port post content warning wrapper](issues/31-port-post-content-warning-wrapper.md)
