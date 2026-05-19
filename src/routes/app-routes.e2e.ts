@@ -10,11 +10,29 @@ const session = {
 	createdAt: 1700000001000,
 	account: pleromaFixtures.account
 };
+const alternateSession = {
+	...session,
+	account: {
+		...pleromaFixtures.account,
+		id: 'account-dreambyte',
+		username: 'dreambyte',
+		acct: 'dreambyte@soft.example',
+		display_name: 'dreambyte',
+		avatar: 'https://pleroma.example/dreambyte.png',
+		avatar_static: 'https://pleroma.example/dreambyte.png'
+	}
+};
 
 const authenticate = async (page: Page) => {
 	await page.addInitScript((storedSession) => {
 		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
 	}, session);
+};
+
+const authenticateAsAlternateAccount = async (page: Page) => {
+	await page.addInitScript((storedSession) => {
+		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
+	}, alternateSession);
 };
 
 const mockHomeTimeline = async (page: Page) => {
@@ -55,7 +73,16 @@ test('real app routes render shell, deep links, and browser history', async ({ p
 	await page.goto('/app/home');
 
 	await expect(page.getByTestId('app-header')).toBeVisible();
-	await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible();
+	const header = page.getByTestId('app-header');
+	const primaryNav = page.getByRole('navigation', { name: 'Primary' });
+	await expect(primaryNav).toBeVisible();
+	await expect(header.getByTestId('brand-tag')).toContainText('A federatedsocial web');
+	for (const label of ['Home', 'Local', 'Federated', 'Explore']) {
+		await expect(primaryNav.getByRole('link', { name: label })).toBeVisible();
+	}
+	await expect(primaryNav.getByRole('link', { name: 'Settings' })).toHaveCount(0);
+	await expect(header.getByPlaceholder('Search...')).toBeVisible();
+	await expect(header.getByText('⌘K')).toBeVisible();
 	await expect(page.getByTestId('left-sidebar')).toBeVisible();
 	await expect(page.getByTestId('right-rail')).toContainText('Trends & Activity');
 	await expect(page.getByTestId('app-content')).toContainText('quiet CSS can still carry the voice.');
@@ -99,6 +126,18 @@ test('real app left sidebar keeps profile stats and full settings subnav', async
 	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Settings' }).click();
 	await expect(page.getByTestId('settings-subnav')).toContainText('Import / Export');
 	await expect(page.getByTestId('settings-subnav')).toContainText('Development');
+});
+
+test('real app header uses the authenticated account identity', async ({ page }) => {
+	await authenticateAsAlternateAccount(page);
+	await mockHomeTimeline(page);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const chip = page.getByTestId('app-header').getByRole('button', { name: 'dreambyte account menu' });
+	await expect(chip).toContainText('dreambyte');
+	await expect(chip).not.toContainText('quiet admin');
+	await expect(chip.locator('.user-chip-av img')).toHaveAttribute('src', 'https://pleroma.example/dreambyte.png');
 });
 
 test('real app hydrates profile data for existing token-only sessions', async ({ page }) => {

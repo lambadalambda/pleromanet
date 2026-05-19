@@ -115,17 +115,26 @@ a { color: inherit; text-decoration: none; }
 	background: var(--panel);
 	border-bottom: 1px solid var(--border);
 }
+.app-header-shell {
+	max-width: 1280px;
+	margin: 0 auto;
+	padding: 0 24px;
+}
 .app-header-inner {
 	display: grid;
 	position: relative;
-	grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+	grid-template-columns: auto auto minmax(0, 1fr) auto;
 	align-items: center;
-	gap: 20px;
-	max-width: 1280px;
-	margin: 0 auto;
-	padding: 14px 24px;
+	gap: 24px;
+	padding: 14px 0;
 }
 .app-brand {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	min-width: 0;
+}
+.brand-core {
 	display: inline-flex;
 	align-items: center;
 	gap: 14px;
@@ -159,9 +168,21 @@ a { color: inherit; text-decoration: none; }
 	color: var(--muted);
 	vertical-align: super;
 }
+.brand-tag {
+	margin-left: 4px;
+	padding-left: 14px;
+	border-left: 1px solid var(--border);
+	font-family: var(--mono);
+	font-size: 9.5px;
+	line-height: 1.4;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--muted);
+}
 .app-primary-nav {
 	display: flex;
 	align-items: center;
+	justify-self: start;
 	gap: 22px;
 	height: 24px;
 	padding-left: 22px;
@@ -181,6 +202,14 @@ a { color: inherit; text-decoration: none; }
 .app-primary-nav a.active {
 	color: var(--ink);
 	border-bottom-color: var(--accent);
+}
+.app-header-spacer { min-width: 0; }
+.app-header-right {
+	display: flex;
+	position: relative;
+	align-items: center;
+	justify-self: end;
+	gap: 14px;
 }
 .app-search {
 	display: flex;
@@ -202,6 +231,15 @@ a { color: inherit; text-decoration: none; }
 	font-size: 13px;
 }
 .app-search input::placeholder { color: var(--muted-2); }
+.search-kbd {
+	padding: 1px 4px;
+	border: 1px solid var(--border);
+	border-radius: 3px;
+	background: var(--panel);
+	font-family: var(--mono);
+	font-size: 10px;
+	color: var(--muted);
+}
 .header-notifs { position: relative; }
 .icon-btn {
 	position: relative;
@@ -249,10 +287,17 @@ a { color: inherit; text-decoration: none; }
 	white-space: nowrap;
 }
 .user-chip:hover { background: var(--bg); }
+.user-chip-av {
+	display: block;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	overflow: hidden;
+}
 .user-menu {
 	position: absolute;
-	top: calc(100% - 6px);
-	right: 24px;
+	top: calc(100% + 8px);
+	right: 0;
 	z-index: 60;
 	display: grid;
 	min-width: 160px;
@@ -4499,10 +4544,11 @@ body[data-theme='simoun'] .composer { background: linear-gradient(180deg, #1c254
 }
 
 @media (max-width: 880px) {
+	.app-header-shell { padding: 0 14px; }
 	.app-header-inner {
-		grid-template-columns: auto minmax(0, 1fr) auto auto;
+		grid-template-columns: auto minmax(0, 1fr) auto;
 		gap: 12px;
-		padding: 10px 14px;
+		padding: 10px 0;
 	}
 	.app-mobile-menu {
 		display: grid;
@@ -4518,10 +4564,13 @@ body[data-theme='simoun'] .composer { background: linear-gradient(180deg, #1c254
 	.app-primary-nav,
 	.app-search { display: none; }
 	.app-brand { justify-self: start; gap: 10px; }
+	.brand-core { gap: 10px; }
 	.brand-mark { width: 36px; height: 36px; }
 	.brand-mark svg { width: 22px; height: 22px; }
 	.brand-name { font-size: 22px; }
 	.brand-name sup { font-size: 8px; }
+	.brand-tag { display: none; }
+	.app-header-right { gap: 10px; }
 	.header-notifs-pop {
 		position: fixed;
 		top: 60px;
@@ -4534,7 +4583,7 @@ body[data-theme='simoun'] .composer { background: linear-gradient(180deg, #1c254
 		padding: 2px;
 		border-radius: 50%;
 	}
-	.user-chip > span:not(.notif-av),
+	.user-chip > span:not(.user-chip-av),
 	.user-chip > svg { display: none; }
 	.app-shell-grid {
 		grid-template-columns: minmax(0, 1fr);

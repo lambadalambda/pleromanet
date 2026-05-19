@@ -11,6 +11,7 @@
 	import Post from '$lib/rebuild/Post.svelte';
 	import ProfileMini from '$lib/rebuild/ProfileMini.svelte';
 	import ReplyPost from '$lib/rebuild/ReplyPost.svelte';
+	import RichText from '$lib/rebuild/RichText.svelte';
 	import SurfaceCard from '$lib/rebuild/SurfaceCard.svelte';
 	import TimelineLoadMore from '$lib/rebuild/TimelineLoadMore.svelte';
 	import TimelineNewPostsIndicator from '$lib/rebuild/TimelineNewPostsIndicator.svelte';
@@ -25,7 +26,7 @@
 		type PaginatedTimelineBaseState,
 		type PaginatedTimelineSuccess
 	} from '$lib/pleroma/timeline-state';
-	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, normalizePleromaRequestError, statusCharacterLimit, type PleromaNotificationView, type PleromaRequestErrorView, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, normalizePleromaRequestError, statusCharacterLimit, type PleromaNotificationView, type PleromaRequestErrorView, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import type { IconName } from '$lib/rebuild/icons';
 	import type { PleromaSession, PleromaStatus } from '$lib/pleroma/types';
@@ -203,6 +204,10 @@
 	);
 	let notificationPopoverError = $derived(notificationState.status === 'error' ? notificationState.error : null);
 	let headerNotificationLabel = $derived(unreadNotificationCount > 0 ? `Notifications, ${unreadNotificationCount} unread` : 'Notifications');
+	let headerAccount = $derived(currentSession?.account ? adaptPleromaAccount(currentSession.account) : null);
+	let headerAccountName = $derived(headerAccount?.displayName ?? 'Account');
+	let headerAccountAvatarUrl = $derived(headerAccount?.avatarUrl ?? null);
+	let headerAccountLabel = $derived(`${headerAccountName} account menu`);
 
 	let navItems = $derived<NavItem[]>([
 		{ route: 'home', label: 'Home', icon: 'home', href: '/app/home' },
@@ -212,7 +217,7 @@
 		{ route: 'notifications', label: 'Notifications', icon: 'bell', href: '/app/notifications', count: unreadNotificationCount || undefined },
 		{ route: 'settings', label: 'Settings', icon: 'gear', href: '/app/settings' },
 	]);
-	let primaryNavItems = $derived(navItems.filter((item) => item.route === 'home' || item.route === 'explore' || item.route === 'settings'));
+	let primaryNavItems = $derived(navItems.filter((item) => item.route === 'home' || item.route === 'local' || item.route === 'federated' || item.route === 'explore'));
 	const timelineRoutes: AppRoute[] = ['home', 'local', 'federated', 'public', 'thread'];
 	const settingsSubnav = ['Profile', 'Appearance', 'Notifications', 'Filters', 'Federation', 'Account', 'Import / Export', 'Development'];
 
@@ -1032,56 +1037,69 @@
 {#if sessionReady}
 	<div class="app-route-shell">
 		<header class="app-header" data-testid="app-header">
-			<div class="app-header-inner">
-				<button type="button" class="menu-btn app-mobile-menu" aria-label="Open navigation menu" onclick={() => (mobileDrawerOpen = true)}>
-					<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
-				</button>
-				<a href="/app/home" class="app-brand" onclick={closeMobilePanels}>
-					<span class="brand-mark"><Icon name="sparkBig" /></span>
-					<span class="brand-name">PleromaNet<sup>™</sup></span>
-				</a>
-				<nav class="app-primary-nav" aria-label="Primary">
-					{#each primaryNavItems as item}
-						<a href={item.href} class:active={isActive(item)}>{item.label}</a>
-					{/each}
-				</nav>
-				<label class="app-search">
-					<Icon name="search" width={15} height={15} />
-					<input type="search" aria-label="Search PleromaNet" placeholder="Search PleromaNet" />
-				</label>
-				<div class="header-notifs">
-					<button type="button" class="icon-btn" aria-label={headerNotificationLabel} aria-expanded={notificationsMenuOpen} aria-controls={notificationsMenuOpen ? 'header-notifications-popover' : undefined} data-bell onclick={toggleNotificationsPopover}>
-						<Icon name="bell" width={20} height={20} />
-						{#if unreadNotificationCount > 0}<span class="badge">{unreadNotificationCount}</span>{/if}
-					</button>
-					{#if notificationsMenuOpen}
-						<div id="header-notifications-popover" class="header-notifs-pop" data-testid="header-notifications-popover">
-							<NotifsPopover
-								notifications={notificationItems}
-								status={notificationPopoverStatus}
-								errorTitle={notificationPopoverError?.title}
-								errorMessage={notificationPopoverError?.message}
-								onClose={() => (notificationsMenuOpen = false)}
-								onSeeAll={openNotificationsRoute}
-								onMarkAll={markNotificationsRead}
-								onOpen={openNotification}
-							/>
-						</div>
-					{/if}
-				</div>
-				<button type="button" class="user-chip" aria-label="quiet admin account menu" onclick={() => { notificationsMenuOpen = false; userMenuOpen = !userMenuOpen; }}>
-					<span class="notif-av av-orb"></span>
-					<span>quiet admin</span>
-					<Icon name="chevDown" width={12} height={12} />
-				</button>
-				{#if userMenuOpen}
-					<div class="user-menu" data-testid="user-menu" role="menu">
-						<button type="button" onclick={() => applyTheme('cream')}>Cream</button>
-						<button type="button" onclick={() => applyTheme('dusk')}>Dusk</button>
-						<button type="button" onclick={() => applyTheme('drive')}>Drive</button>
-						<button type="button" onclick={() => applyTheme('simoun')}>Simoun</button>
+			<div class="app-header-shell">
+				<div class="app-header-inner">
+					<div class="app-brand">
+						<button type="button" class="menu-btn app-mobile-menu" aria-label="Open navigation menu" onclick={() => (mobileDrawerOpen = true)}>
+							<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
+						</button>
+						<a href="/app/home" class="brand-core" onclick={closeMobilePanels}>
+							<span class="brand-mark"><Icon name="sparkBig" /></span>
+							<span class="brand-name">PleromaNet<sup>™</sup></span>
+						</a>
+						<div class="brand-tag" data-testid="brand-tag">A federated<br />social web</div>
 					</div>
-				{/if}
+					<nav class="app-primary-nav" aria-label="Primary">
+						{#each primaryNavItems as item}
+							<a href={item.href} class:active={isActive(item)}>{item.label}</a>
+						{/each}
+					</nav>
+					<div class="app-header-spacer"></div>
+					<div class="app-header-right">
+						<label class="app-search">
+							<Icon name="search" width={14} height={14} />
+							<input type="search" aria-label="Search PleromaNet" placeholder="Search..." />
+							<span class="search-kbd">⌘K</span>
+						</label>
+						<div class="header-notifs">
+							<button type="button" class="icon-btn" aria-label={headerNotificationLabel} aria-expanded={notificationsMenuOpen} aria-controls={notificationsMenuOpen ? 'header-notifications-popover' : undefined} data-bell onclick={toggleNotificationsPopover}>
+								<Icon name="bell" width={20} height={20} />
+								{#if unreadNotificationCount > 0}<span class="badge">{unreadNotificationCount}</span>{/if}
+							</button>
+							{#if notificationsMenuOpen}
+								<div id="header-notifications-popover" class="header-notifs-pop" data-testid="header-notifications-popover">
+									<NotifsPopover
+										notifications={notificationItems}
+										status={notificationPopoverStatus}
+										errorTitle={notificationPopoverError?.title}
+										errorMessage={notificationPopoverError?.message}
+										onClose={() => (notificationsMenuOpen = false)}
+										onSeeAll={openNotificationsRoute}
+										onMarkAll={markNotificationsRead}
+										onOpen={openNotification}
+									/>
+								</div>
+							{/if}
+						</div>
+						<button type="button" class="user-chip" aria-label={headerAccountLabel} onclick={() => { notificationsMenuOpen = false; userMenuOpen = !userMenuOpen; }}>
+							<span class="user-chip-av" class:av-orb={!headerAccountAvatarUrl}>
+								{#if headerAccountAvatarUrl}
+									<img class="avatar-img" src={headerAccountAvatarUrl} alt={`${headerAccountName} avatar`} />
+								{/if}
+							</span>
+							<span><RichText text={headerAccountName} emojis={headerAccount?.emojis ?? []} /></span>
+							<Icon name="chevDown" width={14} height={14} />
+						</button>
+						{#if userMenuOpen}
+							<div class="user-menu" data-testid="user-menu" role="menu">
+								<button type="button" onclick={() => applyTheme('cream')}>Cream</button>
+								<button type="button" onclick={() => applyTheme('dusk')}>Dusk</button>
+								<button type="button" onclick={() => applyTheme('drive')}>Drive</button>
+								<button type="button" onclick={() => applyTheme('simoun')}>Simoun</button>
+							</div>
+						{/if}
+					</div>
+				</div>
 			</div>
 		</header>
 
