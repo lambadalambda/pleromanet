@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, normalizePleromaRequestError, statusCharacterLimit } from './ui';
+import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, normalizePleromaRequestError, statusCharacterLimit } from './ui';
 import { pleromaFixtures } from './fixtures';
 import type { PleromaStatus } from './types';
 
@@ -338,6 +338,43 @@ test('Pleroma status adapters use real poll expiry and voted metadata', () => {
 		endedAgo: undefined
 	}));
 	expect(poll?.kind === 'poll' ? poll.endsIn : undefined).toMatch(/^6h 1[12]m$/);
+});
+
+test('Pleroma notification adapters map known and unknown types with local last-seen read state', () => {
+	const notifications = adaptPleromaNotifications(pleromaFixtures.notifications, {
+		lastSeenAt: '2026-05-18T12:01:00.000Z'
+	});
+
+	expect(notifications.map((notification) => [notification.id, notification.kind, notification.read])).toEqual([
+		['notif-mention', 'mention', false],
+		['notif-follow', 'follow', true],
+		['notif-fav', 'fav', true],
+		['notif-boost', 'boost', true],
+		['notif-unknown', 'unknown', true]
+	]);
+	expect(notifications[0]).toMatchObject({
+		who: [{ name: 'orbit', handle: '@orbit@spacebear.net' }],
+		post: { excerpt: 'hey @quietadmin, this carries through notifications.' },
+		target: { route: 'thread', statusId: 'status-mention' }
+	});
+	expect(notifications[1].target).toEqual({ route: 'profile', accountHandle: 'staticgif@modem.zone', accountId: 'account-follow' });
+	expect(notifications[4].target).toEqual({ route: 'none' });
+
+	const [cwNotification] = adaptPleromaNotifications([{
+		...pleromaFixtures.notifications[0],
+		id: 'notif-cw',
+		status: withStatus({
+			id: 'status-cw-notification',
+			content: '<p>hidden notification body</p>',
+			spoiler_text: 'quiet spoiler',
+			pleroma: {
+				...pleromaFixtures.status.pleroma,
+				content: { 'text/plain': 'hidden notification body' },
+				spoiler_text: { 'text/plain': 'quiet spoiler' }
+			}
+		})
+	}]);
+	expect(cwNotification.post?.excerpt).toBe('Content warning: quiet spoiler');
 });
 
 test('Pleroma status list adapter keeps fixture order and covers missing plain-text fallbacks', () => {

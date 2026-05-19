@@ -3,11 +3,13 @@ import { registerOAuthApp as registerApp } from './oauth';
 import type {
 	PleromaAccount,
 	PleromaInstance,
+	PleromaNotification,
 	PleromaRelationship,
 	PleromaSearchResult,
 	PleromaStatus,
 	PleromaStatusContext,
 	PleromaTag,
+	NotificationQuery,
 	ProfileUpdate,
 	SearchQuery,
 	StatusCreateRequest,
@@ -22,6 +24,9 @@ type ClientConfig = {
 	accessToken?: string;
 	fetch?: FetchLike;
 };
+type RequestControl = {
+	signal?: AbortSignal;
+};
 
 const timelineQuery = (query: TimelineQuery = {}) => ({
 	limit: query.limit,
@@ -29,6 +34,13 @@ const timelineQuery = (query: TimelineQuery = {}) => ({
 	min_id: query.minId,
 	since_id: query.sinceId,
 	only_media: query.onlyMedia
+});
+
+const notificationQuery = (query: NotificationQuery = {}) => ({
+	limit: query.limit,
+	max_id: query.maxId,
+	min_id: query.minId,
+	since_id: query.sinceId
 });
 
 const emptyTimelinePagination = (): TimelinePagination => ({ next: null, previous: null });
@@ -226,6 +238,14 @@ export const createPleromaClient = (config: ClientConfig) => {
 			http.request<PleromaStatus>({
 				method: 'POST',
 				path: `/api/v1/statuses/${encodePathSegment(id)}/unreblog`,
+				auth: 'required'
+			}),
+
+		getNotifications: (query?: NotificationQuery, control: RequestControl = {}) =>
+			http.request<PleromaNotification[]>({
+				path: '/api/v1/notifications',
+				query: notificationQuery(query),
+				signal: control.signal,
 				auth: 'required'
 			}),
 

@@ -147,6 +147,27 @@ test('Pleroma client converts timeline Link headers into cursor data', async () 
 	expect(requests[0].url.searchParams.get('limit')).toBe('2');
 });
 
+test('Pleroma client fetches authenticated notifications with cursor query', async () => {
+	const { fetchImpl, requests } = createJsonFetch((request) => {
+		if (request.url.pathname === '/api/v1/notifications') return { body: pleromaFixtures.notifications };
+
+		return { status: 404, body: { error: 'missing fixture' } };
+	});
+	const client = createPleromaClient({
+		instanceUrl: 'https://pleroma.example',
+		accessToken: 'access-token',
+		fetch: fetchImpl
+	});
+
+	const notifications = await client.getNotifications({ limit: 20, sinceId: 'notif-old' });
+
+	expect(notifications.map((notification) => notification.id)).toEqual(['notif-mention', 'notif-follow', 'notif-fav', 'notif-boost', 'notif-unknown']);
+	expectPath(requests[0], '/api/v1/notifications');
+	expect(requests[0].authorization).toBe('Bearer access-token');
+	expect(requests[0].url.searchParams.get('limit')).toBe('20');
+	expect(requests[0].url.searchParams.get('since_id')).toBe('notif-old');
+});
+
 test('Pleroma streaming helpers build WebSocket URLs and parse update events', () => {
 	expect(buildPleromaStreamingUrl({ instanceUrl: 'https://pleroma.example', accessToken: 'access-token' })).toBe(
 		'wss://pleroma.example/api/v1/streaming/?stream=user&access_token=access-token'

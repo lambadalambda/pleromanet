@@ -1,6 +1,7 @@
 import type {
 	PleromaAccount,
 	PleromaInstance,
+	PleromaNotification,
 	PleromaRelationship,
 	PleromaSearchResult,
 	PleromaStatus,
@@ -111,6 +112,73 @@ const search: PleromaSearchResult = {
 	hashtags: trends
 };
 
+const notificationAccount = (id: string, displayName: string, acct: string): PleromaAccount => ({
+	...account,
+	id,
+	username: acct.split('@')[0],
+	acct,
+	display_name: displayName,
+	url: `https://pleroma.example/users/${id}`,
+	avatar: `https://pleroma.example/${id}.png`,
+	avatar_static: `https://pleroma.example/${id}.png`
+});
+
+const mentionAccount = notificationAccount('account-mention', 'orbit', 'orbit@spacebear.net');
+const followAccount = notificationAccount('account-follow', 'static.gif', 'staticgif@modem.zone');
+const favoriteAccount = notificationAccount('account-fav', 'kestrel', 'kestrel@audio.garden');
+const boostAccount = notificationAccount('account-boost', 'lumen', 'lumen@candle.house');
+const unknownAccount = notificationAccount('account-unknown', 'relay bot', 'relay@pleroma.example');
+const notificationStatus = (id: string, text: string, statusAccount: PleromaAccount = account): PleromaStatus => ({
+	...status,
+	id,
+	uri: `https://pleroma.example/objects/${id}`,
+	url: `https://pleroma.example/notice/${id}`,
+	account: statusAccount,
+	content: `<p>${text}</p>`,
+	created_at: '2026-05-18T12:00:00.000Z',
+	pleroma: {
+		...status.pleroma,
+		content: { 'text/plain': text },
+		spoiler_text: { 'text/plain': '' }
+	}
+});
+
+const notifications: PleromaNotification[] = [
+	{
+		id: 'notif-mention',
+		type: 'mention',
+		created_at: '2026-05-18T12:02:00.000Z',
+		account: mentionAccount,
+		status: notificationStatus('status-mention', 'hey @quietadmin, this carries through notifications.', mentionAccount),
+		pleroma: {}
+	},
+	{ id: 'notif-follow', type: 'follow', created_at: '2026-05-18T12:01:00.000Z', account: followAccount, status: null, pleroma: {} },
+	{
+		id: 'notif-fav',
+		type: 'favourite',
+		created_at: '2026-05-18T12:00:00.000Z',
+		account: favoriteAccount,
+		status: notificationStatus('status-fav', 'a placeholder is more honest than a guess.'),
+		pleroma: {}
+	},
+	{
+		id: 'notif-boost',
+		type: 'reblog',
+		created_at: '2026-05-18T11:59:00.000Z',
+		account: boostAccount,
+		status: notificationStatus('status-boost', 'living in a soft world. quietly federating.'),
+		pleroma: {}
+	},
+	{
+		id: 'notif-unknown',
+		type: 'pleroma:emoji_reaction',
+		created_at: '2026-05-18T11:58:00.000Z',
+		account: unknownAccount,
+		status: notificationStatus('status-unknown', 'an unknown notification still renders.'),
+		pleroma: {}
+	}
+];
+
 const instance: PleromaInstance = {
 	domain: 'pleroma.example',
 	title: 'Pleroma Example',
@@ -131,6 +199,7 @@ export const pleromaFixtures = {
 	context,
 	relationship,
 	trends,
+	notifications,
 	search,
 	instance,
 	timelines: {

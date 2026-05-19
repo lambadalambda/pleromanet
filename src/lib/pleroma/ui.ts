@@ -1,6 +1,6 @@
-import type { AvatarVariant, CustomEmoji, PostAttachment, TimelinePost, TimelineView } from '$lib/social/types';
+import type { AvatarVariant, CustomEmoji, PostAttachment, SocialNotificationData, SocialNotificationKind, TimelinePost, TimelineView } from '$lib/social/types';
 import { isPleromaClientError } from './http';
-import type { PleromaAccount, PleromaCustomEmoji, PleromaInstance, PleromaStatus } from './types';
+import type { PleromaAccount, PleromaCustomEmoji, PleromaInstance, PleromaNotification, PleromaStatus } from './types';
 
 export const DEFAULT_STATUS_CHARACTER_LIMIT = 500;
 
@@ -53,6 +53,8 @@ export type PleromaStatusView = TimelinePost & {
 		plainText?: string;
 	};
 };
+
+export type PleromaNotificationView = SocialNotificationData;
 
 export type PleromaRequestErrorKind = 'auth-required' | 'rate-limited' | 'server' | 'network' | 'request';
 
@@ -193,6 +195,46 @@ const stringValue = (value: unknown) => (typeof value === 'string' && value.trim
 const numberValue = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
 
 const booleanValue = (value: unknown) => (typeof value === 'boolean' ? value : null);
+
+const compactExcerpt = (text: string) => text.length > 160 ? `${text.slice(0, 157).trimEnd()}...` : text;
+
+const notificationKind = (type: string): SocialNotificationKind => {
+	const normalized = type.toLowerCase();
+	if (normalized === 'favourite' || normalized === 'favorite') return 'fav';
+	if (normalized === 'reblog') return 'boost';
+	if (normalized === 'follow_request') return 'follow_req';
+	if (normalized === 'mention' || normalized === 'reply' || normalized === 'follow' || normalized === 'poll') return normalized;
+	return 'unknown';
+};
+
+const notificationTarget = (kind: SocialNotificationKind, notification: PleromaNotification): SocialNotificationData['target'] => {
+	const statusId = notification.status?.id;
+	if ((kind === 'mention' || kind === 'reply' || kind === 'fav' || kind === 'boost' || kind === 'poll') && statusId) {
+		return { route: 'thread', statusId };
+	}
+	if (kind === 'follow' || kind === 'follow_req') {
+		return { route: 'profile', accountHandle: notification.account.acct, accountId: notification.account.id };
+	}
+
+	return { route: 'none' };
+};
+
+const notificationReadState = (notification: PleromaNotification, lastSeenAt: string | null | undefined) => {
+	const createdMs = Date.parse(notification.created_at);
+	const lastSeenMs = lastSeenAt ? Date.parse(lastSeenAt) : Number.NaN;
+	const locallyRead = Number.isFinite(createdMs) && Number.isFinite(lastSeenMs) && createdMs <= lastSeenMs;
+	const remoteRead = booleanValue(notification.pleroma?.is_seen) ?? booleanValue(notification.read) ?? false;
+
+	return remoteRead || locallyRead;
+};
+
+const notificationPostRef = (status: PleromaStatus | null | undefined): SocialNotificationData['post'] => {
+	if (!status) return undefined;
+	const warning = spoilerText(status);
+	const excerpt = warning ? `Content warning: ${warning}` : compactExcerpt(plainTextContent(status));
+
+	return { excerpt, tStamp: formatStatusDate(status.created_at) };
+};
 
 const positiveIntegerValue = (value: unknown) => {
 	const number = typeof value === 'string' && value.trim() ? Number(value) : numberValue(value);
@@ -468,6 +510,40 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 
 export const adaptPleromaStatuses = (statuses: PleromaStatus[], options: AdaptPleromaStatusOptions = {}) =>
 	statuses.map((status) => adaptPleromaStatus(status, options));
+
+export const adaptPleromaNotification = (
+	notification: PleromaNotification,
+	options: { lastSeenAt?: string | null } = {}
+): PleromaNotificationView => {
+	const account = adaptPleromaAccount(notification.account);
+	const kind = notificationKind(notification.type);
+	const target = notificationTarget(kind, notification);
+	const bio = htmlToPlainText(notification.account.note ?? '');
+
+	return {
+		id: notification.id,
+		kind,
+		read: notificationReadState(notification, options.lastSeenAt),
+		time: formatStatusDate(notification.created_at),
+		t: Date.parse(notification.created_at) || 0,
+		who: [{
+			name: account.displayName,
+			handle: account.handle,
+			av: 'sunset',
+			avatarUrl: account.avatarUrl
+		}],
+		post: notificationPostRef(notification.status),
+		bio: (kind === 'follow' || kind === 'follow_req') && bio ? compactExcerpt(bio) : undefined,
+		target,
+		createdAt: notification.created_at,
+		rawType: notification.type
+	};
+};
+
+export const adaptPleromaNotifications = (
+	notifications: PleromaNotification[],
+	options: { lastSeenAt?: string | null } = {}
+) => notifications.map((notification) => adaptPleromaNotification(notification, options));
 
 export const normalizePleromaRequestError = (error: unknown): PleromaRequestErrorView => {
 	if (!isPleromaClientError(error)) {

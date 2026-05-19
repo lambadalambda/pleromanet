@@ -103,6 +103,20 @@ export type PleromaStatusContext = {
 	descendants: PleromaStatus[];
 };
 
+export type PleromaNotification = {
+	id: string;
+	type: string;
+	created_at: string;
+	account: PleromaAccount;
+	status?: PleromaStatus | null;
+	pleroma?: {
+		is_seen?: boolean;
+		[key: string]: unknown;
+	};
+	read?: boolean;
+	[key: string]: unknown;
+};
+
 export type PleromaTag = {
 	name: string;
 	url: string;
@@ -148,6 +162,8 @@ export type TimelineQuery = {
 	sinceId?: string;
 	onlyMedia?: boolean;
 };
+
+export type NotificationQuery = Pick<TimelineQuery, 'limit' | 'maxId' | 'minId' | 'sinceId'>;
 
 export type TimelineCursor = Pick<TimelineQuery, 'maxId' | 'minId' | 'sinceId'>;
 

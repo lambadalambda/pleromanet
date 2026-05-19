@@ -7,7 +7,6 @@
 - [ ] [24 Wire follow and unfollow relationships](issues/24-wire-follow-and-unfollow-relationships.md)
 - [ ] [25 Wire explore search](issues/25-wire-explore-search.md)
 - [ ] [26 Wire trends and instance metadata](issues/26-wire-trends-and-instance-metadata.md)
-- [ ] [27 Add notification API polling and badge count](issues/27-add-notification-api-polling-and-badge-count.md)
 - [ ] [28 Retire mockup prototype](issues/28-retire-mockup-prototype.md)
 - [ ] [30 Port composer CW and poll editor panels](issues/30-port-composer-cw-and-poll-editor-panels.md)
 - [ ] [34 Port inline thread reply composer](issues/34-port-inline-thread-reply-composer.md)

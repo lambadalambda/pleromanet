@@ -17,17 +17,41 @@
 	let more = $derived(n.who.length > 4 ? n.who.length - 4 : 0);
 	let otherCount = $derived(n.who.length > 2 ? n.who.length - 2 : 0);
 	let isFollow = $derived(n.kind === 'follow' || n.kind === 'follow_req');
-	let rowClass = $derived(`notif-row ${n.read ? '' : 'unread '}${dense ? 'dense ' : ''}k-${n.kind}`);
+	let actionable = $derived(Boolean(onOpen && (n.target?.route === 'thread' || n.target?.route === 'profile')));
+	let rowClass = $derived(`notif-row ${n.read ? '' : 'unread '}${dense ? 'dense ' : ''}${actionable ? 'actionable ' : ''}k-${n.kind}`);
+	let openLabel = $derived(`${namedActors.map((actor) => actor.name).join(', ')} ${kind.label}`.trim());
+
+	const openRow = (event: MouseEvent | KeyboardEvent) => {
+		if (!onOpen || !actionable) return;
+		const target = event.target;
+		if (target instanceof HTMLElement && target.closest('button, a')) return;
+		onOpen(n);
+	};
+	const handleKeydown = (event: KeyboardEvent) => {
+		if (event.key !== 'Enter' && event.key !== ' ') return;
+		const target = event.target;
+		if (target instanceof HTMLElement && target.closest('button, a')) return;
+		event.preventDefault();
+		openRow(event);
+	};
 </script>
 
-<div class={rowClass}>
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<div
+	class={rowClass}
+	role={actionable ? 'button' : undefined}
+	tabindex={actionable ? 0 : undefined}
+	aria-label={actionable ? openLabel : undefined}
+	onclick={openRow}
+	onkeydown={handleKeydown}
+>
 	<div class="notif-row-icon" style={`--kind-tint: ${kind.tint};`}>
 		<NotifIcon name={kind.icon} />
 	</div>
 	<div class="notif-row-body">
 		<div class="notif-row-avs">
 			{#each visibleActors as actor}
-				<Avatar variant="notif" avBanner={actor.av} size={dense ? 22 : 26} aria-label={actor.handle ?? actor.name} />
+				<Avatar variant="notif" avBanner={actor.av} avatarUrl={actor.avatarUrl} size={dense ? 22 : 26} aria-label={actor.handle ?? actor.name} />
 			{/each}
 			{#if more > 0}
 				<span class="notif-more">+{more}</span>
@@ -52,22 +76,15 @@
 			</div>
 		{/if}
 		{#if n.post}
-			{#if onOpen}
-				<button type="button" class="notif-row-quote" onclick={() => onOpen(n)}>
-					<span class="notif-quote-mark">&quot;</span>
-					<span class="notif-quote-t">{n.post.excerpt}</span>
-				</button>
-			{:else}
-				<div class="notif-row-quote static">
-					<span class="notif-quote-mark">&quot;</span>
-					<span class="notif-quote-t">{n.post.excerpt}</span>
-				</div>
-			{/if}
+			<div class="notif-row-quote static">
+				<span class="notif-quote-mark">&quot;</span>
+				<span class="notif-quote-t">{n.post.excerpt}</span>
+			</div>
 		{/if}
 		{#if n.bio}
 			<div class="notif-row-bio">{n.bio}</div>
 		{/if}
-		{#if isFollow}
+		{#if isFollow && !actionable}
 			<div class="notif-row-actions">
 				{#if n.kind === 'follow_req'}
 					<button type="button" class="notif-btn primary">Accept</button>

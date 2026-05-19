@@ -6,6 +6,7 @@
 	import Button from '$lib/rebuild/Button.svelte';
 	import FocusedPost from '$lib/rebuild/FocusedPost.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
+	import NotifRow from '$lib/rebuild/NotifRow.svelte';
 	import Post from '$lib/rebuild/Post.svelte';
 	import ProfileMini from '$lib/rebuild/ProfileMini.svelte';
 	import ReplyPost from '$lib/rebuild/ReplyPost.svelte';
@@ -13,6 +14,7 @@
 	import TimelineLoadMore from '$lib/rebuild/TimelineLoadMore.svelte';
 	import TimelineNewPostsIndicator from '$lib/rebuild/TimelineNewPostsIndicator.svelte';
 	import { createPleromaClient } from '$lib/pleroma/client';
+	import { NOTIFICATION_POLL_EVENT, NOTIFICATION_POLL_INTERVAL_MS, readNotificationLastSeenAt, writeNotificationLastSeenAt } from '$lib/pleroma/notifications';
 	import { readPleromaSession, signOutPleroma, writePleromaSession } from '$lib/pleroma/session';
 	import { openPleromaTimelineStream } from '$lib/pleroma/streaming';
 	import {
@@ -22,11 +24,11 @@
 		type PaginatedTimelineBaseState,
 		type PaginatedTimelineSuccess
 	} from '$lib/pleroma/timeline-state';
-	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaStatus, adaptPleromaStatuses, normalizePleromaRequestError, statusCharacterLimit, type PleromaRequestErrorView, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, normalizePleromaRequestError, statusCharacterLimit, type PleromaNotificationView, type PleromaRequestErrorView, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import type { IconName } from '$lib/rebuild/icons';
 	import type { PleromaSession, PleromaStatus } from '$lib/pleroma/types';
-	import type { SocialPost } from '$lib/social/types';
+	import type { SocialNotificationData, SocialPost } from '$lib/social/types';
 	import { onMount } from 'svelte';
 
 	type AppRoute = 'home' | 'local' | 'federated' | 'public' | 'thread' | 'profile' | 'notifications' | 'explore' | 'settings';
@@ -83,6 +85,12 @@
 		| { status: 'loading' }
 		| { status: 'error'; error: PleromaRequestErrorView }
 		| { status: 'success'; focused: ThreadViewPost; ancestors: ThreadViewPost[]; replies: ThreadViewPost[] };
+	type NotificationState =
+		| { status: 'idle' }
+		| { status: 'loading' }
+		| { status: 'empty' }
+		| { status: 'error'; error: PleromaRequestErrorView }
+		| { status: 'success'; data: PleromaNotificationView[] };
 	const HOME_TIMELINE_CHECK_EVENT = 'pleromanet:check-home-timeline';
 	const HOME_TIMELINE_FALLBACK_INTERVAL_MS = 60_000;
 	const HOME_TIMELINE_STREAM_RECONNECT_MS = HOME_TIMELINE_FALLBACK_INTERVAL_MS;
@@ -102,6 +110,7 @@
 	let currentSession = $state<PleromaSession | null>(null);
 	let homeTimelineState = $state<HomeTimelineState>({ status: 'idle' });
 	let threadState = $state<ThreadState>({ status: 'idle' });
+	let notificationState = $state<NotificationState>({ status: 'idle' });
 	let localHomePosts = $state<RebuildPost[]>([]);
 	let composerText = $state('');
 	let mobileDrawerOpen = $state(false);
@@ -114,21 +123,29 @@
 	let savedProfile = $state<ProfileSettings>({ ...defaultProfile });
 	let homePostSubmitState = $state<'idle' | 'submitting'>('idle');
 	let homePostSubmitError = $state<PleromaRequestErrorView | null>(null);
+	let profileAccountLoadError = $state<PleromaRequestErrorView | null>(null);
 	let replySort = $state<ReplySort>('top');
 	let homeTimelineRequestId = 0;
 	let homeTimelineNewPostsRequestId = 0;
 	let threadRequestId = 0;
+	let notificationRequestId = 0;
 	let homePostSubmitRequestId = 0;
 	let profileAccountRequestId = 0;
 	let instanceConfigRequestId = 0;
 	let loadedHomeTimelineKey = '';
 	let loadedThreadKey = '';
+	let loadedNotificationsKey = '';
+	let loadedForegroundNotificationsKey = '';
 	let loadedProfileAccountKey = '';
 	let loadedInstanceConfigKey = '';
 	let homeTimelineFallbackSinceId: string | null = null;
 	let homeTimelineStreamKey = '';
 	let closeHomeTimelineStream: (() => void) | null = null;
 	let homeTimelineStreamReconnectTimer: number | null = null;
+	let notificationLoadPromise: Promise<void> | null = null;
+	let notificationLoadPromiseKey = '';
+	let notificationLoadStartedAt = 0;
+	let notificationAbortController: AbortController | null = null;
 	let composerCharacterLimit = $state(DEFAULT_STATUS_CHARACTER_LIMIT);
 	const sessionKey = (session: PleromaSession | null) => session ? `${session.instanceUrl}\n${session.accessToken}\n${session.createdAt}` : '';
 	const invalidateHomeTimelineRequests = () => {
@@ -143,9 +160,17 @@
 		loadedThreadKey = '';
 		threadState = { status: 'idle' };
 	};
+	const invalidateNotificationRequests = () => {
+		notificationRequestId += 1;
+		clearNotificationLoadPromise(true);
+		loadedNotificationsKey = '';
+		loadedForegroundNotificationsKey = '';
+		notificationState = { status: 'idle' };
+	};
 	const invalidateProfileAccountRequests = () => {
 		profileAccountRequestId += 1;
 		loadedProfileAccountKey = '';
+		profileAccountLoadError = null;
 	};
 	const invalidateInstanceConfigRequests = () => {
 		instanceConfigRequestId += 1;
@@ -165,15 +190,18 @@
 		homeTimelineStreamKey = '';
 	};
 
-	const navItems: NavItem[] = [
+	let notificationItems = $derived(notificationState.status === 'success' ? notificationState.data : []);
+	let unreadNotificationCount = $derived(notificationItems.filter((notification) => !notification.read).length);
+
+	let navItems = $derived<NavItem[]>([
 		{ route: 'home', label: 'Home', icon: 'home', href: '/app/home' },
 		{ route: 'local', label: 'Local', icon: 'users', href: '/app/local' },
 		{ route: 'federated', label: 'Federated', icon: 'globe', href: '/app/federated' },
 		{ route: 'explore', label: 'Explore', icon: 'search', href: '/app/explore' },
-		{ route: 'notifications', label: 'Notifications', icon: 'bell', href: '/app/notifications', count: 3 },
+		{ route: 'notifications', label: 'Notifications', icon: 'bell', href: '/app/notifications', count: unreadNotificationCount || undefined },
 		{ route: 'settings', label: 'Settings', icon: 'gear', href: '/app/settings' },
-	];
-	const primaryNavItems = navItems.filter((item) => item.route === 'home' || item.route === 'explore' || item.route === 'settings');
+	]);
+	let primaryNavItems = $derived(navItems.filter((item) => item.route === 'home' || item.route === 'explore' || item.route === 'settings'));
 	const timelineRoutes: AppRoute[] = ['home', 'local', 'federated', 'public', 'thread'];
 	const settingsSubnav = ['Profile', 'Appearance', 'Notifications', 'Filters', 'Federation', 'Account', 'Import / Export', 'Development'];
 
@@ -426,6 +454,7 @@
 	const redirectToLanding = () => {
 		invalidateHomeTimelineRequests();
 		invalidateThreadRequests();
+		invalidateNotificationRequests();
 		invalidateProfileAccountRequests();
 		invalidateInstanceConfigRequests();
 		closeHomeTimelineStreaming();
@@ -445,6 +474,7 @@
 		if (sessionKey(currentSession) !== sessionKey(session)) {
 			invalidateHomeTimelineRequests();
 			invalidateThreadRequests();
+			invalidateNotificationRequests();
 			invalidateProfileAccountRequests();
 			invalidateInstanceConfigRequests();
 			closeHomeTimelineStreaming();
@@ -471,8 +501,10 @@
 
 			const nextSession = { ...session, account };
 			currentSession = nextSession;
+			profileAccountLoadError = null;
 			writePleromaSession(localStorage, nextSession);
-		} catch {
+		} catch (error) {
+			profileAccountLoadError = normalizePleromaRequestError(error);
 			// Profile data is best-effort; authenticated routes can still load with the token.
 		}
 	};
@@ -510,6 +542,120 @@
 
 		loadedInstanceConfigKey = requestSessionKey;
 		void loadInstanceConfig(session);
+	};
+	const clearNotificationLoadPromise = (abort = false) => {
+		if (abort) notificationAbortController?.abort();
+		notificationLoadPromise = null;
+		notificationLoadPromiseKey = '';
+		notificationLoadStartedAt = 0;
+		notificationAbortController = null;
+	};
+	const loadNotifications = (session: PleromaSession, options: { background?: boolean } = {}) => {
+		if (!session.account) return Promise.resolve();
+
+		const requestSessionKey = sessionKey(session);
+		const notificationLoadFresh = Date.now() - notificationLoadStartedAt < NOTIFICATION_POLL_INTERVAL_MS;
+		if (notificationLoadPromise && notificationLoadPromiseKey === requestSessionKey && options.background && notificationLoadFresh) return notificationLoadPromise;
+		if (notificationLoadPromise) {
+			notificationRequestId += 1;
+			clearNotificationLoadPromise(true);
+		}
+		const notificationSession = { instanceUrl: session.instanceUrl, account: session.account };
+		const abortController = new AbortController();
+		const requestId = notificationRequestId + 1;
+		notificationRequestId = requestId;
+		if (!options.background) notificationState = { status: 'loading' };
+
+		const request = (async () => {
+			try {
+				const client = createPleromaClient({
+					instanceUrl: session.instanceUrl,
+					accessToken: session.accessToken,
+					fetch: window.fetch.bind(window)
+				});
+				const notifications = await client.getNotifications({ limit: 40 }, { signal: abortController.signal });
+				if (requestId !== notificationRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+				const lastSeenAt = readNotificationLastSeenAt(localStorage, notificationSession);
+				const adapted = adaptPleromaNotifications(notifications, { lastSeenAt });
+				notificationState = adapted.length > 0 ? { status: 'success', data: adapted } : { status: 'empty' };
+			} catch (error) {
+				if (requestId !== notificationRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+				const normalized = normalizePleromaRequestError(error);
+				if (normalized.reauthRequired) {
+					signOutPleroma(localStorage);
+					redirectToLanding();
+					return;
+				}
+
+				if (!options.background || notificationState.status !== 'success') notificationState = { status: 'error', error: normalized };
+			}
+		})().finally(() => {
+			if (notificationLoadPromise === request) clearNotificationLoadPromise();
+		});
+
+		notificationLoadPromise = request;
+		notificationLoadPromiseKey = requestSessionKey;
+		notificationLoadStartedAt = Date.now();
+		notificationAbortController = abortController;
+		return request;
+	};
+	const ensureNotifications = (session: PleromaSession) => {
+		if (!session.account) return;
+		const requestSessionKey = sessionKey(session);
+		if (loadedNotificationsKey === requestSessionKey) return;
+
+		loadedNotificationsKey = requestSessionKey;
+		void loadNotifications(session, { background: true });
+	};
+	const ensureForegroundNotifications = (session: PleromaSession) => {
+		if (!session.account) return;
+		const requestSessionKey = sessionKey(session);
+		if (loadedForegroundNotificationsKey === requestSessionKey) return;
+
+		loadedNotificationsKey = requestSessionKey;
+		loadedForegroundNotificationsKey = requestSessionKey;
+		void loadNotifications(session);
+	};
+	const pollNotifications = () => {
+		const session = readPleromaSession(localStorage);
+		if (!session) {
+			invalidateNotificationRequests();
+			return;
+		}
+		if (!session.account) return;
+
+		void loadNotifications(session, { background: true });
+	};
+	const latestNotificationCreatedAt = (notifications: SocialNotificationData[]) => notifications.reduce<string | null>((latest, notification) => {
+		if (!notification.createdAt) return latest;
+		if (!latest || Date.parse(notification.createdAt) > Date.parse(latest)) return notification.createdAt;
+		return latest;
+	}, null);
+	const markNotificationsRead = () => {
+		const session = currentSession;
+		if (!session?.account || notificationState.status !== 'success') return;
+		const notificationSession = { instanceUrl: session.instanceUrl, account: session.account };
+
+		const latest = latestNotificationCreatedAt(notificationState.data);
+		if (!latest) return;
+		notificationRequestId += 1;
+		clearNotificationLoadPromise(true);
+		writeNotificationLastSeenAt(localStorage, notificationSession, latest);
+		notificationState = {
+			...notificationState,
+			data: notificationState.data.map((notification) => ({ ...notification, read: true }))
+		};
+	};
+	const openNotification = (notification: SocialNotificationData) => {
+		if (notification.target?.route === 'thread') {
+			goto(`/app/thread/${encodeURIComponent(notification.target.statusId)}`);
+			return;
+		}
+		if (notification.target?.route === 'profile') {
+			goto(`/app/profiles/${encodeURIComponent(notification.target.accountHandle)}`);
+		}
 	};
 	const queueStreamedHomeStatus = (requestSessionKey: string, status: PleromaStatus) => {
 		if (!isCurrentSessionRequest(requestSessionKey)) return;
@@ -769,6 +915,18 @@
 	const retryThread = () => {
 		if (currentSession) void loadThread(currentSession, threadStatusId);
 	};
+	const retryNotifications = () => {
+		if (!currentSession) return;
+		if (currentSession.account) {
+			void loadNotifications(currentSession);
+			return;
+		}
+
+		loadedProfileAccountKey = '';
+		profileAccountLoadError = null;
+		notificationState = { status: 'loading' };
+		void loadProfileAccount(currentSession);
+	};
 
 	onMount(() => {
 		const storedTheme = localStorage.getItem('pn-theme');
@@ -779,13 +937,18 @@
 			if (route === 'home') void checkHomeTimelineForNewPosts();
 		};
 		window.addEventListener(HOME_TIMELINE_CHECK_EVENT, triggerHomeTimelineCheck);
+		window.addEventListener(NOTIFICATION_POLL_EVENT, pollNotifications);
 		const checkInterval = window.setInterval(triggerHomeTimelineCheck, HOME_TIMELINE_FALLBACK_INTERVAL_MS);
+		const notificationInterval = window.setInterval(pollNotifications, NOTIFICATION_POLL_INTERVAL_MS);
 
 		return () => {
 			invalidateHomeTimelineRequests();
+			invalidateNotificationRequests();
 			closeHomeTimelineStreaming();
 			window.removeEventListener(HOME_TIMELINE_CHECK_EVENT, triggerHomeTimelineCheck);
+			window.removeEventListener(NOTIFICATION_POLL_EVENT, pollNotifications);
 			window.clearInterval(checkInterval);
+			window.clearInterval(notificationInterval);
 		};
 	});
 
@@ -796,6 +959,11 @@
 		const session = readSessionOrRedirect();
 		if (!session) return;
 		ensureProfileAccount(session);
+		if (session.account) {
+			if (route === 'notifications') ensureForegroundNotifications(session);
+			else ensureNotifications(session);
+		}
+		else if (route === 'notifications' && profileAccountLoadError) notificationState = { status: 'error', error: profileAccountLoadError };
 		if (pathname.startsWith('/app/home') || pathname.startsWith('/app/thread')) ensureInstanceConfig(session);
 		if (pathname.startsWith('/app/home')) {
 			const loadKey = `${sessionKey(session)}\n${pathname}`;
@@ -1040,6 +1208,40 @@
 									<div data-testid="thread-reply">
 										<ReplyPost post={reply} isLast={i === sortedThreadReplyPosts.length - 1} nestedReplies={reply.nestedReplies} onAction={handleThreadPostAction} />
 									</div>
+								{/each}
+							</div>
+						{/if}
+					</section>
+				{:else if route === 'notifications'}
+					<section class="card app-panel notifications-panel">
+						<div class="notifications-head">
+							<div>
+								<div class="app-page-kicker">Notifications</div>
+								<h1>Notifications</h1>
+								<p>Mentions, follows, favorites, boosts, and Pleroma-specific events from your instance.</p>
+							</div>
+							<button type="button" class="btn-secondary" disabled={unreadNotificationCount === 0} onclick={markNotificationsRead}>Mark all read</button>
+						</div>
+
+						{#if notificationState.status === 'loading' || notificationState.status === 'idle'}
+							<div class="request-state" role="status" aria-label="Request status">Loading notifications</div>
+						{:else if notificationState.status === 'empty'}
+							<div class="request-state request-empty">
+								<h2>No notifications</h2>
+								<p>Your instance has no notifications for this account yet.</p>
+							</div>
+						{:else if notificationState.status === 'error'}
+							<div class="request-state request-error">
+								<h2>{notificationState.error.title}</h2>
+								<p>{notificationState.error.message}</p>
+								{#if notificationState.error.retryable && currentSession}
+									<Button variant="secondary" onclick={retryNotifications}>Retry notifications</Button>
+								{/if}
+							</div>
+						{:else if notificationState.status === 'success'}
+							<div class="notifications-list" data-testid="notifications-list">
+								{#each notificationState.data as notification (notification.id)}
+									<NotifRow n={notification} onOpen={openNotification} />
 								{/each}
 							</div>
 						{/if}

@@ -12,6 +12,7 @@ type RequestOptions = {
 	query?: Record<string, QueryValue>;
 	body?: unknown;
 	form?: URLSearchParams;
+	signal?: AbortSignal;
 	auth?: 'required' | 'optional' | 'none';
 };
 
@@ -105,6 +106,7 @@ export const createPleromaHttp = ({ instanceUrl, accessToken, fetch: fetchImpl }
 		query,
 		body,
 		form,
+		signal,
 		auth = 'optional'
 	}: RequestOptions): Promise<PleromaHttpResponse<ResponseBody>> => {
 		if (auth === 'required' && !accessToken) {
@@ -132,7 +134,7 @@ export const createPleromaHttp = ({ instanceUrl, accessToken, fetch: fetchImpl }
 
 		let response: Response;
 		try {
-			response = await requestFetch(url.toString(), { method, headers, body: requestBody });
+			response = await requestFetch(url.toString(), { method, headers, body: requestBody, signal });
 		} catch (error) {
 			throw {
 				kind: 'network',

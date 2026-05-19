@@ -5,6 +5,40 @@ export type AvatarVariant = 'grad-1' | 'grad-2' | 'grad-3' | 'orb' | 'pc';
 export type MediaVariant = 'sunset' | 'city' | 'space';
 export type ActionState = Record<PostAction, boolean>;
 
+export type SocialNotificationKind = 'fav' | 'boost' | 'reply' | 'mention' | 'follow' | 'follow_req' | 'poll' | 'unknown';
+
+export type SocialNotificationActor = {
+	name: string;
+	handle?: string;
+	av: MediaVariant;
+	avatarUrl?: string | null;
+};
+
+export type SocialNotificationPostRef = {
+	excerpt: string;
+	tStamp?: string;
+};
+
+export type SocialNotificationTarget =
+	| { route: 'thread'; statusId: string }
+	| { route: 'profile'; accountHandle: string; accountId?: string }
+	| { route: 'none' };
+
+export type SocialNotificationData = {
+	id: string;
+	kind: SocialNotificationKind;
+	read: boolean;
+	time: string;
+	t: number;
+	who: SocialNotificationActor[];
+	post?: SocialNotificationPostRef;
+	bio?: string;
+	on?: string;
+	target?: SocialNotificationTarget;
+	createdAt?: string;
+	rawType?: string;
+};
+
 export type CustomEmoji = {
 	shortcode: string;
 	url: string;

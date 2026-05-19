@@ -1,30 +1,15 @@
-import type { BannerVariant } from './attachments';
+import type {
+	SocialNotificationActor,
+	SocialNotificationData,
+	SocialNotificationKind,
+	SocialNotificationPostRef
+} from '$lib/social/types';
 
-export type NotificationKind = 'fav' | 'boost' | 'reply' | 'mention' | 'follow' | 'follow_req' | 'poll';
+export type NotificationKind = SocialNotificationKind;
 export type NotificationGlyph = 'star' | 'repeat' | 'reply' | 'at' | 'userPlus' | 'chart';
-
-export type NotificationActor = {
-	name: string;
-	handle?: string;
-	av: BannerVariant;
-};
-
-export type NotificationPostRef = {
-	excerpt: string;
-	tStamp?: string;
-};
-
-export type NotificationData = {
-	id: string;
-	kind: NotificationKind;
-	read: boolean;
-	time: string;
-	t: number;
-	who: NotificationActor[];
-	post?: NotificationPostRef;
-	bio?: string;
-	on?: string;
-};
+export type NotificationActor = SocialNotificationActor;
+export type NotificationPostRef = SocialNotificationPostRef;
+export type NotificationData = SocialNotificationData;
 
 export type NotificationKindMeta = {
 	label: string;
@@ -42,6 +27,7 @@ export const NOTIF_KINDS: Record<NotificationKind, NotificationKindMeta> = {
 	follow: { label: 'followed you', icon: 'userPlus', tint: '#a48bd9' },
 	follow_req: { label: 'requested to follow you', icon: 'userPlus', tint: '#e0b97a' },
 	poll: { label: 'a poll you voted in has ended', icon: 'chart', tint: 'var(--muted)' },
+	unknown: { label: 'sent a notification', icon: 'chart', tint: 'var(--muted)' },
 };
 
 export const SAMPLE_NOTIFS: NotificationData[] = [
