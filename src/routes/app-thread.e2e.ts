@@ -112,13 +112,13 @@ const mockHomeTimeline = async (page: Page) => {
 	});
 };
 
-const mockThread = async (page: Page, focusedStatus: PleromaStatus = threadStatus) => {
+const mockThread = async (page: Page, focusedStatus: PleromaStatus = threadStatus, descendants: PleromaStatus[] = [threadReply, nestedThreadReply, secondThreadReply]) => {
 	await mockInstance(page);
 	await page.route('https://pleroma.example/api/v1/statuses/status-1', async (route) => {
 		await fulfillJson(route, focusedStatus);
 	});
 	await page.route('https://pleroma.example/api/v1/statuses/status-1/context', async (route) => {
-		await fulfillJson(route, { ancestors: [threadAncestor], descendants: [threadReply, nestedThreadReply, secondThreadReply] });
+		await fulfillJson(route, { ancestors: [threadAncestor], descendants });
 	});
 };
 
@@ -136,6 +136,7 @@ test('real thread route loads focused status, ancestors, and replies from Plerom
 	expect(await threadTitle.evaluate((node) => Number.parseFloat(getComputedStyle(node).fontSize))).toBeLessThanOrEqual(14);
 	await expect(page.getByTestId('thread-ancestor')).toContainText('gridwave');
 	await expect(page.getByTestId('thread-ancestor')).toContainText('the earlier context from gridwave');
+	await expect(page.getByTestId('thread-ancestor').getByRole('button', { name: 'Reply 1' })).toBeDisabled();
 	await expect(page.getByTestId('thread-line')).toBeVisible();
 	await expect(page.getByTestId('focused-post')).toContainText('quiet CSS can still carry the voice.');
 	await expect(page.getByTestId('focused-post')).toContainText('4:18 PM · May 11, 2026');
@@ -294,6 +295,145 @@ test('real thread route reply actions update local state', async ({ page }) => {
 	await expect(reply.getByRole('button', { name: 'Favorite 65' })).toHaveAttribute('aria-pressed', 'true');
 	await expect(reply.getByRole('button', { name: 'Favorite 65' })).toHaveClass(/on/);
 	await expect.poll(() => favoriteAuthorization).toBe('Bearer access-token');
+});
+
+test('real thread route inline reply composer submits for the focused post', async ({ page }) => {
+	await authenticate(page);
+	await mockThread(page);
+	let createAuthorization = '';
+	let createBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createAuthorization = route.request().headers().authorization ?? '';
+		createBody = route.request().postData() ?? '';
+		await fulfillJson(route, statusWithText('created-thread-inline-reply', 'replying inline to the focused thread', {
+			in_reply_to_id: 'status-1',
+			in_reply_to_account_id: 'account-1',
+			replies_count: 0,
+			reblogs_count: 0,
+			favourites_count: 0
+		}));
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	const focused = page.getByTestId('focused-post');
+	await focused.getByRole('button', { name: 'Reply 2' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
+	await expect(replyForm).toBeVisible();
+	await expect(replyForm.getByRole('img', { name: 'quiet admin avatar' })).toHaveAttribute('src', 'https://pleroma.example/avatar.png');
+	await replyForm.getByRole('textbox', { name: 'Reply text' }).fill('replying inline to the focused thread');
+	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
+
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+	await expect(page.getByTestId('thread-reply-count')).toContainText('4 replies');
+	await expect(page.getByText('replying inline to the focused thread')).toBeVisible();
+	expect(createAuthorization).toBe('Bearer access-token');
+	const params = new URLSearchParams(createBody);
+	expect(params.get('status')).toBe('replying inline to the focused thread');
+	expect(params.get('in_reply_to_id')).toBe('status-1');
+	expect(params.get('visibility')).toBe('public');
+});
+
+test('real thread route inline reply composer opens below a targeted reply and cancels', async ({ page }) => {
+	await authenticate(page);
+	await mockThread(page);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	const reply = page.getByTestId('thread-reply').filter({ hasText: 'we used to log off. when did that stop being a thing.' });
+	await reply.getByRole('button', { name: 'Reply 0' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @datagram' });
+	await expect(replyForm).toBeVisible();
+	await expect(replyForm).toContainText('Replying to');
+	await expect(replyForm).toContainText('@datagram');
+	await expect(replyForm.getByRole('img', { name: 'datagram avatar' })).toHaveAttribute('src', 'https://pleroma.example/datagram.png');
+	await reply.getByRole('button', { name: 'Reply 0' }).click();
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+
+	await reply.getByRole('button', { name: 'Reply 0' }).click();
+	await expect(replyForm).toBeVisible();
+	await replyForm.getByRole('button', { name: 'Cancel' }).click();
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+});
+
+test('real thread route inline reply composer submits below a targeted reply', async ({ page }) => {
+	await authenticate(page);
+	const unlistedThreadReply = { ...threadReply, visibility: 'unlisted' };
+	await mockThread(page, threadStatus, [unlistedThreadReply, nestedThreadReply, secondThreadReply]);
+	let createBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createBody = route.request().postData() ?? '';
+		await fulfillJson(route, statusWithText('created-nested-inline-reply', 'replying inline to a thread reply', {
+			in_reply_to_id: 'reply-1',
+			in_reply_to_account_id: 'datagram',
+			replies_count: 0,
+			reblogs_count: 0,
+			favourites_count: 0
+		}));
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	const reply = page.getByTestId('thread-reply').filter({ hasText: 'we used to log off. when did that stop being a thing.' });
+	await reply.getByRole('button', { name: 'Reply 0' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @datagram' });
+	await replyForm.getByRole('textbox', { name: 'Reply text' }).fill('replying inline to a thread reply');
+	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
+
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+	await expect(page.getByTestId('thread-reply-count')).toContainText('4 replies');
+	await expect(reply.getByRole('button', { name: 'Reply 1' })).toHaveAttribute('aria-pressed', 'false');
+	await expect(page.getByText('replying inline to a thread reply')).toBeVisible();
+	const params = new URLSearchParams(createBody);
+	expect(params.get('status')).toBe('replying inline to a thread reply');
+	expect(params.get('in_reply_to_id')).toBe('reply-1');
+	expect(params.get('visibility')).toBe('unlisted');
+});
+
+test('real thread route inline reply composer submits below an expanded nested reply', async ({ page }) => {
+	await authenticate(page);
+	const privateNestedThreadReply = { ...nestedThreadReply, visibility: 'private' };
+	const descendants = [threadReply, privateNestedThreadReply, secondThreadReply];
+	await mockThread(page, threadStatus, descendants);
+	let createBody = '';
+	const createdReply = statusWithText('created-deep-inline-reply', 'replying inline to a nested reply', {
+		in_reply_to_id: 'reply-1-child',
+		in_reply_to_account_id: 'orbit',
+		replies_count: 0,
+		reblogs_count: 0,
+		favourites_count: 0
+	});
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createBody = route.request().postData() ?? '';
+		await fulfillJson(route, createdReply);
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	await page.getByRole('button', { name: 'Show 1 reply' }).click();
+	const nested = page.locator('.nested-replies .post-reply').first();
+	await nested.getByRole('button', { name: 'Reply 0' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @orbit' });
+	await replyForm.getByRole('textbox', { name: 'Reply text' }).fill('replying inline to a nested reply');
+	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
+
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+	await expect(page.getByTestId('thread-reply-count')).toContainText('4 replies');
+	await expect(nested.getByRole('button', { name: 'Reply 1' })).toHaveAttribute('aria-pressed', 'false');
+	await expect(page.getByText('replying inline to a nested reply')).toBeVisible();
+	const params = new URLSearchParams(createBody);
+	expect(params.get('status')).toBe('replying inline to a nested reply');
+	expect(params.get('in_reply_to_id')).toBe('reply-1-child');
+	expect(params.get('visibility')).toBe('private');
+
+	descendants.splice(0, descendants.length, threadReply, { ...privateNestedThreadReply, replies_count: 1 }, createdReply, secondThreadReply);
+	await page.reload();
+	await expect(page.getByTestId('thread-reply-count')).toContainText('4 replies');
+	await page.getByRole('button', { name: 'Show 1 reply' }).click();
+	const reloadedNested = page.locator('.nested-replies .post-reply').filter({ hasText: 'around the time the algorithm replaced the timeline.' }).first();
+	await expect(reloadedNested).toBeVisible();
+	await reloadedNested.getByRole('button', { name: 'Show 1 reply' }).click();
+	await expect(page.getByText('replying inline to a nested reply')).toBeVisible();
 });
 
 test('real thread route action failures rollback and show scoped errors', async ({ page }) => {
@@ -489,5 +629,55 @@ test('real thread layout remains readable on mobile without horizontal overflow'
 	await expect(page.getByTestId('thread-view')).toBeVisible();
 	await expect(page.getByTestId('focused-post')).toBeVisible();
 	await expect(page.getByRole('form', { name: 'Thread reply' })).toHaveCount(0);
+	await expectNoHorizontalOverflow(page);
+});
+
+test('real thread inline reply composer remains usable on mobile', async ({ page }) => {
+	await authenticate(page);
+	await mockThread(page);
+	await setViewport(page, 'mobile');
+	await page.goto('/app/thread/status-1');
+
+	await page.getByTestId('focused-post').getByRole('button', { name: 'Reply 2' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
+	await expect(replyForm).toBeVisible();
+	await expect(replyForm.getByRole('textbox', { name: 'Reply text' })).toBeVisible();
+	await expect(replyForm.getByRole('button', { name: 'Reply', exact: true })).toBeDisabled();
+	await expectNoHorizontalOverflow(page);
+});
+
+test('real thread nested inline reply composer remains usable on mobile', async ({ page }) => {
+	await authenticate(page);
+	const deepNestedReply = statusWithText('reply-1-grandchild', 'one more nested reply for mobile layout', {
+		account: accountWithName('pixel', 'pixel', 'pixel@tiny.social'),
+		in_reply_to_id: 'reply-1-child',
+		in_reply_to_account_id: 'orbit',
+		replies_count: 1,
+		reblogs_count: 0,
+		favourites_count: 0
+	});
+	const cappedNestedReply = statusWithText('reply-1-greatgrandchild', 'the fourth nested mobile reply still fits', {
+		account: accountWithName('wavelet', 'wavelet', 'wavelet@tiny.social'),
+		in_reply_to_id: 'reply-1-grandchild',
+		in_reply_to_account_id: 'pixel',
+		replies_count: 0,
+		reblogs_count: 0,
+		favourites_count: 0
+	});
+	await mockThread(page, threadStatus, [threadReply, { ...nestedThreadReply, replies_count: 1 }, deepNestedReply, cappedNestedReply, secondThreadReply]);
+	await setViewport(page, 'mobile');
+	await page.goto('/app/thread/status-1');
+
+	await page.getByRole('button', { name: 'Show 1 reply' }).click();
+	const nested = page.locator('.nested-replies .post-reply').filter({ hasText: 'around the time the algorithm replaced the timeline.' }).first();
+	await nested.getByRole('button', { name: 'Show 1 reply' }).click();
+	const deepNested = page.locator('.nested-replies .nested-replies .post-reply').filter({ hasText: 'one more nested reply for mobile layout' }).first();
+	await deepNested.getByRole('button', { name: 'Show 1 reply' }).click();
+	const cappedNested = page.locator('.nested-replies .nested-replies .nested-replies .post-reply').filter({ hasText: 'the fourth nested mobile reply still fits' }).first();
+	await cappedNested.getByRole('button', { name: 'Reply 0' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @wavelet' });
+	await expect(replyForm).toBeVisible();
+	await expect(replyForm.getByRole('textbox', { name: 'Reply text' })).toBeVisible();
+	await expect(replyForm.getByRole('button', { name: 'Reply', exact: true })).toBeDisabled();
 	await expectNoHorizontalOverflow(page);
 });

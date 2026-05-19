@@ -9,10 +9,11 @@
 			copyJson?: unknown;
 			actions: { reply: boolean; boost: boolean; fav: boolean };
 		};
+		disabledActions?: { reply?: boolean; boost?: boolean; fav?: boolean };
 		onAction?: (key: string) => void;
 	};
 
-	let { post, onAction }: Props = $props();
+	let { post, disabledActions = {}, onAction }: Props = $props();
 	let menuOpen = $state(false);
 	let copyStatus = $state('');
 
@@ -50,6 +51,7 @@
 		class="post-action reply {post.actions.reply ? 'on' : ''}"
 		aria-pressed={post.actions.reply ? 'true' : 'false'}
 		aria-label={`Reply ${post.replies}`}
+		disabled={disabledActions.reply}
 		onclick={() => onAction?.('reply')}
 	>
 		<Icon name="reply" /> {post.replies}
@@ -58,6 +60,7 @@
 		class="post-action boost {post.actions.boost ? 'on' : ''}"
 		aria-pressed={post.actions.boost ? 'true' : 'false'}
 		aria-label={`Boost ${post.boosts + (post.actions.boost ? 1 : 0)}`}
+		disabled={disabledActions.boost}
 		onclick={() => onAction?.('boost')}
 	>
 		<Icon name="boost" /> {post.boosts + (post.actions.boost ? 1 : 0)}
@@ -66,6 +69,7 @@
 		class="post-action fav {post.actions.fav ? 'on' : ''}"
 		aria-pressed={post.actions.fav ? 'true' : 'false'}
 		aria-label={`Favorite ${post.favs + (post.actions.fav ? 1 : 0)}`}
+		disabled={disabledActions.fav}
 		onclick={() => onAction?.('fav')}
 	>
 		<Icon name="star" fill={post.actions.fav ? 'currentColor' : 'none'} /> {post.favs + (post.actions.fav ? 1 : 0)}

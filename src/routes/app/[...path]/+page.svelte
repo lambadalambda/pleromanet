@@ -6,6 +6,7 @@
 	import Button from '$lib/rebuild/Button.svelte';
 	import FocusedPost from '$lib/rebuild/FocusedPost.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
+	import InlineReplyComposer from '$lib/rebuild/InlineReplyComposer.svelte';
 	import NotifRow from '$lib/rebuild/NotifRow.svelte';
 	import NotifsPopover from '$lib/rebuild/NotifsPopover.svelte';
 	import Post from '$lib/rebuild/Post.svelte';
@@ -53,10 +54,23 @@
 	type StatusActionScope = StatusActionOrigin | 'all';
 	type StatusActionOriginSnapshot = { route: StatusActionOrigin; requestId: number };
 	type StatusActionValue = { active: boolean; count: number };
+	type StatusVisibility = PleromaStatus['visibility'];
+	type InlineReplyTarget = {
+		route: StatusActionOrigin;
+		targetId: string;
+		renderId: string;
+		handle: string;
+		visibility: StatusVisibility;
+		name: string;
+		avClass?: string;
+		avBanner?: BannerVariant;
+		avatarUrl?: string | null;
+	};
 	type RebuildPost = PostLike & {
 		id: string | number;
 		actionStatusId?: string;
 		threadStatusId?: string;
+		visibility?: StatusVisibility;
 		name: string;
 		nameEmojis?: SocialPost['nameEmojis'];
 		handle: string;
@@ -133,15 +147,21 @@
 	let savedProfile = $state<ProfileSettings>({ ...defaultProfile });
 	let homePostSubmitState = $state<'idle' | 'submitting'>('idle');
 	let homePostSubmitError = $state<PleromaRequestErrorView | null>(null);
+	let inlineReplyTarget = $state<InlineReplyTarget | null>(null);
+	let inlineReplyDraft = $state('');
+	let inlineReplySubmitState = $state<'idle' | 'submitting'>('idle');
+	let inlineReplySubmitError = $state<PleromaRequestErrorView | null>(null);
 	let statusActionErrors = $state<StatusActionErrorState[]>([]);
 	let statusActionPending = $state<Record<string, number>>({});
 	let profileAccountLoadError = $state<PleromaRequestErrorView | null>(null);
 	let replySort = $state<ReplySort>('top');
+	let expandedThreadReplyIds = $state<Record<string, boolean>>({});
 	let homeTimelineRequestId = 0;
 	let homeTimelineNewPostsRequestId = 0;
 	let threadRequestId = 0;
 	let notificationRequestId = 0;
 	let statusActionRequestId = 0;
+	let inlineReplyRequestId = 0;
 	let homePostSubmitRequestId = 0;
 	let profileAccountRequestId = 0;
 	let instanceConfigRequestId = 0;
@@ -161,6 +181,14 @@
 	let notificationAbortController: AbortController | null = null;
 	let composerCharacterLimit = $state(DEFAULT_STATUS_CHARACTER_LIMIT);
 	const sessionKey = (session: PleromaSession | null) => session ? `${session.instanceUrl}\n${session.accessToken}\n${session.createdAt}` : '';
+	const clearInlineReply = (route?: StatusActionOrigin) => {
+		if (route && inlineReplyTarget?.route !== route) return;
+		inlineReplyRequestId += 1;
+		inlineReplyTarget = null;
+		inlineReplyDraft = '';
+		inlineReplySubmitState = 'idle';
+		inlineReplySubmitError = null;
+	};
 	const clearStatusActionErrors = (route?: StatusActionOrigin) => {
 		if (!route) {
 			if (statusActionErrors.length > 0) statusActionErrors = [];
@@ -190,12 +218,15 @@
 		homePostSubmitRequestId += 1;
 		homePostSubmitState = 'idle';
 		homePostSubmitError = null;
+		clearInlineReply('home');
 		clearStatusActionErrors('home');
 	};
 	const invalidateThreadRequests = () => {
 		threadRequestId += 1;
 		loadedThreadKey = '';
 		threadState = { status: 'idle' };
+		expandedThreadReplyIds = {};
+		clearInlineReply('thread');
 		clearStatusActionErrors('thread');
 	};
 	const invalidateNotificationRequests = () => {
@@ -265,10 +296,11 @@
 		avatar === 'grad-3' ? 'av-grad-3' :
 		'av-anime';
 
-	const postForRebuild = (post: SocialPost): RebuildPost => ({
+	const postForRebuild = (post: SocialPost & { visibility?: StatusVisibility }): RebuildPost => ({
 		id: post.id,
 		actionStatusId: post.actionStatusId,
 		threadStatusId: post.threadStatusId,
+		visibility: post.visibility,
 		name: post.name,
 		nameEmojis: post.nameEmojis,
 		handle: post.handle,
@@ -332,14 +364,6 @@
 		return roots;
 	};
 	const threadPostCount = (posts: ThreadViewPost[]): number => posts.reduce((total, post) => total + 1 + threadPostCount(post.nestedReplies ?? []), 0);
-	const togglePostAction = <PostType extends RebuildPost>(post: PostType, key: 'reply' | 'boost' | 'fav'): PostType => {
-		const active = !post.actions[key];
-		return {
-			...post,
-			replies: key === 'reply' ? post.replies + (active ? 1 : -1) : post.replies,
-			actions: { ...post.actions, [key]: active }
-		};
-	};
 	const actionStateKey = (key: StatusActionKey) => key === 'fav' ? 'favorite' : 'boost';
 	const statusActionPendingKey = (targetId: string, key: StatusActionKey) => `${targetId}:${key}`;
 	const statusActionOriginRequestId = (originRoute: StatusActionOrigin) => originRoute === 'home' ? homeTimelineRequestId : threadRequestId;
@@ -347,7 +371,14 @@
 		? route === 'home' && homeTimelineRequestId === origin.requestId
 		: route === 'thread' && threadRequestId === origin.requestId;
 	const statusActionTargetId = (post: { id?: string | number; actionStatusId?: string }) => String(post.actionStatusId ?? post.id ?? '');
+	const statusReplyTargetId = (post: { id?: string | number; actionStatusId?: string; threadStatusId?: string }) => String(post.threadStatusId ?? post.actionStatusId ?? post.id ?? '');
+	const inlineReplyTargetHandle = (handle = '') => {
+		const normalized = handle.startsWith('@') ? handle.slice(1) : handle;
+		const local = normalized.split('@').filter(Boolean)[0] ?? normalized;
+		return `@${local || 'user'}`;
+	};
 	const matchesStatusActionTarget = (post: { id?: string | number; actionStatusId?: string }, targetId: string) => statusActionTargetId(post) === targetId;
+	const matchesStatusReplyTarget = (post: { id?: string | number; actionStatusId?: string; threadStatusId?: string }, targetId: string) => statusReplyTargetId(post) === targetId;
 	const statusViewActionValue = (post: PleromaStatusView, key: StatusActionKey): StatusActionValue =>
 		key === 'fav'
 			? { active: post.actions.favorite, count: post.favorites }
@@ -371,12 +402,6 @@
 		favs: key === 'fav' ? value.count : post.favs,
 		actions: { ...post.actions, [key]: value.active }
 	});
-	const updatePostListAction = <PostType extends RebuildPost & { nestedReplies?: PostType[] }>(posts: PostType[], postId: string | number, key: 'reply' | 'boost' | 'fav'): PostType[] =>
-		posts.map((post) => {
-			const updated = post.id === postId ? togglePostAction(post, key) : post;
-
-			return updated.nestedReplies ? { ...updated, nestedReplies: updatePostListAction(updated.nestedReplies, postId, key) } : updated;
-		});
 	const updateRebuildPostsByActionTarget = <PostType extends RebuildPost & { nestedReplies?: PostType[] }>(posts: PostType[], targetId: string, update: (post: PostType) => PostType): PostType[] =>
 		posts.map((post) => {
 			const updated = matchesStatusActionTarget(post, targetId) ? update(post) : post;
@@ -385,6 +410,16 @@
 		});
 	const updateStatusViewsByActionTarget = (posts: PleromaStatusView[], targetId: string, update: (post: PleromaStatusView) => PleromaStatusView) =>
 		posts.map((post) => matchesStatusActionTarget(post, targetId) ? update(post) : post);
+	const updateRebuildPostsByReplyTarget = <PostType extends RebuildPost & { nestedReplies?: PostType[] }>(posts: PostType[], targetId: string, update: (post: PostType) => PostType): PostType[] =>
+		posts.map((post) => {
+			const updated = matchesStatusReplyTarget(post, targetId) ? update(post) : post;
+
+			return updated.nestedReplies ? { ...updated, nestedReplies: updateRebuildPostsByReplyTarget(updated.nestedReplies, targetId, update) } : updated;
+		});
+	const updateStatusViewsByReplyTarget = (posts: PleromaStatusView[], targetId: string, update: (post: PleromaStatusView) => PleromaStatusView) =>
+		posts.map((post) => matchesStatusReplyTarget(post, targetId) ? update(post) : post);
+	const incrementStatusViewReplies = <PostType extends PleromaStatusView>(post: PostType): PostType => ({ ...post, replies: post.replies + 1 });
+	const incrementRebuildPostReplies = <PostType extends RebuildPost>(post: PostType): PostType => ({ ...post, replies: post.replies + 1 });
 	const findPostInList = <PostType extends RebuildPost & { nestedReplies?: PostType[] }>(posts: PostType[], postId: string | number): PostType | null => {
 		for (const post of posts) {
 			if (String(post.id) === String(postId)) return post;
@@ -398,6 +433,32 @@
 		if (threadState.status !== 'success') return null;
 		if (String(threadState.focused.id) === String(postId)) return threadState.focused;
 		return findPostInList([...threadState.ancestors, ...threadState.replies], postId);
+	};
+	const showThreadReplyNested = (postId: string | number | undefined) => {
+		if (postId == null) return;
+		expandedThreadReplyIds = { ...expandedThreadReplyIds, [String(postId)]: true };
+	};
+	const expandThreadReplyPath = (postId: string) => {
+		if (threadState.status !== 'success') return;
+
+		const nextExpanded = { ...expandedThreadReplyIds };
+		const expandIn = (posts: ThreadViewPost[]): boolean => {
+			for (const post of posts) {
+				if (String(post.id) === postId) {
+					nextExpanded[String(post.id)] = true;
+					return true;
+				}
+
+				if (post.nestedReplies && expandIn(post.nestedReplies)) {
+					nextExpanded[String(post.id)] = true;
+					return true;
+				}
+			}
+
+			return false;
+		};
+
+		if (expandIn(threadState.ancestors) || expandIn(threadState.replies)) expandedThreadReplyIds = nextExpanded;
 	};
 	const applyStatusActionUpdate = (scope: StatusActionScope, targetId: string, statusUpdate: <PostType extends PleromaStatusView>(post: PostType) => PostType, rebuildUpdate: <PostType extends RebuildPost>(post: PostType) => PostType) => {
 		if (scope === 'home' || scope === 'all') {
@@ -418,6 +479,43 @@
 				replies: updateRebuildPostsByActionTarget(threadState.replies, targetId, rebuildUpdate)
 			};
 		}
+	};
+	const applyReplyCountUpdate = (targetId: string) => {
+		localHomePosts = updateRebuildPostsByReplyTarget(localHomePosts, targetId, incrementRebuildPostReplies);
+		if (homeTimelineState.status === 'success') {
+			homeTimelineState = {
+				...homeTimelineState,
+				data: updateStatusViewsByReplyTarget(homeTimelineState.data, targetId, incrementStatusViewReplies),
+				newerPosts: updateStatusViewsByReplyTarget(homeTimelineState.newerPosts, targetId, incrementStatusViewReplies)
+			};
+		}
+		if (threadState.status === 'success') {
+			threadState = {
+				...threadState,
+				focused: matchesStatusReplyTarget(threadState.focused, targetId) ? incrementRebuildPostReplies(threadState.focused) : threadState.focused,
+				ancestors: updateRebuildPostsByReplyTarget(threadState.ancestors, targetId, incrementRebuildPostReplies),
+				replies: updateRebuildPostsByReplyTarget(threadState.replies, targetId, incrementRebuildPostReplies)
+			};
+		}
+	};
+	const insertNestedThreadReply = (posts: ThreadViewPost[], parentId: string, reply: ThreadViewPost[]): ThreadViewPost[] =>
+		posts.map((post) => {
+			if (String(post.id) === parentId) return { ...post, nestedReplies: [...(post.nestedReplies ?? []), ...reply] };
+
+			return post.nestedReplies ? { ...post, nestedReplies: insertNestedThreadReply(post.nestedReplies, parentId, reply) } : post;
+		});
+	const insertThreadReply = (parentId: string, status: PleromaStatus) => {
+		if (threadState.status !== 'success') return;
+
+		const reply = [{ ...threadPostForRebuild(adaptPleromaStatus(status)), nestedReplies: [] }];
+		threadState = String(threadState.focused.id) === parentId
+			? { ...threadState, replies: [...threadState.replies, ...reply] }
+			: {
+				...threadState,
+				ancestors: insertNestedThreadReply(threadState.ancestors, parentId, reply),
+				replies: insertNestedThreadReply(threadState.replies, parentId, reply)
+			};
+		if (String(threadState.focused.id) !== parentId) expandThreadReplyPath(parentId);
 	};
 	const clearStatusActionPending = (pendingKey: string, requestId: number) => {
 		if (statusActionPending[pendingKey] !== requestId) return;
@@ -493,6 +591,7 @@
 	);
 	const threadStatusId = $derived(route === 'thread' ? decodeURIComponent(page.url.pathname.split('/').filter(Boolean).slice(2).join('/') || '') : '');
 	const composerRemaining = $derived(composerCharacterLimit - composerText.length);
+	const inlineReplyRemaining = $derived(composerCharacterLimit - inlineReplyDraft.length);
 	const canSubmitHomePost = $derived(Boolean(composerText.trim()) && composerRemaining >= 0 && homePostSubmitState !== 'submitting');
 	const timelinePosts = $derived([
 		...localHomePosts,
@@ -590,43 +689,96 @@
 			homePostSubmitState = 'idle';
 		}
 	};
-	const handlePostAction = (clickedPost: RebuildPost, key: string) => {
-		if (key !== 'reply' && key !== 'boost' && key !== 'fav') return;
-		if (key === 'boost' || key === 'fav') {
-			const targetId = statusActionTargetId(clickedPost);
-			if (targetId) mutateStatusAction(targetId, key, rebuildPostActionValue(clickedPost, key), 'home');
+	const openInlineReply = (post: RebuildPost, targetRoute: StatusActionOrigin) => {
+		if (inlineReplySubmitState === 'submitting') return;
+
+		const targetId = statusReplyTargetId(post);
+		if (!targetId) return;
+
+		const nextTarget = {
+			route: targetRoute,
+			targetId,
+			renderId: String(post.id),
+			handle: inlineReplyTargetHandle(post.handle),
+			visibility: post.visibility ?? 'public',
+			name: post.name,
+			avClass: post.avClass,
+			avBanner: post.avBanner,
+			avatarUrl: post.avatarUrl
+		};
+		const sameTarget = inlineReplyTarget?.route === nextTarget.route && inlineReplyTarget.targetId === nextTarget.targetId && inlineReplyTarget.renderId === nextTarget.renderId;
+		if (sameTarget) {
+			clearInlineReply(targetRoute);
 			return;
 		}
 
-		localHomePosts = updatePostListAction(localHomePosts, clickedPost.id, key);
+		inlineReplyRequestId += 1;
+		inlineReplyTarget = nextTarget;
+		inlineReplySubmitState = 'idle';
+		inlineReplySubmitError = null;
+		inlineReplyDraft = '';
+	};
+	const inlineReplyOpenFor = (targetRoute: StatusActionOrigin, post: { id?: string | number }) => inlineReplyTarget?.route === targetRoute && inlineReplyTarget.renderId === String(post.id);
+	const submitInlineReply = async () => {
+		const target = inlineReplyTarget;
+		const body = inlineReplyDraft.trim();
+		const session = currentSession;
+		if (!target || !body || inlineReplyRemaining < 0 || inlineReplySubmitState === 'submitting' || !session) return;
 
-		if (homeTimelineState.status !== 'success') return;
-		homeTimelineState = {
-			...homeTimelineState,
-			data: homeTimelineState.data.map((status) => {
-				if (status.id !== clickedPost.id) return status;
-				const next = togglePostAction(postForRebuild(status), key);
-				return { ...status, replies: next.replies, actions: { reply: next.actions.reply, boost: next.actions.boost, favorite: next.actions.fav } };
-			})
-		};
+		const requestSessionKey = sessionKey(session);
+		const requestId = inlineReplyRequestId + 1;
+		inlineReplyRequestId = requestId;
+		inlineReplySubmitState = 'submitting';
+		inlineReplySubmitError = null;
+
+		try {
+			const client = createPleromaClient({
+				instanceUrl: session.instanceUrl,
+				accessToken: session.accessToken,
+				fetch: window.fetch.bind(window)
+			});
+			const status = await client.createStatus({ status: body, visibility: target.visibility, inReplyToId: target.targetId });
+			if (requestId !== inlineReplyRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+			if (!inlineReplyTarget || inlineReplyTarget.route !== target.route || inlineReplyTarget.targetId !== target.targetId) return;
+
+			applyReplyCountUpdate(target.targetId);
+			if (target.route === 'thread') insertThreadReply(target.targetId, status);
+			clearInlineReply();
+		} catch (error) {
+			if (requestId !== inlineReplyRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			const normalized = normalizePleromaRequestError(error);
+			if (normalized.reauthRequired) {
+				signOutPleroma(localStorage);
+				redirectToLanding();
+				return;
+			}
+
+			inlineReplySubmitError = normalized;
+			inlineReplySubmitState = 'idle';
+		}
+	};
+	const handlePostAction = (clickedPost: RebuildPost, key: string) => {
+		if (key !== 'reply' && key !== 'boost' && key !== 'fav') return;
+		if (key === 'reply') {
+			openInlineReply(clickedPost, 'home');
+			return;
+		}
+
+		const targetId = statusActionTargetId(clickedPost);
+		if (targetId) mutateStatusAction(targetId, key, rebuildPostActionValue(clickedPost, key), 'home');
 	};
 	const handleThreadPostAction = (postId: string | number | undefined, key: string) => {
 		if (postId == null || (key !== 'reply' && key !== 'boost' && key !== 'fav')) return;
-		if (key === 'boost' || key === 'fav') {
+		if (key === 'reply') {
+			if (threadState.status === 'success' && threadState.ancestors.some((ancestor) => String(ancestor.id) === String(postId))) return;
 			const post = findThreadPost(postId);
-			const targetId = post ? statusActionTargetId(post) : '';
-			if (post && targetId) mutateStatusAction(targetId, key, rebuildPostActionValue(post, key), 'thread');
+			if (post) openInlineReply(post, 'thread');
 			return;
 		}
-
-		if (threadState.status !== 'success') return;
-
-		threadState = {
-			...threadState,
-			focused: threadState.focused.id === postId ? togglePostAction(threadState.focused, key) : threadState.focused,
-			ancestors: updatePostListAction(threadState.ancestors, postId, key),
-			replies: updatePostListAction(threadState.replies, postId, key)
-		};
+		const post = findThreadPost(postId);
+		const targetId = post ? statusActionTargetId(post) : '';
+		if (post && targetId) mutateStatusAction(targetId, key, rebuildPostActionValue(post, key), 'thread');
 	};
 	const closeMobilePanels = () => {
 		mobileDrawerOpen = false;
@@ -1199,7 +1351,9 @@
 		if (pathname.startsWith('/app/thread')) {
 			const loadKey = `${sessionKey(session)}\n${threadStatusId}`;
 			if (loadedThreadKey !== loadKey) {
+				clearInlineReply('thread');
 				clearStatusActionErrors('thread');
+				expandedThreadReplyIds = {};
 				loadedThreadKey = loadKey;
 				void loadThread(session, threadStatusId);
 			}
@@ -1374,6 +1528,22 @@
 							<div data-testid="home-timeline-list">
 								{#each timelinePosts as post (post.id)}
 									<Post {post} onOpen={() => openThread(post)} onAction={(key) => handlePostAction(post, key)} />
+									{#if inlineReplyOpenFor('home', post) && inlineReplyTarget}
+										<InlineReplyComposer
+											targetHandle={inlineReplyTarget.handle}
+											targetName={inlineReplyTarget.name}
+											targetAvClass={inlineReplyTarget.avClass}
+											targetAvBanner={inlineReplyTarget.avBanner}
+											targetAvatarUrl={inlineReplyTarget.avatarUrl}
+											draft={inlineReplyDraft}
+											remaining={inlineReplyRemaining}
+											submitting={inlineReplySubmitState === 'submitting'}
+											error={inlineReplySubmitError}
+											onDraftInput={(value) => (inlineReplyDraft = value)}
+											onCancel={() => clearInlineReply()}
+											onSubmit={submitInlineReply}
+										/>
+									{/if}
 								{/each}
 							</div>
 							<TimelineLoadMore
@@ -1456,13 +1626,45 @@
 								<div class="thread-ancestors">
 									{#each threadState.ancestors as ancestor (ancestor.id)}
 										<div data-testid="thread-ancestor">
-											<AncestorPost post={ancestor} onAction={handleThreadPostAction} />
+											<AncestorPost post={ancestor} disableReplyAction onAction={handleThreadPostAction} />
 										</div>
+										{#if inlineReplyOpenFor('thread', ancestor) && inlineReplyTarget}
+											<InlineReplyComposer
+												targetHandle={inlineReplyTarget.handle}
+												targetName={inlineReplyTarget.name}
+												targetAvClass={inlineReplyTarget.avClass}
+												targetAvBanner={inlineReplyTarget.avBanner}
+												targetAvatarUrl={inlineReplyTarget.avatarUrl}
+												draft={inlineReplyDraft}
+												remaining={inlineReplyRemaining}
+												submitting={inlineReplySubmitState === 'submitting'}
+												error={inlineReplySubmitError}
+												onDraftInput={(value) => (inlineReplyDraft = value)}
+												onCancel={() => clearInlineReply()}
+												onSubmit={submitInlineReply}
+											/>
+										{/if}
 									{/each}
-				</div>
-			{/if}
-			<FocusedPost post={threadState.focused} continuesAbove={threadState.ancestors.length > 0} onAction={handleThreadPostAction} />
-			<div class="thread-reply-head">
+								</div>
+							{/if}
+							<FocusedPost post={threadState.focused} continuesAbove={threadState.ancestors.length > 0} onAction={handleThreadPostAction} />
+							{#if inlineReplyOpenFor('thread', threadState.focused) && inlineReplyTarget}
+								<InlineReplyComposer
+									targetHandle={inlineReplyTarget.handle}
+									targetName={inlineReplyTarget.name}
+									targetAvClass={inlineReplyTarget.avClass}
+									targetAvBanner={inlineReplyTarget.avBanner}
+									targetAvatarUrl={inlineReplyTarget.avatarUrl}
+									draft={inlineReplyDraft}
+									remaining={inlineReplyRemaining}
+									submitting={inlineReplySubmitState === 'submitting'}
+									error={inlineReplySubmitError}
+									onDraftInput={(value) => (inlineReplyDraft = value)}
+									onCancel={() => clearInlineReply()}
+									onSubmit={submitInlineReply}
+								/>
+							{/if}
+							<div class="thread-reply-head">
 								<div class="thread-reply-count" data-testid="thread-reply-count">{threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}</div>
 								<div class="seg" role="group" aria-label="Reply sort">
 									<button type="button" aria-pressed={replySort === 'top'} class:active={replySort === 'top'} onclick={() => (replySort = 'top')}>Top</button>
@@ -1472,7 +1674,27 @@
 							<div class="thread-replies">
 								{#each sortedThreadReplyPosts as reply, i (reply.id)}
 									<div data-testid="thread-reply">
-										<ReplyPost post={reply} isLast={i === sortedThreadReplyPosts.length - 1} nestedReplies={reply.nestedReplies} onAction={handleThreadPostAction} />
+										<ReplyPost
+											post={reply}
+											isLast={i === sortedThreadReplyPosts.length - 1}
+											nestedReplies={reply.nestedReplies}
+											onAction={handleThreadPostAction}
+											inlineReplyRenderId={inlineReplyTarget?.route === 'thread' ? inlineReplyTarget.renderId : null}
+											inlineReplyTargetHandle={inlineReplyTarget?.handle ?? ''}
+											inlineReplyTargetName={inlineReplyTarget?.name ?? ''}
+											inlineReplyTargetAvClass={inlineReplyTarget?.avClass}
+											inlineReplyTargetAvBanner={inlineReplyTarget?.avBanner}
+											inlineReplyTargetAvatarUrl={inlineReplyTarget?.avatarUrl}
+											inlineReplyDraft={inlineReplyDraft}
+											inlineReplyRemaining={inlineReplyRemaining}
+											inlineReplySubmitting={inlineReplySubmitState === 'submitting'}
+											inlineReplyError={inlineReplySubmitError}
+											expandedReplyIds={expandedThreadReplyIds}
+											onInlineReplyDraftInput={(value) => (inlineReplyDraft = value)}
+											onInlineReplyCancel={() => clearInlineReply()}
+											onInlineReplySubmit={submitInlineReply}
+											onShowNested={showThreadReplyNested}
+										/>
 									</div>
 								{/each}
 							</div>

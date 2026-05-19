@@ -222,6 +222,83 @@ test('home timeline composer creates statuses through Pleroma', async ({ page })
 	expect(params.get('visibility')).toBe('public');
 });
 
+test('home timeline inline reply composer creates a reply for the selected post', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	const targetStatus = { ...statusWithText('status-inline-reply', 'reply inline from the timeline'), replies_count: 0, visibility: 'unlisted' };
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [targetStatus]);
+	});
+
+	let createAuthorization = '';
+	let createBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createAuthorization = route.request().headers().authorization ?? '';
+		createBody = route.request().postData() ?? '';
+		await fulfillHome(route, {
+			...statusWithText('created-inline-reply', 'timeline inline reply body'),
+			in_reply_to_id: 'status-inline-reply'
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('[data-status-id="status-inline-reply"]');
+	await post.getByRole('button', { name: 'Reply 0' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
+	await expect(replyForm).toBeVisible();
+	await expect(replyForm).toContainText('Replying to');
+	await expect(replyForm).toContainText('@quietadmin');
+	await expect(replyForm.getByRole('img', { name: 'quiet admin avatar' })).toHaveAttribute('src', 'https://pleroma.example/avatar.png');
+	await replyForm.getByRole('textbox', { name: 'Reply text' }).fill('timeline inline reply body');
+	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
+
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+	await expect(post.getByRole('button', { name: 'Reply 1' })).toHaveAttribute('aria-pressed', 'false');
+	expect(createAuthorization).toBe('Bearer access-token');
+	const params = new URLSearchParams(createBody);
+	expect(params.get('status')).toBe('timeline inline reply body');
+	expect(params.get('in_reply_to_id')).toBe('status-inline-reply');
+	expect(params.get('visibility')).toBe('unlisted');
+});
+
+test('home timeline inline reply composer moves between targets and cancels', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	const firstStatus = { ...statusWithText('status-inline-first', 'first inline target'), replies_count: 0 };
+	const secondStatus = {
+		...statusWithText('status-inline-second', 'second inline target'),
+		account: { ...pleromaFixtures.account, id: 'account-2', username: 'datagram', acct: 'datagram@retro.social', display_name: 'datagram' },
+		replies_count: 0
+	};
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [firstStatus, secondStatus]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const firstPost = page.locator('[data-status-id="status-inline-first"]');
+	await firstPost.getByRole('button', { name: 'Reply 0' }).click();
+	const firstForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
+	await expect(firstForm).toBeVisible();
+	await firstForm.getByRole('textbox', { name: 'Reply text' }).fill('draft that should close');
+	await firstPost.getByRole('button', { name: 'Reply 0' }).click();
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+
+	await firstPost.getByRole('button', { name: 'Reply 0' }).click();
+	await firstForm.getByRole('textbox', { name: 'Reply text' }).fill('draft that should not move');
+	await page.locator('[data-status-id="status-inline-second"]').getByRole('button', { name: 'Reply 0' }).click();
+
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(1);
+	const movedForm = page.getByRole('form', { name: 'Inline reply to @datagram' });
+	await expect(movedForm).toBeVisible();
+	await expect(movedForm.getByRole('textbox', { name: 'Reply text' })).toHaveValue('');
+	await movedForm.getByRole('button', { name: 'Cancel' }).click();
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+});
+
 test('home timeline favorite and boost actions reconcile with Pleroma responses', async ({ page }) => {
 	await authenticate(page);
 	const actionStatus = { ...statusWithText('status-action', 'wire this post to real actions'), favourites_count: 9, reblogs_count: 4 };

@@ -31,10 +31,11 @@
 
 	type Props = {
 		post: ThreadPost;
+		disableReplyAction?: boolean;
 		onAction?: (id: string | number | undefined, key: string) => void;
 	};
 
-	let { post, onAction }: Props = $props();
+	let { post, disableReplyAction = false, onAction }: Props = $props();
 
 	const handleLightbox = (idx: number) => {
 		const attachments = normalizeRenderableAttachments(post);
@@ -61,7 +62,7 @@
 				<QuotedPost quoted={post.quotedPost} />
 				<PostMedia post={post} onOpen={handleLightbox} />
 			</PostCW>
-			<PostActions post={post} onAction={(key) => onAction?.(post.id, key)} />
+			<PostActions post={post} disabledActions={{ reply: disableReplyAction }} onAction={(key) => onAction?.(post.id, key)} />
 		</div>
 	</div>
 </PostBoost>
