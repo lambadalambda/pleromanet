@@ -28,6 +28,12 @@ Bring `/design-system` back into parity with the updated canonical handoff after
 - Mobile `/design-system` coverage remains green with no horizontal overflow.
 - `pnpm run check`, the design-system Playwright suite, and `pnpm test` pass.
 
+## Current Status
+
+- Partially done: several canonical specimen groups are present, including polls, content warnings, boosted posts, reply addressee chips, notifications, radio, and oekaki.
+- Still open: the sidebar still reports `0 shared primitives`, issue 30 composer specimens are missing, and issue 34's design-system thread update is incomplete.
+- Still open: final parity with `design-system.jsx` v2.4.58 has not been audited section-by-section.
+
 ## Notes
 
 - Follow the project rule to port `/design-system` section by section from the JSX handoff and stop after each section for visual confirmation when doing substantial visual work.

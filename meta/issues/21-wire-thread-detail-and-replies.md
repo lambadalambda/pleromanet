@@ -28,6 +28,13 @@ Load thread detail views from Pleroma status and context endpoints and integrate
 - Existing `/mockup` route behavior and tests continue to pass.
 - No default test requires Docker or a live Pleroma instance.
 
+## Current Status
+
+- Mostly done: the real thread route loads focused status and context from Pleroma and renders ancestors, focused status metadata, and descendant replies.
+- Done: inline reply submission sends `in_reply_to_id`, updates reply counts, inserts returned replies into the visible thread tree, and handles nested replies.
+- Done: direct thread deep links, missing status id, API error/retry, stale response, mobile layout, and action failure paths have route coverage.
+- Still open: empty-descendant behavior does not have explicit focused coverage in the current real-route tests.
+
 ## Notes
 
 - The Pleroma context endpoint returns flat ancestor/descendant arrays; any tree-building should be a tested pure function.

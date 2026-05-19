@@ -27,6 +27,12 @@ Connect the profile settings form to the Pleroma account update API and reconcil
 - Existing `/mockup` route behavior and tests continue to pass.
 - No default test requires Docker or a live Pleroma instance.
 
+## Current Status
+
+- Partially done: settings UI exists with local dirty/reset/save state and visual avatar/header rows.
+- Partially done: the API client has `updateAccountProfile`, and token-only sessions hydrate the authenticated account for shell identity.
+- Still open: the settings save button does not call Pleroma, does not reconcile the returned account, and does not cover save failure or 401/403 behavior.
+
 ## Notes
 
 - This issue should not add media upload support.

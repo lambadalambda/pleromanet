@@ -28,6 +28,14 @@ Connect composer status creation to the Pleroma API with server-confirmed insert
 - Existing `/mockup` route behavior and tests continue to pass.
 - No default test requires Docker or a live Pleroma instance.
 
+## Current Status
+
+- Partially done: `createStatus` exists and serializes status text, visibility, and `in_reply_to_id`.
+- Partially done: the home composer submits through Pleroma and inserts the server-returned status on success.
+- Partially done: reply-parent creation is covered by client tests and inline reply route tests.
+- Still open: home composer failure handling/draft preservation is not covered by focused tests.
+- Still open: content warning input/serialization is not wired into status creation.
+
 ## Notes
 
 - Favorite and boost mutations are split into issue 20.

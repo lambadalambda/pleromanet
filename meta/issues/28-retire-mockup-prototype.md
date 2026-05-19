@@ -29,6 +29,12 @@ Remove the `/mockup` prototype once the corresponding real routes have determini
 - `pnpm test` and `pnpm check` pass after removal.
 - The repository no longer has duplicated mockup-only state management for app surfaces.
 
+## Current Status
+
+- Partially done: there is no current `/mockup` route file.
+- Partially done: legacy mockup e2e files are skipped and point to real-route coverage replacements.
+- Still open: skipped legacy tests still contain `/mockup` references, profile/explore/settings real implementations are not fully wired, and some static mock state remains in app/design surfaces.
+
 ## Notes
 
 - Do not start this issue until real routes are stable enough that `/mockup` is maintenance drag rather than useful reference.

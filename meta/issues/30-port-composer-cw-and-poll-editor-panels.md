@@ -21,6 +21,12 @@ Port the updated composer states for content warnings and poll creation into the
 - Focused Playwright coverage verifies CW and poll panel toggling, add/remove choice behavior, and submit button disabled state remains correct.
 - `pnpm run check` and affected Playwright tests pass.
 
+## Current Status
+
+- Not done: real composer CW and poll buttons are still visual controls without editor panels.
+- Not done: `/design-system` does not yet expose the four expanded canonical composer specimens.
+- Related: status creation currently does not serialize content warnings or poll payloads.
+
 ## Notes
 
 - Source of truth: `meta/design/claude-handoff/project/home.jsx`, `meta/design/claude-handoff/project/design-system.jsx`, and `.composer-cw*` / `.composer-poll*` styles in `styles.css`.

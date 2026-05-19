@@ -25,6 +25,11 @@ Connect follow and unfollow controls to Pleroma relationship mutations across pr
 - Existing `/mockup` route behavior and tests continue to pass.
 - No default test requires Docker or a live Pleroma instance.
 
+## Current Status
+
+- Partially done: the API client has `followAccount` and `unfollowAccount` methods.
+- Still open: real profile/discovery follow controls are not wired to those methods, and relationship states are not modeled in UI.
+
 ## Notes
 
 - Keep relationship modeling Pleroma-specific; do not add broad compatibility abstractions.

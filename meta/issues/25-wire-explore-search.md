@@ -25,6 +25,12 @@ Connect explore search to the Pleroma search API with deterministic debounce and
 - Existing `/mockup` route behavior and tests continue to pass.
 - No default test requires Docker or a live Pleroma instance.
 
+## Current Status
+
+- Partially done: the API client has `search` support.
+- Partially done: the real explore route contains a static search input and mocked discovery cards.
+- Still open: query execution, debounced result states, keyboard navigation, and result activation are not wired.
+
 ## Notes
 
 - Trends and instance metadata are split into issue 26.

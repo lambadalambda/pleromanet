@@ -26,6 +26,12 @@ Add routed account profile display with public account details and account statu
 - Existing `/mockup` route behavior and tests continue to pass.
 - No default test requires Docker or a live Pleroma instance.
 
+## Current Status
+
+- Partially done: the API client has `getAccount` support.
+- Partially done: `/app/profiles/...` is routable inside the real app shell, but it is still a placeholder surface.
+- Still open: profile account loading, account status lists, signed-out profile viewing, and account-note sanitization are not implemented.
+
 ## Notes
 
 - Follow/unfollow actions are split into issue 24.

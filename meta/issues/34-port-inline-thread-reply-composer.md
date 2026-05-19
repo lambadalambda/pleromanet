@@ -20,6 +20,12 @@ Port the updated targeted inline reply composer for thread replies and reconcile
 - The composer remains usable on mobile and does not break nested reply layout.
 - `pnpm run check` and focused thread/design-system Playwright coverage pass.
 
+## Current Status
+
+- Partially done: the real app has targeted inline reply composers for home timeline posts, focused thread posts, top-level replies, and expanded nested replies.
+- Done in real app: the composer pre-addresses the target, shows the target avatar, toggles closed when the same Reply button is pressed, moves between targets without leaking drafts, submits through Pleroma, and stays usable on mobile.
+- Still open: the `/design-system` thread specimen still uses the old terminal `.thread-reply-composer` and has not been reconciled with the canonical inline reply handoff.
+
 ## Notes
 
 - Source of truth: `meta/design/claude-handoff/project/thread.jsx`, `meta/design/claude-handoff/project/inline-reply-variants.jsx`, and `.thread-inline-reply*` styles in `styles.css`.
