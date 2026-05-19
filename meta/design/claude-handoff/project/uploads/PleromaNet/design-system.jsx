@@ -643,67 +643,6 @@ function DesignSystem() {
               </Specimen>
             </Grid>
 
-            <div className="ds-sub-h">Polls</div>
-            <p className="ds-sub" style={{marginBottom: 14}}>Polls live alongside media as <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>kind: 'poll'</code> attachments, but render in a dedicated slot below the media block (never mixed in). The component is the same in every state — pre-vote it draws radio/check rows + a Vote button, post-vote (or post-expiry) it draws a horizontal bar chart with raw vote counts. Your vote gets a "You" chip and an accent-ink fill; the winning row gets the strongest accent fill.</p>
-            <Grid cols={2}>
-              <Specimen label="Voting · single choice" note="myVote = null · radio rows" padded={false}>
-                <DemoPost
-                  body="which side wins?"
-                  attachments={[{
-                    kind: 'poll', id: 'ds-p1',
-                    choices: [
-                      { id: 'warm', label: 'warm cassette',  votes: 142 },
-                      { id: 'cold', label: 'cold terminal',  votes: 38 },
-                      { id: 'vinyl',label: 'spinning vinyl', votes: 214 },
-                    ],
-                    totalVotes: 394, multi: false, endsIn: '6h 12m',
-                    myVote: null, expired: false,
-                  }]}/>
-              </Specimen>
-              <Specimen label="Voting · multiple choices" note="poll.multi = true · check rows" padded={false}>
-                <DemoPost
-                  body="what should we ship first this week?"
-                  attachments={[{
-                    kind: 'poll', id: 'ds-p2',
-                    choices: [
-                      { id: 'a', label: 'CW redesign', votes: 22 },
-                      { id: 'b', label: 'Inline replies', votes: 15 },
-                      { id: 'c', label: 'Polls', votes: 31 },
-                    ],
-                    totalVotes: 68, multi: true, endsIn: '1d 4h',
-                    myVote: null, expired: false,
-                  }]}/>
-              </Specimen>
-              <Specimen label="Results · with vote" note="myVote = 'vinyl' · bar chart" padded={false} span={2}>
-                <DemoPost
-                  body="which side wins?"
-                  attachments={[{
-                    kind: 'poll', id: 'ds-p3',
-                    choices: [
-                      { id: 'warm', label: 'warm cassette',  votes: 142 },
-                      { id: 'cold', label: 'cold terminal',  votes: 38 },
-                      { id: 'vinyl',label: 'spinning vinyl', votes: 214 },
-                    ],
-                    totalVotes: 394, multi: false, endsIn: '6h 12m',
-                    myVote: 'vinyl', expired: false,
-                  }]}/>
-              </Specimen>
-              <Specimen label="Ended" note="expired = true · Ended pill" padded={false} span={2}>
-                <DemoPost
-                  body="which side won?"
-                  attachments={[{
-                    kind: 'poll', id: 'ds-p4',
-                    choices: [
-                      { id: 'warm', label: 'warm cassette',  votes: 142 },
-                      { id: 'cold', label: 'cold terminal',  votes: 38 },
-                      { id: 'vinyl',label: 'spinning vinyl', votes: 214 },
-                    ],
-                    totalVotes: 394, multi: false, endedAgo: '2d ago',
-                    myVote: 'warm', expired: true,
-                  }]}/>
-              </Specimen>
-            </Grid>
-
             <div className="ds-sub-h">Lightbox</div>
             <p className="ds-sub" style={{marginBottom: 14}}>Triggered by clicking any photo or strip thumbnail. Mounted once at the app root as <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>{'<AttachmentLightboxHost/>'}</code>, dispatched globally via <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>openLightbox(attachments, idx, attribution)</code>.</p>
             <Specimen label="Try it" note="click any photo above, or this button to open with the full sample set" padded={false}>
@@ -723,31 +662,9 @@ function DesignSystem() {
           </Slab>
 
           {/* ============ Composer ============ */}
-          <Slab id="composer" kicker="07" title="Composer" sub="The post composer. Lives at the top of the feed and inside threads (as a reply composer). Tool rail buttons toggle in-line panels for content warnings and polls; both panels persist as `composer.cw` and `composer.poll` state, attached on Post.">
-            <Specimen label="Composer · idle" note=".composer · no CW, no poll" padded={false}>
+          <Slab id="composer" kicker="07" title="Composer" sub="The post composer. Lives at the top of the feed and inside threads (as a reply composer).">
+            <Specimen label="Composer · feed" note=".composer" padded={false}>
               <DemoComposer/>
-            </Specimen>
-            <Specimen label="Composer · with CW input" note="composer.cw is a string · warn-tinted row above tool rail" padded={false}>
-              <DemoComposer initial={{
-                text: "every restaurant photo I take ends up looking like a NYT food review somehow",
-                privacy: 'Public',
-                cw: 'food, plated photos',
-              }}/>
-            </Specimen>
-            <Specimen label="Composer · with poll editor" note="composer.poll · 2–6 choices · drag handles, duration, single/multi" padded={false}>
-              <DemoComposer initial={{
-                text: "which side wins?",
-                privacy: 'Public',
-                poll: { choices: ['warm cassette', 'cold terminal', 'spinning vinyl'], duration: '24h', multi: false, hideUntil: true },
-              }}/>
-            </Specimen>
-            <Specimen label="Composer · CW + poll together" note="both panels stack" padded={false}>
-              <DemoComposer initial={{
-                text: "rough day. need some external grounding — picking one of these tonight",
-                privacy: 'Public',
-                cw: 'mh, asking for input',
-                poll: { choices: ['long walk', 'call a friend', 'just sleep'], duration: '6h', multi: false, hideUntil: false },
-              }}/>
             </Specimen>
           </Slab>
 
@@ -772,27 +689,21 @@ function DesignSystem() {
               </ul>
             </div>
 
-            <div className="ds-sub-h">Body, mentions &amp; reply addressees</div>
-            <p className="ds-sub" style={{marginBottom: 14}}>The <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>{'<PostBody/>'}</code> primitive auto-parses <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>@handle</code> patterns in the body string and renders them as inline links. A separate <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>addressees</code> array (the leading recipient pile-up from a fediverse reply) renders as a "Replying to" footer below the body, so the first line of a reply stays content, not a recipient list. The <b>first</b> element of <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>addressees</code> is, by convention, the author of the post being directly replied to — it renders as a ghost chip prefixed with a ↪ glyph (the glyph is what marks the role; the chip fill matches the cc chips so it doesn't dominate the post body). The rest are inherited cc-addressees and render as the same ghost chip without the glyph, after an <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>· also</code> divider.</p>
+            <div className="ds-sub-h">Body &amp; mentions</div>
+            <p className="ds-sub" style={{marginBottom: 14}}>The <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>{'<PostBody/>'}</code> primitive auto-parses <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>@handle</code> patterns in the body string and renders them as inline links. A separate <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>addressees</code> array (the leading recipient pile-up from a fediverse reply) renders as a compact "PINGED" footer below the body, so the first line of a reply stays content, not a recipient list.</p>
             <Grid cols={2}>
               <Specimen label="Body only" note="no addressees · just inline mention parsing" padded={false}>
                 <DemoPost
                   body="thanks for the recs @datagram — going to try qwen 0.5b first and then jan-nano if it doesn't cut it. @feld did you end up testing josie?"
                   attachments={[]}/>
               </Specimen>
-              <Specimen label="Reply · parent only" note="addressees=[parent] · ghost chip + ↪ glyph · no 'also'" padded={false}>
-                <DemoPost
-                  body="agreed — this is exactly what I needed to hear today."
-                  addressees={['@gridwave']}
-                  attachments={[]}/>
-              </Specimen>
-              <Specimen label="Reply + cc-list" note="addressees=[parent, …cc] · all ghost chips · parent prefixed with ↪" padded={false} span={2}>
+              <Specimen label="Body + addressees" note="leading addressees → footer chip row" padded={false}>
                 <DemoPost
                   body="qwen 0.5b can handle some limited summary tasks. theres also the JOSIE models which are jailbroken qwens."
                   addressees={['@dtluna', '@feld', '@lain']}
                   attachments={[]}/>
               </Specimen>
-              <Specimen label="Long cc-chain" note="parent stays prominent · cc-list wraps to second row" padded={false} span={2}>
+              <Specimen label="Long addressee chain" note="scales horizontally · wraps if needed" padded={false} span={2}>
                 <DemoPost
                   body="agreed with @datagram — the slow web feels possible again. tagging @soft.hertz too, this was your point yesterday"
                   addressees={['@datagram', '@gridwave', '@nyan', '@soft.hertz', '@orbit', '@lumen', '@kestrel.fm']}
@@ -895,82 +806,10 @@ function DesignSystem() {
                 <Post post={AUDIO_POST} onAction={()=>{}}/>
               </Specimen>
             </Grid>
-
-            <div className="ds-sub-h">Content warnings</div>
-            <p className="ds-sub" style={{marginBottom: 14}}>Setting <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>post.cw</code> to a summary string folds the body, quoted post, and ALL media into a warn-tinted card. The reader presses <i>Show post</i> to reveal; once revealed, a compact summary strip with a Hide link replaces the card so the content can be re-folded. The <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>{'<PostCW/>'}</code> primitive wraps the hidden region — used internally by <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>Post / AncestorPost / ReplyPost</code>.</p>
-            <Grid cols={2}>
-              <Specimen label="Folded · with media" note="post.cw set · body + photos hidden" padded={false} span={2}>
-                <Post post={{
-                  id: 'ds-cw-1', name: 'mossy', handle: '@mossy@garden.cafe', time: '2h',
-                  avClass: 'av-grad-3',
-                  cw: 'food, plated photos',
-                  body: "every restaurant photo I take ends up looking like a NYT food review somehow. is there a special app for that or is it just learned posture",
-                  attachments: [
-                    { kind: 'photo', src: 'samples/cat-bank.webp', alt: '' },
-                    { kind: 'photo', src: 'samples/cat-door.webp', alt: '' },
-                  ],
-                  replies: 4, boosts: 3, favs: 22,
-                  actions: { reply: false, boost: false, fav: false },
-                }} onAction={()=>{}}/>
-              </Specimen>
-              <Specimen label="Folded · text only" note="no attachments · no chips row" padded={false}>
-                <Post post={{
-                  id: 'ds-cw-2', name: 'datagram', handle: '@datagram@retro.social', time: '5h',
-                  avClass: 'av-pixel-pc',
-                  cw: 'Severance · S2 finale spoilers',
-                  body: "ok the elevator scene. the ELEVATOR scene. I have been thinking about it for 48 hours straight. spoilers for S2E10 in this thread, ye be warned.",
-                  replies: 1, boosts: 0, favs: 7,
-                  actions: { reply: false, boost: false, fav: false },
-                }} onAction={()=>{}}/>
-              </Specimen>
-              <Specimen label="Folded · with poll" note="poll counted in meta chips" padded={false}>
-                <Post post={{
-                  id: 'ds-cw-3', name: 'kestrel', handle: '@kestrel@audio.garden', time: '1h',
-                  avClass: 'av-grad-3',
-                  cw: 'mh, asking for input',
-                  body: "rough day. need some external grounding — picking one of these tonight, vote what you'd do",
-                  attachments: [{
-                    kind: 'poll', id: 'ds-cw-poll',
-                    choices: [
-                      { id: 'walk', label: 'long walk', votes: 12 },
-                      { id: 'call', label: 'call a friend', votes: 8 },
-                      { id: 'rest', label: 'just sleep', votes: 4 },
-                    ],
-                    totalVotes: 24, multi: false, endsIn: '4h',
-                    myVote: null, expired: false,
-                  }],
-                  replies: 2, boosts: 0, favs: 9,
-                  actions: { reply: false, boost: false, fav: false },
-                }} onAction={()=>{}}/>
-              </Specimen>
-            </Grid>
-            <div className="ds-sub-h">Boosts</div>
-            <p className="ds-sub" style={{marginBottom: 14}}>When a post is reshared (boosted), the original post is rendered inside a <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>{'<PostBoost/>'}</code> wrapper. A 4px accent-green left edge runs the full height of the boost; a horizontal attribution row at the top carries a small "boost" tag pill, the repeater's mini-avatar, name, handle, and short relative time. Long names get the full row width — the layout is identical at all viewport sizes.</p>
-            <Grid cols={2}>
-              <Specimen label="Boosted · text post" note="post.boostedBy = { name, handle, avClass, time }" padded={false} span={2}>
-                <Post post={{
-                  id: 'ds-boost-1', name: 'soft.hertz', handle: '@soft.hertz@kolektiva.social', time: '3h',
-                  avClass: 'av-grad-3',
-                  boostedBy: { name: 'FiestaBun', handle: '@FiestaBun@decayable.ink', avClass: 'av-pixel-pc', time: '35m' },
-                  body: "the algorithm doesn't care about you. the timeline doesn't either. but the people in it do, and that's worth keeping.",
-                  replies: 8, boosts: 34, favs: 142,
-                  actions: { reply: false, boost: false, fav: false },
-                }} onAction={()=>{}}/>
-              </Specimen>
-              <Specimen label="Boosted · with photo" note="left edge runs full height regardless of content" padded={false} span={2}>
-                <Post post={{
-                  id: 'ds-boost-2', name: 'orbit', handle: '@orbit@spacebear.net', time: '8h',
-                  avClass: 'av-orb',
-                  boostedBy: { name: 'datagram', handle: '@datagram@retro.social', avClass: 'av-pixel-pc', time: '12m' },
-                  body: "dusk in the city 🌆",
-                  attachments: [{ kind: 'photo', src: 'samples/falco.png', alt: 'station platform at dusk' }],
-                  replies: 4, boosts: 15, favs: 120,
-                  actions: { reply: false, boost: false, fav: false },
-                }} onAction={()=>{}}/>
-              </Specimen>
-            </Grid>
           </Slab>
-          <Slab id="thread" kicker="09" title="Thread" sub="The thread view stacks three post shapes — Ancestor (collapsed), Focused (expanded with meta), Reply (with branching line). Pressing Reply on any post unfolds an inline composer beneath it, pre-addressed to that author, with its own tool rail.">
+
+          {/* ============ Thread ============ */}
+          <Slab id="thread" kicker="09" title="Thread" sub="The thread view stacks three post shapes — Ancestor (collapsed), Focused (expanded with meta), Reply (with branching line).">
             <Specimen label="Full thread" note="AncestorPost → FocusedPost → ReplyPost" padded={false}>
               <DemoThread/>
             </Specimen>
@@ -1337,11 +1176,34 @@ function DemoToggleRow() {
   );
 }
 
-function DemoComposer({ initial }) {
-  const [c, setC] = useState(initial || { text: "drafting in the design system", privacy: 'Public' });
-  const Live = window.Composer;
-  if (!Live) return <div style={{padding: 20, fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)'}}>Composer not loaded</div>;
-  return <Live composer={c} setComposer={setC} onPost={() => {}}/>;
+function DemoComposer() {
+  const [c, setC] = useState({ text: "drafting in the design system", privacy: 'Public' });
+  return (
+    <div className="composer">
+      <Avatar variant="compose" avBanner="sunset"/>
+      <div>
+        <textarea
+          className="composer-input"
+          placeholder="What's on your mind?"
+          value={c.text}
+          onChange={e => setC({...c, text: e.target.value})}
+        />
+        <div className="composer-row">
+          <button className="composer-tool" title="Image"><I.image style={{width: 18, height: 18}}/></button>
+          <button className="composer-tool" title="Draw">
+            <svg viewBox="0 0 24 24" fill="none" style={{width: 18, height: 18}}><path d="M3 21l4-1 11.5-11.5a2.121 2.121 0 00-3-3L4 17l-1 4z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/><path d="M14 6l3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
+          </button>
+          <button className="composer-tool" title="Poll"><I.poll style={{width: 18, height: 18}}/></button>
+          <button className="composer-tool" title="Emoji"><I.smile style={{width: 18, height: 18}}/></button>
+          <button className="composer-tool cw">CW</button>
+          <button className="composer-tool privacy"><I.globe style={{width: 13, height: 13}}/><span>{c.privacy}</span><I.chevDown style={{width: 12, height: 12}}/></button>
+          <span className="composer-spacer"></span>
+          <span className="composer-count">{500 - c.text.length}</span>
+          <Button variant="primary" disabled={!c.text.trim()}>Post</Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function DemoThread() {

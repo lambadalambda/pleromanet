@@ -687,3 +687,259 @@
 .bv-v4d-postcol {
   min-width: 0;
 }
+
+/* ============================================================
+   V4e · Left edge + top attribution row
+   Same accent-green left edge as V4d, but attribution moves to
+   a horizontal row at the top so long names get full width.
+   ============================================================ */
+.bv-v4e {
+  border-left: 4px solid var(--good);
+  background: linear-gradient(90deg, rgba(168, 213, 177, 0.06), transparent 120px);
+}
+.bv-v4e-attr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 6px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(168, 213, 177, 0.04);
+  min-width: 0;
+}
+.bv-v4e-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--good-ink);
+  padding: 1px 7px 2px;
+  background: rgba(168, 213, 177, 0.22);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.bv-v4e-tag svg { width: 9px; height: 9px; }
+.bv-v4e-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.bv-v4e-handle {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+.bv-v4e-time {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted-2);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.bv-v4e-postcol {
+  min-width: 0;
+}
+
+/* ============================================================
+   V4f · Tinted top banner — full-width green strip on top
+   ============================================================ */
+.bv-v4f-banner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 14px;
+  background: linear-gradient(180deg, rgba(168, 213, 177, 0.22), rgba(168, 213, 177, 0.08));
+  border-bottom: 1px solid rgba(74, 122, 85, 0.18);
+  min-width: 0;
+}
+.bv-v4f-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: white;
+  padding: 2px 8px 3px;
+  background: var(--good-ink);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.bv-v4f-tag svg { width: 9px; height: 9px; }
+.bv-v4f-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.bv-v4f-handle {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--good-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+.bv-v4f-time {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--good-ink);
+  flex-shrink: 0;
+  margin-left: auto;
+  opacity: 0.85;
+}
+
+/* ============================================================
+   V4g · Corner-tab marker — small green tab on top-left,
+   thin attribution row beneath, no rail / no banner.
+   ============================================================ */
+.bv-v4g-wrap {
+  position: relative;
+  overflow: visible;
+  margin-top: 10px;
+}
+.bv-v4g-tab {
+  position: absolute;
+  top: -10px;
+  left: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 9px 0 8px;
+  background: var(--good-ink);
+  color: white;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  border-radius: 3px 3px 0 0;
+  box-shadow: 0 1px 0 rgba(74, 122, 85, 0.35);
+}
+.bv-v4g-tab::after {
+  content: '';
+  position: absolute;
+  right: -6px;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-left: 6px solid var(--good-ink);
+  border-bottom: 20px solid transparent;
+}
+.bv-v4g-tab svg { width: 9px; height: 9px; }
+.bv-v4g-attr {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 14px 8px 60px;
+  border-bottom: 1px dashed var(--border);
+  min-width: 0;
+  font-size: 12.5px;
+}
+.bv-v4g-name {
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.bv-v4g-handle {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+.bv-v4g-time {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted-2);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ============================================================
+   V4h · Top quote-bar — V4d mirrored across the diagonal.
+   4px accent-green stripe across the top, tag pill sits on it.
+   ============================================================ */
+.bv-v4h-wrap {
+  position: relative;
+  /* allow the tag pill to overhang above the card without being clipped */
+  overflow: visible;
+}
+.bv-v4h-stripe {
+  position: relative;
+  height: 4px;
+  background: var(--good);
+}
+.bv-v4h-attr {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 14px 8px;
+  background: rgba(168, 213, 177, 0.06);
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+.bv-v4h-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--good-ink);
+  padding: 1px 7px 2px;
+  background: rgba(168, 213, 177, 0.22);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.bv-v4h-tag svg { width: 9px; height: 9px; }
+.bv-v4h-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.bv-v4h-handle {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+.bv-v4h-time {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted-2);
+  flex-shrink: 0;
+  margin-left: auto;
+}

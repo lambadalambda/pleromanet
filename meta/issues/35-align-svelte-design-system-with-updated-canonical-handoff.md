@@ -17,6 +17,9 @@ Bring `/design-system` back into parity with the updated canonical handoff after
 
 - Update `/design-system` section content to match `meta/design/claude-handoff/project/design-system.jsx` v2.4.58.
 - Add the new Polls, Content warnings, Boosts, expanded Composer, expanded Reply addressees, and updated Thread specimens.
+- Re-audit `/design-system` against the latest imported handoff from `~/Downloads/PleromaNet/`, now copied into `meta/design/claude-handoff/project/`.
+- Reflect new canonical copy/specimens for reply addressee ghost chips and top-row boost attribution.
+- Decide how to expose the newly imported `Pinged variants`, `Reaction variants`, and `Postmark variants` pages in Svelte, if at all.
 - Replace hardcoded stale specimen labels and notes with the updated canonical labels and copy.
 - Fix the sidebar shared-primitive count so it is not permanently `0 shared primitives`.
 - Decide whether the new variant pages should remain only as canonical handoff references or be exposed through Svelte design-system specimens.
@@ -32,7 +35,11 @@ Bring `/design-system` back into parity with the updated canonical handoff after
 
 - Partially done: several canonical specimen groups are present, including polls, content warnings, boosted posts, reply addressee chips, notifications, radio, and oekaki.
 - Still open: the sidebar still reports `0 shared primitives`, and issue 30 composer specimens are missing.
-- Still open: final parity with `design-system.jsx` v2.4.58 has not been audited section-by-section.
+- Still open: final parity with the latest imported `design-system.jsx` has not been audited section-by-section.
+- New handoff delta: boost specimens now describe the V4e top attribution row, not the older side rail.
+- New handoff delta: reply addressee specimens now describe a ghost parent chip with a glyph, not a filled accent parent chip.
+- New handoff delta: thread styles add rail bridging and adjust the focused-post top line alignment.
+- New handoff delta: new `pinged-variants`, `reaction-variants`, and `postmark-variants` pages were added to the canonical project.
 
 ## Notes
 

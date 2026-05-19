@@ -60,28 +60,23 @@ function PostHead({ post, name, handle, time }) {
 // Rules are most-specific-first; the last branch is the fallthrough.
 function pickAttachmentLayout(attachments) {
   if (!attachments || attachments.length === 0) return { type: 'none' };
-  // Polls are always rendered separately from media. Pull them out and
-  // surface them on layout.polls; the rest of the picker only sees media.
-  const polls = attachments.filter(a => a.kind === 'poll');
-  const media = attachments.filter(a => a.kind !== 'poll');
-  if (media.length === 0) return { type: 'none', polls };
-  const photos = media.filter(a => a.kind === 'photo');
-  const videos = media.filter(a => a.kind === 'video');
-  const audios = media.filter(a => a.kind === 'audio');
+  const photos = attachments.filter(a => a.kind === 'photo');
+  const videos = attachments.filter(a => a.kind === 'video');
+  const audios = attachments.filter(a => a.kind === 'audio');
 
-  if (media.length === 1) {
-    return { type: 'single', attachment: media[0], polls };
+  if (attachments.length === 1) {
+    return { type: 'single', attachment: attachments[0] };
   }
-  if (photos.length === media.length && photos.length <= 4) {
-    return { type: 'photoGrid', photos, polls };
+  if (photos.length === attachments.length && photos.length <= 4) {
+    return { type: 'photoGrid', photos };
   }
   if (photos.length === 1 && audios.length === 1 && videos.length === 0) {
-    return { type: 'photoAudio', photo: photos[0], audio: audios[0], polls };
+    return { type: 'photoAudio', photo: photos[0], audio: audios[0] };
   }
   if (photos.length >= 2 && photos.length <= 4 && audios.length === 1 && videos.length === 0) {
-    return { type: 'photosAudio', photos, audio: audios[0], polls };
+    return { type: 'photosAudio', photos, audio: audios[0] };
   }
-  return { type: 'heroStrip', attachments: media, polls };
+  return { type: 'heroStrip', attachments };
 }
 
 // Back-compat: posts authored against the legacy `photos | video | audio`
@@ -99,17 +94,15 @@ function normalizeAttachments(post) {
 // Dispatches based on pickAttachmentLayout. Components are pulled off
 // window at render time so load order between components.jsx and
 // attachments.jsx is flexible.
-function PostMedia({ post, onOpen, onVote }) {
+function PostMedia({ post, onOpen }) {
   const PG = window.PhotoGrid;
   const VA = window.VideoAttachment;
   const AA = window.AudioAttachment;
   const CA = window.CompactAudio;
   const HS = window.MediaHeroStrip;
-  const PL = window.PollAttachment;
 
   const attachments = normalizeAttachments(post);
   const layout = pickAttachmentLayout(attachments);
-  const polls = layout.polls || [];
 
   return (
     <React.Fragment>
@@ -148,8 +141,6 @@ function PostMedia({ post, onOpen, onVote }) {
       {layout.type === 'heroStrip' && HS && (
         <HS attachments={layout.attachments} onOpen={onOpen}/>
       )}
-
-      {PL && polls.map(p => <PL key={p.id} poll={p} onVote={onVote}/>)}
     </React.Fragment>
   );
 }
@@ -182,15 +173,10 @@ function PostActions({ post, onAction }) {
 
 // ---------- PostBody ----------
 // Renders post.body with inline @-mention links auto-detected, plus an
-// optional "Replying to" footer line for the leading address pile-up (the
+// optional "PINGED" footer line for the leading address pile-up (the
 // recipients that auto-prepend to a fediverse reply). The leading
 // addressees are NOT rendered inline — they live in post.addressees and
 // show up below the body. Mid-text @mentions stay inline at body size.
-//
-// The FIRST element of post.addressees is, by fediverse convention, the
-// author of the post being directly replied to. It renders as a filled
-// accent chip with a ↪ glyph. The rest are inherited cc-addressees and
-// render as ghost chips after an "also" divider.
 //
 // Usage:
 //   <PostBody body={post.body} addressees={post.addressees}/>
@@ -210,39 +196,18 @@ function renderBodyText(text) {
   if (lastIdx < text.length) out.push(text.slice(lastIdx));
   return out;
 }
-// Tiny ↪ glyph used inside the parent chip. Kept local (smaller than I.reply)
-// because the chip is only 10.5px tall and the action-bar reply icon would
-// optically overpower the text.
-function ReplyToGlyph(props) {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="10" height="10" aria-hidden="true" {...props}>
-      <path d="M6 4L2 8l4 4"/>
-      <path d="M2 8h7a4 4 0 014 4v1"/>
-    </svg>
-  );
-}
-function PostPinged({ addressees, focused = false }) {
-  if (!addressees || addressees.length === 0) return null;
-  const [parent, ...cc] = addressees;
-  return (
-    <div className={"post-pinged " + (focused ? 'focused-pinged' : '')}>
-      <span className="post-pinged-l">Replying to</span>
-      <span className="post-pinged-list">
-        <a className="post-pinged-chip-parent">
-          <ReplyToGlyph/>
-          {parent}
-        </a>
-        {cc.length > 0 && <span className="post-pinged-also">· also</span>}
-        {cc.map(a => <a key={a} className="post-pinged-chip">{a}</a>)}
-      </span>
-    </div>
-  );
-}
 function PostBody({ body, addressees, className = '' }) {
   return (
     <React.Fragment>
       <div className={"post-body " + className}>{renderBodyText(body)}</div>
-      <PostPinged addressees={addressees}/>
+      {addressees && addressees.length > 0 && (
+        <div className="post-pinged">
+          <span className="post-pinged-l">Pinged</span>
+          <span className="post-pinged-list">
+            {addressees.map(a => <a key={a} className="post-pinged-chip">{a}</a>)}
+          </span>
+        </div>
+      )}
     </React.Fragment>
   );
 }
@@ -331,124 +296,6 @@ function QuotedPost({ quoted }) {
   );
 }
 
-// ---------- PostCW ----------
-// Wraps a post's hidden content (body + quoted + media) when post.cw is set.
-// Shows a folded card (B2 from cw-variants) until the reader presses
-// "Show post", after which the content is revealed with a small summary
-// strip + Hide link above it.
-//
-// Usage:
-//   <PostCW post={post}>
-//     <PostBody.../>
-//     <QuotedPost.../>
-//     <PostMedia.../>
-//   </PostCW>
-// If no post.cw is set, children render directly.
-function PostCWGlyph(props) {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="13" height="13" aria-hidden="true" {...props}>
-      <path d="M8 1.5l7 12.5H1L8 1.5z"/>
-      <path d="M8 6v4M8 12v.5"/>
-    </svg>
-  );
-}
-function attachmentSummary(post) {
-  const atts = post.attachments || [];
-  const photos = atts.filter(a => a.kind === 'photo').length;
-  const videos = atts.filter(a => a.kind === 'video').length;
-  const audios = atts.filter(a => a.kind === 'audio').length;
-  const polls = atts.filter(a => a.kind === 'poll').length;
-  const parts = [];
-  if (photos) parts.push(photos + (photos === 1 ? ' photo' : ' photos'));
-  if (videos) parts.push(videos + (videos === 1 ? ' video' : ' videos'));
-  if (audios) parts.push(audios + (audios === 1 ? ' audio' : ' audios'));
-  if (polls)  parts.push('poll');
-  return parts;
-}
-function bodyWordCount(post) {
-  const txt = (post.body || '').trim();
-  if (!txt) return 0;
-  return txt.split(/\s+/).length;
-}
-function PostCW({ post, children }) {
-  const [revealed, setRevealed] = React.useState(false);
-  if (!post.cw) return <React.Fragment>{children}</React.Fragment>;
-  if (revealed) {
-    return (
-      <React.Fragment>
-        <div className="post-cw-revealed-summary">
-          <PostCWGlyph/>
-          <span className="post-cw-revealed-l">CW</span>
-          <span className="post-cw-revealed-text">{post.cw}</span>
-          <button className="post-cw-revealed-hide" onClick={(e) => { e.stopPropagation(); setRevealed(false); }}>Hide</button>
-        </div>
-        {children}
-      </React.Fragment>
-    );
-  }
-  const attChips = attachmentSummary(post);
-  const words = bodyWordCount(post);
-  return (
-    <div className="post-cw-card" onClick={(e) => e.stopPropagation()}>
-      <div className="post-cw-head">
-        <PostCWGlyph/>
-        Content warning
-      </div>
-      <div className="post-cw-summary">{post.cw}</div>
-      {(attChips.length > 0 || words > 0) && (
-        <div className="post-cw-meta">
-          <span>Hidden:</span>
-          {attChips.map(c => <span key={c} className="post-cw-meta-chip">{c}</span>)}
-          {words > 0 && <span className="post-cw-meta-chip">~{words} words</span>}
-        </div>
-      )}
-      <div className="post-cw-foot">
-        <button className="post-cw-reveal" onClick={(e) => { e.stopPropagation(); setRevealed(true); }}>Show post</button>
-        <button className="post-cw-link">Always show from @{post.handle ? post.handle.split('@').filter(Boolean)[0] : 'author'} →</button>
-      </div>
-    </div>
-  );
-}
-
-// ---------- PostBoost ----------
-// Wraps a post when post.boostedBy is set. Renders the V4e treatment:
-// a 4px accent-green left edge runs the full height of the boost, with
-// a horizontal attribution row at the top containing the "boost" tag
-// pill, the repeater's mini-avatar, name, handle, and time. The post
-// itself renders below with no other modifications.
-//
-// Use as a wrapper around your post markup. If post.boostedBy is unset,
-// children render directly with no chrome.
-//
-//   <PostBoost post={post}>
-//     <div className="post">…</div>
-//   </PostBoost>
-function PostBoostGlyph(props) {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" width="9" height="9" aria-hidden="true" {...props}>
-      <path d="M3 6l2-2 2 2M5 4v6a1.5 1.5 0 001.5 1.5h5M13 10l-2 2-2-2M11 12V6a1.5 1.5 0 00-1.5-1.5h-5"/>
-    </svg>
-  );
-}
-function PostBoost({ post, children }) {
-  const boost = post && post.boostedBy;
-  if (!boost) return <React.Fragment>{children}</React.Fragment>;
-  return (
-    <div className="post-boost">
-      <div className="post-boost-attr">
-        <span className="post-boost-tag"><PostBoostGlyph/>boost</span>
-        <Avatar variant="post" avClass={boost.avClass} avBanner={boost.avBanner} size={18} className="post-boost-av"/>
-        <span className="post-boost-name">{boost.name}</span>
-        <span className="post-boost-handle">{boost.handle}</span>
-        {boost.time && <span className="post-boost-time">{boost.time}</span>}
-      </div>
-      <div className="post-boost-postcol">
-        {children}
-      </div>
-    </div>
-  );
-}
-
 // ---------- PostShell ----------
 // The right column of any post: head + body + quoted + media + actions.
 // Use this alongside an Avatar to compose Post / AncestorPost / ReplyPost.
@@ -456,11 +303,9 @@ function PostShell({ post, onAction, children }) {
   return (
     <div style={{minWidth: 0}}>
       <PostHead post={post}/>
-      <PostCW post={post}>
-        <PostBody body={post.body} addressees={post.addressees}/>
-        <QuotedPost quoted={post.quotedPost}/>
-        <PostMedia post={post}/>
-      </PostCW>
+      <PostBody body={post.body} addressees={post.addressees}/>
+      <QuotedPost quoted={post.quotedPost}/>
+      <PostMedia post={post}/>
       <PostActions post={post} onAction={onAction}/>
       {children}
     </div>
@@ -553,7 +398,7 @@ function StatusRow({ label, value, valueClass = '' }) {
 }
 
 Object.assign(window, {
-  Avatar, PostHead, PostBody, PostPinged, PostCW, PostBoost, PostMedia, PostActions, PostShell,
+  Avatar, PostHead, PostBody, PostMedia, PostActions, PostShell,
   QuotedPost,
   Card, CardHead, CardFoot,
   Button, Pill, Tag, Toggle, Seg,

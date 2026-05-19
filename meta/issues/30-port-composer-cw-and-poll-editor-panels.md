@@ -10,6 +10,8 @@ Port the updated composer states for content warnings and poll creation into the
 - Replace the non-functional poll toolbar button with a toggled poll editor panel.
 - Support 2-6 poll choices, add/remove choice controls, per-choice counters, duration selection, single/multiple voting selection, and hide-results-until-ended toggle.
 - Keep the composer toolbar active states aligned with the updated handoff.
+- Align CW and poll panel spacing with the latest handoff: panels sit flush inside the composer body instead of using the older `78px` left offset.
+- Add/use the updated `--warn-ink` theme token for CW labels and folded CW text across light and dark themes.
 - Preserve existing status creation behavior and instance character-limit behavior.
 - Ensure composer state can produce the data needed by the Pleroma status creation API when backend poll/CW wiring is implemented.
 
@@ -25,6 +27,7 @@ Port the updated composer states for content warnings and poll creation into the
 
 - Partially done: the real home composer has the canonical CW input row wired to status creation; the poll button is still a visual control without an editor panel.
 - Partially done: `/design-system` exposes the canonical idle and CW-input composer specimens, but the poll and CW-plus-poll specimens are still missing.
+- New handoff delta: latest `styles.css` moves `.composer-cw` and `.composer-poll` margins to `4px 0 ...` and replaces hard-coded warning label color with `--warn-ink`.
 - Related: status creation now serializes content warnings, but poll payload preparation remains unwired.
 
 ## Notes

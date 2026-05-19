@@ -290,6 +290,94 @@ function V4d() {
 }
 
 // ============================================================
+// V4e · Quote-bar TOP — accent left edge + attribution row on top
+// Same green left edge as V4d, but the attribution moves to a
+// horizontal row at the top of the post (full width for long names).
+// ============================================================
+function V4e({ repeater = REPEATER }) {
+  return (
+    <div className="bv-postwrap">
+      <div className="bv-v4e">
+        <div className="bv-v4e-attr">
+          <span className="bv-v4e-tag"><G.boostTiny/>boost</span>
+          <span className={"bv-mini-av " + repeater.avClass}/>
+          <span className="bv-v4e-name">{repeater.name}</span>
+          <span className="bv-v4e-handle">{repeater.handle}</span>
+          <span className="bv-v4e-time">35m</span>
+        </div>
+        <div className="bv-v4e-postcol">
+          <BoostedPostBody/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// V4f · Tinted top banner — full-width green-tinted bar,
+// tag pill + avatar + name + handle + time. No left edge.
+// ============================================================
+function V4f({ repeater = REPEATER }) {
+  return (
+    <div className="bv-postwrap">
+      <div className="bv-v4f-banner">
+        <span className="bv-v4f-tag"><G.boostTiny/>boost</span>
+        <span className={"bv-mini-av " + repeater.avClass}/>
+        <span className="bv-v4f-name">{repeater.name}</span>
+        <span className="bv-v4f-handle">{repeater.handle}</span>
+        <span className="bv-v4f-time">35m</span>
+      </div>
+      <BoostedPostBody/>
+    </div>
+  );
+}
+
+// ============================================================
+// V4g · Corner-tab marker — a green tab sticks out of the
+// top-left like a bookmark/folder tab, with a thin attribution
+// row beneath. Distinctive without consuming a full rail.
+// ============================================================
+function V4g({ repeater = REPEATER }) {
+  return (
+    <div className="bv-postwrap bv-v4g-wrap">
+      <div className="bv-v4g-tab">
+        <G.boostTiny/>
+        <span>BOOST</span>
+      </div>
+      <div className="bv-v4g-attr">
+        <span className={"bv-mini-av " + repeater.avClass}/>
+        <span className="bv-v4g-name">{repeater.name}</span>
+        <span className="bv-v4g-handle">{repeater.handle}</span>
+        <span className="bv-v4g-time">35m</span>
+      </div>
+      <BoostedPostBody/>
+    </div>
+  );
+}
+
+// ============================================================
+// V4h · Top quote-bar — green stripe runs across the top
+// instead of down the side (mirror of V4d). Tag pill anchored
+// at top-left, attribution row below.
+// ============================================================
+function V4h({ repeater = REPEATER }) {
+  return (
+    <div className="bv-postwrap bv-v4h-wrap">
+      <div className="bv-v4h-stripe">
+        <span className="bv-v4h-tag"><G.boostTiny/>boost</span>
+      </div>
+      <div className="bv-v4h-attr">
+        <span className={"bv-mini-av " + repeater.avClass}/>
+        <span className="bv-v4h-name">{repeater.name}</span>
+        <span className="bv-v4h-handle">{repeater.handle}</span>
+        <span className="bv-v4h-time">35m</span>
+      </div>
+      <BoostedPostBody/>
+    </div>
+  );
+}
+
+// ============================================================
 // V5 · Boost-as-quote-card (wildcard)
 // The repeater is the outer post author; the boosted post is
 // embedded as a smart-card. Allows the booster to add commentary.
@@ -499,6 +587,77 @@ function App() {
               Trade: 'Bold left edge consumes more visual weight',
             }}>
             <V4d/>
+          </Page>
+        </DCArtboard>
+
+      </DCSection>
+
+      <DCSection
+        id="top-attribution"
+        title="V4d · top-attribution explorations — same green strip, more name room"
+        subtitle="V4d's side rail is tight when names run long. These four keep the green-strip visual distinction (the part that makes V4d feel different from a thread) but move attribution to a horizontal row, so any-length name fits comfortably. Each artboard shows the SHORT name first, then the same variant with a long handle (BernadetteFromMontréal@too.many.subdomains.dev) so you can see how each holds up.">
+
+        <DCArtboard id="v4e" label="V4e · left edge + top attribution row" width={720} height={520}>
+          <Page
+            kicker="V4e · RECOMMENDED"
+            title="Left edge + top attribution row"
+            sub="Keeps V4d's accent-green left edge running the full height (the visual hook), but the attribution becomes a single horizontal row at the top. Tag pill anchors the left, then mini-avatar, name, handle, time. Name has the whole row to breathe."
+            cheat={{
+              Shape: '4px good-color left edge · top attribution row · pill + name + handle + time',
+              Wins: 'Keeps green-strip distinction · room for any name length · less chrome than V4d',
+              Trade: 'No avatar prominence — the booster is a label, not a column',
+            }}>
+            <V4e/>
+            <div style={{height: 12}}/>
+            <V4e repeater={{ name: 'BernadetteFromMontréal', handle: '@bernadette@too.many.subdomains.dev', avClass: 'av-pixel-pc' }}/>
+          </Page>
+        </DCArtboard>
+
+        <DCArtboard id="v4f" label="V4f · tinted top banner" width={720} height={520}>
+          <Page
+            kicker="V4f"
+            title="Tinted top banner"
+            sub="A full-width green-tinted strip sits above the post. Tag pill + mini avatar + name + handle + time, left-aligned. The tint replaces the left edge as the green-strip visual signal. Cleanest top-attribution treatment."
+            cheat={{
+              Shape: 'Full-width green-tinted top banner · pill + avatar + name + handle + time',
+              Wins: 'Maximum name room · clear horizontal reading order',
+              Trade: 'Heavier than V4e (full bar of green tint vs. 4px edge)',
+            }}>
+            <V4f/>
+            <div style={{height: 12}}/>
+            <V4f repeater={{ name: 'BernadetteFromMontréal', handle: '@bernadette@too.many.subdomains.dev', avClass: 'av-pixel-pc' }}/>
+          </Page>
+        </DCArtboard>
+
+        <DCArtboard id="v4g" label="V4g · corner-tab marker" width={720} height={520}>
+          <Page
+            kicker="V4g · DISTINCTIVE"
+            title="Corner-tab marker"
+            sub="A small green 'BOOST' tab sticks out of the top-left corner like a magazine bookmark or folder index tab. Attribution row below uses the panel background — no banner, no left edge. The tab alone does the green-strip job."
+            cheat={{
+              Shape: 'Top-left green tab · attribution row · no rail, no banner',
+              Wins: 'Least chrome that still has the green-strip signal · clearly novel',
+              Trade: 'Tab overhangs the card top — needs the right margin in dense feeds',
+            }}>
+            <V4g/>
+            <div style={{height: 12}}/>
+            <V4g repeater={{ name: 'BernadetteFromMontréal', handle: '@bernadette@too.many.subdomains.dev', avClass: 'av-pixel-pc' }}/>
+          </Page>
+        </DCArtboard>
+
+        <DCArtboard id="v4h" label="V4h · top quote-bar (mirrored V4d)" width={720} height={520}>
+          <Page
+            kicker="V4h"
+            title="Top quote-bar (mirrored V4d)"
+            sub="Literally V4d rotated 90°: the 4px accent-green edge runs across the TOP of the post instead of down the side. Tag pill hangs off the stripe, attribution row below. Closest sibling to V4d — same vocabulary, different axis."
+            cheat={{
+              Shape: '4px good-color top edge · tag pill on stripe · attribution row below',
+              Wins: 'Strongest visual continuity with V4d · room for any name length',
+              Trade: 'Adds a stripe to the top of every boost — could read busy stacked in a feed',
+            }}>
+            <V4h/>
+            <div style={{height: 12}}/>
+            <V4h repeater={{ name: 'BernadetteFromMontréal', handle: '@bernadette@too.many.subdomains.dev', avClass: 'av-pixel-pc' }}/>
           </Page>
         </DCArtboard>
 
