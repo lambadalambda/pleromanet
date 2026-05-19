@@ -7,6 +7,7 @@
 	import FocusedPost from '$lib/rebuild/FocusedPost.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
 	import NotifRow from '$lib/rebuild/NotifRow.svelte';
+	import NotifsPopover from '$lib/rebuild/NotifsPopover.svelte';
 	import Post from '$lib/rebuild/Post.svelte';
 	import ProfileMini from '$lib/rebuild/ProfileMini.svelte';
 	import ReplyPost from '$lib/rebuild/ReplyPost.svelte';
@@ -91,6 +92,7 @@
 		| { status: 'empty' }
 		| { status: 'error'; error: PleromaRequestErrorView }
 		| { status: 'success'; data: PleromaNotificationView[] };
+	type NotificationPopoverStatus = 'ready' | 'loading' | 'empty' | 'error';
 	const HOME_TIMELINE_CHECK_EVENT = 'pleromanet:check-home-timeline';
 	const HOME_TIMELINE_FALLBACK_INTERVAL_MS = 60_000;
 	const HOME_TIMELINE_STREAM_RECONNECT_MS = HOME_TIMELINE_FALLBACK_INTERVAL_MS;
@@ -116,6 +118,7 @@
 	let mobileDrawerOpen = $state(false);
 	let mobileSheetOpen = $state(false);
 	let userMenuOpen = $state(false);
+	let notificationsMenuOpen = $state(false);
 	let exploreFeed = $state<ExploreFeed>('popular');
 	let joinedCommunities = $state<Record<string, boolean>>({});
 	let settingsSaveState = $state('Saved');
@@ -192,6 +195,14 @@
 
 	let notificationItems = $derived(notificationState.status === 'success' ? notificationState.data : []);
 	let unreadNotificationCount = $derived(notificationItems.filter((notification) => !notification.read).length);
+	let notificationPopoverStatus = $derived<NotificationPopoverStatus>(
+		notificationState.status === 'success' ? 'ready' :
+		notificationState.status === 'empty' ? 'empty' :
+		notificationState.status === 'error' ? 'error' :
+		'loading'
+	);
+	let notificationPopoverError = $derived(notificationState.status === 'error' ? notificationState.error : null);
+	let headerNotificationLabel = $derived(unreadNotificationCount > 0 ? `Notifications, ${unreadNotificationCount} unread` : 'Notifications');
 
 	let navItems = $derived<NavItem[]>([
 		{ route: 'home', label: 'Home', icon: 'home', href: '/app/home' },
@@ -448,6 +459,7 @@
 	const handleWindowKeydown = (event: KeyboardEvent) => {
 		if (event.key !== 'Escape') return;
 		userMenuOpen = false;
+		notificationsMenuOpen = false;
 		mobileDrawerOpen = false;
 		mobileSheetOpen = false;
 	};
@@ -649,6 +661,7 @@
 		};
 	};
 	const openNotification = (notification: SocialNotificationData) => {
+		notificationsMenuOpen = false;
 		if (notification.target?.route === 'thread') {
 			goto(`/app/thread/${encodeURIComponent(notification.target.statusId)}`);
 			return;
@@ -915,6 +928,26 @@
 	const retryThread = () => {
 		if (currentSession) void loadThread(currentSession, threadStatusId);
 	};
+	const openNotificationsRoute = () => {
+		notificationsMenuOpen = false;
+		goto('/app/notifications');
+	};
+	const toggleNotificationsPopover = () => {
+		userMenuOpen = false;
+		notificationsMenuOpen = !notificationsMenuOpen;
+		if (!notificationsMenuOpen) return;
+
+		const session = currentSession;
+		if (!session) return;
+		if (session.account) {
+			if (notificationState.status === 'idle' || notificationState.status === 'error') void loadNotifications(session);
+			else ensureNotifications(session);
+			return;
+		}
+
+		notificationState = { status: 'loading' };
+		ensureProfileAccount(session);
+	};
 	const retryNotifications = () => {
 		if (!currentSession) return;
 		if (currentSession.account) {
@@ -1016,7 +1049,27 @@
 					<Icon name="search" width={15} height={15} />
 					<input type="search" aria-label="Search PleromaNet" placeholder="Search PleromaNet" />
 				</label>
-				<button type="button" class="user-chip" aria-label="quiet admin account menu" onclick={() => (userMenuOpen = !userMenuOpen)}>
+				<div class="header-notifs">
+					<button type="button" class="icon-btn" aria-label={headerNotificationLabel} aria-expanded={notificationsMenuOpen} aria-controls={notificationsMenuOpen ? 'header-notifications-popover' : undefined} data-bell onclick={toggleNotificationsPopover}>
+						<Icon name="bell" width={20} height={20} />
+						{#if unreadNotificationCount > 0}<span class="badge">{unreadNotificationCount}</span>{/if}
+					</button>
+					{#if notificationsMenuOpen}
+						<div id="header-notifications-popover" class="header-notifs-pop" data-testid="header-notifications-popover">
+							<NotifsPopover
+								notifications={notificationItems}
+								status={notificationPopoverStatus}
+								errorTitle={notificationPopoverError?.title}
+								errorMessage={notificationPopoverError?.message}
+								onClose={() => (notificationsMenuOpen = false)}
+								onSeeAll={openNotificationsRoute}
+								onMarkAll={markNotificationsRead}
+								onOpen={openNotification}
+							/>
+						</div>
+					{/if}
+				</div>
+				<button type="button" class="user-chip" aria-label="quiet admin account menu" onclick={() => { notificationsMenuOpen = false; userMenuOpen = !userMenuOpen; }}>
 					<span class="notif-av av-orb"></span>
 					<span>quiet admin</span>
 					<Icon name="chevDown" width={12} height={12} />

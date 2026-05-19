@@ -122,6 +122,7 @@ const mockOwnAccount = async (page: Page) => {
 };
 
 const notificationBadge = (page: Page) => page.getByTestId('left-sidebar').getByRole('link', { name: /Notifications/ }).locator('.count');
+const headerBell = (page: Page) => page.getByTestId('app-header').getByRole('button', { name: /Notifications/ });
 
 test('real notifications route renders mocked API notifications and navigates by target', async ({ page }) => {
 	await authenticate(page);
@@ -156,6 +157,52 @@ test('real notifications route renders mocked API notifications and navigates by
 	await page.getByTestId('notifications-list').getByText('relay bot sent a notification').click();
 	await expect(page).toHaveURL('/app/notifications');
 	await expectNoHorizontalOverflow(page);
+});
+
+test('header bell opens real notifications popover with filters and read actions', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page);
+	await mockNotifications(page, () => initialNotifications);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	await expect(headerBell(page).locator('.badge')).toHaveText('5');
+	await headerBell(page).click();
+	const popover = page.getByTestId('header-notifications-popover');
+	await expect(popover).toBeVisible();
+	await expect(popover).toContainText('orbit mentioned you');
+	await expect(popover).toContainText('static.gif followed you');
+	await expect(popover.locator('.notif-pop-count')).toHaveText('5 new');
+
+	await popover.getByRole('button', { name: 'Favorites' }).click();
+	await expect(popover).toContainText('kestrel favorited your post');
+	await expect(popover).not.toContainText('orbit mentioned you');
+
+	await popover.getByRole('button', { name: 'Mark all read' }).click();
+	await expect(headerBell(page).locator('.badge')).toHaveCount(0);
+	await expect(popover.locator('.notif-pop-count')).toHaveCount(0);
+	await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), notificationLastSeenStorageKey(session))).toBe('2026-05-18T12:02:00.000Z');
+
+	await popover.getByRole('button', { name: /See all notifications/ }).click();
+	await expect(page).toHaveURL('/app/notifications');
+	await expect(popover).toHaveCount(0);
+});
+
+test('header notification rows navigate by target and close the popover', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page);
+	await mockThread(page, mentionStatus);
+	await mockNotifications(page, () => initialNotifications);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	await headerBell(page).click();
+	const popover = page.getByTestId('header-notifications-popover');
+	await expect(popover).toContainText('orbit mentioned you');
+	await popover.getByText('orbit mentioned you').click();
+
+	await expect(page).toHaveURL('/app/thread/status-mention');
+	await expect(popover).toHaveCount(0);
 });
 
 test('notification badge updates on polling and mark-read state persists locally', async ({ page }) => {

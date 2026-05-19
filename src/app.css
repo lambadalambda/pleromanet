@@ -202,6 +202,42 @@ a { color: inherit; text-decoration: none; }
 	font-size: 13px;
 }
 .app-search input::placeholder { color: var(--muted-2); }
+.header-notifs { position: relative; }
+.icon-btn {
+	position: relative;
+	display: grid;
+	place-items: center;
+	width: 32px;
+	height: 32px;
+	border-radius: 4px;
+	color: var(--ink-2);
+}
+.icon-btn:hover,
+.icon-btn[aria-expanded='true'] { background: var(--bg); }
+.badge {
+	position: absolute;
+	top: -2px;
+	right: -2px;
+	display: grid;
+	place-items: center;
+	min-width: 16px;
+	height: 16px;
+	padding: 0 4px;
+	border: 2px solid var(--panel);
+	border-radius: 8px;
+	background: var(--accent);
+	color: #fff;
+	font-size: 10px;
+	font-weight: 600;
+}
+.header-notifs-pop {
+	position: absolute;
+	top: calc(100% + 10px);
+	right: 0;
+	z-index: 100;
+	width: min(380px, calc(100vw - 28px));
+}
+.header-notifs-pop .notif-pop { width: 100%; }
 .user-chip {
 	display: flex;
 	align-items: center;
@@ -4399,6 +4435,8 @@ body[data-theme='simoun'] .pill {
 	border-radius: 4px;
 }
 .notif-pop-tool:hover { background: var(--accent-soft-2); color: var(--accent-ink); }
+.notif-pop-tool:disabled { cursor: default; opacity: 0.45; }
+.notif-pop-tool:disabled:hover { background: transparent; color: var(--muted); }
 .notif-pop-tabs {
 	display: flex;
 	padding: 0 8px;
@@ -4462,7 +4500,7 @@ body[data-theme='simoun'] .composer { background: linear-gradient(180deg, #1c254
 
 @media (max-width: 880px) {
 	.app-header-inner {
-		grid-template-columns: auto minmax(0, 1fr) auto;
+		grid-template-columns: auto minmax(0, 1fr) auto auto;
 		gap: 12px;
 		padding: 10px 14px;
 	}
@@ -4484,6 +4522,13 @@ body[data-theme='simoun'] .composer { background: linear-gradient(180deg, #1c254
 	.brand-mark svg { width: 22px; height: 22px; }
 	.brand-name { font-size: 22px; }
 	.brand-name sup { font-size: 8px; }
+	.header-notifs-pop {
+		position: fixed;
+		top: 60px;
+		right: 14px;
+		left: 14px;
+		width: auto;
+	}
 	.user-chip {
 		justify-self: end;
 		padding: 2px;

@@ -5,19 +5,35 @@
 	import { cloneNotifications, filterNotifs, NOTIF_TABS, type NotificationData, type NotificationTabId } from './notifications';
 
 	type Props = {
+		notifications?: NotificationData[];
+		status?: 'ready' | 'loading' | 'empty' | 'error';
+		errorTitle?: string;
+		errorMessage?: string;
 		onClose?: () => void;
 		onSeeAll?: () => void;
+		onMarkAll?: () => void;
+		onOpen?: (notification: NotificationData) => void;
 	};
 
-	let { onClose, onSeeAll }: Props = $props();
+	let { notifications, status = 'ready', errorTitle = 'Notifications unavailable', errorMessage = 'Try again from the notifications page.', onClose, onSeeAll, onMarkAll, onOpen }: Props = $props();
 	let popoverEl = $state<HTMLDivElement | undefined>();
 	let tab = $state<NotificationTabId>('all');
-	let list = $state<NotificationData[]>(cloneNotifications());
-	let visible = $derived(filterNotifs(list, tab).slice(0, 8));
+	let sampleList = $state<NotificationData[]>(cloneNotifications());
+	let list = $derived(notifications ?? sampleList);
+	let visible = $derived(status === 'ready' ? filterNotifs(list, tab).slice(0, 8) : []);
 	let unreadCount = $derived(list.filter((notification) => !notification.read).length);
 
 	const markAll = () => {
-		list = list.map((notification) => ({ ...notification, read: true }));
+		if (notifications) {
+			onMarkAll?.();
+			return;
+		}
+
+		sampleList = sampleList.map((notification) => ({ ...notification, read: true }));
+	};
+	const openNotification = (notification: NotificationData) => {
+		onOpen?.(notification);
+		onClose?.();
 	};
 
 	onMount(() => {
@@ -54,7 +70,7 @@
 			{/if}
 		</div>
 		<div class="notif-pop-tools">
-			<button type="button" class="notif-pop-tool" onclick={markAll} title="Mark all read" aria-label="Mark all read">
+			<button type="button" class="notif-pop-tool" onclick={markAll} title="Mark all read" aria-label="Mark all read" disabled={unreadCount === 0}>
 				<svg viewBox="0 0 24 24" fill="none" style="width:14px;height:14px" aria-hidden="true"><path d="M4 12l4 4 12-12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
 			</button>
 			<button type="button" class="notif-pop-tool" title="Notification settings" aria-label="Notification settings">
@@ -68,14 +84,25 @@
 		{/each}
 	</div>
 	<div class="notif-pop-body">
-		{#if visible.length === 0}
+		{#if status === 'loading'}
+			<div class="notif-empty" role="status">
+				<div class="notif-empty-mark">...</div>
+				<div>Loading notifications.</div>
+			</div>
+		{:else if status === 'error'}
+			<div class="notif-empty" role="alert">
+				<div class="notif-empty-mark">!</div>
+				<div><strong>{errorTitle}</strong></div>
+				<div>{errorMessage}</div>
+			</div>
+		{:else if visible.length === 0}
 			<div class="notif-empty">
 				<div class="notif-empty-mark">∅</div>
 				<div>No {tab === 'all' ? '' : tab} notifications.</div>
 			</div>
 		{:else}
 			{#each visible as notification (notification.id)}
-				<NotifRow n={notification} dense />
+				<NotifRow n={notification} dense onOpen={onOpen ? openNotification : undefined} />
 			{/each}
 		{/if}
 	</div>
