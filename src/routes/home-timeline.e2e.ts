@@ -848,7 +848,59 @@ test('home timeline renders real media attachments from Pleroma statuses', async
 	expect(await inlineVideo.getAttribute('poster')).toBeNull();
 	expect(await startPrimedVideo(inlineVideo)).toBe(0);
 	expect(await inlineVideo.evaluate((node) => getComputedStyle(node).filter)).toContain('duotoneCream');
-	await expect(list.locator('audio')).toHaveAttribute('src', 'https://cdn.example/media/field.mp3');
+	const audioPost = list.locator('[data-status-id="status-audio-attachment"]');
+	const audioSource = audioPost.locator('audio');
+	const audioWaveform = audioPost.getByRole('slider', { name: 'Seek audio' });
+	await expect(audioPost.locator('.post-audio')).toBeVisible();
+	await expect(audioWaveform).toBeVisible();
+	await expect(audioPost.locator('.pa-bar')).toHaveCount(56);
+	await expect(audioPost.locator('.pa-title')).toHaveText('field recording');
+	await expect(audioSource).toHaveAttribute('src', 'https://cdn.example/media/field.mp3');
+	expect(await audioSource.getAttribute('controls')).toBeNull();
+	await expect(audioWaveform).toHaveAttribute('aria-valuenow', '0');
+	await audioSource.evaluate((node) => {
+		const media = node as HTMLMediaElement;
+		const calls = { play: 0, pause: 0 };
+		(window as Window & { __audioPlaybackCalls?: typeof calls }).__audioPlaybackCalls = calls;
+		Object.defineProperty(media, 'duration', { configurable: true, get: () => 124 });
+		Object.defineProperty(media, 'currentTime', { configurable: true, writable: true, value: 0 });
+		Object.defineProperty(media, 'play', {
+			configurable: true,
+			value: () => {
+				calls.play += 1;
+				media.dispatchEvent(new Event('play'));
+				return Promise.resolve();
+			}
+		});
+		Object.defineProperty(media, 'pause', {
+			configurable: true,
+			value: () => {
+				calls.pause += 1;
+				media.dispatchEvent(new Event('pause'));
+			}
+		});
+		media.dispatchEvent(new Event('loadedmetadata'));
+	});
+	await expect(audioPost.locator('.pa-time')).toHaveText('0:00 / 2:04');
+	await audioPost.locator('.pa-cover').click();
+	await expect(audioPost.locator('.pa-cover')).toHaveAttribute('aria-label', 'Pause');
+	expect(await page.evaluate(() => (window as unknown as { __audioPlaybackCalls: { play: number; pause: number } }).__audioPlaybackCalls)).toEqual({ play: 1, pause: 0 });
+	await audioPost.locator('.pa-cover').click();
+	await expect(audioPost.locator('.pa-cover')).toHaveAttribute('aria-label', 'Play');
+	expect(await page.evaluate(() => (window as unknown as { __audioPlaybackCalls: { play: number; pause: number } }).__audioPlaybackCalls)).toEqual({ play: 1, pause: 1 });
+	const waveformBox = await audioWaveform.boundingBox();
+	expect(waveformBox).not.toBeNull();
+	await audioWaveform.click({ position: { x: (waveformBox?.width ?? 2) / 2, y: (waveformBox?.height ?? 2) / 2 } });
+	const midpointTime = await audioSource.evaluate((node) => (node as HTMLMediaElement).currentTime);
+	expect(midpointTime).toBeGreaterThan(50);
+	expect(midpointTime).toBeLessThan(75);
+	await audioWaveform.focus();
+	await page.keyboard.press('Home');
+	await expect(audioWaveform).toHaveAttribute('aria-valuenow', '0');
+	await page.keyboard.press('ArrowRight');
+	const keyboardTime = await audioSource.evaluate((node) => (node as HTMLMediaElement).currentTime);
+	expect(keyboardTime).toBeGreaterThan(5);
+	expect(keyboardTime).toBeLessThan(7);
 	const mixedPost = list.locator('[data-status-id="status-mixed-video-attachment"]');
 	const stripVideo = mixedPost.locator('.media-strip-tile video');
 	await expect(stripVideo).toHaveAttribute('src', 'https://cdn.example/media/second-clip.mp4');

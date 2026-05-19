@@ -172,6 +172,47 @@ test('opens the attachment lightbox from the design-system specimen', async ({ p
 	await expect(page.getByRole('dialog')).toBeHidden();
 });
 
+test('renders canonical audio attachment specimens', async ({ page }) => {
+	await setViewport(page, 'desktop');
+	await page.goto('/design-system');
+
+	const attachments = page.locator('#attachments');
+	const singleAudio = attachments.locator('.ds-spec').filter({ hasText: "'single' → AudioAttachment" });
+	const audioSource = singleAudio.locator('audio');
+	const audioWaveform = singleAudio.getByRole('slider', { name: 'Seek audio' });
+	await expect(singleAudio.locator('.post-audio')).toBeVisible();
+	await expect(singleAudio.locator('.pa-cover-img')).toHaveAttribute('src', 'samples/encardia-99.png');
+	await expect(audioWaveform).toBeVisible();
+	await expect(singleAudio.locator('.pa-bar')).toHaveCount(56);
+	await expect(singleAudio.locator('.pa-title')).toHaveText('after the storm (demo)');
+	await expect(singleAudio.locator('.pa-time')).toContainText('4:18');
+	await expect(audioSource).toHaveAttribute('src', /^data:audio\/wav/);
+	expect(await audioSource.getAttribute('controls')).toBeNull();
+	await expect(audioWaveform).toHaveAttribute('aria-valuenow', '28');
+	await audioSource.evaluate((node) => {
+		const media = node as HTMLMediaElement;
+		Object.defineProperty(media, 'duration', { configurable: true, get: () => 258 });
+		Object.defineProperty(media, 'currentTime', { configurable: true, writable: true, value: 0 });
+		Object.defineProperty(media, 'play', {
+			configurable: true,
+			value: () => {
+				media.dispatchEvent(new Event('play'));
+				return Promise.resolve();
+			}
+		});
+		media.dispatchEvent(new Event('loadedmetadata'));
+	});
+	await expect(audioWaveform).toHaveAttribute('aria-valuenow', '28');
+	const startTime = await audioSource.evaluate((node) => (node as HTMLMediaElement).currentTime);
+	expect(startTime).toBeGreaterThan(70);
+	expect(startTime).toBeLessThan(75);
+
+	await singleAudio.locator('.pa-cover').click();
+	await expect(singleAudio.locator('.pa-cover')).toHaveAttribute('aria-label', 'Pause');
+	await setViewport(page, 'mobile');
+	await expectNoHorizontalOverflow(page);
+});
+
 test('renders canonical poll attachment specimens', async ({ page }) => {
 	await setViewport(page, 'desktop');
 	await page.goto('/design-system');

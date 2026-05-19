@@ -164,6 +164,7 @@
 		{ family: 'var(--sans)', sample: 'The quick brown fox jumps over the lazy dog.', meta: '--sans · Inter · body, UI' },
 		{ family: 'var(--mono)', sample: 'PLEROMANET / v2.4.58 / @dreambyte@pleromanet.social', meta: '--mono · JetBrains Mono · captions, eyebrows, technical' }
 	];
+	const SAMPLE_AUDIO_SRC = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=';
 
 	const isThemeId = (value: string | null): value is ThemeId => THEMES.some((themeOption) => themeOption.id === value);
 
@@ -837,7 +838,7 @@
 						</div>
 						<div class="ds-spec">
 							<div class="ds-spec-stage">
-								<Post post={demoPost([{kind:'audio', title:'after the storm (demo)', byline:'kestrel · 2026', duration:'4:18', cover:'samples/encardia-99.png'}])} />
+								<Post post={demoPost([{kind:'audio', src:SAMPLE_AUDIO_SRC, title:'after the storm (demo)', byline:'kestrel · 2026', duration:'4:18', start:0.28, cover:'samples/encardia-99.png'}])} />
 							</div>
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">1 audio</span>
