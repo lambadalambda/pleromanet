@@ -127,6 +127,95 @@ const mockThread = async (
 	});
 };
 
+const expectThreadRailBridge = async (page: Page, expectedLineCount: number) => {
+	const lines = page.getByTestId('thread-line');
+	await expect(lines).toHaveCount(expectedLineCount);
+	const lineBoxes: Array<{ x: number; y: number; width: number; height: number }> = [];
+	const lineBackgrounds: string[] = [];
+
+	for (let i = 0; i < expectedLineCount; i += 1) {
+		const bridge = await lines.nth(i).evaluate((element) => {
+			const lineStyles = getComputedStyle(element);
+			const bridgeStyles = getComputedStyle(element, '::after');
+
+			return {
+				linePosition: lineStyles.position,
+				lineBackground: lineStyles.backgroundColor,
+				bridgeContent: bridgeStyles.content,
+				bridgeHeight: bridgeStyles.height,
+				bridgeMarginLeft: bridgeStyles.marginLeft,
+				bridgeTop: bridgeStyles.top,
+				bridgeWidth: bridgeStyles.width,
+				bridgeBackground: bridgeStyles.backgroundColor
+			};
+		});
+		const box = await lines.nth(i).boundingBox();
+
+		expect(bridge.linePosition).toBe('relative');
+		expect(bridge.bridgeContent).toBe('""');
+		expect(bridge.bridgeHeight).toBe('24px');
+		expect(bridge.bridgeMarginLeft).toBe('-1px');
+		expect(Number.parseFloat(bridge.bridgeTop)).toBeCloseTo(box?.height ?? 0, 0);
+		expect(bridge.bridgeWidth).toBe('2px');
+		expect(bridge.bridgeBackground).toBe(bridge.lineBackground);
+		expect(box).not.toBeNull();
+		lineBoxes.push(box ?? { x: 0, y: 0, width: 0, height: 0 });
+		lineBackgrounds.push(bridge.lineBackground);
+	}
+
+	const bridgeHeight = 24;
+	const ancestorLineBox = lineBoxes.at(-1);
+	const ancestors = page.getByTestId('thread-ancestor');
+	const ancestorBoxes = await ancestors.evaluateAll((elements) =>
+		elements.map((element) => {
+			const box = element.getBoundingClientRect();
+			return { x: box.x, y: box.y, width: box.width, height: box.height };
+		})
+	);
+	for (let i = 0; i < expectedLineCount; i += 1) {
+		const boostAttr = ancestors.nth(i).locator('.post-boost > .post-boost-attr').first();
+		if (!(await boostAttr.count())) continue;
+
+		const attrBridge = await boostAttr.evaluate((element) => {
+			const attrBox = element.getBoundingClientRect();
+			const bridgeStyles = getComputedStyle(element, '::before');
+
+			return {
+				attrX: attrBox.x,
+				bridgeContent: bridgeStyles.content,
+				bridgeBackground: bridgeStyles.backgroundColor,
+				bridgeBottom: bridgeStyles.bottom,
+				bridgeLeft: bridgeStyles.left,
+				bridgeTop: bridgeStyles.top,
+				bridgeWidth: bridgeStyles.width
+			};
+		});
+
+		expect(attrBridge.bridgeContent).toBe('""');
+		expect(attrBridge.bridgeTop).toBe('0px');
+		expect(attrBridge.bridgeBottom).toBe('-1px');
+		expect(attrBridge.bridgeWidth).toBe('2px');
+		expect(attrBridge.bridgeBackground).toBe(lineBackgrounds[i]);
+		expect(Math.abs(attrBridge.attrX + Number.parseFloat(attrBridge.bridgeLeft) - lineBoxes[i].x)).toBeLessThanOrEqual(1);
+	}
+	const focusedLineBox = await page.getByTestId('focused-post').locator('.thread-line-top').boundingBox();
+	expect(ancestorLineBox).toBeDefined();
+	expect(focusedLineBox).not.toBeNull();
+	expect(Math.abs((ancestorLineBox?.x ?? 0) - (focusedLineBox?.x ?? 0))).toBeLessThanOrEqual(1);
+	expect((ancestorLineBox?.y ?? 0) + (ancestorLineBox?.height ?? 0) + bridgeHeight).toBeGreaterThanOrEqual(focusedLineBox?.y ?? 0);
+
+	for (let i = 0; i < lineBoxes.length - 1; i += 1) {
+		expect(Math.abs(lineBoxes[i].x - lineBoxes[i + 1].x)).toBeLessThanOrEqual(1);
+		expect(lineBoxes[i].y + lineBoxes[i].height + bridgeHeight).toBeGreaterThanOrEqual(ancestorBoxes[i + 1].y);
+	}
+
+	const replyRail = page.locator('.post-reply .thread-line').first();
+	if (await replyRail.count()) {
+		const replyRailBridgeContent = await replyRail.evaluate((element) => getComputedStyle(element, '::after').content);
+		expect(replyRailBridgeContent).toBe('none');
+	}
+};
+
 test('real thread route loads focused status, ancestors, and replies from Pleroma', async ({ page }) => {
 	await authenticate(page);
 	await mockThread(page);
@@ -157,8 +246,61 @@ test('real thread route loads focused status, ancestors, and replies from Plerom
 	await expect(page.getByTestId('thread-reply').first()).toContainText('we used to log off. when did that stop being a thing.');
 	await expect(page.getByTestId('thread-reply').nth(1)).toContainText('this is the energy i needed today.');
 	await expect(page.getByText('around the time the algorithm replaced the timeline.')).toBeHidden();
+	await expectThreadRailBridge(page, 1);
+	await setViewport(page, 'mobile');
+	await expectThreadRailBridge(page, 1);
+	await expectNoHorizontalOverflow(page);
+	await setViewport(page, 'desktop');
 	await page.getByRole('button', { name: 'Show 1 reply' }).click();
 	await expect(page.getByText('around the time the algorithm replaced the timeline.')).toBeVisible();
+});
+
+test('real thread route bridges multiple ancestor rails with warnings and media', async ({ page }) => {
+	await authenticate(page);
+	const warningAncestor = statusWithText('ancestor-warning', 'cw hidden ancestor body', {
+		account: accountWithName('warning-ancestor-account', 'mistwalk', 'mistwalk@garden.cafe'),
+		created_at: '2026-05-11T15:20:00.000Z',
+		spoiler_text: 'thread context warning',
+		pleroma: {
+			...pleromaFixtures.status.pleroma,
+			content: { 'text/plain': 'cw hidden ancestor body' },
+			conversation_id: 99,
+			spoiler_text: { 'text/plain': 'thread context warning' }
+		},
+		replies_count: 1,
+		reblogs_count: 0,
+		favourites_count: 2
+	});
+	const mediaAncestorOriginal = statusWithText('ancestor-media-original', 'ancestor with media still keeps the rail aligned', {
+		account: accountWithName('media-ancestor-account', 'gridwave', 'gridwave@retro.social'),
+		created_at: '2026-05-11T15:45:00.000Z',
+		media_attachments: [
+			{ id: 'ancestor-photo', type: 'image', url: 'https://cdn.example/ancestor-photo.jpg', preview_url: 'https://cdn.example/ancestor-photo-preview.jpg', description: 'ancestor photo' }
+		],
+		replies_count: 1,
+		reblogs_count: 4,
+		favourites_count: 18
+	});
+	const mediaAncestor = statusWithText('ancestor-media-boost', '', {
+		account: accountWithName('media-ancestor-booster-account', 'orbit', 'orbit@spacebear.net'),
+		created_at: '2026-05-11T15:50:00.000Z',
+		reblog: mediaAncestorOriginal
+	});
+	await mockThread(page, threadStatus, [threadReply], [warningAncestor, mediaAncestor]);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	const ancestors = page.getByTestId('thread-ancestor');
+	await expect(ancestors).toHaveCount(2);
+	await expect(ancestors.first().locator('.post-cw-card')).toContainText('thread context warning');
+	await expect(ancestors.nth(1).locator('.post-boost > .post-boost-attr')).toBeVisible();
+	await expect(ancestors.nth(1).locator('.post-boost-name')).toContainText('orbit');
+	await expect(ancestors.nth(1).locator('.post-photos img[alt="ancestor photo"]')).toHaveAttribute('src', 'https://cdn.example/ancestor-photo.jpg');
+	await expectThreadRailBridge(page, 2);
+
+	await setViewport(page, 'mobile');
+	await expectThreadRailBridge(page, 2);
+	await expectNoHorizontalOverflow(page);
 });
 
 test('real thread route handles an empty descendant context and accepts the first reply', async ({ page }) => {
@@ -294,6 +436,7 @@ test('real thread route renders boosted ancestors and replies with attribution r
 	await expect(ancestor.locator('.post-boost-rail')).toHaveCount(0);
 	await expect(ancestor.locator('.post-boost-name')).toContainText('FiestaBun');
 	await expect(ancestor).toContainText('boosted ancestor context survives the redesign');
+	await expectThreadRailBridge(page, 1);
 
 	const reply = page.getByTestId('thread-reply');
 	await expect(reply.locator('.post-boost > .post-boost-attr')).toBeVisible();

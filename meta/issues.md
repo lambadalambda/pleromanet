@@ -7,5 +7,4 @@
 - [ ] [28 Retire mockup prototype](issues/28-retire-mockup-prototype.md)
 - [ ] [30 Port composer CW and poll editor panels](issues/30-port-composer-cw-and-poll-editor-panels.md)
 - [ ] [35 Align Svelte design system with updated canonical handoff](issues/35-align-svelte-design-system-with-updated-canonical-handoff.md)
-- [ ] [38 Fix thread rail continuity](issues/38-fix-thread-rail-continuity.md)
 - [ ] [39 Design and wire emoji reaction row](issues/39-design-and-wire-emoji-reaction-row.md)

@@ -27,3 +27,4 @@
 - [x] [34 Port inline thread reply composer](issues/34-port-inline-thread-reply-composer.md)
 - [x] [36 Port updated boost attribution row](issues/36-port-updated-boost-attribution-row.md)
 - [x] [37 Soften reply addressee parent chip](issues/37-soften-reply-addressee-parent-chip.md)
+- [x] [38 Fix thread rail continuity](issues/38-fix-thread-rail-continuity.md)

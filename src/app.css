@@ -3123,6 +3123,22 @@ body[data-theme='simoun'] .pill {
 .post-boost > .post-boost-postcol > .post-reply {
 	border-bottom: none;
 }
+.post-boost > .post-boost-postcol > .post-ancestor {
+	margin-left: -4px;
+}
+.thread-ancestors > div > .post-boost > .post-boost-attr {
+	position: relative;
+}
+.thread-ancestors > div > .post-boost > .post-boost-attr::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	bottom: -1px;
+	left: 35px;
+	width: 2px;
+	background: var(--border);
+	pointer-events: none;
+}
 
 /* ===== Thread view ===== */
 .thread {
@@ -3182,6 +3198,22 @@ body[data-theme='simoun'] .pill {
 	margin-top: 8px;
 	min-height: 16px;
 	border-radius: 1px;
+	position: relative;
+	top: auto;
+	bottom: auto;
+	left: auto;
+}
+.post-ancestor .thread-line::after {
+	content: '';
+	position: absolute;
+	left: 50%;
+	top: 100%;
+	margin-left: -1px;
+	width: 2px;
+	height: 24px;
+	background: var(--border);
+	border-radius: 1px;
+	pointer-events: none;
 }
 .focused-post {
 	padding: 18px 20px 14px;
@@ -3194,7 +3226,7 @@ body[data-theme='simoun'] .pill {
 .thread-line-top {
 	position: absolute;
 	top: 0;
-	left: 44px;
+	left: 39px;
 	width: 2px;
 	height: 14px;
 	background: var(--border);
