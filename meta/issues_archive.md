@@ -16,6 +16,7 @@
 - [x] [16 Wire authenticated home timeline](issues/16-wire-authenticated-home-timeline.md)
 - [x] [17 Add cursor-based timeline pagination](issues/17-add-cursor-based-timeline-pagination.md)
 - [x] [18 Add new-posts timeline indicator](issues/18-add-new-posts-timeline-indicator.md)
+- [x] [19 Wire status creation and composer](issues/19-wire-status-creation-and-composer.md)
 - [x] [20 Wire favorite and boost status actions](issues/20-wire-favorite-and-boost-status-actions.md)
 - [x] [21 Wire thread detail and replies](issues/21-wire-thread-detail-and-replies.md)
 - [x] [27 Add notification API polling and badge count](issues/27-add-notification-api-polling-and-badge-count.md)

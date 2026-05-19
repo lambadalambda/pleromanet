@@ -946,6 +946,10 @@ body[data-theme='simoun'] .pill {
 	margin-left: 2px;
 	border: 1px solid var(--border);
 }
+.composer-tool.active {
+	background: var(--accent-soft);
+	color: var(--accent-ink);
+}
 .timeline-new-posts {
 	position: sticky;
 	top: 72px;
@@ -979,6 +983,72 @@ body[data-theme='simoun'] .pill {
 	font-variant-numeric: tabular-nums;
 }
 .composer-count.over-limit { color: var(--bad); }
+.composer-cw {
+	display: flex;
+	align-items: stretch;
+	gap: 0;
+	margin: 4px 22px 0 78px;
+	border: 1px solid var(--warn);
+	background: rgba(224, 185, 122, 0.08);
+	border-radius: 4px;
+	overflow: hidden;
+	animation: composer-slide 0.18s ease;
+}
+.composer-cw-l {
+	display: flex;
+	align-items: center;
+	padding: 0 12px;
+	border-right: 1px solid var(--warn);
+	background: rgba(224, 185, 122, 0.18);
+	font-family: var(--mono);
+	font-size: 9.5px;
+	font-weight: 600;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: #8a6a30;
+	flex-shrink: 0;
+}
+.composer-cw-l svg {
+	width: 13px;
+	height: 13px;
+	margin-right: 6px;
+}
+.composer-cw-input {
+	flex: 1;
+	min-width: 0;
+	border: none;
+	outline: none;
+	background: transparent;
+	padding: 8px 12px;
+	font-family: var(--sans);
+	font-size: 14px;
+	color: var(--ink);
+}
+.composer-cw-input::placeholder {
+	color: var(--muted-2);
+	font-style: italic;
+}
+.composer-cw-x {
+	display: grid;
+	place-items: center;
+	width: 32px;
+	border: none;
+	background: none;
+	color: var(--muted);
+	flex-shrink: 0;
+}
+.composer-cw-x svg {
+	width: 14px;
+	height: 14px;
+}
+.composer-cw-x:hover {
+	background: rgba(224, 185, 122, 0.18);
+	color: var(--bad);
+}
+@keyframes composer-slide {
+	from { opacity: 0; transform: translateY(-4px); }
+	to { opacity: 1; transform: translateY(0); }
+}
 
 /* ===== Controls ===== */
 .pill {
@@ -4861,6 +4931,7 @@ body[data-theme='simoun'] .composer { background: linear-gradient(180deg, #1c254
 	.composer { padding: 14px 14px 12px; grid-template-columns: 36px minmax(0, 1fr); gap: 10px; }
 	.composer-av { width: 36px; height: 36px; }
 	.composer-input { font-size: 15px; min-height: 56px; padding: 4px 0 10px; }
+	.composer-cw { margin: 4px 0 0; }
 	.composer-row { gap: 0; padding-top: 8px; }
 	.composer-tool { width: 30px; height: 30px; }
 	.composer-tool.privacy { padding: 0 8px; margin-left: 4px; font-size: 12px; }

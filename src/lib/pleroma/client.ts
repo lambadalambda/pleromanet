@@ -97,6 +97,7 @@ const profileUpdateBody = (profile: ProfileUpdate) => ({
 const statusCreateForm = (input: StatusCreateRequest) => {
 	const form = new URLSearchParams({ status: input.status });
 	if (input.visibility) form.set('visibility', input.visibility);
+	if (input.spoilerText) form.set('spoiler_text', input.spoilerText);
 	if (input.inReplyToId) form.set('in_reply_to_id', input.inReplyToId);
 
 	return form;

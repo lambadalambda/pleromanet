@@ -180,6 +180,7 @@ export type TimelinePage<Item> = {
 export type StatusCreateRequest = {
 	status: string;
 	visibility?: 'public' | 'unlisted' | 'private' | 'direct' | string;
+	spoilerText?: string;
 	inReplyToId?: string;
 };
 

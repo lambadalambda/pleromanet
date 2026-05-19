@@ -2,6 +2,7 @@
 	import Avatar from '$lib/rebuild/Avatar.svelte';
 	import AncestorPost from '$lib/rebuild/AncestorPost.svelte';
 	import Button from '$lib/rebuild/Button.svelte';
+	import ComposerCWPanel from '$lib/rebuild/ComposerCWPanel.svelte';
 	import FocusedPost from '$lib/rebuild/FocusedPost.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
 	import Pill from '$lib/rebuild/Pill.svelte';
@@ -178,6 +179,8 @@
 	let segValue = $state('Popular');
 	let toggleRowOn = $state(true);
 	let composerText = $state('drafting in the design system');
+	let composerCwSpecActive = $state(true);
+	let composerCwText = $state('food, plated photos');
 	let composerPrivacy = $state('Public');
 	let composerRemaining = $derived(500 - composerText.length);
 	let threadInlineReplyId = $state<string | number | null>(null);
@@ -1055,7 +1058,7 @@
 				</header>
 				<div class="ds-slab-body">
 					<div class="ds-grid ds-grid-2">
-						<div class="ds-spec ds-spec-span-2">
+						<div class="ds-spec">
 							<div class="ds-spec-stage">
 								<div class="composer">
 									<Avatar variant="compose" avBanner="sunset" />
@@ -1082,8 +1085,43 @@
 								</div>
 							</div>
 							<div class="ds-spec-foot">
-								<span class="ds-spec-label">Composer · feed</span>
-								<span class="ds-spec-note">.composer</span>
+								<span class="ds-spec-label">Composer · idle</span>
+								<span class="ds-spec-note">.composer · no CW, no poll</span>
+							</div>
+						</div>
+
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<div class="composer">
+									<Avatar variant="compose" avBanner="sunset" />
+									<div>
+										<textarea
+											class="composer-input"
+											placeholder="What's on your mind?"
+											value="every restaurant photo I take ends up looking like a NYT food review somehow"
+										></textarea>
+										{#if composerCwSpecActive}
+											<ComposerCWPanel value={composerCwText} onInput={(value) => (composerCwText = value)} onRemove={() => (composerCwSpecActive = false)} />
+										{/if}
+										<div class="composer-row">
+											<button class="composer-tool" title="Image"><Icon name="image" width={18} height={18} /></button>
+											<button class="composer-tool" title="Draw">
+												<svg viewBox="0 0 24 24" fill="none" style="width:18px;height:18px"><path d="M3 21l4-1 11.5-11.5a2.121 2.121 0 00-3-3L4 17l-1 4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 6l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+											</button>
+											<button class="composer-tool" title="Poll"><Icon name="poll" width={18} height={18} /></button>
+											<button class="composer-tool" title="Emoji"><Icon name="smile" width={18} height={18} /></button>
+											<button class="composer-tool cw" class:active={composerCwSpecActive} aria-pressed={composerCwSpecActive} onclick={() => (composerCwSpecActive = !composerCwSpecActive)}>CW</button>
+											<button class="composer-tool privacy"><Icon name="globe" width={13} height={13} /><span>Public</span><Icon name="chevDown" width={12} height={12} /></button>
+											<span class="composer-spacer"></span>
+											<span class="composer-count">416</span>
+											<Button variant="primary">Post</Button>
+										</div>
+									</div>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Composer · with CW input</span>
+								<span class="ds-spec-note">composer.cw is a string · warn-tinted row above tool rail</span>
 							</div>
 						</div>
 					</div>

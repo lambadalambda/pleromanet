@@ -319,7 +319,7 @@ test('Pleroma client covers mutations, unauthenticated state, and API errors', a
 	await client.unfavoriteStatus('status-1');
 	await client.boostStatus('status-1');
 	await client.unboostStatus('status-1');
-	const createdStatus = await client.createStatus({ status: 'new post from client', visibility: 'unlisted', inReplyToId: 'status-1' });
+	const createdStatus = await client.createStatus({ status: 'new post from client', visibility: 'unlisted', spoilerText: 'quiet spoiler', inReplyToId: 'status-1' });
 	await client.followAccount('account-1');
 	await client.unfollowAccount('account-1');
 	const account = await client.updateAccountProfile({ displayName: 'quiet admin', note: 'no ads' });
@@ -339,6 +339,7 @@ test('Pleroma client covers mutations, unauthenticated state, and API errors', a
 	const createBody = new URLSearchParams(requests[4].body);
 	expect(createBody.get('status')).toBe('new post from client');
 	expect(createBody.get('visibility')).toBe('unlisted');
+	expect(createBody.get('spoiler_text')).toBe('quiet spoiler');
 	expect(createBody.get('in_reply_to_id')).toBe('status-1');
 	expect(requests[7].body).toContain('display_name');
 	expect(requests[7].body).toContain('quiet admin');

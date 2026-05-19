@@ -4,6 +4,7 @@
 	import AncestorPost from '$lib/rebuild/AncestorPost.svelte';
 	import AttachmentLightboxHost from '$lib/rebuild/AttachmentLightboxHost.svelte';
 	import Button from '$lib/rebuild/Button.svelte';
+	import ComposerCWPanel from '$lib/rebuild/ComposerCWPanel.svelte';
 	import FocusedPost from '$lib/rebuild/FocusedPost.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
 	import InlineReplyComposer from '$lib/rebuild/InlineReplyComposer.svelte';
@@ -136,6 +137,8 @@
 	let notificationState = $state<NotificationState>({ status: 'idle' });
 	let localHomePosts = $state<RebuildPost[]>([]);
 	let composerText = $state('');
+	let composerSpoilerActive = $state(false);
+	let composerSpoilerText = $state('');
 	let mobileDrawerOpen = $state(false);
 	let mobileSheetOpen = $state(false);
 	let userMenuOpen = $state(false);
@@ -635,6 +638,7 @@
 	};
 	const submitHomePost = async () => {
 		const body = composerText.trim();
+		const spoilerText = composerSpoilerActive ? composerSpoilerText.trim() : '';
 		const session = currentSession;
 		if (!body || composerText.length > composerCharacterLimit || homePostSubmitState === 'submitting' || !session) return;
 
@@ -650,7 +654,7 @@
 				accessToken: session.accessToken,
 				fetch: window.fetch.bind(window)
 			});
-			const status = await client.createStatus({ status: body, visibility: 'public' });
+			const status = await client.createStatus({ status: body, visibility: 'public', spoilerText: spoilerText || undefined });
 			if (requestId !== homePostSubmitRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			const createdPost = adaptPleromaStatus(status, { timelines: ['home'] });
@@ -674,6 +678,8 @@
 				localHomePosts = prependTimelineItems(localHomePosts, [postForRebuild(createdPost)]);
 			}
 			composerText = '';
+			composerSpoilerActive = false;
+			composerSpoilerText = '';
 			homePostSubmitState = 'idle';
 		} catch (error) {
 			if (requestId !== homePostSubmitRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
@@ -688,6 +694,18 @@
 			homePostSubmitError = normalized;
 			homePostSubmitState = 'idle';
 		}
+	};
+	const clearComposerSpoiler = () => {
+		composerSpoilerActive = false;
+		composerSpoilerText = '';
+	};
+	const toggleComposerSpoiler = () => {
+		if (composerSpoilerActive) {
+			clearComposerSpoiler();
+			return;
+		}
+
+		composerSpoilerActive = true;
 	};
 	const openInlineReply = (post: RebuildPost, targetRoute: StatusActionOrigin) => {
 		if (inlineReplySubmitState === 'submitting') return;
@@ -1480,11 +1498,14 @@
 							<span class="composer-av"><span class="av-orb"></span></span>
 							<div>
 								<textarea class="composer-input" aria-label="Post text" placeholder="What's on your mind?" bind:value={composerText}></textarea>
+								{#if composerSpoilerActive}
+									<ComposerCWPanel value={composerSpoilerText} onInput={(value) => (composerSpoilerText = value)} onRemove={clearComposerSpoiler} focusOnMount />
+								{/if}
 								<div class="composer-row">
 									<button type="button" class="composer-tool" title="Image" aria-label="Image"><Icon name="image" width={18} height={18} /></button>
 									<button type="button" class="composer-tool" title="Poll" aria-label="Poll"><Icon name="poll" width={18} height={18} /></button>
 									<button type="button" class="composer-tool" title="Emoji" aria-label="Emoji"><Icon name="smile" width={18} height={18} /></button>
-									<button type="button" class="composer-tool cw" aria-label="Content warning">CW</button>
+									<button type="button" class="composer-tool cw" class:active={composerSpoilerActive} aria-label="Content warning" aria-pressed={composerSpoilerActive} onclick={toggleComposerSpoiler}>CW</button>
 									<button type="button" class="composer-tool privacy" aria-label="Privacy Public"><Icon name="globe" width={13} height={13} /><span>Public</span><Icon name="chevDown" width={12} height={12} /></button>
 									<span class="composer-spacer"></span>
 									<span class="composer-count" class:over-limit={composerRemaining < 0}>{composerRemaining}</span>

@@ -1,5 +1,4 @@
 
-- [ ] [19 Wire status creation and composer](issues/19-wire-status-creation-and-composer.md)
 - [ ] [22 Wire profile display and account statuses](issues/22-wire-profile-display-and-account-statuses.md)
 - [ ] [23 Wire profile settings save](issues/23-wire-profile-settings-save.md)
 - [ ] [24 Wire follow and unfollow relationships](issues/24-wire-follow-and-unfollow-relationships.md)

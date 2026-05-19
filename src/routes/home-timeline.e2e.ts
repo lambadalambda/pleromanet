@@ -211,15 +211,54 @@ test('home timeline composer creates statuses through Pleroma', async ({ page })
 
 	const composer = page.getByRole('textbox', { name: 'Post text' });
 	await composer.fill('posting through Pleroma composer');
+	await page.getByRole('button', { name: 'Content warning', exact: true }).click();
+	await expect(composer).toHaveValue('posting through Pleroma composer');
+	await expect(page.getByRole('button', { name: 'Content warning', exact: true })).toHaveAttribute('aria-pressed', 'true');
+	await expect(page.getByRole('textbox', { name: 'Content warning text' })).toBeFocused();
+	await page.getByRole('textbox', { name: 'Content warning text' }).fill('soft spoiler');
 	await page.getByRole('button', { name: 'Post', exact: true }).click();
 
 	await expect(page.locator('[data-status-id="created-home-status"]')).toContainText('posting through Pleroma composer');
 	await expect(composer).toHaveValue('');
+	await expect(page.getByRole('textbox', { name: 'Content warning text' })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Content warning', exact: true })).toHaveAttribute('aria-pressed', 'false');
 	expect(createMethod).toBe('POST');
 	expect(createAuthorization).toBe('Bearer access-token');
 	const params = new URLSearchParams(createBody);
 	expect(params.get('status')).toBe('posting through Pleroma composer');
 	expect(params.get('visibility')).toBe('public');
+	expect(params.get('spoiler_text')).toBe('soft spoiler');
+});
+
+test('home timeline composer preserves drafts and shows inline errors on status creation failure', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, pleromaFixtures.timelines.home);
+	});
+
+	let createBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createBody = route.request().postData() ?? '';
+		await fulfillHome(route, { error: 'composer backend is tired' }, 503);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const composer = page.getByRole('textbox', { name: 'Post text' });
+	await composer.fill('keep this draft when posting fails');
+	await page.getByRole('button', { name: 'Content warning', exact: true }).click();
+	const warning = page.getByRole('textbox', { name: 'Content warning text' });
+	await warning.fill('draft warning');
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+
+	await expect(page.getByRole('alert')).toContainText('Pleroma server error');
+	await expect(composer).toHaveValue('keep this draft when posting fails');
+	await expect(warning).toHaveValue('draft warning');
+	const params = new URLSearchParams(createBody);
+	expect(params.get('status')).toBe('keep this draft when posting fails');
+	expect(params.get('spoiler_text')).toBe('draft warning');
 });
 
 test('home timeline inline reply composer creates a reply for the selected post', async ({ page }) => {

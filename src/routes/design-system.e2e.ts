@@ -21,6 +21,7 @@ test('shows converted canonical design-system sections and switches themes', asy
 
 	await expect(page.locator('#controls')).toContainText('Button · primary');
 	await expect(page.locator('#attachments')).toContainText('pickAttachmentLayout →');
+	await expect(page.locator('#composer')).toContainText('Composer · with CW input');
 	await expect(page.locator('#posts')).toContainText('Quoted posts');
 	await expect(page.locator('#thread')).toContainText('ReplyPost → InlineReplyComposer below selected reply');
 	await expect(page.locator('#notifications')).toContainText('NotifRow k-mention unread');
@@ -32,6 +33,29 @@ test('shows converted canonical design-system sections and switches themes', asy
 
 	await page.getByRole('button', { name: 'Simoun' }).click();
 	await expect(page.locator('html')).toHaveAttribute('data-theme', 'simoun');
+	await expectNoHorizontalOverflow(page);
+});
+
+test('renders canonical composer content-warning specimen', async ({ page }) => {
+	await setViewport(page, 'desktop');
+	await page.goto('/design-system');
+
+	const composer = page.locator('#composer');
+	await expect(composer.getByText('Composer · idle')).toBeVisible();
+	await expect(composer.getByText('Composer · with CW input')).toBeVisible();
+	const cwSpec = composer.locator('.ds-spec').filter({ hasText: 'Composer · with CW input' });
+	await expect(cwSpec.locator('.composer-cw')).toBeVisible();
+	await expect(cwSpec.locator('.composer-cw-l')).toContainText('CW');
+	await expect(cwSpec.getByRole('textbox', { name: 'Content warning text' })).toHaveAttribute('placeholder', 'One short line · what readers see before opening');
+	await expect(cwSpec.getByRole('button', { name: 'CW' })).toHaveAttribute('aria-pressed', 'true');
+
+	await cwSpec.getByRole('button', { name: 'Remove content warning' }).click();
+	await expect(cwSpec.locator('.composer-cw')).toHaveCount(0);
+	await expect(cwSpec.getByRole('button', { name: 'CW' })).toHaveAttribute('aria-pressed', 'false');
+
+	await setViewport(page, 'mobile');
+	await cwSpec.getByRole('button', { name: 'CW' }).click();
+	await expect(cwSpec.locator('.composer-cw')).toBeVisible();
 	await expectNoHorizontalOverflow(page);
 });
 

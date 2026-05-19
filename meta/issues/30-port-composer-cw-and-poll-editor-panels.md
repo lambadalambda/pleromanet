@@ -23,9 +23,9 @@ Port the updated composer states for content warnings and poll creation into the
 
 ## Current Status
 
-- Not done: real composer CW and poll buttons are still visual controls without editor panels.
-- Not done: `/design-system` does not yet expose the four expanded canonical composer specimens.
-- Related: status creation currently does not serialize content warnings or poll payloads.
+- Partially done: the real home composer has the canonical CW input row wired to status creation; the poll button is still a visual control without an editor panel.
+- Partially done: `/design-system` exposes the canonical idle and CW-input composer specimens, but the poll and CW-plus-poll specimens are still missing.
+- Related: status creation now serializes content warnings, but poll payload preparation remains unwired.
 
 ## Notes
 
