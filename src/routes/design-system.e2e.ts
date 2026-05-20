@@ -48,6 +48,12 @@ test('renders canonical composer content-warning specimen', async ({ page }) => 
 	await expect(composer.getByText('Composer · with CW input')).toBeVisible();
 	await expect(composer.getByText('Composer · with poll editor')).toBeVisible();
 	await expect(composer.getByText('Composer · CW + poll together')).toBeVisible();
+	await expect(composer.getByText('Composer · drag-and-drop overlay')).toBeVisible();
+	await expect(composer.getByText('Composer · uploads in progress')).toBeVisible();
+	await expect(composer.getByText('Editor · with inserted pill')).toBeVisible();
+	await expect(composer.getByText('Dropdown · open mid-type')).toBeVisible();
+	await expect(composer.getByText(':shortcode: dropdown')).toBeVisible();
+	await expect(composer.getByText('Full emoji picker')).toBeVisible();
 	const cwSpec = composer.locator('.ds-spec').filter({ hasText: 'Composer · with CW input' });
 	await expect(cwSpec.locator('.composer-cw')).toBeVisible();
 	await expect(cwSpec.locator('.composer-cw-l')).toContainText('CW');
@@ -96,19 +102,25 @@ test('renders canonical composer mention and emoji autocomplete specimen', async
 
 	const composer = page.locator('#composer');
 	await expect(composer).toContainText('@mention & :shortcode: autocomplete');
-	const specimen = composer.locator('.ds-spec').filter({ hasText: 'Composer · autocomplete editor' });
+	const insertedPillSpec = composer.locator('.ds-spec').filter({ hasText: 'Editor · with inserted pill' });
+	await expect(insertedPillSpec.locator('.me-pill img[alt="soft.hertz ✦ avatar"]')).toBeVisible();
+	const specimen = composer.locator('.ds-spec').filter({ hasText: 'Interactive editor · autocomplete' }).last();
 	const editor = specimen.getByRole('textbox', { name: 'Post text' });
 
-	await editor.fill('@so');
+	await editor.click();
+	await editor.pressSequentially('@so', { delay: 20 });
 	await expect(specimen.getByRole('listbox', { name: 'Mention suggestions' })).toBeVisible();
 	await expect(specimen.getByRole('option', { name: /soft.hertz/ })).toBeVisible();
-	await editor.press('Enter');
+	await expect(specimen.locator('img[alt="soft.hertz ✦ avatar"]').first()).toBeVisible();
+	await editor.press('Tab');
 	await expect(editor).toContainText('@soft.hertz');
+	await expect(editor.locator('.me-pill img[alt="soft.hertz ✦ avatar"]')).toBeVisible();
 	await expect(specimen.locator('[data-serialized-text]')).toContainText('@soft.hertz@kolektiva.social');
 
-	await editor.pressSequentially(':bl');
+	await editor.pressSequentially(' :bl');
 	await expect(specimen.getByRole('listbox', { name: 'Emoji suggestions' })).toBeVisible();
 	await expect(specimen.getByRole('option', { name: /:blobcat:/ })).toBeVisible();
+	await expect(specimen.getByRole('option', { name: /:blobcat:/ }).locator('img[alt=":blobcat:"]')).toBeVisible();
 	await editor.press('Enter');
 	await expect(editor.locator('.me-emoji img[alt=":blobcat:"]')).toBeVisible();
 	await expect(specimen.locator('[data-serialized-text]')).toContainText(':blobcat:');

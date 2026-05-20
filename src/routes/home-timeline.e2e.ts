@@ -268,11 +268,14 @@ test('home timeline composer autocompletes mentions and custom emoji before post
 	await page.goto('/app/home');
 	const composer = page.getByRole('textbox', { name: 'Post text' });
 
-	await composer.fill('hello @so');
+	await composer.click();
+	await composer.pressSequentially('hello @so', { delay: 20 });
 	await expect(page.getByRole('listbox', { name: 'Mention suggestions' })).toBeVisible();
 	await expect(page.getByRole('option', { name: /soft.hertz/ })).toBeVisible();
+	await expect(page.locator('img[alt="soft.hertz ✦ avatar"]').first()).toHaveAttribute('src', 'https://pleroma.example/avatar.png');
 	await composer.press('Enter');
 	await expect(composer).toContainText('@soft.hertz');
+	await expect(composer.locator('.me-pill img[alt="soft.hertz ✦ avatar"]')).toHaveAttribute('src', 'https://pleroma.example/avatar.png');
 
 	await composer.pressSequentially(':bl');
 	await expect(page.getByRole('listbox', { name: 'Emoji suggestions' })).toBeVisible();

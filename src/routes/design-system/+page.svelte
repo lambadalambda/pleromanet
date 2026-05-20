@@ -233,14 +233,23 @@
 		{ input: 'anything else', layout: 'heroStrip', highlight: false },
 	];
 	const DS_MENTION_ACCOUNTS: ComposerMentionAccount[] = [
-		{ id: 'soft-hertz', username: 'soft.hertz', displayName: 'soft.hertz ✦', acct: 'soft.hertz@kolektiva.social', avClass: 'av-grad-3' },
+		{ id: 'soft-hertz', username: 'soft.hertz', displayName: 'soft.hertz ✦', acct: 'soft.hertz@kolektiva.social', avatarUrl: 'samples/cat-door.webp', avClass: 'av-grad-3' },
 		{ id: 'softie', username: 'softie', displayName: 'softie ◌', acct: 'softie@graz.dev', avClass: 'av-orb' },
-		{ id: 'gridwave', username: 'gridwave', displayName: 'gridwave', acct: 'gridwave@retro.social', avClass: 'av-grad-2' }
+		{ id: 'softwave', username: 'softwave', displayName: 'softwave', acct: 'softwave@retro.social', avClass: 'av-grad-2' },
+		{ id: 'softstack', username: 'softstack', displayName: 'softstack', acct: 'softstack@hub.dev', avClass: 'av-pixel-pc' }
 	];
 	const DS_CUSTOM_EMOJI: ComposerEmoji[] = [
 		{ shortcode: 'blobcat', url: 'samples/cat-door.webp', pack: 'blobcats' },
 		{ shortcode: 'blobfox', url: 'samples/cats-pair.webp', pack: 'blobcats' },
+		{ shortcode: 'blobmoon', url: 'samples/cat-bank.webp', pack: 'blobcats' },
 		{ shortcode: 'slowweb', url: 'samples/falco.png', pack: 'pleromanet' }
+	];
+	const DS_SHORTCODE_QUERY = 'bl';
+	const DS_SHORTCODE_EMOJI = DS_CUSTOM_EMOJI.filter((emoji) => emoji.shortcode.startsWith(DS_SHORTCODE_QUERY));
+	const DS_UPLOADS = [
+		{ id: 'u1', name: 'rain-on-glass-take2.wav', kind: 'audio', pct: 100 },
+		{ id: 'u2', name: 'windowsill-dusk.jpg', kind: 'photo', pct: 62 },
+		{ id: 'u3', name: 'kettle-take1.jpg', kind: 'photo', pct: 14 }
 	];
 
 	const SAMPLE_POST: DemoPostData = {
@@ -1100,11 +1109,7 @@
 								<div class="composer">
 									<Avatar variant="compose" avBanner="sunset" />
 									<div>
-										<textarea
-											class="composer-input"
-											placeholder="What's on your mind?"
-											bind:value={composerText}
-										></textarea>
+										<ComposerMentionEditor value={composerText} onInput={(value) => (composerText = value)} accounts={DS_MENTION_ACCOUNTS} emojis={DS_CUSTOM_EMOJI} />
 										<div class="composer-row">
 											<button class="composer-tool" title="Image"><Icon name="image" width={18} height={18} /></button>
 											<button class="composer-tool" title="Draw">
@@ -1132,11 +1137,7 @@
 								<div class="composer">
 									<Avatar variant="compose" avBanner="sunset" />
 									<div>
-										<textarea
-											class="composer-input"
-											placeholder="What's on your mind?"
-											value="every restaurant photo I take ends up looking like a NYT food review somehow"
-										></textarea>
+										<ComposerMentionEditor value="every restaurant photo I take ends up looking like a NYT food review somehow" onInput={() => undefined} accounts={DS_MENTION_ACCOUNTS} emojis={DS_CUSTOM_EMOJI} />
 										{#if composerCwSpecActive}
 											<ComposerCWPanel value={composerCwText} onInput={(value) => (composerCwText = value)} onRemove={() => (composerCwSpecActive = false)} />
 										{/if}
@@ -1167,11 +1168,7 @@
 								<div class="composer">
 									<Avatar variant="compose" avBanner="sunset" />
 									<div>
-										<textarea
-											class="composer-input"
-											placeholder="What's on your mind?"
-											value="which side wins?"
-										></textarea>
+										<ComposerMentionEditor value="which side wins?" onInput={() => undefined} accounts={DS_MENTION_ACCOUNTS} emojis={DS_CUSTOM_EMOJI} />
 										<ComposerPollPanel poll={composerPollSpec} onPollChange={(poll) => (composerPollSpec = poll)} onRemove={() => (composerPollSpec = createComposerPollDraft())} idPrefix="ds-poll-only" />
 										<div class="composer-row">
 											<button class="composer-tool" title="Image"><Icon name="image" width={18} height={18} /></button>
@@ -1200,11 +1197,7 @@
 								<div class="composer">
 									<Avatar variant="compose" avBanner="sunset" />
 									<div>
-										<textarea
-											class="composer-input"
-											placeholder="What's on your mind?"
-											value="rough day. need some external grounding — picking one of these tonight"
-										></textarea>
+										<ComposerMentionEditor value="rough day. need some external grounding — picking one of these tonight" onInput={() => undefined} accounts={DS_MENTION_ACCOUNTS} emojis={DS_CUSTOM_EMOJI} />
 										<ComposerCWPanel value="mh, asking for input" onInput={() => undefined} onRemove={() => undefined} />
 										<ComposerPollPanel poll={composerCombinedPollSpec} onPollChange={(poll) => (composerCombinedPollSpec = poll)} onRemove={() => (composerCombinedPollSpec = createComposerPollDraft())} idPrefix="ds-cw-poll" />
 										<div class="composer-row">
@@ -1230,9 +1223,174 @@
 						</div>
 					</div>
 
+					<div class="ds-grid ds-grid-2" style="margin-top:14px">
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage">
+								<div style="padding:14px;background:var(--panel-2);border-radius:4px">
+									<div class="composer is-drag-over">
+										<Avatar variant="compose" avBanner="sunset" />
+										<div>
+											<div class="composer-draft-preview">rain on glass · 11 minutes, two takes</div>
+											<div class="composer-row" style="opacity:0.4">
+												<span style="width:30px;height:30px"></span>
+												<span class="composer-spacer"></span>
+												<span class="composer-count">412</span>
+												<Button variant="primary" disabled>Post</Button>
+											</div>
+										</div>
+										<div class="composer-dropzone" aria-hidden="true">
+											<div class="composer-dropzone-card">
+												<Icon name="upload" width={22} height={22} />
+												<div class="composer-dropzone-h">Drop to attach</div>
+												<div class="composer-dropzone-s">photos · audio · video</div>
+												<div class="composer-dropzone-meta">Max 8 files · 40 MB each</div>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Composer · drag-and-drop overlay</span>
+								<span class="ds-spec-note">.composer.is-drag-over · accent border + tinted .composer-dropzone over the input</span>
+							</div>
+						</div>
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage">
+								<div class="composer">
+									<Avatar variant="compose" avBanner="sunset" />
+									<div>
+										<div class="composer-draft-preview">rain on glass · 11 minutes, two takes</div>
+										<div class="composer-uploads">
+											{#each DS_UPLOADS as upload}
+												<div class="composer-upload-row">
+													<div class={`composer-upload-thumb ${upload.kind}`}>{upload.kind === 'audio' ? 'WAV' : upload.kind === 'video' ? 'MP4' : 'JPG'}</div>
+													<div class="composer-upload-meta">
+														<div class="composer-upload-name">{upload.name}</div>
+														<div class="composer-upload-prog-row">
+															<div class="composer-upload-bar"><span style={`width:${upload.pct}%`}></span></div>
+															<span class="composer-upload-pct">{upload.pct}%</span>
+														</div>
+													</div>
+													<button type="button" class="composer-upload-rm" aria-label={`Remove ${upload.name}`}>×</button>
+												</div>
+											{/each}
+										</div>
+										<div class="composer-row">
+											<button class="composer-tool" title="Image"><Icon name="image" width={18} height={18} /></button>
+											<button class="composer-tool" title="Draw"><Icon name="pencil" width={18} height={18} /></button>
+											<button class="composer-tool" title="Poll"><Icon name="poll" width={18} height={18} /></button>
+											<button class="composer-tool" title="Emoji"><Icon name="smile" width={18} height={18} /></button>
+											<button class="composer-tool cw" aria-pressed="false">CW</button>
+											<button class="composer-tool privacy"><Icon name="globe" width={13} height={13} /><span>Public</span><Icon name="chevDown" width={12} height={12} /></button>
+											<span class="composer-spacer"></span>
+											<span class="composer-count">412</span>
+											<Button variant="primary">Post</Button>
+										</div>
+									</div>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Composer · uploads in progress</span>
+								<span class="ds-spec-note">.composer-upload-row · 36px thumb · progress bar · per-row ✕</span>
+							</div>
+						</div>
+					</div>
+
 					<div class="ds-sub-h" style="margin-top:28px">@mention &amp; :shortcode: autocomplete</div>
 					<p class="ds-sub" style="margin-bottom:14px">The composer text surface is a contenteditable mention editor. Typing <code style="font-family:var(--mono);font-size:11px">@</code> opens account suggestions, while <code style="font-family:var(--mono);font-size:11px">:</code> plus 2+ shortcode characters opens custom emoji suggestions. Inserted atoms serialize back to federated <code style="font-family:var(--mono);font-size:11px">@user@server</code> and <code style="font-family:var(--mono);font-size:11px">:shortcode:</code> text for status creation.</p>
 					<div class="ds-grid ds-grid-2">
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<div class="mention-demo-stage">
+									<div class="me-editor composer-input" role="textbox" aria-label="Inserted mention demo" aria-readonly="true">
+										thanks for the recs
+										<span class="me-pill" contenteditable="false" data-acct="soft.hertz@kolektiva.social" title="@soft.hertz@kolektiva.social">
+											<span class="me-pill-av av-grad-3"><img src="samples/cat-door.webp" alt="soft.hertz ✦ avatar" /></span>
+											<span class="me-pill-at">@</span><span class="me-pill-handle">soft.hertz</span>
+										</span>
+										— going to try qwen 0.5b first.
+									</div>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Editor · with inserted pill</span>
+								<span class="ds-spec-note">contenteditable · pill is a contenteditable=false atom inside the body</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage padded">
+								<div class="mention-demo-popover">
+									<div class="mention-demo-line">thanks for the recs <span>@sof</span><span class="me-caret-static"></span></div>
+									<div class="me-pop static">
+										<div class="me-pop-l">Suggestions · 4 results</div>
+										<div class="me-pop-list" role="listbox" aria-label="Static mention suggestions">
+											{#each DS_MENTION_ACCOUNTS as account, index}
+												<div class="me-row" class:sel={index === 0} role="option" aria-selected={index === 0}>
+													<span class={`me-row-av ${account.avClass ?? ''}`}>{#if account.avatarUrl}<img src={account.avatarUrl} alt={`${account.displayName} avatar`} />{/if}</span>
+													<span class="me-row-name">{account.displayName}</span>
+													<span class="me-row-acct">@{account.acct}</span>
+													{#if index === 0}<span class="me-row-go"><span class="me-kbd">Tab</span></span>{/if}
+												</div>
+											{/each}
+										</div>
+										<div class="me-pop-foot"><span class="me-kbd">↑↓</span> navigate · <span class="me-kbd">Tab</span> insert · <span class="me-kbd">Esc</span> dismiss</div>
+									</div>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Dropdown · open mid-type</span>
+								<span class="ds-spec-note">anchored to the @ position · slim rows + Tab hint on selected</span>
+							</div>
+						</div>
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage padded">
+								<div class="mention-demo-popover shortcode-context">
+									<div class="mention-demo-line">that expression is pure <span>:{DS_SHORTCODE_QUERY}</span><span class="me-caret-static"></span></div>
+									<div class="me-pop static shortcode-demo">
+										<div class="me-pop-l">Emoji · {DS_SHORTCODE_EMOJI.length} matches</div>
+										<div class="me-pop-list" role="listbox" aria-label="Static emoji suggestions">
+											{#each DS_SHORTCODE_EMOJI as emoji, index}
+												<div class="me-row" class:sel={index === 0} role="option" aria-selected={index === 0}>
+													<span class="me-row-emoji"><img src={emoji.url} alt={`:${emoji.shortcode}:`} /></span>
+													<span class="me-row-sc">:{emoji.shortcode}:</span>
+													<span class="me-row-pack">{emoji.pack}</span>
+													{#if index === 0}<span class="me-row-go"><span class="me-kbd">Tab</span></span>{/if}
+												</div>
+											{/each}
+										</div>
+										<div class="me-pop-foot"><span><span class="me-kbd">↑↓</span> navigate · <span class="me-kbd">Tab</span> insert · <span class="me-kbd">Esc</span> dismiss</span></div>
+									</div>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">:shortcode: dropdown</span>
+								<span class="ds-spec-note">same row chrome — emoji preview + :sc: + pack tag · works for any 2+ char prefix</span>
+							</div>
+						</div>
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage padded">
+								<div class="ep-picker static" role="dialog" aria-label="Emoji picker">
+									<aside class="ep-side">
+										<button class="ep-side-item on"><span class="ep-side-i">◷</span><span class="ep-side-t">Recent</span></button>
+										<button class="ep-side-item"><span class="ep-side-i"><span class="ep-side-swatch"><img src="samples/cat-door.webp" alt="" /></span></span><span class="ep-side-t">blobcats</span></button>
+										<button class="ep-side-item"><span class="ep-side-i">☺</span><span class="ep-side-t">Smileys</span></button>
+									</aside>
+									<div class="ep-main">
+										<div class="ep-search"><Icon name="search" width={14} height={14} /><input value="" placeholder="Search…" readonly /></div>
+										<div class="ep-pack-l">Recent <span class="ep-pack-count">6</span></div>
+										<div class="ep-grid">
+											{#each DS_CUSTOM_EMOJI as emoji}<button class="ep-cell" title={`:${emoji.shortcode}:`}><span class="me-emoji ep-cell-cx"><img src={emoji.url} alt={`:${emoji.shortcode}:`} /></span></button>{/each}
+											{#each ['☺','✦','☾'] as emoji}<button class="ep-cell" title={emoji}><span class="ep-cell-uni">{emoji}</span></button>{/each}
+										</div>
+										<div class="ep-foot"><span>Recent</span><span>Click to insert</span></div>
+									</div>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Full emoji picker</span>
+								<span class="ds-spec-note">&lt;EmojiPicker/&gt; · opened by the composer's 😀 button · sidebar of packs + grid + search</span>
+							</div>
+						</div>
 						<div class="ds-spec ds-spec-span-2">
 							<div class="ds-spec-stage">
 								<div class="composer">
@@ -1259,8 +1417,8 @@
 								</div>
 							</div>
 							<div class="ds-spec-foot">
-								<span class="ds-spec-label">Composer · autocomplete editor</span>
-								<span class="ds-spec-note">MentionEditor · @account + :emoji: atoms serialize to status text</span>
+								<span class="ds-spec-label">Interactive editor · autocomplete</span>
+								<span class="ds-spec-note">Svelte implementation · @account + :emoji: atoms serialize to status text</span>
 							</div>
 						</div>
 					</div>

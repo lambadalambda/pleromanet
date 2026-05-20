@@ -128,6 +128,12 @@
 
 		const avatar = document.createElement('span');
 		avatar.className = `me-pill-av ${account.avClass ?? ''}`.trim();
+		if (account.avatarUrl) {
+			const img = document.createElement('img');
+			img.src = account.avatarUrl;
+			img.alt = `${account.displayName || account.username} avatar`;
+			avatar.appendChild(img);
+		}
 		atom.appendChild(avatar);
 
 		const at = document.createElement('span');
@@ -349,14 +355,16 @@
 			<div id={listboxId} role="listbox" aria-label="Mention suggestions">
 				{#each visibleAccounts as account, index (account.id)}
 					<button id={`${listboxId}-${index}`} type="button" role="option" aria-selected={index === selectedIndex} class="me-row" class:sel={index === selectedIndex} onmousedown={(event) => { event.preventDefault(); selectedIndex = index; insertSelected(); }}>
-						<span class={`me-row-av ${account.avClass ?? ''}`}></span>
+						<span class={`me-row-av ${account.avClass ?? ''}`}>
+							{#if account.avatarUrl}<img src={account.avatarUrl} alt={`${account.displayName || account.username} avatar`} />{/if}
+						</span>
 						<span class="me-row-name">{account.displayName}</span>
 						<span class="me-row-acct">@{account.acct}</span>
 					</button>
 				{/each}
 			</div>
 			{#if visibleAccounts.length === 0}<div class="me-pop-empty">No matches for <code>@{pop.query}</code></div>{/if}
-			<div class="me-pop-foot">↑↓ navigate · Tab insert · Esc dismiss</div>
+			<div class="me-pop-foot"><span class="me-kbd">↑↓</span> navigate · <span class="me-kbd">Tab</span> insert · <span class="me-kbd">Esc</span> dismiss</div>
 		</div>
 	{:else if pop?.type === 'emoji'}
 		<div class="me-pop" style={`left:${pop.left}px;top:${pop.top}px`}>
@@ -371,7 +379,7 @@
 				{/each}
 			</div>
 			{#if visibleEmojis.length === 0}<div class="me-pop-empty">No matches for <code>:{pop.query}:</code></div>{/if}
-			<div class="me-pop-foot">↑↓ navigate · Enter insert · Esc dismiss</div>
+			<div class="me-pop-foot"><span class="me-kbd">↑↓</span> navigate · <span class="me-kbd">Enter</span> insert · <span class="me-kbd">Esc</span> dismiss</div>
 		</div>
 	{/if}
 </div>
