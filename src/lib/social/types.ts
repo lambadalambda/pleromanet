@@ -99,6 +99,7 @@ export type PollAttachment = {
 export type PostAttachment = PhotoAttachment | VideoAttachment | AudioAttachment | PollAttachment;
 
 export type QuotedPostView = {
+	href?: string;
 	name: string;
 	nameEmojis?: CustomEmoji[];
 	handle: string;
@@ -106,6 +107,8 @@ export type QuotedPostView = {
 	body: string;
 	bodyEmojis?: CustomEmoji[];
 	avatar?: AvatarVariant;
+	avClass?: string;
+	avatarUrl?: string | null;
 	avatarBanner?: MediaVariant | 'pixel-window';
 	replies?: number;
 	boosts?: number;

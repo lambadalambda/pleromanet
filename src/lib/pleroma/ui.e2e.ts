@@ -340,6 +340,100 @@ test('Pleroma status adapters use real poll expiry and voted metadata', () => {
 	expect(poll?.kind === 'poll' ? poll.endsIn : undefined).toMatch(/^6h 1[12]m$/);
 });
 
+test('Pleroma status adapters expose visible quote posts and strip inline quote links', () => {
+	const quotedStatus = withStatus({
+		id: 'quoted-status',
+		url: 'https://remote.example/objects/quoted-status',
+		uri: 'https://remote.example/objects/quoted-status',
+		account: {
+			...pleromaFixtures.account,
+			id: 'quoted-account',
+			username: 'quoted',
+			acct: 'quoted@remote.example',
+			display_name: 'quoted source',
+			avatar: 'https://remote.example/avatar.jpg',
+			avatar_static: 'https://remote.example/avatar-static.jpg'
+		},
+		content: '<p>quoted status body</p>',
+		created_at: '2026-05-20T11:26:57.000Z',
+		replies_count: 1,
+		reblogs_count: 2,
+		reblogged: true,
+		favourites_count: 3,
+		favourited: true,
+		media_attachments: [
+			{
+				id: 'quoted-photo',
+				type: 'image',
+				url: 'https://remote.example/quoted-photo.jpg',
+				description: 'quoted photo'
+			}
+		],
+		poll: {
+			id: 'quoted-poll',
+			options: [{ title: 'polls do not render in quote previews', votes_count: 1 }],
+			votes_count: 1
+		},
+		pleroma: {
+			content: { 'text/plain': 'quoted status body' },
+			quote: null,
+			quote_visible: false
+		}
+	});
+	const post = adaptPleromaStatus(withStatus({
+		id: 'quote-wrapper',
+		content: 'Me and who?<span class="quote-inline"><br/><br/><bdi>RT:</bdi> <a href="https://remote.example/objects/quoted-status">https://remote.example/objects/quoted-status</a></span>',
+		pleroma: {
+			content: { 'text/plain': 'Me and who?RT: https://remote.example/objects/quoted-status' },
+			quote: quotedStatus,
+			quote_id: 'quoted-status',
+			quote_url: 'https://remote.example/objects/quoted-status',
+			quote_visible: true
+		}
+	}));
+
+	expect(post.body).toBe('Me and who?');
+	expect(post.contentText).toBe('Me and who?');
+	expect(post.quotedPost).toMatchObject({
+		href: '/app/thread/quoted-status',
+		name: 'quoted source',
+		handle: '@quoted@remote.example',
+		time: 'May 20',
+		body: 'quoted status body',
+		avatarUrl: 'https://remote.example/avatar.jpg',
+		replies: 1,
+		boosts: 2,
+		favs: 3,
+		attachments: [{ kind: 'photo', src: 'https://remote.example/quoted-photo.jpg', alt: 'quoted photo' }]
+	});
+
+	const hiddenQuote = adaptPleromaStatus(withStatus({
+		id: 'hidden-quote-wrapper',
+		content: 'Reference kept.<span class="quote-inline"><br/><br/><bdi>RT:</bdi> <a href="https://remote.example/objects/quoted-status">https://remote.example/objects/quoted-status</a></span>',
+		pleroma: {
+			content: { 'text/plain': 'Reference kept.RT: https://remote.example/objects/quoted-status' },
+			quote: quotedStatus,
+			quote_url: 'https://remote.example/objects/quoted-status',
+			quote_visible: false
+		}
+	}));
+	expect(hiddenQuote.quotedPost).toBeUndefined();
+	expect(hiddenQuote.body).toBe('Reference kept.\n\nRT: https://remote.example/objects/quoted-status');
+
+	const replyStyleQuote = adaptPleromaStatus(withStatus({
+		id: 'reply-style-quote-wrapper',
+		content: '<p>mood<span class="quote-inline"><br/><br/>RE: <a href="https://remote.example/objects/quoted-status">https://remote.example/objects/quoted-status</a></span></p>',
+		pleroma: {
+			content: { 'text/plain': 'moodRE: https://remote.example/objects/quoted-status' },
+			quote: quotedStatus,
+			quote_url: 'https://remote.example/objects/quoted-status',
+			quote_visible: true
+		}
+	}));
+	expect(replyStyleQuote.body).toBe('mood');
+	expect(replyStyleQuote.contentText).toBe('mood');
+});
+
 test('Pleroma notification adapters map known and unknown types with local last-seen read state', () => {
 	const notifications = adaptPleromaNotifications(pleromaFixtures.notifications, {
 		lastSeenAt: '2026-05-18T12:01:00.000Z'

@@ -84,6 +84,11 @@ export type PleromaStatus = {
 		content?: Record<string, string>;
 		conversation_id?: number;
 		local?: boolean;
+		quote?: PleromaStatus | null;
+		quote_id?: string | null;
+		quote_url?: string | null;
+		quote_visible?: boolean;
+		quotes_count?: number;
 		spoiler_text?: Record<string, string>;
 		[key: string]: unknown;
 	};

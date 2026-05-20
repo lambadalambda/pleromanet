@@ -1160,6 +1160,83 @@ test('home timeline renders boosted Pleroma statuses with attribution and media 
 	await expect(page).toHaveURL('/app/thread/boosted-original');
 });
 
+test('home timeline renders Pleroma quote posts as embedded quote cards', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	const quotedStatus = {
+		...statusWithText('quoted-status', 'quoted status body'),
+		url: 'https://remote.example/objects/quoted-status',
+		uri: 'https://remote.example/objects/quoted-status',
+		account: {
+			...pleromaFixtures.account,
+			id: 'quoted-account',
+			username: 'quoted',
+			acct: 'quoted@remote.example',
+			display_name: 'quoted source',
+			avatar: 'https://remote.example/avatar.jpg',
+			avatar_static: 'https://remote.example/avatar-static.jpg'
+		},
+		created_at: '2026-05-20T11:26:57.000Z',
+		replies_count: 1,
+		reblogs_count: 2,
+		favourites_count: 3,
+		media_attachments: [],
+		pleroma: {
+			...pleromaFixtures.status.pleroma,
+			content: { 'text/plain': 'quoted status body' },
+			quote: null,
+			quote_visible: false
+		}
+	};
+	const wrapper = {
+		...statusWithText('quote-wrapper', 'Me and who?RT: https://remote.example/objects/quoted-status'),
+		content: 'Me and who?<span class="quote-inline"><br/><br/><bdi>RT:</bdi> <a href="https://remote.example/objects/quoted-status">https://remote.example/objects/quoted-status</a></span>',
+		pleroma: {
+			...pleromaFixtures.status.pleroma,
+			content: { 'text/plain': 'Me and who?RT: https://remote.example/objects/quoted-status' },
+			quote: quotedStatus,
+			quote_id: 'quoted-status',
+			quote_url: 'https://remote.example/objects/quoted-status',
+			quote_visible: true
+		}
+	};
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [wrapper]);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/quoted-status', async (route) => {
+		await fulfillHome(route, quotedStatus);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/quoted-status/context', async (route) => {
+		await fulfillHome(route, { ancestors: [], descendants: [] });
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('[data-status-id="quote-wrapper"]');
+	await expect(post.locator('.post-body')).toContainText('Me and who?');
+	await expect(post.locator('.post-body')).not.toContainText('RT: https://remote.example/objects/quoted-status');
+	const quote = post.locator('.quoted-card');
+	await expect(quote).toContainText('quoted source');
+	await expect(quote).toContainText('@quoted@remote.example');
+	await expect(quote).toContainText('quoted status body');
+	await expect(quote).toContainText('↩ 1');
+	await expect(quote).toContainText('↻ 2');
+	await expect(quote).toContainText('★ 3');
+	await expect(quote.locator('img[alt="quoted source avatar"]')).toHaveAttribute('src', 'https://remote.example/avatar.jpg');
+	await expect(quote).toHaveAttribute('href', '/app/thread/quoted-status');
+
+	await quote.getByText('view original →').click();
+	await expect(page).toHaveURL('/app/thread/quoted-status');
+	await expect(page.getByTestId('thread-view')).toContainText('quoted status body');
+
+	await page.goBack();
+	await expect(page).toHaveURL('/app/home');
+	const quoteAfterBack = page.locator('[data-status-id="quote-wrapper"] .quoted-card');
+	await quoteAfterBack.click({ position: { x: 24, y: 24 } });
+	await expect(page).toHaveURL('/app/thread/quoted-status');
+});
+
 test('home timeline loads the next cursor page, deduplicates overlap, and keeps status ids', async ({ page }) => {
 	await authenticate(page);
 	let releaseNextPage: () => void = () => undefined;

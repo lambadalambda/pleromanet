@@ -1,4 +1,4 @@
-import type { AvatarVariant, CustomEmoji, PostAttachment, SocialNotificationData, SocialNotificationKind, TimelinePost, TimelineView } from '$lib/social/types';
+import type { AvatarVariant, CustomEmoji, PostAttachment, QuotedPostView, SocialNotificationData, SocialNotificationKind, TimelinePost, TimelineView } from '$lib/social/types';
 import { isPleromaClientError } from './http';
 import type { PleromaAccount, PleromaCustomEmoji, PleromaInstance, PleromaNotification, PleromaStatus } from './types';
 
@@ -418,6 +418,59 @@ const adaptPollAttachment = (poll: unknown): PostAttachment | null => {
 	};
 };
 
+const adaptStatusAttachments = (status: PleromaStatus) => {
+	const mediaAttachments = status.media_attachments.map(adaptMediaAttachment).filter((attachment) => attachment !== null);
+	const pollAttachment = adaptPollAttachment(status.poll);
+	const postAttachments = [
+		...mediaAttachments.map(adaptPostAttachment).filter((attachment) => attachment !== null),
+		...(pollAttachment ? [pollAttachment] : [])
+	];
+
+	return { mediaAttachments, postAttachments };
+};
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const quoteReferenceUrl = (status: PleromaStatus) =>
+	stringValue(status.pleroma.quote_url) ?? stringValue(status.pleroma.quote?.url) ?? stringValue(status.pleroma.quote?.uri);
+
+const stripInlineQuoteReference = (text: string, status: PleromaStatus) => {
+	const quoteUrl = quoteReferenceUrl(status);
+	if (!quoteUrl) return text;
+
+	return text.replace(new RegExp(`\\s*(?:RT|RE):\\s*${escapeRegExp(quoteUrl)}\\s*$`, 'i'), '').trim();
+};
+
+const visibleQuotedStatus = (status: PleromaStatus) => {
+	if (status.pleroma.quote_visible === false) return null;
+	return status.pleroma.quote ?? null;
+};
+
+const threadHref = (statusId: string) => `/app/thread/${encodeURIComponent(statusId)}`;
+
+const adaptQuotedPost = (status: PleromaStatus): QuotedPostView => {
+	const account = adaptPleromaAccount(status.account);
+	const { postAttachments } = adaptStatusAttachments(status);
+	const quoteAttachments = postAttachments.filter((attachment) => attachment.kind !== 'poll');
+	const warning = spoilerText(status);
+
+	return {
+		href: threadHref(status.id),
+		name: account.displayName,
+		nameEmojis: account.emojis,
+		handle: account.handle,
+		time: formatStatusDate(status.created_at),
+		body: warning ? `Content warning: ${warning}` : plainTextContent(status),
+		bodyEmojis: adaptCustomEmojis(status.emojis),
+		avClass: account.avatarUrl ? undefined : 'av-grad-2',
+		avatarUrl: account.avatarUrl,
+		replies: status.replies_count,
+		boosts: status.reblogs_count,
+		favs: status.favourites_count,
+		attachments: status.sensitive || warning ? undefined : quoteAttachments
+	};
+};
+
 const timelineMembership = (status: PleromaStatus, options: AdaptPleromaStatusOptions): TimelineView[] => {
 	if (options.timelines) return options.timelines;
 	if (typeof status.pleroma.local !== 'boolean') return [];
@@ -445,14 +498,10 @@ export const adaptPleromaAccount = (account: PleromaAccount): PleromaAccountView
 export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaStatusOptions = {}): PleromaStatusView => {
 	const source = status.reblog ?? status;
 	const account = adaptPleromaAccount(source.account);
-	const mediaAttachments = source.media_attachments.map(adaptMediaAttachment).filter((attachment) => attachment !== null);
-	const pollAttachment = adaptPollAttachment(source.poll);
-	const postAttachments = [
-		...mediaAttachments.map(adaptPostAttachment).filter((attachment) => attachment !== null),
-		...(pollAttachment ? [pollAttachment] : [])
-	];
+	const { mediaAttachments, postAttachments } = adaptStatusAttachments(source);
 	const warning = spoilerText(source);
-	const plainText = plainTextContent(source);
+	const quotedPost = visibleQuotedStatus(source);
+	const plainText = quotedPost ? stripInlineQuoteReference(plainTextContent(source), source) : plainTextContent(source);
 	const body = extractLeadingReplyAddressees(plainText, source);
 	const mediaHidden = postAttachments.length > 0 && Boolean(warning || source.sensitive);
 	const booster = status.reblog ? adaptPleromaAccount(status.account) : undefined;
@@ -477,6 +526,7 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		bodyEmojis: adaptCustomEmojis(source.emojis),
 		addressees: body.addressees,
 		copyJson: status,
+		quotedPost: quotedPost ? adaptQuotedPost(quotedPost) : undefined,
 		avatar: avatarVariant(source.account),
 		avatarUrl: account.avatarUrl,
 		attachments: source.sensitive && !warning ? undefined : postAttachments,
