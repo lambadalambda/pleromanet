@@ -977,11 +977,15 @@ body[data-theme='simoun'] .pill {
 .me-pill-at { opacity: 0.7; }
 .me-pill-handle { line-height: 1; overflow: hidden; text-overflow: ellipsis; }
 .me-emoji {
-	width: 1.2em;
-	height: 1.2em;
+	width: 20px;
+	height: 20px;
+	border-radius: 4px;
 	margin: 0 1px;
-	line-height: 1;
-	vertical-align: -0.18em;
+	line-height: 0;
+	vertical-align: middle;
+	overflow: hidden;
+	position: relative;
+	flex-shrink: 0;
 }
 .me-emoji img,
 .me-row-emoji img {
@@ -1130,20 +1134,28 @@ body[data-theme='simoun'] .pill {
 }
 @keyframes blink { 50% { opacity: 0; } }
 .shortcode-demo { max-width: 520px; margin: 0 auto; }
-.ep-picker.static {
-	position: static;
+.ep-picker {
+	position: fixed;
+	z-index: 80;
 	display: grid;
-	grid-template-columns: 126px minmax(0, 1fr);
-	width: min(620px, 100%);
-	min-height: 360px;
-	margin: 0 auto;
+	grid-template-columns: 116px minmax(0, 1fr);
+	width: 380px;
+	max-height: 420px;
 	border: 1px solid var(--border-strong);
 	border-radius: 8px;
 	background: var(--panel);
 	overflow: hidden;
+	box-shadow: 0 18px 40px -12px rgba(28, 32, 70, 0.28), 0 4px 12px rgba(28, 32, 70, 0.10);
+}
+.ep-picker.static {
+	position: static;
+	width: min(620px, 100%);
+	min-height: 360px;
+	max-height: none;
+	margin: 0 auto;
 	box-shadow: 0 12px 28px -8px rgba(28, 32, 70, 0.18);
 }
-.ep-side { padding: 8px; border-right: 1px solid var(--border); background: var(--panel-2); }
+.ep-side { padding: 8px; border-right: 1px solid var(--border); background: var(--panel-2); overflow-y: auto; }
 .ep-side-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px; border-radius: 5px; color: var(--ink-2); text-align: left; }
 .ep-side-item.on, .ep-side-item:hover { background: var(--accent-soft); color: var(--ink); }
 .ep-side-i { display: grid; place-items: center; width: 22px; height: 22px; flex-shrink: 0; }
@@ -1155,12 +1167,14 @@ body[data-theme='simoun'] .pill {
 .ep-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 13px; }
 .ep-pack-l { display: flex; align-items: center; gap: 8px; padding: 10px 12px 6px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
 .ep-pack-count { color: var(--accent-ink); }
-.ep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); align-content: start; gap: 4px; padding: 8px 12px 12px; }
+.ep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); align-content: start; gap: 4px; padding: 8px 12px 12px; overflow-y: auto; }
 .ep-cell { display: grid; place-items: center; height: 42px; border-radius: 5px; background: var(--panel-2); }
 .ep-cell:hover { background: var(--accent-soft); }
 .ep-cell-cx { width: 26px; height: 26px; }
 .ep-cell-uni { font-size: 22px; }
 .ep-foot { display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; border-top: 1px solid var(--border); font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.ep-foot-l { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ep-foot-r { flex-shrink: 0; color: var(--muted-2); }
 .composer { position: relative; }
 .composer.is-drag-over { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft-2); }
 .composer-draft-preview { padding: 4px 0 6px; font-size: 15px; line-height: 1.7; color: var(--ink); }

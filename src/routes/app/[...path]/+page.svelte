@@ -6,6 +6,7 @@
 	import Button from '$lib/rebuild/Button.svelte';
 	import ComposerCWPanel from '$lib/rebuild/ComposerCWPanel.svelte';
 	import ComposerMentionEditor, { type ComposerEmoji, type ComposerMentionAccount } from '$lib/rebuild/ComposerMentionEditor.svelte';
+	import EmojiPicker from '$lib/rebuild/EmojiPicker.svelte';
 	import ComposerPollPanel from '$lib/rebuild/ComposerPollPanel.svelte';
 	import FocusedPost from '$lib/rebuild/FocusedPost.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
@@ -146,6 +147,11 @@
 	let composerText = $state('');
 	let composerMentionAccounts = $state<ComposerMentionAccount[]>([]);
 	let composerCustomEmojis = $state<ComposerEmoji[]>([]);
+	let composerEmojiRecents = $state<Array<string | ComposerEmoji>>([]);
+	let composerEmojiPickerOpen = $state(false);
+	let composerEmojiPickerAnchor = $state<{ left?: number; top?: number; bottom?: number } | null>(null);
+	let composerInsertRequest = $state<{ id: number; item: string | ComposerEmoji } | null>(null);
+	let composerInsertRequestId = 0;
 	let composerSpoilerActive = $state(false);
 	let composerSpoilerText = $state('');
 	let composerPoll = $state<ComposerPollDraft | null>(null);
@@ -1116,6 +1122,19 @@
 			}
 		})();
 	};
+	const toggleComposerEmojiPicker = (event: MouseEvent) => {
+		const session = currentSession;
+		if (session) ensureComposerCustomEmojis(session);
+		const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+		composerEmojiPickerAnchor = { left: rect.left, top: rect.top, bottom: rect.bottom };
+		composerEmojiPickerOpen = !composerEmojiPickerOpen;
+	};
+	const emojiRecentKey = (item: string | ComposerEmoji) => typeof item === 'string' ? item : item.shortcode;
+	const insertComposerEmoji = (item: string | ComposerEmoji) => {
+		composerEmojiRecents = [item, ...composerEmojiRecents.filter((recent) => emojiRecentKey(recent) !== emojiRecentKey(item))].slice(0, 12);
+		composerInsertRequestId += 1;
+		composerInsertRequest = { id: composerInsertRequestId, item };
+	};
 	const clearNotificationLoadPromise = (abort = false) => {
 		if (abort) notificationAbortController?.abort();
 		notificationLoadPromise = null;
@@ -1718,6 +1737,7 @@
 									onMentionQuery={searchComposerMentionAccounts}
 									accounts={composerMentionAccounts}
 									emojis={composerCustomEmojis}
+									insertRequest={composerInsertRequest}
 									onSubmit={submitHomePost}
 								/>
 								{#if composerSpoilerActive}
@@ -1729,7 +1749,7 @@
 								<div class="composer-row">
 									<button type="button" class="composer-tool" title="Image" aria-label="Image"><Icon name="image" width={18} height={18} /></button>
 									<button type="button" class="composer-tool" class:active={Boolean(composerPoll)} title="Poll" aria-label="Poll" aria-pressed={Boolean(composerPoll)} onclick={toggleComposerPoll}><Icon name="poll" width={18} height={18} /></button>
-									<button type="button" class="composer-tool" title="Emoji" aria-label="Emoji"><Icon name="smile" width={18} height={18} /></button>
+									<button type="button" class="composer-tool" class:active={composerEmojiPickerOpen} title="Emoji" aria-label="Emoji" aria-pressed={composerEmojiPickerOpen} data-emoji-trigger onclick={toggleComposerEmojiPicker}><Icon name="smile" width={18} height={18} /></button>
 									<button type="button" class="composer-tool cw" class:active={composerSpoilerActive} aria-label="Content warning" aria-pressed={composerSpoilerActive} onclick={toggleComposerSpoiler}>CW</button>
 									<button type="button" class="composer-tool privacy" aria-label="Privacy Public"><Icon name="globe" width={13} height={13} /><span>Public</span><Icon name="chevDown" width={12} height={12} /></button>
 									<span class="composer-spacer"></span>
@@ -1743,6 +1763,7 @@
 									</div>
 								{/if}
 							</div>
+							<EmojiPicker open={composerEmojiPickerOpen} emojis={composerCustomEmojis} recents={composerEmojiRecents} anchor={composerEmojiPickerAnchor} onClose={() => (composerEmojiPickerOpen = false)} onPick={insertComposerEmoji} />
 						</form>
 						{#each homeStatusActionErrors as actionError (`${actionError.targetId}:${actionError.key}`)}
 							<div class="status-action-error" role="alert">

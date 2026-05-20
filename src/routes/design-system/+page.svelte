@@ -4,6 +4,7 @@
 	import Button from '$lib/rebuild/Button.svelte';
 	import ComposerCWPanel from '$lib/rebuild/ComposerCWPanel.svelte';
 	import ComposerMentionEditor, { type ComposerEmoji, type ComposerMentionAccount } from '$lib/rebuild/ComposerMentionEditor.svelte';
+	import EmojiPicker from '$lib/rebuild/EmojiPicker.svelte';
 	import ComposerPollPanel from '$lib/rebuild/ComposerPollPanel.svelte';
 	import FocusedPost from '$lib/rebuild/FocusedPost.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
@@ -246,6 +247,10 @@
 	];
 	const DS_SHORTCODE_QUERY = 'bl';
 	const DS_SHORTCODE_EMOJI = DS_CUSTOM_EMOJI.filter((emoji) => emoji.shortcode.startsWith(DS_SHORTCODE_QUERY));
+	const DS_UNICODE_GROUPS = [
+		{ id: 'smileys', label: 'Smileys', items: ['☺', '☹', '☻', '♡', '☆', '☾'] },
+		{ id: 'symbols', label: 'Symbols', items: ['✦', '✧', '✶', '※', '◌', '◷'] }
+	];
 	const DS_UPLOADS = [
 		{ id: 'u1', name: 'rain-on-glass-take2.wav', kind: 'audio', pct: 100 },
 		{ id: 'u2', name: 'windowsill-dusk.jpg', kind: 'photo', pct: 62 },
@@ -1369,22 +1374,7 @@
 						</div>
 						<div class="ds-spec ds-spec-span-2">
 							<div class="ds-spec-stage padded">
-								<div class="ep-picker static" role="dialog" aria-label="Emoji picker">
-									<aside class="ep-side">
-										<button class="ep-side-item on"><span class="ep-side-i">◷</span><span class="ep-side-t">Recent</span></button>
-										<button class="ep-side-item"><span class="ep-side-i"><span class="ep-side-swatch"><img src="samples/cat-door.webp" alt="" /></span></span><span class="ep-side-t">blobcats</span></button>
-										<button class="ep-side-item"><span class="ep-side-i">☺</span><span class="ep-side-t">Smileys</span></button>
-									</aside>
-									<div class="ep-main">
-										<div class="ep-search"><Icon name="search" width={14} height={14} /><input value="" placeholder="Search…" readonly /></div>
-										<div class="ep-pack-l">Recent <span class="ep-pack-count">6</span></div>
-										<div class="ep-grid">
-											{#each DS_CUSTOM_EMOJI as emoji}<button class="ep-cell" title={`:${emoji.shortcode}:`}><span class="me-emoji ep-cell-cx"><img src={emoji.url} alt={`:${emoji.shortcode}:`} /></span></button>{/each}
-											{#each ['☺','✦','☾'] as emoji}<button class="ep-cell" title={emoji}><span class="ep-cell-uni">{emoji}</span></button>{/each}
-										</div>
-										<div class="ep-foot"><span>Recent</span><span>Click to insert</span></div>
-									</div>
-								</div>
+								<EmojiPicker static open emojis={DS_CUSTOM_EMOJI} unicodeGroups={DS_UNICODE_GROUPS} recents={[DS_CUSTOM_EMOJI[0], DS_CUSTOM_EMOJI[1], '☺', '✦', '☾']} onClose={() => undefined} onPick={() => undefined} />
 							</div>
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Full emoji picker</span>

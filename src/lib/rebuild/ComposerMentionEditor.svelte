@@ -33,6 +33,7 @@
 		autoFocus?: boolean;
 		onMentionQuery?: (query: string) => void;
 		onSubmit?: () => void;
+		insertRequest?: { id: number; item: string | ComposerEmoji } | null;
 };
 
 	let {
@@ -45,12 +46,14 @@
 		disabled = false,
 		autoFocus = false,
 		onMentionQuery,
-		onSubmit
+		onSubmit,
+		insertRequest = null
 }: Props = $props();
 	let editor: HTMLDivElement | null = null;
 	let pop = $state<PopState>(null);
 	let selectedIndex = $state(0);
 	let triggerRange: Range | null = null;
+	let handledInsertRequestId = 0;
 	let listboxId = $derived(`${id}-suggestions`);
 	let activeOptionId = $derived(pop ? `${listboxId}-${selectedIndex}` : undefined);
 	const accountMatches = (query: string) => accounts.filter((account) =>
@@ -117,6 +120,13 @@
 	};
 
 	const appendText = (text: string) => editor?.appendChild(document.createTextNode(text));
+	const ensureEditorRange = () => {
+		if (!editor) return null;
+		const selection = window.getSelection();
+		if (selection && selection.rangeCount > 0 && editor.contains(selection.getRangeAt(0).startContainer)) return selection.getRangeAt(0);
+		placeCaretAtEnd();
+		return window.getSelection()?.rangeCount ? window.getSelection()?.getRangeAt(0) ?? null : null;
+	};
 
 	const createMentionAtom = (account: ComposerMentionAccount) => {
 		const atom = document.createElement('span');
@@ -280,6 +290,22 @@
 		onInput(serialize(editor));
 	};
 
+	const insertExternal = (item: string | ComposerEmoji) => {
+		if (!editor) return;
+		const range = ensureEditorRange();
+		if (!range) return;
+		editor.focus();
+		range.deleteContents();
+		const inserted = typeof item === 'string' ? document.createTextNode(item) : createEmojiAtom(item);
+		const space = document.createTextNode('\u00a0');
+		range.insertNode(space);
+		range.insertNode(inserted);
+		placeCaretAfter(space);
+		pop = null;
+		triggerRange = null;
+		onInput(serialize(editor));
+	};
+
 	const handleKeydown = (event: KeyboardEvent) => {
 		const count = pop?.type === 'mention' ? accountMatches(pop.query).length : pop?.type === 'emoji' ? emojiMatches(pop.query).length : 0;
 		if (pop && count > 0) {
@@ -326,6 +352,12 @@
 		if (!editor) return;
 		const current = serialize(editor);
 		if (value !== current && (value === '' || document.activeElement !== editor)) renderSerialized(value);
+	});
+
+	$effect(() => {
+		if (!insertRequest || insertRequest.id === handledInsertRequestId) return;
+		handledInsertRequestId = insertRequest.id;
+		insertExternal(insertRequest.item);
 	});
 </script>
 

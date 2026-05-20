@@ -291,6 +291,39 @@ test('home timeline composer autocompletes mentions and custom emoji before post
 	await expect(composer).toBeEmpty();
 });
 
+test('home timeline composer inserts custom emoji from picker before posting', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, []);
+	});
+	await page.route(customEmojisUrl, async (route) => {
+		await fulfillHome(route, pleromaFixtures.customEmojis);
+	});
+	let createdBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createdBody = route.request().postData() ?? '';
+		await fulfillHome(route, statusWithText('created-picker-status', 'picker :blobcat:'));
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const composer = page.getByRole('textbox', { name: 'Post text' });
+
+	await composer.fill('picker ');
+	await page.getByRole('button', { name: 'Emoji' }).click();
+	await expect(page.getByRole('dialog', { name: 'Emoji picker' })).toBeVisible();
+	await page.getByRole('textbox', { name: 'Search emoji' }).fill('cat');
+	await page.getByRole('button', { name: ':blobcat:' }).click();
+	await expect(page.getByRole('dialog', { name: 'Emoji picker' })).toBeHidden();
+	await expect(composer.locator('.me-emoji img[alt=":blobcat:"]')).toBeVisible();
+
+	await page.getByTestId('app-content').getByRole('button', { name: 'Post', exact: true }).click();
+	const params = new URLSearchParams(createdBody);
+	expect(params.get('status')).toBe('picker :blobcat:');
+	await expect(page.locator('[data-status-id="created-picker-status"]')).toContainText('picker :blobcat:');
+});
+
 test('home timeline composer toggles poll editor and submits poll fields', async ({ page }) => {
 	await authenticate(page);
 	await mockInstance(page);
