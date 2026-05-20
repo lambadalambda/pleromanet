@@ -112,6 +112,15 @@ const search: PleromaSearchResult = {
 	hashtags: trends
 };
 
+const customEmojis = [
+	{
+		shortcode: 'blobcat',
+		url: 'https://cdn.example/emoji/blobcat.png',
+		static_url: 'https://cdn.example/emoji/blobcat-static.png',
+		visible_in_picker: true
+	}
+];
+
 const notificationAccount = (id: string, displayName: string, acct: string): PleromaAccount => ({
 	...account,
 	id,
@@ -201,6 +210,7 @@ export const pleromaFixtures = {
 	trends,
 	notifications,
 	search,
+	customEmojis,
 	instance,
 	timelines: {
 		home: [status, federatedStatus],

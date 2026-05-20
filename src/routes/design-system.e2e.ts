@@ -102,11 +102,11 @@ test('renders canonical composer mention and emoji autocomplete specimen', async
 	await editor.fill('@so');
 	await expect(specimen.getByRole('listbox', { name: 'Mention suggestions' })).toBeVisible();
 	await expect(specimen.getByRole('option', { name: /soft.hertz/ })).toBeVisible();
-	await editor.press('Tab');
+	await editor.press('Enter');
 	await expect(editor).toContainText('@soft.hertz');
 	await expect(specimen.locator('[data-serialized-text]')).toContainText('@soft.hertz@kolektiva.social');
 
-	await editor.pressSequentially(' :bl');
+	await editor.pressSequentially(':bl');
 	await expect(specimen.getByRole('listbox', { name: 'Emoji suggestions' })).toBeVisible();
 	await expect(specimen.getByRole('option', { name: /:blobcat:/ })).toBeVisible();
 	await editor.press('Enter');

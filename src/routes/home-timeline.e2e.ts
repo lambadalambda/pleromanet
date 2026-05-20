@@ -13,9 +13,14 @@ const session = {
 
 const homeUrl = 'https://pleroma.example/api/v1/timelines/home**';
 const instanceUrl = 'https://pleroma.example/api/v2/instance';
+const accountSearchUrl = 'https://pleroma.example/api/v1/accounts/search**';
+const customEmojisUrl = 'https://pleroma.example/api/v1/custom_emojis';
 
 const authenticate = async (page: Page) => {
 	await mockRightRailApis(page);
+	await page.route(customEmojisUrl, async (route) => {
+		await fulfillHome(route, pleromaFixtures.customEmojis);
+	});
 	await page.addInitScript((storedSession) => {
 			type MockSocket = {
 				url: string;
@@ -55,6 +60,9 @@ const authenticate = async (page: Page) => {
 
 const authenticateWithThrowingWebSocket = async (page: Page) => {
 	await mockRightRailApis(page);
+	await page.route(customEmojisUrl, async (route) => {
+		await fulfillHome(route, pleromaFixtures.customEmojis);
+	});
 	await page.addInitScript((storedSession) => {
 		const ThrowingWebSocket = function () {
 			throw new Error('socket blocked');
@@ -214,14 +222,14 @@ test('home timeline composer creates statuses through Pleroma', async ({ page })
 	const composer = page.getByRole('textbox', { name: 'Post text' });
 	await composer.fill('posting through Pleroma composer');
 	await page.getByRole('button', { name: 'Content warning', exact: true }).click();
-	await expect(composer).toHaveValue('posting through Pleroma composer');
+	await expect(composer).toContainText('posting through Pleroma composer');
 	await expect(page.getByRole('button', { name: 'Content warning', exact: true })).toHaveAttribute('aria-pressed', 'true');
 	await expect(page.getByRole('textbox', { name: 'Content warning text' })).toBeFocused();
 	await page.getByRole('textbox', { name: 'Content warning text' }).fill('soft spoiler');
 	await page.getByRole('button', { name: 'Post', exact: true }).click();
 
 	await expect(page.locator('[data-status-id="created-home-status"]')).toContainText('posting through Pleroma composer');
-	await expect(composer).toHaveValue('');
+	await expect(composer).toBeEmpty();
 	await expect(page.getByRole('textbox', { name: 'Content warning text' })).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'Content warning', exact: true })).toHaveAttribute('aria-pressed', 'false');
 	expect(createMethod).toBe('POST');
@@ -230,6 +238,53 @@ test('home timeline composer creates statuses through Pleroma', async ({ page })
 	expect(params.get('status')).toBe('posting through Pleroma composer');
 	expect(params.get('visibility')).toBe('public');
 	expect(params.get('spoiler_text')).toBe('soft spoiler');
+});
+
+test('home timeline composer autocompletes mentions and custom emoji before posting', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, []);
+	});
+	await page.route(accountSearchUrl, async (route) => {
+		await fulfillHome(route, [{
+			...pleromaFixtures.account,
+			id: 'soft-hertz',
+			username: 'soft.hertz',
+			acct: 'soft.hertz@kolektiva.social',
+			display_name: 'soft.hertz ✦'
+		}]);
+	});
+	await page.route(customEmojisUrl, async (route) => {
+		await fulfillHome(route, pleromaFixtures.customEmojis);
+	});
+	let createdBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createdBody = route.request().postData() ?? '';
+		await fulfillHome(route, statusWithText('created-autocomplete-status', 'hello @soft.hertz@kolektiva.social :blobcat:'));
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const composer = page.getByRole('textbox', { name: 'Post text' });
+
+	await composer.fill('hello @so');
+	await expect(page.getByRole('listbox', { name: 'Mention suggestions' })).toBeVisible();
+	await expect(page.getByRole('option', { name: /soft.hertz/ })).toBeVisible();
+	await composer.press('Enter');
+	await expect(composer).toContainText('@soft.hertz');
+
+	await composer.pressSequentially(':bl');
+	await expect(page.getByRole('listbox', { name: 'Emoji suggestions' })).toBeVisible();
+	await expect(page.getByRole('option', { name: /:blobcat:/ })).toBeVisible();
+	await composer.press('Enter');
+	await expect(composer.locator('.me-emoji img[alt=":blobcat:"]')).toBeVisible();
+
+	await page.getByTestId('app-content').getByRole('button', { name: 'Post', exact: true }).click();
+	const params = new URLSearchParams(createdBody);
+	expect(params.get('status')).toBe('hello @soft.hertz@kolektiva.social :blobcat:');
+	await expect(page.locator('[data-status-id="created-autocomplete-status"]')).toContainText('hello @soft.hertz@kolektiva.social :blobcat:');
+	await expect(composer).toBeEmpty();
 });
 
 test('home timeline composer toggles poll editor and submits poll fields', async ({ page }) => {
@@ -251,7 +306,7 @@ test('home timeline composer toggles poll editor and submits poll fields', async
 	const composer = page.getByRole('textbox', { name: 'Post text' });
 	await composer.fill('poll attached to this post');
 	await page.getByRole('button', { name: 'Poll', exact: true }).click();
-	await expect(composer).toHaveValue('poll attached to this post');
+	await expect(composer).toContainText('poll attached to this post');
 	await expect(page.getByRole('button', { name: 'Poll', exact: true })).toHaveAttribute('aria-pressed', 'true');
 	await expect(page.locator('.composer-poll')).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Post', exact: true })).toBeDisabled();
@@ -274,7 +329,7 @@ test('home timeline composer toggles poll editor and submits poll fields', async
 	await expect(page.getByRole('button', { name: 'Remove choice 2' })).toBeDisabled();
 
 	await page.getByRole('button', { name: 'Content warning', exact: true }).click();
-	await expect(composer).toHaveValue('poll attached to this post');
+	await expect(composer).toContainText('poll attached to this post');
 	await page.getByRole('textbox', { name: 'Content warning text' }).fill('poll spoiler');
 	await page.getByLabel('Duration').selectOption('1h');
 	await page.getByLabel('Voting').selectOption('multi');
@@ -287,7 +342,7 @@ test('home timeline composer toggles poll editor and submits poll fields', async
 	await page.getByRole('button', { name: 'Post', exact: true }).click();
 
 	await expect(page.locator('[data-status-id="created-poll-status"]')).toContainText('poll attached to this post');
-	await expect(composer).toHaveValue('');
+	await expect(composer).toBeEmpty();
 	await expect(page.locator('.composer-poll')).toHaveCount(0);
 	const params = new URLSearchParams(createBody);
 	expect(params.get('status')).toBe('poll attached to this post');
@@ -322,7 +377,7 @@ test('home timeline composer preserves drafts and shows inline errors on status 
 	await page.getByRole('button', { name: 'Post', exact: true }).click();
 
 	await expect(page.getByRole('alert')).toContainText('Pleroma server error');
-	await expect(composer).toHaveValue('keep this draft when posting fails');
+	await expect(composer).toContainText('keep this draft when posting fails');
 	await expect(warning).toHaveValue('draft warning');
 	const params = new URLSearchParams(createBody);
 	expect(params.get('status')).toBe('keep this draft when posting fails');

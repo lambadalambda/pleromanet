@@ -204,6 +204,13 @@ export type SearchQuery = {
 	following?: boolean;
 };
 
+export type AccountSearchQuery = {
+	q: string;
+	limit?: number;
+	resolve?: boolean;
+	following?: boolean;
+};
+
 export type ProfileUpdate = {
 	displayName?: string;
 	note?: string;

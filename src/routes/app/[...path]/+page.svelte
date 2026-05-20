@@ -5,6 +5,7 @@
 	import AttachmentLightboxHost from '$lib/rebuild/AttachmentLightboxHost.svelte';
 	import Button from '$lib/rebuild/Button.svelte';
 	import ComposerCWPanel from '$lib/rebuild/ComposerCWPanel.svelte';
+	import ComposerMentionEditor, { type ComposerEmoji, type ComposerMentionAccount } from '$lib/rebuild/ComposerMentionEditor.svelte';
 	import ComposerPollPanel from '$lib/rebuild/ComposerPollPanel.svelte';
 	import FocusedPost from '$lib/rebuild/FocusedPost.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
@@ -29,7 +30,7 @@
 		type PaginatedTimelineBaseState,
 		type PaginatedTimelineSuccess
 	} from '$lib/pleroma/timeline-state';
-	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, normalizePleromaRequestError, statusCharacterLimit, type PleromaNotificationView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, normalizePleromaRequestError, statusCharacterLimit, type PleromaNotificationView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import { composerPollPayload, createComposerPollDraft, type ComposerPollDraft } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
@@ -143,6 +144,8 @@
 	let instanceStatusState = $state<PleromaRequestState<InstanceStatusView>>({ status: 'idle' });
 	let localHomePosts = $state<RebuildPost[]>([]);
 	let composerText = $state('');
+	let composerMentionAccounts = $state<ComposerMentionAccount[]>([]);
+	let composerCustomEmojis = $state<ComposerEmoji[]>([]);
 	let composerSpoilerActive = $state(false);
 	let composerSpoilerText = $state('');
 	let composerPoll = $state<ComposerPollDraft | null>(null);
@@ -176,6 +179,8 @@
 	let homePostSubmitRequestId = 0;
 	let profileAccountRequestId = 0;
 	let instanceConfigRequestId = 0;
+	let composerMentionSearchRequestId = 0;
+	let composerCustomEmojiRequestId = 0;
 	let loadedHomeTimelineKey = '';
 	let loadedThreadKey = '';
 	let loadedNotificationsKey = '';
@@ -183,6 +188,7 @@
 	let loadedProfileAccountKey = '';
 	let loadedTrendsKey = '';
 	let loadedInstanceConfigKey = '';
+	let loadedComposerCustomEmojiKey = '';
 	let homeTimelineFallbackSinceId: string | null = null;
 	let homeTimelineStreamKey = '';
 	let closeHomeTimelineStream: (() => void) | null = null;
@@ -263,6 +269,13 @@
 		loadedInstanceConfigKey = '';
 		instanceStatusState = { status: 'idle' };
 		composerCharacterLimit = DEFAULT_STATUS_CHARACTER_LIMIT;
+	};
+	const invalidateComposerAutocompleteRequests = () => {
+		composerMentionSearchRequestId += 1;
+		composerCustomEmojiRequestId += 1;
+		loadedComposerCustomEmojiKey = '';
+		composerMentionAccounts = [];
+		composerCustomEmojis = [];
 	};
 	const isCurrentSessionRequest = (requestSessionKey: string) => sessionKey(currentSession) === requestSessionKey;
 	const clearHomeTimelineStreamReconnect = () => {
@@ -905,6 +918,7 @@
 		invalidateProfileAccountRequests();
 		invalidateTrendsRequests();
 		invalidateInstanceConfigRequests();
+		invalidateComposerAutocompleteRequests();
 		closeHomeTimelineStreaming();
 		localHomePosts = [];
 		loadedHomeTimelineKey = '';
@@ -928,6 +942,7 @@
 			invalidateProfileAccountRequests();
 			invalidateTrendsRequests();
 			invalidateInstanceConfigRequests();
+			invalidateComposerAutocompleteRequests();
 			closeHomeTimelineStreaming();
 			localHomePosts = [];
 			loadedHomeTimelineKey = '';
@@ -1029,6 +1044,77 @@
 
 		loadedInstanceConfigKey = requestSessionKey;
 		void loadInstanceConfig(session);
+	};
+	const composerMentionAccount = (account: PleromaStatus['account']): ComposerMentionAccount => {
+		const view = adaptPleromaAccount(account);
+		return {
+			id: view.id,
+			username: view.username,
+			displayName: view.displayName,
+			acct: view.acct,
+			avatarUrl: view.avatarUrl,
+			avClass: view.avatarUrl ? undefined : 'av-grad-3'
+		};
+	};
+	const loadComposerCustomEmojis = async (session: PleromaSession) => {
+		const requestSessionKey = sessionKey(session);
+		const requestId = composerCustomEmojiRequestId + 1;
+		composerCustomEmojiRequestId = requestId;
+
+		try {
+			const client = createPleromaClient({
+				instanceUrl: session.instanceUrl,
+				accessToken: session.accessToken,
+				fetch: window.fetch.bind(window)
+			});
+			const emojis = adaptCustomEmojis(await client.getCustomEmojis()).map((emoji) => ({
+				shortcode: emoji.shortcode,
+				url: emoji.url,
+				staticUrl: emoji.staticUrl,
+				pack: 'custom'
+			}));
+			if (requestId !== composerCustomEmojiRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			composerCustomEmojis = emojis;
+		} catch {
+			if (requestId !== composerCustomEmojiRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+			composerCustomEmojis = [];
+		}
+	};
+	const ensureComposerCustomEmojis = (session: PleromaSession) => {
+		const requestSessionKey = sessionKey(session);
+		if (loadedComposerCustomEmojiKey === requestSessionKey) return;
+
+		loadedComposerCustomEmojiKey = requestSessionKey;
+		void loadComposerCustomEmojis(session);
+	};
+	const searchComposerMentionAccounts = (query: string) => {
+		const session = currentSession;
+		const q = query.trim();
+		if (!session || q.length === 0) {
+			composerMentionAccounts = [];
+			return;
+		}
+		const requestSessionKey = sessionKey(session);
+		const requestId = composerMentionSearchRequestId + 1;
+		composerMentionSearchRequestId = requestId;
+
+		void (async () => {
+			try {
+				const client = createPleromaClient({
+					instanceUrl: session.instanceUrl,
+					accessToken: session.accessToken,
+					fetch: window.fetch.bind(window)
+				});
+				const accounts = await client.searchAccounts({ q, limit: 5, resolve: true });
+				if (requestId !== composerMentionSearchRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+				composerMentionAccounts = accounts.map(composerMentionAccount);
+			} catch {
+				if (requestId !== composerMentionSearchRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+				composerMentionAccounts = [];
+			}
+		})();
 	};
 	const clearNotificationLoadPromise = (abort = false) => {
 		if (abort) notificationAbortController?.abort();
@@ -1453,6 +1539,7 @@
 			invalidateHomeTimelineRequests();
 			invalidateStatusActionRequests();
 			invalidateNotificationRequests();
+			invalidateComposerAutocompleteRequests();
 			closeHomeTimelineStreaming();
 			window.removeEventListener(HOME_TIMELINE_CHECK_EVENT, triggerHomeTimelineCheck);
 			window.removeEventListener(NOTIFICATION_POLL_EVENT, pollNotifications);
@@ -1476,6 +1563,7 @@
 		if (isTimelineRoute(route)) {
 			ensureInstanceConfig(session);
 			ensureTrends(session);
+			ensureComposerCustomEmojis(session);
 		}
 		if (pathname.startsWith('/app/home')) {
 			const loadKey = `${sessionKey(session)}\n${pathname}`;
@@ -1619,7 +1707,15 @@
 						<form class="composer" aria-label="Composer" onsubmit={(e) => { e.preventDefault(); submitHomePost(); }}>
 							<span class="composer-av"><span class="av-orb"></span></span>
 							<div>
-								<textarea class="composer-input" aria-label="Post text" placeholder="What's on your mind?" bind:value={composerText}></textarea>
+								<ComposerMentionEditor
+									id="home-composer-editor"
+									value={composerText}
+									onInput={(value) => (composerText = value)}
+									onMentionQuery={searchComposerMentionAccounts}
+									accounts={composerMentionAccounts}
+									emojis={composerCustomEmojis}
+									onSubmit={submitHomePost}
+								/>
 								{#if composerSpoilerActive}
 									<ComposerCWPanel value={composerSpoilerText} onInput={(value) => (composerSpoilerText = value)} onRemove={clearComposerSpoiler} focusOnMount />
 								{/if}

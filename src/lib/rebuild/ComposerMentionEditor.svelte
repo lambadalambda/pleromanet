@@ -31,8 +31,9 @@
 		emojis?: ComposerEmoji[];
 		disabled?: boolean;
 		autoFocus?: boolean;
+		onMentionQuery?: (query: string) => void;
 		onSubmit?: () => void;
-	};
+};
 
 	let {
 		id = 'composer-mention-editor',
@@ -43,14 +44,23 @@
 		emojis = [],
 		disabled = false,
 		autoFocus = false,
+		onMentionQuery,
 		onSubmit
-	}: Props = $props();
+}: Props = $props();
 	let editor: HTMLDivElement | null = null;
 	let pop = $state<PopState>(null);
 	let selectedIndex = $state(0);
 	let triggerRange: Range | null = null;
 	let listboxId = $derived(`${id}-suggestions`);
 	let activeOptionId = $derived(pop ? `${listboxId}-${selectedIndex}` : undefined);
+	const accountMatches = (query: string) => accounts.filter((account) =>
+		account.username.toLowerCase().includes(query) ||
+		account.acct.toLowerCase().includes(query) ||
+		account.displayName.toLowerCase().includes(query)
+	).slice(0, 5);
+	const emojiMatches = (query: string) => emojis.filter((emoji) => emoji.shortcode.toLowerCase().includes(query)).slice(0, 5);
+	let visibleAccounts = $derived(pop?.type === 'mention' ? accountMatches(pop.query) : []);
+	let visibleEmojis = $derived(pop?.type === 'emoji' ? emojiMatches(pop.query) : []);
 
 	const blockTags = new Set(['DIV', 'P']);
 
@@ -221,16 +231,13 @@
 		selectedIndex = 0;
 		const query = context.query.toLowerCase();
 		if (context.type === 'mention') {
+			onMentionQuery?.(query);
 			pop = {
 				type: 'mention',
 				query,
 				left: context.left,
 				top: context.top,
-				accounts: accounts.filter((account) =>
-					account.username.toLowerCase().includes(query) ||
-					account.acct.toLowerCase().includes(query) ||
-					account.displayName.toLowerCase().includes(query)
-				).slice(0, 5)
+				accounts: []
 			};
 			return;
 		}
@@ -240,7 +247,7 @@
 			query,
 			left: context.left,
 			top: context.top,
-			emojis: emojis.filter((emoji) => emoji.shortcode.toLowerCase().includes(query)).slice(0, 5)
+			emojis: []
 		};
 	};
 
@@ -251,7 +258,7 @@
 
 	const insertSelected = () => {
 		if (!pop || !triggerRange) return;
-		const item = pop.type === 'mention' ? pop.accounts[selectedIndex] : pop.emojis[selectedIndex];
+		const item = pop.type === 'mention' ? accountMatches(pop.query)[selectedIndex] : emojiMatches(pop.query)[selectedIndex];
 		if (!item) return;
 
 		const atom = pop.type === 'mention'
@@ -268,7 +275,7 @@
 	};
 
 	const handleKeydown = (event: KeyboardEvent) => {
-		const count = pop?.type === 'mention' ? pop.accounts.length : pop?.type === 'emoji' ? pop.emojis.length : 0;
+		const count = pop?.type === 'mention' ? accountMatches(pop.query).length : pop?.type === 'emoji' ? emojiMatches(pop.query).length : 0;
 		if (pop && count > 0) {
 			if (event.key === 'ArrowDown') {
 				event.preventDefault();
@@ -295,6 +302,12 @@
 		if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && onSubmit) {
 			event.preventDefault();
 			onSubmit();
+		}
+	};
+	const handleKeyup = (event: KeyboardEvent) => {
+		if ((event.key === 'Enter' || event.key === 'Tab') && pop) {
+			event.preventDefault();
+			insertSelected();
 		}
 	};
 
@@ -327,13 +340,14 @@
 		data-placeholder={placeholder}
 		oninput={commitValue}
 		onkeydown={handleKeydown}
+		onkeyup={handleKeyup}
 		onblur={() => setTimeout(() => (pop = null), 80)}
 	></div>
 	{#if pop?.type === 'mention'}
 		<div class="me-pop" style={`left:${pop.left}px;top:${pop.top}px`}>
-			<div class="me-pop-l">Suggestions · {pop.accounts.length} result{pop.accounts.length === 1 ? '' : 's'}</div>
+			<div class="me-pop-l">Suggestions · {visibleAccounts.length} result{visibleAccounts.length === 1 ? '' : 's'}</div>
 			<div id={listboxId} role="listbox" aria-label="Mention suggestions">
-				{#each pop.accounts as account, index (account.id)}
+				{#each visibleAccounts as account, index (account.id)}
 					<button id={`${listboxId}-${index}`} type="button" role="option" aria-selected={index === selectedIndex} class="me-row" class:sel={index === selectedIndex} onmousedown={(event) => { event.preventDefault(); selectedIndex = index; insertSelected(); }}>
 						<span class={`me-row-av ${account.avClass ?? ''}`}></span>
 						<span class="me-row-name">{account.displayName}</span>
@@ -341,14 +355,14 @@
 					</button>
 				{/each}
 			</div>
-			{#if pop.accounts.length === 0}<div class="me-pop-empty">No matches for <code>@{pop.query}</code></div>{/if}
+			{#if visibleAccounts.length === 0}<div class="me-pop-empty">No matches for <code>@{pop.query}</code></div>{/if}
 			<div class="me-pop-foot">↑↓ navigate · Tab insert · Esc dismiss</div>
 		</div>
 	{:else if pop?.type === 'emoji'}
 		<div class="me-pop" style={`left:${pop.left}px;top:${pop.top}px`}>
-			<div class="me-pop-l">Emoji · {pop.emojis.length} match{pop.emojis.length === 1 ? '' : 'es'}</div>
+			<div class="me-pop-l">Emoji · {visibleEmojis.length} match{visibleEmojis.length === 1 ? '' : 'es'}</div>
 			<div id={listboxId} role="listbox" aria-label="Emoji suggestions">
-				{#each pop.emojis as emoji, index (emoji.shortcode)}
+				{#each visibleEmojis as emoji, index (emoji.shortcode)}
 					<button id={`${listboxId}-${index}`} type="button" role="option" aria-selected={index === selectedIndex} class="me-row" class:sel={index === selectedIndex} onmousedown={(event) => { event.preventDefault(); selectedIndex = index; insertSelected(); }}>
 						<span class="me-row-emoji"><img src={emoji.url} alt={`:${emoji.shortcode}:`} /></span>
 						<span class="me-row-sc">:{emoji.shortcode}:</span>
@@ -356,7 +370,7 @@
 					</button>
 				{/each}
 			</div>
-			{#if pop.emojis.length === 0}<div class="me-pop-empty">No matches for <code>:{pop.query}:</code></div>{/if}
+			{#if visibleEmojis.length === 0}<div class="me-pop-empty">No matches for <code>:{pop.query}:</code></div>{/if}
 			<div class="me-pop-foot">↑↓ navigate · Enter insert · Esc dismiss</div>
 		</div>
 	{/if}

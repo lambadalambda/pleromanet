@@ -4,11 +4,13 @@ import type {
 	PleromaAccount,
 	PleromaInstance,
 	PleromaNotification,
+	PleromaCustomEmoji,
 	PleromaRelationship,
 	PleromaSearchResult,
 	PleromaStatus,
 	PleromaStatusContext,
 	PleromaTag,
+	AccountSearchQuery,
 	NotificationQuery,
 	ProfileUpdate,
 	SearchQuery,
@@ -82,6 +84,13 @@ const searchQuery = (query: SearchQuery) => ({
 	resolve: query.resolve,
 	limit: query.limit,
 	offset: query.offset,
+	following: query.following
+});
+
+const accountSearchQuery = (query: AccountSearchQuery) => ({
+	q: query.q,
+	limit: query.limit,
+	resolve: query.resolve,
 	following: query.following
 });
 
@@ -189,6 +198,19 @@ export const createPleromaClient = (config: ClientConfig) => {
 		getAccount: (id: string) =>
 			http.request<PleromaAccount>({
 				path: `/api/v1/accounts/${encodePathSegment(id)}`,
+				auth: 'optional'
+			}),
+
+		searchAccounts: (query: AccountSearchQuery) =>
+			http.request<PleromaAccount[]>({
+				path: '/api/v1/accounts/search',
+				query: accountSearchQuery(query),
+				auth: 'required'
+			}),
+
+		getCustomEmojis: () =>
+			http.request<PleromaCustomEmoji[]>({
+				path: '/api/v1/custom_emojis',
 				auth: 'optional'
 			}),
 
