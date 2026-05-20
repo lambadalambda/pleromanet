@@ -1705,7 +1705,11 @@
 						</div>
 
 						<form class="composer" aria-label="Composer" onsubmit={(e) => { e.preventDefault(); submitHomePost(); }}>
-							<span class="composer-av"><span class="av-orb"></span></span>
+							<span class="composer-av" class:av-orb={!headerAccountAvatarUrl}>
+								{#if headerAccountAvatarUrl}
+									<img class="avatar-img" src={headerAccountAvatarUrl} alt={`${headerAccountName} avatar`} />
+								{/if}
+							</span>
 							<div>
 								<ComposerMentionEditor
 									id="home-composer-editor"

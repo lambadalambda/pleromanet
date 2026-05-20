@@ -977,9 +977,11 @@ body[data-theme='simoun'] .pill {
 .me-pill-at { opacity: 0.7; }
 .me-pill-handle { line-height: 1; overflow: hidden; text-overflow: ellipsis; }
 .me-emoji {
-	width: 1.35em;
-	height: 1.35em;
+	width: 1.2em;
+	height: 1.2em;
 	margin: 0 1px;
+	line-height: 1;
+	vertical-align: -0.18em;
 }
 .me-emoji img,
 .me-row-emoji img {

@@ -193,6 +193,7 @@ test('home timeline composer uses the instance status character limit', async ({
 
 	await setViewport(page, 'desktop');
 	await page.goto('/app/home');
+	await expect(page.locator('.composer .composer-av img')).toHaveAttribute('src', pleromaFixtures.account.avatar);
 	await expect(page.locator('.composer-count')).toHaveText('5000');
 	await page.getByRole('textbox', { name: 'Post text' }).fill('hello from a long-post instance');
 	await expect(page.locator('.composer-count')).toHaveText('4969');
