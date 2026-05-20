@@ -5,12 +5,14 @@ import type {
 	PleromaInstance,
 	PleromaNotification,
 	PleromaCustomEmoji,
+	PleromaMediaAttachment,
 	PleromaRelationship,
 	PleromaSearchResult,
 	PleromaStatus,
 	PleromaStatusContext,
 	PleromaTag,
 	AccountSearchQuery,
+	MediaUploadRequest,
 	NotificationQuery,
 	ProfileUpdate,
 	SearchQuery,
@@ -108,6 +110,7 @@ const statusCreateForm = (input: StatusCreateRequest) => {
 	if (input.visibility) form.set('visibility', input.visibility);
 	if (input.spoilerText) form.set('spoiler_text', input.spoilerText);
 	if (input.inReplyToId) form.set('in_reply_to_id', input.inReplyToId);
+	for (const mediaId of input.mediaIds ?? []) form.append('media_ids[]', mediaId);
 	if (input.poll) {
 		for (const option of input.poll.options) form.append('poll[options][]', option);
 		form.set('poll[expires_in]', String(input.poll.expiresIn));
@@ -115,6 +118,13 @@ const statusCreateForm = (input: StatusCreateRequest) => {
 		form.set('poll[hide_totals]', String(Boolean(input.poll.hideTotals)));
 	}
 
+	return form;
+};
+
+const mediaUploadForm = (file: File | Blob, input: MediaUploadRequest = {}) => {
+	const form = new FormData();
+	form.set('file', file);
+	if (input.description) form.set('description', input.description);
 	return form;
 };
 
@@ -192,6 +202,14 @@ export const createPleromaClient = (config: ClientConfig) => {
 				method: 'POST',
 				path: '/api/v1/statuses',
 				form: statusCreateForm(input),
+				auth: 'required'
+			}),
+
+		uploadMedia: (file: File | Blob, input?: MediaUploadRequest) =>
+			http.request<PleromaMediaAttachment>({
+				method: 'POST',
+				path: '/api/v1/media',
+				multipart: mediaUploadForm(file, input),
 				auth: 'required'
 			}),
 

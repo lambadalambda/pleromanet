@@ -35,7 +35,7 @@
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import { composerPollPayload, createComposerPollDraft, type ComposerPollDraft } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
-	import type { PleromaInstance, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
+	import type { PleromaInstance, PleromaMediaAttachment, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
 	import type { SocialNotificationData, SocialPost } from '$lib/social/types';
 	import { onMount } from 'svelte';
 
@@ -119,6 +119,15 @@
 		| { status: 'success'; data: PleromaNotificationView[] };
 	type TrendView = { rank: number; tag: string; count: string | null };
 	type InstanceStatusView = { title: string | null; domain: string | null; rows: { label: string; value: string }[] };
+	type ComposerUpload = {
+		localId: string;
+		name: string;
+		kind: 'photo' | 'audio' | 'video' | 'file';
+		progress: number;
+		status: 'uploading' | 'uploaded' | 'error';
+		media?: PleromaMediaAttachment;
+		error?: string;
+	};
 	type StatusActionErrorState = { targetId: string; key: StatusActionKey; route: StatusActionOrigin; error: PleromaRequestErrorView };
 	type NotificationPopoverStatus = 'ready' | 'loading' | 'empty' | 'error';
 	const HOME_TIMELINE_CHECK_EVENT = 'pleromanet:check-home-timeline';
@@ -152,6 +161,10 @@
 	let composerEmojiPickerAnchor = $state<{ left?: number; top?: number; bottom?: number } | null>(null);
 	let composerInsertRequest = $state<{ id: number; item: string | ComposerEmoji } | null>(null);
 	let composerInsertRequestId = 0;
+	let composerFileInput = $state<HTMLInputElement | null>(null);
+	let composerUploads = $state<ComposerUpload[]>([]);
+	let composerDragActive = $state(false);
+	let composerDragCount = $state(0);
 	let composerSpoilerActive = $state(false);
 	let composerSpoilerText = $state('');
 	let composerPoll = $state<ComposerPollDraft | null>(null);
@@ -243,6 +256,8 @@
 		homePostSubmitState = 'idle';
 		homePostSubmitError = null;
 		clearInlineReply('home');
+		composerUploads = [];
+		composerDragActive = false;
 		clearStatusActionErrors('home');
 	};
 	const invalidateThreadRequests = () => {
@@ -630,7 +645,10 @@
 	const composerRemaining = $derived(composerCharacterLimit - composerText.length);
 	const inlineReplyRemaining = $derived(composerCharacterLimit - inlineReplyDraft.length);
 	const preparedComposerPoll = $derived(composerPoll ? composerPollPayload(composerPoll) : undefined);
-	const canSubmitHomePost = $derived(Boolean(composerText.trim()) && composerRemaining >= 0 && (!composerPoll || Boolean(preparedComposerPoll)) && homePostSubmitState !== 'submitting');
+	const composerUploadedMediaIds = $derived(composerUploads.filter((upload) => upload.status === 'uploaded' && upload.media?.id).map((upload) => upload.media?.id as string));
+	const composerUploadsPending = $derived(composerUploads.some((upload) => upload.status === 'uploading'));
+	const composerHasPostContent = $derived(Boolean(composerText.trim()) || composerUploadedMediaIds.length > 0);
+	const canSubmitHomePost = $derived(composerHasPostContent && composerRemaining >= 0 && (!composerPoll || Boolean(preparedComposerPoll)) && !composerUploadsPending && homePostSubmitState !== 'submitting');
 	const timelinePosts = $derived([
 		...localHomePosts,
 		...(homeTimelineState.status === 'success' ? homeTimelineState.data.map(postForRebuild) : [])
@@ -725,6 +743,90 @@
 		profile = { ...savedProfile };
 		settingsSaveState = 'Saved';
 	};
+	const MAX_COMPOSER_UPLOADS = 8;
+	const MAX_COMPOSER_UPLOAD_BYTES = 40 * 1024 * 1024;
+	const composerUploadError = (file: File, error: string): ComposerUpload => ({
+		localId: `${Date.now()}-error-${file.name}`,
+		name: file.name,
+		kind: uploadKind(file),
+		progress: 0,
+		status: 'error',
+		error
+	});
+	const uploadKind = (file: File): ComposerUpload['kind'] =>
+		file.type.startsWith('image/') ? 'photo' :
+		file.type.startsWith('audio/') ? 'audio' :
+		file.type.startsWith('video/') ? 'video' :
+		'file';
+	const isComposerUploadType = (file: File) => file.type.startsWith('image/') || file.type.startsWith('audio/') || file.type.startsWith('video/');
+	const queueComposerFiles = (files: FileList | File[]) => {
+		const session = currentSession;
+		if (!session) return;
+		const incoming = Array.from(files).filter((file) => file.size > 0);
+		const slots = Math.max(0, MAX_COMPOSER_UPLOADS - composerUploads.length);
+		const rejected: ComposerUpload[] = [];
+		const accepted: File[] = [];
+		for (const file of incoming) {
+			if (!isComposerUploadType(file)) rejected.push(composerUploadError(file, 'Only photos, audio, and video can be attached.'));
+			else if (file.size > MAX_COMPOSER_UPLOAD_BYTES) rejected.push(composerUploadError(file, 'Could not attach · 40 MB limit per file.'));
+			else if (accepted.length >= slots) rejected.push(composerUploadError(file, 'Could not attach · 8 file limit.'));
+			else accepted.push(file);
+		}
+		if (rejected.length > 0) composerUploads = [...composerUploads, ...rejected];
+		if (accepted.length === 0) return;
+		const requestSessionKey = sessionKey(session);
+		const additions = accepted.map((file, index): ComposerUpload => ({
+			localId: `${Date.now()}-${index}-${file.name}`,
+			name: file.name,
+			kind: uploadKind(file),
+			progress: 5,
+			status: 'uploading'
+		}));
+		composerUploads = [...composerUploads, ...additions];
+		void accepted.forEach((file, index) => {
+			const localId = additions[index].localId;
+			void (async () => {
+				try {
+					const client = createPleromaClient({ instanceUrl: session.instanceUrl, accessToken: session.accessToken, fetch: window.fetch.bind(window) });
+					const media = await client.uploadMedia(file);
+					if (!isCurrentSessionRequest(requestSessionKey)) return;
+					composerUploads = composerUploads.map((upload) => upload.localId === localId ? { ...upload, progress: 100, status: 'uploaded', media } : upload);
+				} catch (error) {
+					if (!isCurrentSessionRequest(requestSessionKey)) return;
+					const normalized = normalizePleromaRequestError(error);
+					composerUploads = composerUploads.map((upload) => upload.localId === localId ? { ...upload, progress: 0, status: 'error', error: normalized.message } : upload);
+				}
+			})();
+		});
+	};
+	const removeComposerUpload = (localId: string) => {
+		composerUploads = composerUploads.filter((upload) => upload.localId !== localId);
+	};
+	const pickComposerFiles = () => composerFileInput?.click();
+	const handleComposerFileChange = (event: Event) => {
+		const input = event.currentTarget as HTMLInputElement;
+		if (input.files) queueComposerFiles(input.files);
+		input.value = '';
+	};
+	const handleComposerDragOver = (event: DragEvent) => {
+		if (!event.dataTransfer?.types.includes('Files')) return;
+		event.preventDefault();
+		composerDragActive = true;
+		composerDragCount = Math.max(1, event.dataTransfer.items.length || event.dataTransfer.files.length || 1);
+	};
+	const handleComposerDrop = (event: DragEvent) => {
+		if (!event.dataTransfer?.files.length) return;
+		event.preventDefault();
+		composerDragActive = false;
+		composerDragCount = 0;
+		queueComposerFiles(event.dataTransfer.files);
+	};
+	const handleComposerPaste = (event: ClipboardEvent) => {
+		const files = Array.from(event.clipboardData?.files ?? []);
+		if (files.length === 0) return;
+		event.preventDefault();
+		queueComposerFiles(files);
+	};
 	const toggleCommunity = (community: string) => {
 		joinedCommunities = { ...joinedCommunities, [community]: !joinedCommunities[community] };
 	};
@@ -734,7 +836,7 @@
 		const pollPayload = composerPoll ? preparedComposerPoll : undefined;
 		const poll = pollPayload ?? undefined;
 		const session = currentSession;
-		if (!body || composerText.length > composerCharacterLimit || (composerPoll && !pollPayload) || homePostSubmitState === 'submitting' || !session) return;
+		if ((!body && composerUploadedMediaIds.length === 0) || composerText.length > composerCharacterLimit || (composerPoll && !pollPayload) || composerUploadsPending || homePostSubmitState === 'submitting' || !session) return;
 
 		const requestSessionKey = sessionKey(session);
 		const requestId = homePostSubmitRequestId + 1;
@@ -748,7 +850,7 @@
 				accessToken: session.accessToken,
 				fetch: window.fetch.bind(window)
 			});
-			const status = await client.createStatus({ status: body, visibility: 'public', spoilerText: spoilerText || undefined, poll });
+			const status = await client.createStatus({ status: body, visibility: 'public', spoilerText: spoilerText || undefined, poll, mediaIds: composerUploadedMediaIds });
 			if (requestId !== homePostSubmitRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			const createdPost = adaptPleromaStatus(status, { timelines: ['home'] });
@@ -775,6 +877,7 @@
 			composerSpoilerActive = false;
 			composerSpoilerText = '';
 			composerPoll = null;
+			composerUploads = [];
 			homePostSubmitState = 'idle';
 		} catch (error) {
 			if (requestId !== homePostSubmitRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
@@ -1723,7 +1826,7 @@
 							<button type="button" class="tab-action" title="Filters"><Icon name="sliders" width={16} height={16} /></button>
 						</div>
 
-						<form class="composer" aria-label="Composer" onsubmit={(e) => { e.preventDefault(); submitHomePost(); }}>
+						<form class="composer" aria-label="Composer" onsubmit={(e) => { e.preventDefault(); submitHomePost(); }} ondragover={handleComposerDragOver} ondragleave={() => { composerDragActive = false; composerDragCount = 0; }} ondrop={handleComposerDrop} onpaste={handleComposerPaste}>
 							<span class="composer-av" class:av-orb={!headerAccountAvatarUrl}>
 								{#if headerAccountAvatarUrl}
 									<img class="avatar-img" src={headerAccountAvatarUrl} alt={`${headerAccountName} avatar`} />
@@ -1740,6 +1843,31 @@
 									insertRequest={composerInsertRequest}
 									onSubmit={submitHomePost}
 								/>
+								<input bind:this={composerFileInput} class="sr-only" type="file" multiple tabindex="-1" aria-label="Attach media" accept="image/*,audio/*,video/*" onchange={handleComposerFileChange} />
+								{#if composerUploads.length > 0}
+									<div class="composer-uploads">
+										{#each composerUploads as upload (upload.localId)}
+											<div class="composer-upload-row" class:error={upload.status === 'error'} title={upload.error}>
+												<div class={`composer-upload-thumb ${upload.kind}`}>{upload.kind === 'audio' ? 'WAV' : upload.kind === 'video' ? 'MP4' : upload.kind === 'photo' ? 'IMG' : 'FILE'}</div>
+												<div class="composer-upload-meta">
+													<div class="composer-upload-name">{upload.name}</div>
+													<div class="composer-upload-prog-row">
+														<div class="composer-upload-bar"><span style={`width:${upload.progress}%`}></span></div>
+														<span class="composer-upload-pct">{upload.status === 'error' ? 'Error' : `${upload.progress}%`}</span>
+													</div>
+													{#if upload.error}<div class="composer-upload-error">{upload.error}</div>{/if}
+												</div>
+												<button type="button" class="composer-upload-rm" aria-label={`Remove ${upload.name}`} onclick={() => removeComposerUpload(upload.localId)}>×</button>
+											</div>
+										{/each}
+									</div>
+								{:else}
+									<button type="button" class="composer-drop-slot" class:active={composerDragActive} onclick={pickComposerFiles}>
+										<Icon name="upload" width={18} height={18} />
+										<span>{#if composerDragActive}<strong>Drop to add {composerDragCount} {composerDragCount === 1 ? 'file' : 'files'}</strong> <span class="drop-copy-muted">· photos · audio · video</span>{:else}<strong>Drag &amp; drop</strong> <span class="drop-copy-muted">files to attach</span> <em>· or browse</em>{/if}</span>
+										{#if !composerDragActive}<kbd>⌘V to paste</kbd>{/if}
+									</button>
+								{/if}
 								{#if composerSpoilerActive}
 									<ComposerCWPanel value={composerSpoilerText} onInput={(value) => (composerSpoilerText = value)} onRemove={clearComposerSpoiler} focusOnMount />
 								{/if}
@@ -1747,7 +1875,8 @@
 									<ComposerPollPanel poll={composerPoll} onPollChange={(poll) => (composerPoll = poll)} onRemove={() => (composerPoll = null)} focusOnMount idPrefix="home-composer-poll" />
 								{/if}
 								<div class="composer-row">
-									<button type="button" class="composer-tool" title="Image" aria-label="Image"><Icon name="image" width={18} height={18} /></button>
+									<button type="button" class="composer-tool" title="Image" aria-label="Image" onclick={pickComposerFiles}><Icon name="image" width={18} height={18} /></button>
+									{#if composerUploads.length > 0}<button type="button" class="composer-tool" title="Add another" aria-label="Add another attachment" onclick={pickComposerFiles}><Icon name="plus" width={14} height={14} /></button>{/if}
 									<button type="button" class="composer-tool" class:active={Boolean(composerPoll)} title="Poll" aria-label="Poll" aria-pressed={Boolean(composerPoll)} onclick={toggleComposerPoll}><Icon name="poll" width={18} height={18} /></button>
 									<button type="button" class="composer-tool" class:active={composerEmojiPickerOpen} title="Emoji" aria-label="Emoji" aria-pressed={composerEmojiPickerOpen} data-emoji-trigger onclick={toggleComposerEmojiPicker}><Icon name="smile" width={18} height={18} /></button>
 									<button type="button" class="composer-tool cw" class:active={composerSpoilerActive} aria-label="Content warning" aria-pressed={composerSpoilerActive} onclick={toggleComposerSpoiler}>CW</button>

@@ -27,6 +27,7 @@ type RecordedRequest = {
 	url: URL;
 	authorization: string | null;
 	body: string;
+	bodyKind: string;
 };
 
 type MockResponse = { status?: number; body: unknown; headers?: Record<string, string> };
@@ -34,12 +35,13 @@ type MockResponse = { status?: number; body: unknown; headers?: Record<string, s
 const createJsonFetch = (handler: (request: RecordedRequest) => MockResponse) => {
 	const requests: RecordedRequest[] = [];
 	const fetchImpl = async (input: RequestInfo | URL, init?: RequestInit) => {
-		const body = init?.body instanceof URLSearchParams ? init.body.toString() : String(init?.body ?? '');
+		const body = init?.body instanceof URLSearchParams ? init.body.toString() : init?.body instanceof FormData ? 'FORMDATA' : String(init?.body ?? '');
 		const request: RecordedRequest = {
 			method: init?.method ?? 'GET',
 			url: new URL(String(input)),
 			authorization: init?.headers instanceof Headers ? init.headers.get('authorization') : null,
-			body
+			body,
+			bodyKind: init?.body instanceof FormData ? 'form-data' : init?.body instanceof URLSearchParams ? 'url-search-params' : typeof init?.body
 		};
 
 		requests.push(request);
@@ -73,6 +75,7 @@ test('Pleroma client isolates typed endpoints and authorization headers', async 
 		if (request.url.pathname === '/api/v2/search') return { body: pleromaFixtures.search };
 		if (request.url.pathname === '/api/v1/trends/tags') return { body: pleromaFixtures.trends };
 		if (request.url.pathname === '/api/v1/accounts/verify_credentials') return { body: pleromaFixtures.account };
+		if (request.url.pathname === '/api/v1/media') return { body: pleromaFixtures.mediaAttachment };
 
 		return { status: 404, body: { error: 'missing fixture' } };
 	});
@@ -95,6 +98,7 @@ test('Pleroma client isolates typed endpoints and authorization headers', async 
 	const instance = await client.getInstance();
 	const search = await client.search({ q: 'small web', type: 'statuses', limit: 5 });
 	const trends = await client.getTrendingTags({ limit: 4 });
+	const upload = await client.uploadMedia(new File(['pixels'], 'cat.png', { type: 'image/png' }), { description: 'cat alt' });
 
 	expect(home[0].pleroma.local).toBe(true);
 	expect(local).toHaveLength(1);
@@ -108,6 +112,7 @@ test('Pleroma client isolates typed endpoints and authorization headers', async 
 	expect(instance.pleroma.metadata.features).toContain('pleroma_api');
 	expect(search.statuses[0].id).toBe('status-1');
 	expect(trends[0].name).toBe('smallweb');
+	expect(upload.id).toBe('media-1');
 
 	expectPath(requests[0], '/api/v1/timelines/home');
 	expect(requests[0].url.searchParams.get('limit')).toBe('2');
@@ -128,6 +133,23 @@ test('Pleroma client isolates typed endpoints and authorization headers', async 
 	expect(requests[10].url.searchParams.get('q')).toBe('small web');
 	expect(requests[10].url.searchParams.get('type')).toBe('statuses');
 	expect(requests[11].url.searchParams.get('limit')).toBe('4');
+	expectPath(requests[12], '/api/v1/media');
+	expect(requests[12].method).toBe('POST');
+	expect(requests[12].bodyKind).toBe('form-data');
+});
+
+test('Pleroma client sends media ids on status creation', async () => {
+	const { fetchImpl, requests } = createJsonFetch((request) => {
+		if (request.url.pathname === '/api/v1/statuses') return { body: pleromaFixtures.status };
+		return { status: 404, body: { error: 'missing fixture' } };
+	});
+	const client = createPleromaClient({ instanceUrl: 'https://pleroma.example', accessToken: 'access-token', fetch: fetchImpl });
+
+	await client.createStatus({ status: 'with image', mediaIds: ['media-1', 'media-2'] });
+
+	expect(requests[0].body).toContain('status=with+image');
+	expect(requests[0].body).toContain('media_ids%5B%5D=media-1');
+	expect(requests[0].body).toContain('media_ids%5B%5D=media-2');
 });
 
 test('Pleroma client converts timeline Link headers into cursor data', async () => {

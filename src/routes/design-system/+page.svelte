@@ -256,6 +256,7 @@
 		{ id: 'u2', name: 'windowsill-dusk.jpg', kind: 'photo', pct: 62 },
 		{ id: 'u3', name: 'kettle-take1.jpg', kind: 'photo', pct: 14 }
 	];
+	const DS_UPLOADS_SHORT = DS_UPLOADS.slice(0, 2);
 
 	const SAMPLE_POST: DemoPostData = {
 		id: '1', name: 'emi', handle: '@emichan@kolektiva.social', time: '16m',
@@ -1297,6 +1298,79 @@
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Composer · uploads in progress</span>
 								<span class="ds-spec-note">.composer-upload-row · 36px thumb · progress bar · per-row ✕</span>
+							</div>
+						</div>
+					</div>
+
+					<div class="ds-sub-h" style="margin-top:28px">Attachment dropzone variants</div>
+					<p class="ds-sub" style="margin-bottom:14px">V2 is the recommended handoff pattern: a persistent in-place slot below the editor that becomes upload rows once files are queued.</p>
+					<div class="ds-grid ds-grid-2" style="margin-top:14px">
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<div class="composer">
+									<Avatar variant="compose" avBanner="sunset" />
+									<div>
+										<div class="composer-draft-preview">rain on glass · 11 minutes, two takes</div>
+										<button type="button" class="composer-drop-slot">
+											<Icon name="upload" width={18} height={18} />
+											<span><strong>Drag &amp; drop</strong> <span class="drop-copy-muted">files to attach</span> <em>· or browse</em></span>
+											<kbd>⌘V to paste</kbd>
+										</button>
+										<div class="composer-row"><span class="composer-spacer"></span><span class="composer-count">412</span><Button variant="primary">Post</Button></div>
+									</div>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Dropzone V2 · idle slot</span>
+								<span class="ds-spec-note">always visible · click-to-browse · paste hint</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<div class="composer">
+									<Avatar variant="compose" avBanner="sunset" />
+									<div>
+										<div class="composer-draft-preview">rain on glass · 11 minutes, two takes</div>
+										<button type="button" class="composer-drop-slot active">
+											<Icon name="upload" width={18} height={18} />
+											<span><strong>Drop to add 3 files</strong> <span class="drop-copy-muted">· photos · audio · video</span></span>
+										</button>
+										<div class="composer-row"><span class="composer-spacer"></span><span class="composer-count">412</span><Button variant="primary">Post</Button></div>
+									</div>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Dropzone V2 · drag-over</span>
+								<span class="ds-spec-note">slot turns accent · copy flips to drop action</span>
+							</div>
+						</div>
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage">
+								<div class="composer">
+									<Avatar variant="compose" avBanner="sunset" />
+									<div>
+										<div class="composer-draft-preview">rain on glass · 11 minutes, two takes</div>
+										<div class="composer-uploads">
+											{#each DS_UPLOADS_SHORT as upload}
+												<div class="composer-upload-row">
+													<div class={`composer-upload-thumb ${upload.kind}`}>{upload.kind === 'audio' ? 'WAV' : 'JPG'}</div>
+													<div class="composer-upload-meta"><div class="composer-upload-name">{upload.name}</div><div class="composer-upload-prog-row"><div class="composer-upload-bar"><span style={`width:${upload.pct}%`}></span></div><span class="composer-upload-pct">{upload.pct}%</span></div></div>
+													<button type="button" class="composer-upload-rm" aria-label={`Remove ${upload.name}`}>×</button>
+												</div>
+											{/each}
+											<div class="composer-upload-row error" title="40 MB limit per file">
+												<div class="composer-upload-thumb audio">FLAC</div>
+												<div class="composer-upload-meta"><div class="composer-upload-name">raw-master-48bit.flac</div><div class="composer-upload-error">Couldn't attach · 40 MB limit per file.</div></div>
+												<button type="button" class="composer-upload-rm" aria-label="Remove raw-master-48bit.flac">×</button>
+											</div>
+										</div>
+										<div class="composer-row"><button class="composer-tool" title="Add another"><Icon name="plus" width={14} height={14} /></button><span class="composer-spacer"></span><span class="composer-count">412</span><Button variant="primary">Post</Button></div>
+									</div>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Dropzone V2 · rejected file</span>
+								<span class="ds-spec-note">upload rows replace slot · failed row keeps reason inline</span>
 							</div>
 						</div>
 					</div>

@@ -50,6 +50,9 @@ test('renders canonical composer content-warning specimen', async ({ page }) => 
 	await expect(composer.getByText('Composer · CW + poll together')).toBeVisible();
 	await expect(composer.getByText('Composer · drag-and-drop overlay')).toBeVisible();
 	await expect(composer.getByText('Composer · uploads in progress')).toBeVisible();
+	await expect(composer.getByText('Dropzone V2 · idle slot')).toBeVisible();
+	await expect(composer.getByText('Dropzone V2 · drag-over')).toBeVisible();
+	await expect(composer.getByText('Dropzone V2 · rejected file')).toBeVisible();
 	await expect(composer.getByText('Editor · with inserted pill')).toBeVisible();
 	await expect(composer.getByText('Dropdown · open mid-type')).toBeVisible();
 	await expect(composer.getByText(':shortcode: dropdown')).toBeVisible();

@@ -14,6 +14,15 @@ export type PleromaCustomEmoji = {
 	[key: string]: unknown;
 };
 
+export type PleromaMediaAttachment = {
+	id: string;
+	type: string;
+	url?: string | null;
+	preview_url?: string | null;
+	description?: string | null;
+	[key: string]: unknown;
+};
+
 export type PleromaRelationship = {
 	id: string;
 	following: boolean;
@@ -187,12 +196,17 @@ export type StatusCreateRequest = {
 	visibility?: 'public' | 'unlisted' | 'private' | 'direct' | string;
 	spoilerText?: string;
 	inReplyToId?: string;
+	mediaIds?: string[];
 	poll?: {
 		options: string[];
 		expiresIn: number;
 		multiple?: boolean;
 		hideTotals?: boolean;
 	};
+};
+
+export type MediaUploadRequest = {
+	description?: string;
 };
 
 export type SearchQuery = {

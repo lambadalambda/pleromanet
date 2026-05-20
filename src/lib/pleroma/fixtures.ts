@@ -1,6 +1,7 @@
 import type {
 	PleromaAccount,
 	PleromaInstance,
+	PleromaMediaAttachment,
 	PleromaNotification,
 	PleromaRelationship,
 	PleromaSearchResult,
@@ -121,6 +122,14 @@ const customEmojis = [
 	}
 ];
 
+const mediaAttachment: PleromaMediaAttachment = {
+	id: 'media-1',
+	type: 'image',
+	url: 'https://cdn.example/uploads/cat.png',
+	preview_url: 'https://cdn.example/uploads/cat-thumb.png',
+	description: null
+};
+
 const notificationAccount = (id: string, displayName: string, acct: string): PleromaAccount => ({
 	...account,
 	id,
@@ -211,6 +220,7 @@ export const pleromaFixtures = {
 	notifications,
 	search,
 	customEmojis,
+	mediaAttachment,
 	instance,
 	timelines: {
 		home: [status, federatedStatus],

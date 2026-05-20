@@ -12,6 +12,7 @@ type RequestOptions = {
 	query?: Record<string, QueryValue>;
 	body?: unknown;
 	form?: URLSearchParams;
+	multipart?: FormData;
 	signal?: AbortSignal;
 	auth?: 'required' | 'optional' | 'none';
 };
@@ -106,6 +107,7 @@ export const createPleromaHttp = ({ instanceUrl, accessToken, fetch: fetchImpl }
 		query,
 		body,
 		form,
+		multipart,
 		signal,
 		auth = 'optional'
 	}: RequestOptions): Promise<PleromaHttpResponse<ResponseBody>> => {
@@ -124,7 +126,9 @@ export const createPleromaHttp = ({ instanceUrl, accessToken, fetch: fetchImpl }
 		if (accessToken && auth !== 'none') headers.set('authorization', `Bearer ${accessToken}`);
 
 		let requestBody: BodyInit | undefined;
-		if (form) {
+		if (multipart) {
+			requestBody = multipart;
+		} else if (form) {
 			requestBody = form;
 			headers.set('content-type', 'application/x-www-form-urlencoded;charset=UTF-8');
 		} else if (body !== undefined) {

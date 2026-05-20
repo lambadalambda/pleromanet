@@ -241,6 +241,139 @@ test('home timeline composer creates statuses through Pleroma', async ({ page })
 	expect(params.get('spoiler_text')).toBe('soft spoiler');
 });
 
+test('home timeline composer uploads media and submits media ids', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, []);
+	});
+	let uploadAuthorization: string | undefined;
+	let uploadMethod: string | undefined;
+	await page.route('https://pleroma.example/api/v1/media', async (route) => {
+		uploadAuthorization = route.request().headers().authorization;
+		uploadMethod = route.request().method();
+		await fulfillHome(route, {
+			id: 'media-1',
+			type: 'image',
+			url: 'https://cdn.example/uploads/cat.png',
+			preview_url: 'https://cdn.example/uploads/cat-thumb.png',
+			description: null
+		});
+	});
+	let createdBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createdBody = route.request().postData() ?? '';
+		await fulfillHome(route, statusWithText('created-media-status', 'image attached'));
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const composer = page.getByRole('textbox', { name: 'Post text' });
+	await composer.fill('image attached');
+	await page.getByLabel('Attach media').setInputFiles({ name: 'cat.png', mimeType: 'image/png', buffer: Buffer.from('cat') });
+
+	await expect(page.getByText('cat.png')).toBeVisible();
+	await expect(page.getByText('100%')).toBeVisible();
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+
+	expect(uploadMethod).toBe('POST');
+	expect(uploadAuthorization).toBe('Bearer access-token');
+	const params = new URLSearchParams(createdBody);
+	expect(params.get('status')).toBe('image attached');
+	expect(params.getAll('media_ids[]')).toEqual(['media-1']);
+	await expect(page.locator('[data-status-id="created-media-status"]')).toContainText('image attached');
+	await expect(page.getByText('cat.png')).toHaveCount(0);
+});
+
+test('home timeline composer can post attachments without text', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, []);
+	});
+	await page.route('https://pleroma.example/api/v1/media', async (route) => {
+		await fulfillHome(route, {
+			id: 'media-only',
+			type: 'image',
+			url: 'https://cdn.example/uploads/media-only.png',
+			preview_url: 'https://cdn.example/uploads/media-only-thumb.png',
+			description: null
+		});
+	});
+	let createdBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createdBody = route.request().postData() ?? '';
+		await fulfillHome(route, statusWithText('created-media-only-status', ''));
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await page.getByLabel('Attach media').setInputFiles({ name: 'media-only.png', mimeType: 'image/png', buffer: Buffer.from('cat') });
+
+	await expect(page.getByText('100%')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Post', exact: true })).toBeEnabled();
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+
+	const params = new URLSearchParams(createdBody);
+	expect(params.get('status')).toBe('');
+	expect(params.getAll('media_ids[]')).toEqual(['media-only']);
+	await expect(page.locator('[data-status-id="created-media-only-status"]')).toBeVisible();
+});
+
+test('home timeline composer blocks submit while uploads are pending and shows rejected files', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, []);
+	});
+	let releaseUpload!: () => void;
+	const uploadReleased = new Promise<void>((resolve) => {
+		releaseUpload = resolve;
+	});
+	await page.route('https://pleroma.example/api/v1/media', async (route) => {
+		await uploadReleased;
+		await fulfillHome(route, {
+			id: 'media-delayed',
+			type: 'image',
+			url: 'https://cdn.example/uploads/delayed.png',
+			preview_url: 'https://cdn.example/uploads/delayed-thumb.png',
+			description: null
+		});
+	});
+	let createCount = 0;
+	let createdBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createCount += 1;
+		createdBody = route.request().postData() ?? '';
+		await fulfillHome(route, statusWithText('created-delayed-media-status', 'pending guarded'));
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const composer = page.getByRole('textbox', { name: 'Post text' });
+	await composer.fill('pending guarded');
+	await page.getByLabel('Attach media').setInputFiles([
+		{ name: 'delayed.png', mimeType: 'image/png', buffer: Buffer.from('cat') },
+		{ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('nope') }
+	]);
+
+	await expect(page.getByText('delayed.png')).toBeVisible();
+	await expect(page.getByText('notes.txt')).toBeVisible();
+	await expect(page.getByText('Only photos, audio, and video can be attached.')).toBeVisible();
+	await composer.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
+	expect(createCount).toBe(0);
+	await expect(page.getByRole('button', { name: 'Post', exact: true })).toBeDisabled();
+
+	releaseUpload();
+	await expect(page.getByText('100%')).toBeVisible();
+	await page.getByRole('button', { name: 'Remove notes.txt' }).click();
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+
+	expect(createCount).toBe(1);
+	const params = new URLSearchParams(createdBody);
+	expect(params.getAll('media_ids[]')).toEqual(['media-delayed']);
+});
+
 test('home timeline composer autocompletes mentions and custom emoji before posting', async ({ page }) => {
 	await authenticate(page);
 	await mockInstance(page);
