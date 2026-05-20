@@ -374,6 +374,7 @@ function DesignSystem() {
     { id: 'avatars',     label: 'Avatars' },
     { id: 'attachments', label: 'Attachments' },
     { id: 'composer',    label: 'Composer' },
+    { id: 'search',      label: 'Search' },
     { id: 'posts',       label: 'Posts' },
     { id: 'thread',      label: 'Thread' },
     { id: 'notifications', label: 'Notifications' },
@@ -749,6 +750,30 @@ function DesignSystem() {
                 poll: { choices: ['long walk', 'call a friend', 'just sleep'], duration: '6h', multi: false, hideUntil: false },
               }}/>
             </Specimen>
+
+            <Specimen label="Composer · drag-and-drop overlay" note=".composer.is-drag-over · accent border + tinted .composer-dropzone over the input" padded={false} span={2}>
+              <DemoComposerDropzone/>
+            </Specimen>
+            <Specimen label="Composer · uploads in progress" note=".composer-upload-row · 36px thumb · progress bar · per-row ✕" padded={false} span={2}>
+              <DemoComposerUploads/>
+            </Specimen>
+
+            <div className="ds-sub-h">@mention &amp; :shortcode: autocomplete</div>
+            <p className="ds-sub" style={{marginBottom: 14}}>The composer&apos;s text area is the <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>{'<MentionEditor/>'}</code> component — a contenteditable surface that opens an autocomplete dropdown when you type <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>@</code> followed by part of a username, or <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>:</code> followed by 2+ characters of a custom-emoji shortcode. Pressing <span className="me-kbd">↑↓</span> navigates, <span className="me-kbd">Tab</span> or <span className="me-kbd">↵</span> inserts the selected match as an inline atom (avatar + <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>@username</code> for mentions, custom-emoji image for shortcodes), and <span className="me-kbd">Backspace</span> at the atom&apos;s right edge deletes the whole token atomically. Hosts pass a <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>searchAccounts(query)</code> prop that should bridge to Pleroma&apos;s <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>/api/v1/accounts/search</code>; <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>searchEmoji(query)</code> reads from the cached <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>/api/v1/custom_emojis</code> manifest. Atoms serialize back to the federated <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>@user@server</code> or <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>:shortcode:</code> form on post.</p>
+            <Grid cols={2}>
+              <Specimen label="Editor · with inserted pill" note="contenteditable · pill is a contenteditable=false atom inside the body" padded={false}>
+                <DemoMentionEditorWithPill/>
+              </Specimen>
+              <Specimen label="Dropdown · open mid-type" note="anchored to the @ position · slim rows + Tab hint on selected" padded={true} span={1}>
+                <DemoMentionDropdown/>
+              </Specimen>
+              <Specimen label=":shortcode: dropdown" note="same row chrome — emoji preview + :sc: + pack tag · works for any 2+ char prefix" padded={true} span={2}>
+                <DemoShortcodeDropdown/>
+              </Specimen>
+              <Specimen label="Full emoji picker" note="<EmojiPicker/> · opened by the composer's 😀 button · sidebar of packs + grid + search" padded={true} span={2}>
+                <DemoEmojiPicker/>
+              </Specimen>
+            </Grid>
           </Slab>
 
           {/* ============ Posts ============ */}
@@ -967,6 +992,30 @@ function DesignSystem() {
                   replies: 4, boosts: 15, favs: 120,
                   actions: { reply: false, boost: false, fav: false },
                 }} onAction={()=>{}}/>
+              </Specimen>
+            </Grid>
+          </Slab>
+          {/* ============ Search ============ */}
+          <Slab id="search" kicker="08b" title="Search" sub={"Search lives in two surfaces: a header-anchored dropdown that opens on focus (live results below the field), and a full /search page reached by pressing \u21b5 or clicking \u201cSee all\u201d. The dropdown shows recents when the field is empty and top-3 People + top-3 Posts when there's a query. The page reuses the same compact-row geometry; a \u201cMore filters \u25b8\u201d toggle on the right of the tab strip slides out a sidebar with the full set of refinements (source / date / from-user / has-media / sort). Hashtags are intentionally not surfaced \u2014 the Pleroma hashtag endpoint barely returns useful matches in practice."}>
+            <div className="ds-sub-h">Header dropdown</div>
+            <p className="ds-sub" style={{marginBottom: 14}}>The dropdown is mounted by <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>{'<Header/>'}</code> whenever the search input is focused. It's a stateless render of whatever <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>useSearch()</code> currently has: <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>recents</code> (when empty), <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>results.accounts</code> + <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>results.statuses</code> (when typing). Pressing <span className="se-kbd">↵</span> on the field submits and navigates to <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>view = 'search'</code>.</p>
+            <Grid cols={2}>
+              <Specimen label="Empty input · recents" note="Shown on focus when query is blank" padded={true} span={2}>
+                <DemoSearchDropdown query=""/>
+              </Specimen>
+              <Specimen label="Typing · live results" note="Top 3 People + Top 3 Posts; ↵ opens the page" padded={true} span={2}>
+                <DemoSearchDropdown query="slow web"/>
+              </Specimen>
+            </Grid>
+
+            <div className="ds-sub-h" style={{marginTop: 28}}>Full /search page</div>
+            <p className="ds-sub" style={{marginBottom: 14}}>The <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>{'<SearchPage/>'}</code> route. Tab strip (All / People / Posts) handles the primary filter; compact result rows below. The <code style={{fontFamily: 'var(--mono)', fontSize: 11}}>“More filters ▸”</code> toggle on the right of the tab strip slides out a sidebar with the full set of refinements.</p>
+            <Grid cols={2}>
+              <Specimen label="Default · tabs only" note="Tabs + result rows; common shape" padded={true} span={2}>
+                <DemoSearchPage query="slow web" sidebarOpen={false}/>
+              </Specimen>
+              <Specimen label="Filters expanded" note="Sidebar slid in; source / date / from-user / has-media / sort" padded={true} span={2}>
+                <DemoSearchPage query="slow web" sidebarOpen={true}/>
               </Specimen>
             </Grid>
           </Slab>
@@ -1337,11 +1386,281 @@ function DemoToggleRow() {
   );
 }
 
+function DemoShortcodeDropdown() {
+  const rows = (window.CUSTOM_EMOJI || []).filter(c => c.shortcode.startsWith('sa') || c.shortcode.startsWith('sad') || c.shortcode.startsWith('sak')).slice(0, 5);
+  return (
+    <div style={{padding: 18, background: 'var(--panel-2)', borderRadius: 4, position: 'relative', minHeight: 220}}>
+      <div style={{fontFamily: 'var(--sans)', fontSize: 14, color: 'var(--ink-2)', marginBottom: 8}}>
+        ugh, this morning was <span style={{color: 'var(--accent-ink)', fontFamily: 'var(--mono)', fontWeight: 500}}>:sa</span><span className="me-caret-static"/>
+      </div>
+      <div className="me-pop" style={{position: 'static', boxShadow: '0 6px 18px -8px rgba(28,32,70,0.18)'}}>
+        <div className="me-pop-l">Emoji · {rows.length} matches</div>
+        <div className="me-pop-list">
+          {rows.map((e, i) => {
+            const sw = e.swatch || ('em-cx-' + e.shortcode);
+            return (
+              <div key={e.shortcode} className={"me-row " + (i === 0 ? 'sel' : '')}>
+                <span className={"me-row-emoji " + sw}>
+                  <span className="me-emoji-i">{e.shortcode.slice(0, 2).toUpperCase()}</span>
+                </span>
+                <span className="me-row-sc">:{e.shortcode}:</span>
+                <span className="me-row-pack">{e.pack}</span>
+                {i === 0 && <span className="me-row-go"><span className="me-kbd">Tab</span></span>}
+              </div>
+            );
+          })}
+        </div>
+        <div className="me-pop-foot">
+          <span className="me-kbd">↑↓</span> navigate · <span className="me-kbd">Tab</span> insert · <span className="me-kbd">Esc</span> dismiss
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DemoEmojiPicker() {
+  // Static, scrollable rendition of EmojiPicker without the
+  // outside-click handler, so the specimen always stays visible.
+  const customEmoji = window.CUSTOM_EMOJI || [];
+  const stolen = customEmoji.filter(c => c.pack === 'stolen');
+  const sidebar = [
+    { id: 'recent', label: 'Recent', kind: 'recent' },
+    { id: 'custom:stolen', label: 'stolen', kind: 'custom', pack: 'stolen', sel: true },
+    { id: 'custom:blobs',  label: 'blobs',  kind: 'custom', pack: 'blobs' },
+    { id: 'custom:party',  label: 'party',  kind: 'custom', pack: 'party' },
+    { id: 'custom:pl',     label: 'pleroma', kind: 'custom', pack: 'pl' },
+    { id: 'custom:misc',   label: 'misc',   kind: 'custom', pack: 'misc' },
+    { id: 'uni:smileys',   label: 'Smileys & people', kind: 'unicode' },
+    { id: 'uni:animals',   label: 'Animals & nature', kind: 'unicode' },
+  ];
+  return (
+    <div style={{padding: 18, background: 'var(--panel-2)', borderRadius: 4, display: 'flex', justifyContent: 'center'}}>
+      <div className="ep-picker" style={{position: 'static', boxShadow: '0 6px 18px -8px rgba(28,32,70,0.18)'}}>
+        <aside className="ep-side">
+          {sidebar.map(s => {
+            const ex = s.kind === 'custom' ? customEmoji.find(c => c.pack === s.pack) : null;
+            const sw = ex ? (ex.swatch || ('em-cx-' + ex.shortcode)) : '';
+            return (
+              <div key={s.id} className={"ep-side-item " + (s.sel ? 'on' : '')}>
+                <span className="ep-side-i">
+                  {s.kind === 'recent' && <span className="ep-side-glyph">◷</span>}
+                  {s.kind === 'unicode' && <span className="ep-side-glyph">☺</span>}
+                  {s.kind === 'custom' && <span className={"ep-side-swatch " + sw}/>}
+                </span>
+                <span className="ep-side-t">{s.label}</span>
+              </div>
+            );
+          })}
+        </aside>
+        <div className="ep-main">
+          <div className="ep-search">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" width="14" height="14"><circle cx="7" cy="7" r="4.5"/><path d="M11 11l3 3"/></svg>
+            <input placeholder="Search…" readOnly/>
+          </div>
+          <div className="ep-pack-l">stolen<span className="ep-pack-count">{stolen.length}</span></div>
+          <div className="ep-grid">
+            {stolen.map(c => {
+              const sw = c.swatch || ('em-cx-' + c.shortcode);
+              return (
+                <div key={c.shortcode} className="ep-cell" title={':' + c.shortcode + ':'}>
+                  <span className={"me-emoji ep-cell-cx " + sw}>
+                    <span className="me-emoji-i">{c.shortcode.slice(0, 2).toUpperCase()}</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="ep-foot">
+            <span className="ep-foot-l">:stolen:</span>
+            <span className="ep-foot-r">Click to insert</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============ Search demos ============
+function DemoSearchDropdown({ query = '' }) {
+  const DD = window.SearchDropdown;
+  const search = window.searchMock;
+  if (!DD || !search) return <div style={{padding: 20, fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)'}}>SearchDropdown not loaded</div>;
+  const results = search(query);
+  const recents = ['cassette decks', 'soft.hertz', 'pleroma 2.7 release', '#slowweb'];
+  return (
+    <div style={{position: 'relative', minHeight: query ? 360 : 280, padding: 18, background: 'var(--panel-2)', borderRadius: 4}}>
+      {/* Mock search field so the dropdown has a real visual anchor */}
+      <div style={{display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--panel)', border: '1px solid var(--accent)', borderRadius: 4, boxShadow: '0 0 0 3px var(--accent-soft-2)', maxWidth: 380}}>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" width="14" height="14" style={{color: 'var(--muted)'}}>
+          <circle cx="7" cy="7" r="4.5"/><path d="M11 11l3 3"/>
+        </svg>
+        <span style={{flex: 1, fontFamily: 'var(--sans)', fontSize: 13, color: 'var(--ink)'}}>
+          {query || <span style={{color: 'var(--muted-2)'}}>Search PleromaNet…</span>}
+        </span>
+        <span style={{fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted)', border: '1px solid var(--border-strong)', background: 'var(--panel-2)', padding: '0 5px', borderRadius: 3}}>⌘K</span>
+      </div>
+      <div style={{position: 'relative', marginTop: 8, maxWidth: 380}}>
+        <DD
+          query={query}
+          results={results}
+          recents={recents}
+          selIdx={0}
+          onSeeAll={() => {}}
+          onPickAccount={() => {}}
+          onPickStatus={() => {}}
+          onPickRecent={() => {}}
+          onClearRecent={() => {}}
+          onClearAllRecents={() => {}}/>
+      </div>
+    </div>
+  );
+}
+
+function DemoSearchPage({ query = 'slow web', sidebarOpen = false }) {
+  const SP = window.SearchPage;
+  const search = window.searchMock;
+  const [tab, setTab] = useState('all');
+  const [sb, setSb] = useState(sidebarOpen);
+  if (!SP || !search) return <div style={{padding: 20, fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)'}}>SearchPage not loaded</div>;
+  const [q, setQ] = useState(query);
+  return (
+    <div style={{padding: 18, background: 'var(--panel-2)', borderRadius: 4}}>
+      <SP
+        query={q}
+        onChangeQuery={setQ}
+        results={search(q)}
+        tab={tab}
+        onChangeTab={setTab}
+        sidebarOpen={sb}
+        onToggleSidebar={() => setSb(v => !v)}/>
+    </div>
+  );
+}
+
+function DemoComposerDropzone() {
+  // Render the composer with the drag-over class + overlay forced on
+  // so reviewers can see the V1 treatment without actually dragging.
+  return (
+    <div style={{padding: 14, background: 'var(--panel-2)', borderRadius: 4}}>
+      <div className="composer is-drag-over" style={{position: 'relative'}}>
+        <div className="composer-av" style={{width: 44, height: 44, borderRadius: 4, background: 'linear-gradient(135deg, #2a1f4a, #6b4d8e, #d889a0)'}}/>
+        <div>
+          <div style={{padding: '4px 0 6px', fontSize: 15, lineHeight: 1.7, color: 'var(--ink)'}}>
+            rain on glass · 11 minutes, two takes
+          </div>
+          <div className="composer-row" style={{opacity: 0.4}}>
+            <span style={{width: 30, height: 30}}/>
+            <span className="composer-spacer"/>
+            <span className="composer-count">412</span>
+            <button className="btn-primary" disabled>Post</button>
+          </div>
+        </div>
+        <div className="composer-dropzone" aria-hidden="true">
+          <div className="composer-dropzone-card">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
+              <path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>
+            </svg>
+            <div className="composer-dropzone-h">Drop to attach</div>
+            <div className="composer-dropzone-s">photos · audio · video</div>
+            <div className="composer-dropzone-meta">Max 8 files · 40 MB each</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+function DemoComposerUploads() {
+  const Live = window.Composer;
+  const [c, setC] = useState({
+    text: "rain on glass · 11 minutes, two takes",
+    privacy: 'Public',
+    uploads: [
+      { id: 'u1', name: 'rain-on-glass-take2.wav', kind: 'audio', pct: 100 },
+      { id: 'u2', name: 'windowsill-dusk.jpg',     kind: 'photo', pct: 62 },
+      { id: 'u3', name: 'kettle-take1.jpg',        kind: 'photo', pct: 14 },
+    ],
+  });
+  if (!Live) return <div style={{padding: 20, fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)'}}>Composer not loaded</div>;
+  return <Live composer={c} setComposer={setC} onPost={() => {}}/>;
+}
+
 function DemoComposer({ initial }) {
   const [c, setC] = useState(initial || { text: "drafting in the design system", privacy: 'Public' });
   const Live = window.Composer;
   if (!Live) return <div style={{padding: 20, fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)'}}>Composer not loaded</div>;
   return <Live composer={c} setComposer={setC} onPost={() => {}}/>;
+}
+
+// ---- MentionEditor demos for the Composer slab ----
+function DemoMentionEditorWithPill() {
+  const ref = React.useRef(null);
+  // Seed the editor with a body that includes a real pill atom
+  React.useEffect(() => {
+    if (!ref.current) return;
+    const root = ref.current.querySelector('.me-editor');
+    if (!root || root.dataset.seeded) return;
+    root.dataset.seeded = '1';
+    root.innerHTML = '';
+    root.appendChild(document.createTextNode('thanks for the recs '));
+    const pill = document.createElement('span');
+    pill.className = 'me-pill';
+    pill.setAttribute('contenteditable', 'false');
+    pill.setAttribute('data-acct', 'soft.hertz@kolektiva.social');
+    pill.setAttribute('title', '@soft.hertz@kolektiva.social');
+    const av = document.createElement('span');
+    av.className = 'me-pill-av av-grad-3';
+    pill.appendChild(av);
+    const at = document.createElement('span');
+    at.className = 'me-pill-at';
+    at.textContent = '@';
+    pill.appendChild(at);
+    const handle = document.createElement('span');
+    handle.className = 'me-pill-handle';
+    handle.textContent = 'soft.hertz';
+    pill.appendChild(handle);
+    root.appendChild(pill);
+    root.appendChild(document.createTextNode('\u00A0— going to try qwen 0.5b first.'));
+  }, []);
+  const ME = window.MentionEditor;
+  if (!ME) return <div style={{padding: 20, fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)'}}>MentionEditor not loaded</div>;
+  return (
+    <div ref={ref} style={{padding: '14px 16px', background: 'var(--panel)'}}>
+      <ME placeholder=""/>
+    </div>
+  );
+}
+
+function DemoMentionDropdown() {
+  // Static render of the dropdown shape — not wired to a real input.
+  const rows = [
+    { id: '1', display_name: 'soft.hertz ✦', acct: 'soft.hertz@kolektiva.social', avClass: 'av-grad-3', sel: true },
+    { id: '2', display_name: 'softie ◌',     acct: 'softie@graz.dev',             avClass: 'av-orb',      sel: false },
+    { id: '3', display_name: 'softwave',      acct: 'softwave@retro.social',       avClass: 'av-grad-2',   sel: false },
+    { id: '4', display_name: 'softstack',     acct: 'softstack@hub.dev',           avClass: 'av-pixel-pc', sel: false },
+  ];
+  return (
+    <div style={{padding: 18, background: 'var(--panel-2)', borderRadius: 4, position: 'relative', minHeight: 240}}>
+      <div style={{fontFamily: 'var(--sans)', fontSize: 14, color: 'var(--ink-2)', marginBottom: 8}}>
+        thanks for the recs <span style={{color: 'var(--accent-ink)', fontWeight: 500}}>@sof</span><span className="me-caret-static"/>
+      </div>
+      <div className="me-pop" style={{position: 'static', boxShadow: '0 6px 18px -8px rgba(28,32,70,0.18)'}}>
+        <div className="me-pop-l">Suggestions · 4 results</div>
+        <div className="me-pop-list">
+          {rows.map(r => (
+            <div key={r.id} className={"me-row " + (r.sel ? 'sel' : '')}>
+              <span className={"me-row-av " + r.avClass}/>
+              <span className="me-row-name">{r.display_name}</span>
+              <span className="me-row-acct">@{r.acct}</span>
+              {r.sel && <span className="me-row-go"><span className="me-kbd">Tab</span></span>}
+            </div>
+          ))}
+        </div>
+        <div className="me-pop-foot">
+          <span className="me-kbd">↑↓</span> navigate · <span className="me-kbd">Tab</span> insert · <span className="me-kbd">Esc</span> dismiss
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function DemoThread() {

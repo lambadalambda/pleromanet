@@ -1,7 +1,9 @@
 /* global React, ReactDOM, Header, SideNav, ProfileMini, FooterCard,
    HomeView, TrendsCard, WhoToFollow, ShortcutsCard, InstanceStatus,
    ProfileSettings, ProfilePreviewCard, ProfileTipsCard,
+   ProfileView, ProfileSideRail,
    ExploreView, QuickSearchCard, InstanceStatusExtended,
+   SearchPage, useSearch,
    useTweaks, TweaksPanel, TweakSection, TweakSelect, TweakColor, TweakRadio, TweakToggle */
 const { useState, useEffect } = React;
 
@@ -181,11 +183,68 @@ const initialPosts = [
     replies: 3, boosts: 11, favs: 76,
     actions: { reply: false, boost: false, fav: false },
   },
+  // ---- Posts from "dreambyte" — the current viewer's own account.
+  // Mixed in so the federated feed feels lived-in AND so the profile
+  // view shows real content (we filter posts.where p.handle.includes('dreambyte')).
+  {
+    id: 100, name: 'dreambyte', handle: '@dreambyte@pleromanet.social', time: '12m',
+    avBanner: 'pixel-window',
+    body: "rearranging the desk. the cassette deck got a slightly better spot. small wins.",
+    attachments: [],
+    replies: 1, boosts: 0, favs: 6,
+    actions: { reply: false, boost: false, fav: false },
+  },
+  {
+    id: 101, name: 'dreambyte', handle: '@dreambyte@pleromanet.social', time: '3h',
+    avBanner: 'pixel-window',
+    body: "writing about the slow web feels like writing about the weather — i mean it's THE big subject but you can't quite pin it. anyway, here's a soundtrack",
+    attachments: [
+      { kind: 'audio', title: 'late shift', byline: 'dreambyte · loop · 2026',
+        duration: '6:12', start: 0.22 },
+    ],
+    replies: 4, boosts: 9, favs: 32,
+    actions: { reply: false, boost: false, fav: false },
+  },
+  {
+    id: 102, name: 'dreambyte', handle: '@dreambyte@pleromanet.social', time: '1d',
+    avBanner: 'pixel-window',
+    body: "↪ @soft.hertz great post. saved.",
+    attachments: [],
+    addressees: ['@soft.hertz'],
+    replies: 0, boosts: 1, favs: 8,
+    actions: { reply: false, boost: false, fav: false },
+  },
+  {
+    id: 103, name: 'dreambyte', handle: '@dreambyte@pleromanet.social', time: '2d',
+    avBanner: 'pixel-window', pinned: true,
+    body: "living in a soft world.\n\nthis is the pinned post. there's not much here, but i'll keep adding.",
+    attachments: [],
+    replies: 12, boosts: 24, favs: 84,
+    actions: { reply: false, boost: false, fav: true },
+  },
 ];
+
+// ---- Profile data for "dreambyte" — fed to <ProfileView>.
+const DREAMBYTE_PROFILE = {
+  displayName: 'dreambyte',
+  username: 'dreambyte',
+  acct: '@dreambyte@pleromanet.social',
+  avClass: '',
+  avBanner: 'pixel-window',
+  bio: "living in a soft world. notes on cassette culture, the slow web, and small software for small audiences.",
+  fields: [
+    { k: 'Pronouns', v: 'they / them' },
+    { k: 'Location', v: 'somewhere on the internet' },
+    { k: 'Joined',   v: 'May 2025' },
+    { k: 'Web',      v: 'dreambyte.dev', verified: true },
+    { k: 'Now',      v: 'late shift, headphones on' },
+  ],
+  stats: { posts: 248, following: 312, followers: 1248 },
+};
 
 function App() {
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  const [view, setView] = useState('home'); // home | profile-settings | explore | local | federated
+  const [view, setView] = useState('home'); // home | profile-settings | explore | local | federated | search | profile
   const [settingsTab, setSettingsTab] = useState('Profile');
   const [posts, setPosts] = useState(initialPosts);
   const [composer, setComposer] = useState({ text: '', privacy: 'Public' });
@@ -193,6 +252,7 @@ function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [threadId, setThreadId] = useState(null);
+  const search = useSearch();
   const [prevView, setPrevView] = useState('home');
   const [replyDraft, setReplyDraft] = useState('');
   const [inlineReplyTo, setInlineReplyTo] = useState(null);
@@ -381,12 +441,30 @@ function App() {
         ${tweaks.density === 'compact' ? '.post { padding: 12px 16px; } .composer { padding: 12px 16px; } .card-body, .card-head { padding-top: 9px; padding-bottom: 9px; }' : ''}
         ${tweaks.darkComposer ? '.composer { background: linear-gradient(180deg, #1a1538 0%, #2a1f4a 100%); color: #e8e2f5; } .composer-input { color: #e8e2f5; } .composer-input::placeholder { color: rgba(232,226,245,0.55); } .composer-tool { color: rgba(232,226,245,0.6); } .composer-tool:hover { background: rgba(255,255,255,0.08); color: white; } .composer-count { color: rgba(232,226,245,0.6); }' : ''}
       `}</style>
-      <Header view={view} onView={(v) => { setView(v); setDrawerOpen(false); }} tweaks={tweaks} onMenu={() => setDrawerOpen(true)} theme={theme} setTheme={setTheme} onSignOut={() => setSignedIn(false)}/>
+      <Header
+        view={view}
+        onView={(v) => { setView(v); setDrawerOpen(false); }}
+        tweaks={tweaks}
+        onMenu={() => setDrawerOpen(true)}
+        theme={theme}
+        setTheme={setTheme}
+        onSignOut={() => setSignedIn(false)}
+        search={{
+          query: search.query,
+          setQuery: search.setQuery,
+          open: search.headerOpen,
+          setOpen: search.setHeaderOpen,
+          submit: search.submit,
+          recents: search.recents,
+          results: search.results,
+          removeRecent: search.removeRecent,
+          clearRecents: search.clearRecents,
+        }}/>
       <NotifsPopHost onSeeAll={() => setView('notifs')}/>
       <div className="shell">
         <div className="main">
           <aside>
-            <ProfileMini/>
+            <ProfileMini onOpen={() => setView('profile')}/>
             <div className="card" style={{padding: '6px 0'}}>
               <SideNav
                 view={view}
@@ -433,8 +511,35 @@ function App() {
                 setInlineReplyDraft={setInlineReplyDraft}
                 onSubmitInlineReply={onSubmitInlineReply}/>
             )}
+            {view === 'profile' && (
+              <ProfileView
+                profile={DREAMBYTE_PROFILE}
+                posts={posts.filter(p => p.handle && p.handle.includes('dreambyte'))}
+                pinned={posts.filter(p => p.handle && p.handle.includes('dreambyte') && p.pinned)}
+                replies={posts.filter(p => p.handle && p.handle.includes('dreambyte') && p.addressees && p.addressees.length > 0)}
+                media={[
+                  { kind: 'photo', src: 'samples/cat-door.webp' },
+                  { kind: 'photo', src: 'samples/cats-pair.webp' },
+                  { kind: 'audio', title: 'late shift' },
+                  { kind: 'photo', src: 'samples/dragon.png' },
+                  { kind: 'photo', src: 'samples/falco.png' },
+                  { kind: 'audio', title: 'kitchen sketch' },
+                ]}
+                followState="self"
+                onAction={onToggleAction}/>
+            )}
             {view === 'profile-settings' && (
               <ProfileSettings tab={settingsTab} profile={profile} setProfile={setProfile}/>
+            )}
+            {view === 'search' && (
+              <SearchPage
+                query={search.query}
+                onChangeQuery={search.setQuery}
+                results={search.results}
+                tab={search.tab}
+                onChangeTab={search.setTab}
+                sidebarOpen={search.sidebarOpen}
+                onToggleSidebar={search.toggleSidebar}/>
             )}
             {view === 'explore' && (
               <ExploreView posts={posts} onToggleAction={onToggleAction} following={following} toggleFollow={toggleFollow}/>
@@ -453,6 +558,11 @@ function App() {
                 <InstanceStatus/>
               </>
             ) : null}
+            {view === 'profile' && (
+              <ProfileSideRail
+                profile={DREAMBYTE_PROFILE}
+                pinned={posts.filter(p => p.handle && p.handle.includes('dreambyte') && p.pinned)}/>
+            )}
             {view === 'profile-settings' && (
               <>
                 <ProfilePreviewCard/>
@@ -510,7 +620,7 @@ function App() {
             <svg viewBox="0 0 24 24" fill="none" style={{width: 18, height: 18}}><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
           </button>
         </div>
-        <ProfileMini/>
+        <ProfileMini onOpen={() => { setView('profile'); setDrawerOpen(false); }}/>
         <div className="card" style={{padding: '6px 0'}}>
           <SideNav
             view={view}

@@ -194,17 +194,41 @@ function PostActions({ post, onAction }) {
 //
 // Usage:
 //   <PostBody body={post.body} addressees={post.addressees}/>
-const POSTBODY_MENTION_RE = /@[\w.]+(?:@[\w.]+)?/g;
+// Body text → React nodes. Tokens we auto-link / auto-render:
+//   @user@server  → inline accent-ink mention link
+//   :shortcode:   → inline custom-emoji "image" (window.CUSTOM_EMOJI lookup)
+// Anything not matched is rendered as a plain string.
+const POSTBODY_TOKEN_RE = /(@[\w.]+(?:@[\w.]+)?)|:([a-zA-Z0-9_+-]+):/g;
 function renderBodyText(text) {
   if (!text) return text;
   const out = [];
   let lastIdx = 0;
   let match;
   let key = 0;
-  POSTBODY_MENTION_RE.lastIndex = 0;
-  while ((match = POSTBODY_MENTION_RE.exec(text)) !== null) {
+  POSTBODY_TOKEN_RE.lastIndex = 0;
+  while ((match = POSTBODY_TOKEN_RE.exec(text)) !== null) {
     if (match.index > lastIdx) out.push(text.slice(lastIdx, match.index));
-    out.push(<a key={"m" + key++} className="post-mention-inline">{match[0]}</a>);
+    if (match[1]) {
+      // @mention
+      out.push(<a key={"m" + key++} className="post-mention-inline">{match[1]}</a>);
+    } else if (match[2]) {
+      // :shortcode:
+      const sc = match[2];
+      const emoji = (typeof window !== 'undefined' && window.CUSTOM_EMOJI)
+        ? window.CUSTOM_EMOJI.find(c => c.shortcode === sc)
+        : null;
+      if (emoji) {
+        const sw = emoji.swatch || ('em-cx-' + sc);
+        out.push(
+          <span key={"e" + key++} className={"me-emoji " + sw} title={':' + sc + ':'}>
+            <span className="me-emoji-i">{sc.slice(0, 2).toUpperCase()}</span>
+          </span>
+        );
+      } else {
+        // Unknown shortcode — leave as plain text
+        out.push(match[0]);
+      }
+    }
     lastIdx = match.index + match[0].length;
   }
   if (lastIdx < text.length) out.push(text.slice(lastIdx));

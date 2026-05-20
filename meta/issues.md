@@ -5,3 +5,6 @@
 - [ ] [25 Wire explore search](issues/25-wire-explore-search.md)
 - [ ] [28 Retire mockup prototype](issues/28-retire-mockup-prototype.md)
 - [ ] [39 Design and wire emoji reaction row](issues/39-design-and-wire-emoji-reaction-row.md)
+- [ ] [40 Wire composer media upload and dropzone](issues/40-wire-composer-media-upload-and-dropzone.md)
+- [ ] [41 Wire composer mentions and custom emoji](issues/41-wire-composer-mentions-and-custom-emoji.md)
+- [ ] [42 Port halftone media treatment](issues/42-port-halftone-media-treatment.md)

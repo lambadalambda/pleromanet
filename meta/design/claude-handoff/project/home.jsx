@@ -1,5 +1,6 @@
 /* global React, I, VaporBanner, Avatar, PostHead, PostBody, PostCW, PostBoost, PostMedia, PostActions,
    Card, CardHead, CardFoot, Button, Pill, StatusRow,
+   MentionEditor, EmojiPicker,
    OekakiModal */
 const { useState: useStateF } = React;
 
@@ -25,9 +26,116 @@ function HomeView({ tweaks, posts, onToggleAction, composer, setComposer, onPost
 
 function Composer({ composer, setComposer, onPost }) {
   const [oekOpen, setOekOpen] = React.useState(false);
+  const [emojiOpen, setEmojiOpen] = React.useState(false);
+  const [emojiAnchor, setEmojiAnchor] = React.useState(null);
+  const [dragOver, setDragOver] = React.useState(false);
+  const [dropError, setDropError] = React.useState(null);
+  const editorRef = React.useRef(null);
+  const emojiBtnRef = React.useRef(null);
+  const fileInputRef = React.useRef(null);
+  const dragCounter = React.useRef(0);
   const remaining = 500 - (composer.text || '').length;
   const hasCW = composer.cw != null;
   const hasPoll = composer.poll != null;
+  const uploads = composer.uploads || [];
+
+  // Post + clear the editor (the editor is uncontrolled, so changes
+  // to composer.text from the parent don't bubble back into the DOM).
+  const handlePost = () => {
+    onPost && onPost();
+    editorRef.current?.clear();
+    setComposer(c => ({...c, uploads: []}));
+  };
+
+  // ---- Drag & drop ----------------------------------------------
+  // Files dropped on the composer become upload rows below the input.
+  // Max 8 files / 40 MB each. Rejected files surface an inline error
+  // but successful drops still go through.
+  const MAX_FILES = 8;
+  const MAX_SIZE  = 40 * 1024 * 1024;
+  const acceptKind = (file) => {
+    const t = (file.type || '').split('/')[0];
+    if (t === 'image') return 'photo';
+    if (t === 'audio') return 'audio';
+    if (t === 'video') return 'video';
+    return null;
+  };
+  const ingestFiles = (filesIn) => {
+    const files = Array.from(filesIn || []);
+    if (files.length === 0) return;
+    const existing = uploads.length;
+    const errors = [];
+    const accepted = [];
+    for (const f of files) {
+      const kind = acceptKind(f);
+      if (!kind) { errors.push(`${f.name} · unsupported type`); continue; }
+      if (f.size > MAX_SIZE) { errors.push(`${f.name} · over 40 MB`); continue; }
+      if (existing + accepted.length >= MAX_FILES) { errors.push(`${f.name} · queue full (max ${MAX_FILES})`); continue; }
+      accepted.push({
+        id: 'u' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+        name: f.name,
+        size: f.size,
+        kind,
+        pct: 0,
+      });
+    }
+    if (errors.length) setDropError(errors.slice(0, 2).join(' · '));
+    else setDropError(null);
+    if (accepted.length === 0) return;
+    setComposer(c => ({...c, uploads: [...(c.uploads || []), ...accepted]}));
+    // Simulate progress on each accepted file
+    accepted.forEach((u, i) => {
+      let pct = 0;
+      const tick = () => {
+        pct = Math.min(100, pct + (10 + Math.random() * 25));
+        setComposer(c => ({
+          ...c,
+          uploads: (c.uploads || []).map(x => x.id === u.id ? {...x, pct} : x),
+        }));
+        if (pct < 100) setTimeout(tick, 220 + Math.random() * 180);
+      };
+      setTimeout(tick, 100 + i * 80);
+    });
+  };
+  const onDragEnter = (e) => {
+    if (!e.dataTransfer || ![...e.dataTransfer.types].includes('Files')) return;
+    e.preventDefault();
+    dragCounter.current += 1;
+    setDragOver(true);
+  };
+  const onDragOver = (e) => {
+    if (!e.dataTransfer || ![...e.dataTransfer.types].includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+  const onDragLeave = () => {
+    dragCounter.current = Math.max(0, dragCounter.current - 1);
+    if (dragCounter.current === 0) setDragOver(false);
+  };
+  const onDrop = (e) => {
+    if (!e.dataTransfer || ![...e.dataTransfer.types].includes('Files')) return;
+    e.preventDefault();
+    dragCounter.current = 0;
+    setDragOver(false);
+    ingestFiles(e.dataTransfer.files);
+  };
+  const removeUpload = (id) => {
+    setComposer(c => ({...c, uploads: (c.uploads || []).filter(x => x.id !== id)}));
+  };
+  const triggerPick = () => fileInputRef.current?.click();
+  const onPickFiles = (e) => {
+    ingestFiles(e.target.files);
+    e.target.value = '';
+  };
+
+  const toggleEmojiPicker = () => {
+    if (emojiOpen) { setEmojiOpen(false); return; }
+    const btn = emojiBtnRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    setEmojiAnchor({ left: rect.left, top: rect.top, bottom: rect.bottom });
+    setEmojiOpen(true);
+  };
 
   const toggleCW = () => {
     if (hasCW) setComposer({...composer, cw: null});
@@ -53,14 +161,26 @@ function Composer({ composer, setComposer, onPost }) {
   };
 
   return (
-    <div className="composer">
+    <div
+      className={"composer " + (dragOver ? 'is-drag-over' : '')}
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}>
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept="image/*,audio/*,video/*"
+        style={{display: 'none'}}
+        onChange={onPickFiles}/>
       <Avatar variant="compose" avBanner="sunset"/>
       <div>
-        <textarea
-          className="composer-input"
+        <MentionEditor
+          ref={editorRef}
           placeholder="What's on your mind?"
-          value={composer.text}
-          onChange={e => setComposer({...composer, text: e.target.value})}
+          onChange={(text) => setComposer(c => ({...c, text}))}
+          onSubmit={() => { if ((composer.text || '').trim()) handlePost(); }}
         />
         {hasCW && (
           <div className="composer-cw">
@@ -159,8 +279,14 @@ function Composer({ composer, setComposer, onPost }) {
             </div>
           </div>
         )}
+        {uploads.length > 0 && (
+          <div className="composer-uploads">
+            {uploads.map(u => <UploadRow key={u.id} u={u} onRemove={removeUpload}/>)}
+          </div>
+        )}
+        {dropError && <div className="composer-drop-error">{dropError}</div>}
         <div className="composer-row">
-          <button className="composer-tool" title="Image"><I.image style={{width: 18, height: 18}}/></button>
+          <button className="composer-tool" title="Add image" onClick={triggerPick}><I.image style={{width: 18, height: 18}}/></button>
           <button className="composer-tool" title="Draw (Oekaki)" onClick={() => setOekOpen(true)}>
             <svg viewBox="0 0 24 24" fill="none" style={{width: 18, height: 18}}>
               <path d="M3 21l4-1 11.5-11.5a2.121 2.121 0 00-3-3L4 17l-1 4z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
@@ -171,7 +297,14 @@ function Composer({ composer, setComposer, onPost }) {
           <button className={"composer-tool " + (hasPoll ? 'active' : '')} title="Poll" onClick={togglePoll}>
             <I.poll style={{width: 18, height: 18}}/>
           </button>
-          <button className="composer-tool" title="Emoji"><I.smile style={{width: 18, height: 18}}/></button>
+          <button
+            ref={emojiBtnRef}
+            data-emoji-trigger
+            className={"composer-tool " + (emojiOpen ? 'active' : '')}
+            title="Emoji"
+            onClick={toggleEmojiPicker}>
+            <I.smile style={{width: 18, height: 18}}/>
+          </button>
           <button className={"composer-tool cw " + (hasCW ? 'active' : '')} title="Content warning" onClick={toggleCW}>CW</button>
           <button className="composer-tool privacy">
             <I.globe style={{width: 13, height: 13}}/>
@@ -180,21 +313,75 @@ function Composer({ composer, setComposer, onPost }) {
           </button>
           <span className="composer-spacer"></span>
           <span className="composer-count" style={{color: remaining < 50 ? 'var(--bad)' : 'var(--muted)'}}>{remaining}</span>
-          <button className="btn-primary" onClick={onPost} disabled={!composer.text.trim()}>Post</button>
+          <button className="btn-primary" onClick={handlePost} disabled={!composer.text.trim()}>Post</button>
         </div>
       </div>
       <OekakiModal
         open={oekOpen}
         onClose={() => setOekOpen(false)}
         onAttach={(dataURL) => {
+          // Push the caption into the editor's DOM so it shows up immediately;
+          // composer.text is also updated for character count + post button.
+          const caption = (composer.text ? '\n' : '') + '🖌️ attached an oekaki sketch';
+          editorRef.current?.insertText(caption);
           setComposer({
             ...composer,
-            text: composer.text + (composer.text ? '\n' : '') + '🖌️ attached an oekaki sketch',
+            text: composer.text + caption,
             oekaki: dataURL,
           });
           setOekOpen(false);
         }}
       />
+      <EmojiPicker
+        open={emojiOpen}
+        onClose={() => setEmojiOpen(false)}
+        anchor={emojiAnchor}
+        onPick={(item) => {
+          if (typeof item === 'string') {
+            // unicode glyph — just plain text
+            editorRef.current?.insertText(item);
+          } else {
+            editorRef.current?.insertEmoji(item);
+          }
+        }}
+      />
+      {dragOver && (
+        <div className="composer-dropzone" aria-hidden="true">
+          <div className="composer-dropzone-card">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="22" height="22" aria-hidden="true">
+              <path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>
+            </svg>
+            <div className="composer-dropzone-h">Drop to attach</div>
+            <div className="composer-dropzone-s">photos · audio · video</div>
+            <div className="composer-dropzone-meta">Max 8 files · 40 MB each</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Compact upload row used by the composer's drop queue.
+function UploadRow({ u, onRemove }) {
+  const ext =
+    u.kind === 'audio' ? 'WAV' :
+    u.kind === 'video' ? 'MP4' :
+    (u.name || '').split('.').pop().slice(0, 4).toUpperCase() || 'JPG';
+  return (
+    <div className="composer-upload-row">
+      <div className={"composer-upload-thumb " + u.kind}>{ext}</div>
+      <div className="composer-upload-meta">
+        <div className="composer-upload-name">{u.name}</div>
+        <div className="composer-upload-prog-row">
+          <div className="composer-upload-bar"><span style={{width: u.pct + '%'}}/></div>
+          <span className="composer-upload-pct">{Math.round(u.pct)}%</span>
+        </div>
+      </div>
+      <button className="composer-upload-rm" title="Remove" onClick={() => onRemove(u.id)}>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" width="12" height="12" aria-hidden="true">
+          <path d="M4 4l8 8M12 4l-8 8"/>
+        </svg>
+      </button>
     </div>
   );
 }

@@ -229,7 +229,7 @@ function CityScape() {
 }
 
 // ============ Header ============
-function Header({ view, onView, tweaks, onMenu, theme, setTheme, onSignOut }) {
+function Header({ view, onView, tweaks, onMenu, theme, setTheme, onSignOut, search }) {
   const [userMenuOpen, setUserMenuOpen] = React.useState(false);
   const navs = [
     { id: 'explore', label: 'Explore' },
@@ -274,8 +274,39 @@ function Header({ view, onView, tweaks, onMenu, theme, setTheme, onSignOut }) {
           <div className="header-right" style={{position: 'relative'}}>
             <div className="search">
               <I.search style={{width: 14, height: 14, color: 'var(--muted)'}}/>
-              <input placeholder="Search..." />
+              <input
+                placeholder="Search PleromaNet…"
+                value={search?.query || ''}
+                onChange={(e) => search?.setQuery(e.target.value)}
+                onFocus={() => search?.setOpen(true)}
+                onBlur={() => setTimeout(() => search?.setOpen(false), 90)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (search?.query?.trim()) {
+                      search.submit();
+                      search.setOpen(false);
+                      onView('search');
+                    }
+                  } else if (e.key === 'Escape') {
+                    search?.setOpen(false);
+                    e.target.blur();
+                  }
+                }}/>
               <span className="kbd">⌘K</span>
+              {search?.open && window.SearchDropdown && (
+                <window.SearchDropdown
+                  query={search.query}
+                  results={search.results}
+                  recents={search.recents}
+                  selIdx={0}
+                  onPickRecent={(r) => { search.setQuery(r); search.submit(r); search.setOpen(false); onView('search'); }}
+                  onClearRecent={search.removeRecent}
+                  onClearAllRecents={search.clearRecents}
+                  onSeeAll={() => { search.setOpen(false); onView('search'); }}
+                  onPickAccount={() => { search.setOpen(false); onView('search'); }}
+                  onPickStatus={() => { search.setOpen(false); onView('search'); }}/>
+              )}
             </div>
             <button className="icon-btn" aria-label="Notifications" data-bell onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('toggle-notifs-pop')); }}>
               <I.bell style={{width: 20, height: 20}}/>
@@ -379,6 +410,7 @@ function SideNav({ view, onView, settingsTab, onSettingsTab }) {
     { id: 'local', label: 'Local', ico: I.users },
     { id: 'federated', label: 'Federated', ico: I.globe },
     { id: 'notifs', label: 'Notifications', ico: I.bell, count: 3 },
+    { id: 'profile', label: 'Profile', ico: I.user },
     { id: 'msg', label: 'Messages', ico: I.msg },
     { id: 'bookmarks', label: 'Bookmarks', ico: I.bookmark },
     { id: 'lists', label: 'Lists', ico: I.list },
@@ -401,6 +433,7 @@ function SideNav({ view, onView, settingsTab, onSettingsTab }) {
                 else if (it.id === 'federated') onView('federated');
                 else if (it.id === 'local') onView('local');
                 else if (it.id === 'notifs') onView('notifs');
+                else if (it.id === 'profile') onView('profile');
               }}>
               <span className="ico"><Ico style={{width: 18, height: 18}}/></span>
               <span>{it.label}</span>
@@ -426,10 +459,10 @@ function SideNav({ view, onView, settingsTab, onSettingsTab }) {
 }
 
 // ============ Profile mini card ============
-function ProfileMini() {
+function ProfileMini({ onOpen }) {
   const NP = window.NowPlayingLine;
   return (
-    <Card>
+    <Card style={{cursor: onOpen ? 'pointer' : 'default'}} onClick={onOpen} title={onOpen ? 'Open your profile' : undefined}>
       <div className="profile-mini-banner">
         <VaporBanner variant="pixel-window"/>
       </div>
