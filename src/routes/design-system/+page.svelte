@@ -1256,8 +1256,8 @@
 								</div>
 							</div>
 							<div class="ds-spec-foot">
-								<span class="ds-spec-label">Composer · drag-and-drop overlay</span>
-								<span class="ds-spec-note">.composer.is-drag-over · accent border + tinted .composer-dropzone over the input</span>
+								<span class="ds-spec-label">Dropzone V1 · drag-over</span>
+								<span class="ds-spec-note">overlay dropzone · accent border + tinted .composer-dropzone over the input</span>
 							</div>
 						</div>
 						<div class="ds-spec ds-spec-span-2">
@@ -1296,13 +1296,13 @@
 								</div>
 							</div>
 							<div class="ds-spec-foot">
-								<span class="ds-spec-label">Composer · uploads in progress</span>
+								<span class="ds-spec-label">Dropzone V1 · uploading</span>
 								<span class="ds-spec-note">.composer-upload-row · 36px thumb · progress bar · per-row ✕</span>
 							</div>
 						</div>
 					</div>
 
-					<div class="ds-sub-h" style="margin-top:28px">Attachment dropzone variants</div>
+					<div class="ds-sub-h" style="margin-top:28px">Attachment dropzone variants · V2 recommended</div>
 					<p class="ds-sub" style="margin-bottom:14px">V2 is the recommended handoff pattern: a persistent in-place slot below the editor that becomes upload rows once files are queued.</p>
 					<div class="ds-grid ds-grid-2" style="margin-top:14px">
 						<div class="ds-spec">
@@ -1321,7 +1321,7 @@
 								</div>
 							</div>
 							<div class="ds-spec-foot">
-								<span class="ds-spec-label">Dropzone V2 · idle slot</span>
+								<span class="ds-spec-label">Dropzone V2 · idle · recommended</span>
 								<span class="ds-spec-note">always visible · click-to-browse · paste hint</span>
 							</div>
 						</div>

@@ -763,13 +763,14 @@
 		const session = currentSession;
 		if (!session) return;
 		const incoming = Array.from(files).filter((file) => file.size > 0);
-		const slots = Math.max(0, MAX_COMPOSER_UPLOADS - composerUploads.length);
+		const usedSlots = composerUploads.filter((upload) => upload.status !== 'error').length;
+		const slots = Math.max(0, MAX_COMPOSER_UPLOADS - usedSlots);
 		const rejected: ComposerUpload[] = [];
 		const accepted: File[] = [];
 		for (const file of incoming) {
-			if (!isComposerUploadType(file)) rejected.push(composerUploadError(file, 'Only photos, audio, and video can be attached.'));
-			else if (file.size > MAX_COMPOSER_UPLOAD_BYTES) rejected.push(composerUploadError(file, 'Could not attach · 40 MB limit per file.'));
-			else if (accepted.length >= slots) rejected.push(composerUploadError(file, 'Could not attach · 8 file limit.'));
+			if (!isComposerUploadType(file)) rejected.push(composerUploadError(file, `Could not attach ${file.name} · only photos, audio, and video.`));
+			else if (file.size > MAX_COMPOSER_UPLOAD_BYTES) rejected.push(composerUploadError(file, `Could not attach ${file.name} · 40 MB limit per file.`));
+			else if (accepted.length >= slots) rejected.push(composerUploadError(file, `Could not attach ${file.name} · 8 file limit.`));
 			else accepted.push(file);
 		}
 		if (rejected.length > 0) composerUploads = [...composerUploads, ...rejected];
@@ -1845,14 +1846,14 @@
 								/>
 								<input bind:this={composerFileInput} class="sr-only" type="file" multiple tabindex="-1" aria-label="Attach media" accept="image/*,audio/*,video/*" onchange={handleComposerFileChange} />
 								{#if composerUploads.length > 0}
-									<div class="composer-uploads">
+					<div class="composer-uploads" aria-live="polite">
 										{#each composerUploads as upload (upload.localId)}
 											<div class="composer-upload-row" class:error={upload.status === 'error'} title={upload.error}>
 												<div class={`composer-upload-thumb ${upload.kind}`}>{upload.kind === 'audio' ? 'WAV' : upload.kind === 'video' ? 'MP4' : upload.kind === 'photo' ? 'IMG' : 'FILE'}</div>
 												<div class="composer-upload-meta">
 													<div class="composer-upload-name">{upload.name}</div>
 													<div class="composer-upload-prog-row">
-														<div class="composer-upload-bar"><span style={`width:${upload.progress}%`}></span></div>
+								<div class="composer-upload-bar" role="progressbar" aria-label={`Upload progress for ${upload.name}`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={upload.progress}><span style={`width:${upload.progress}%`}></span></div>
 														<span class="composer-upload-pct">{upload.status === 'error' ? 'Error' : `${upload.progress}%`}</span>
 													</div>
 													{#if upload.error}<div class="composer-upload-error">{upload.error}</div>{/if}

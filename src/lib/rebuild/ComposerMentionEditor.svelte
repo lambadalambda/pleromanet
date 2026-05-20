@@ -392,6 +392,7 @@
 						</span>
 						<span class="me-row-name">{account.displayName}</span>
 						<span class="me-row-acct">@{account.acct}</span>
+						{#if index === selectedIndex}<span class="me-row-go"><span class="me-kbd">Tab</span></span>{/if}
 					</button>
 				{/each}
 			</div>
@@ -407,11 +408,12 @@
 						<span class="me-row-emoji"><img src={emoji.url} alt={`:${emoji.shortcode}:`} /></span>
 						<span class="me-row-sc">:{emoji.shortcode}:</span>
 						<span class="me-row-pack">{emoji.pack ?? 'custom'}</span>
+						{#if index === selectedIndex}<span class="me-row-go"><span class="me-kbd">Tab</span></span>{/if}
 					</button>
 				{/each}
 			</div>
 			{#if visibleEmojis.length === 0}<div class="me-pop-empty">No matches for <code>:{pop.query}:</code></div>{/if}
-			<div class="me-pop-foot"><span class="me-kbd">↑↓</span> navigate · <span class="me-kbd">Enter</span> insert · <span class="me-kbd">Esc</span> dismiss</div>
+			<div class="me-pop-foot"><span class="me-kbd">↑↓</span> navigate · <span class="me-kbd">Tab</span> insert · <span class="me-kbd">Esc</span> dismiss</div>
 		</div>
 	{/if}
 </div>

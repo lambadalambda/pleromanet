@@ -358,8 +358,8 @@ test('home timeline composer blocks submit while uploads are pending and shows r
 	]);
 
 	await expect(page.getByText('delayed.png')).toBeVisible();
-	await expect(page.getByText('notes.txt')).toBeVisible();
-	await expect(page.getByText('Only photos, audio, and video can be attached.')).toBeVisible();
+	await expect(page.getByText('notes.txt', { exact: true })).toBeVisible();
+	await expect(page.getByText('Could not attach notes.txt · only photos, audio, and video.')).toBeVisible();
 	await composer.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
 	expect(createCount).toBe(0);
 	await expect(page.getByRole('button', { name: 'Post', exact: true })).toBeDisabled();
@@ -372,6 +372,87 @@ test('home timeline composer blocks submit while uploads are pending and shows r
 	expect(createCount).toBe(1);
 	const params = new URLSearchParams(createdBody);
 	expect(params.getAll('media_ids[]')).toEqual(['media-delayed']);
+});
+
+test('home timeline composer rejects oversize and over-limit uploads', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, []);
+	});
+	let uploadCount = 0;
+	await page.route('https://pleroma.example/api/v1/media', async (route) => {
+		uploadCount += 1;
+		await fulfillHome(route, {
+			id: `media-${uploadCount}`,
+			type: 'image',
+			url: `https://cdn.example/uploads/${uploadCount}.png`,
+			preview_url: `https://cdn.example/uploads/${uploadCount}-thumb.png`,
+			description: null
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const validFiles = Array.from({ length: 8 }, (_, index) => ({ name: `ok-${index + 1}.png`, mimeType: 'image/png', buffer: Buffer.from('ok') }));
+	await page.getByLabel('Attach media').setInputFiles([
+		...validFiles,
+		{ name: 'too-big.png', mimeType: 'image/png', buffer: Buffer.alloc(40 * 1024 * 1024 + 1) },
+		{ name: 'ninth.png', mimeType: 'image/png', buffer: Buffer.from('extra') }
+	]);
+
+	await expect(page.getByText('ok-1.png')).toBeVisible();
+	await expect(page.getByText('too-big.png', { exact: true })).toBeVisible();
+	await expect(page.getByText('ninth.png', { exact: true })).toBeVisible();
+	await expect(page.getByText('Could not attach too-big.png · 40 MB limit per file.')).toBeVisible();
+	await expect(page.getByText('Could not attach ninth.png · 8 file limit.')).toBeVisible();
+	expect(uploadCount).toBe(8);
+});
+
+test('home timeline composer attaches pasted and dropped files without editing text', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, []);
+	});
+	let uploadCount = 0;
+	await page.route('https://pleroma.example/api/v1/media', async (route) => {
+		uploadCount += 1;
+		await fulfillHome(route, {
+			id: `media-interaction-${uploadCount}`,
+			type: 'image',
+			url: `https://cdn.example/uploads/interaction-${uploadCount}.png`,
+			preview_url: `https://cdn.example/uploads/interaction-${uploadCount}-thumb.png`,
+			description: null
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const composer = page.getByRole('textbox', { name: 'Post text' });
+	await composer.fill('keep text');
+	await composer.evaluate((node) => {
+		const file = new File(['paste'], 'pasted.png', { type: 'image/png' });
+		const dataTransfer = new DataTransfer();
+		dataTransfer.items.add(file);
+		const event = new ClipboardEvent('paste', { clipboardData: dataTransfer, bubbles: true, cancelable: true });
+		node.dispatchEvent(event);
+	});
+
+	await expect(page.getByText('pasted.png')).toBeVisible();
+	await expect(composer).toContainText('keep text');
+	await expect(composer).not.toContainText('pasted.png');
+
+	await page.locator('form.composer').evaluate((node) => {
+		const file = new File(['drop'], 'dropped.png', { type: 'image/png' });
+		const dataTransfer = new DataTransfer();
+		dataTransfer.items.add(file);
+		node.dispatchEvent(new DragEvent('dragover', { dataTransfer, bubbles: true, cancelable: true }));
+		node.dispatchEvent(new DragEvent('drop', { dataTransfer, bubbles: true, cancelable: true }));
+	});
+
+	await expect(page.getByText('dropped.png')).toBeVisible();
+	expect(uploadCount).toBe(2);
 });
 
 test('home timeline composer autocompletes mentions and custom emoji before posting', async ({ page }) => {
@@ -406,6 +487,7 @@ test('home timeline composer autocompletes mentions and custom emoji before post
 	await composer.pressSequentially('hello @so', { delay: 20 });
 	await expect(page.getByRole('listbox', { name: 'Mention suggestions' })).toBeVisible();
 	await expect(page.getByRole('option', { name: /soft.hertz/ })).toBeVisible();
+	await expect(page.getByRole('option', { name: /soft.hertz.*Tab/ })).toBeVisible();
 	await expect(page.locator('img[alt="soft.hertz ✦ avatar"]').first()).toHaveAttribute('src', 'https://pleroma.example/avatar.png');
 	await composer.press('Enter');
 	await expect(composer).toContainText('@soft.hertz');
@@ -414,6 +496,7 @@ test('home timeline composer autocompletes mentions and custom emoji before post
 	await composer.pressSequentially(':bl');
 	await expect(page.getByRole('listbox', { name: 'Emoji suggestions' })).toBeVisible();
 	await expect(page.getByRole('option', { name: /:blobcat:/ })).toBeVisible();
+	await expect(page.getByRole('option', { name: /:blobcat:.*Tab/ })).toBeVisible();
 	await composer.press('Enter');
 	await expect(composer.locator('.me-emoji img[alt=":blobcat:"]')).toBeVisible();
 

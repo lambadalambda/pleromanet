@@ -944,6 +944,11 @@ body[data-theme='simoun'] .pill {
 	white-space: pre-wrap;
 	word-break: break-word;
 }
+.me-editor:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 4px;
+	border-radius: 4px;
+}
 .me-editor:empty::before {
 	content: attr(data-placeholder);
 	color: var(--muted-2);
