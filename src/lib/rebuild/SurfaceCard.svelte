@@ -5,8 +5,20 @@
 	import VaporBanner from './VaporBanner.svelte';
 	import type { IconName } from './icons';
 
+	type RequestError = { title: string; message: string; status?: number };
+	type RequestState<Data> =
+		| { status: 'idle' }
+		| { status: 'loading' }
+		| { status: 'empty' }
+		| { status: 'error'; error: RequestError }
+		| { status: 'success'; data: Data };
+	type TrendStateItem = { rank: number; tag: string; count: string | null };
+	type InstanceStatusItem = { label: string; value: string };
+	type InstanceStatus = { title: string | null; domain: string | null; rows: InstanceStatusItem[] };
 	type Props = {
 		kind: string;
+		trendsState?: RequestState<TrendStateItem[]>;
+		instanceState?: RequestState<InstanceStatus>;
 	};
 	type Trend = { rank: number; tag: string; count: string };
 	type Suggestion = { id: string; name: string; handle: string; av: string };
@@ -15,7 +27,7 @@
 	type Tip = { icon: IconName; text: string };
 	type Stat = { label: string; value: string };
 
-	let { kind }: Props = $props();
+	let { kind, trendsState, instanceState }: Props = $props();
 	let following = $state<Record<string, boolean>>({});
 
 	const trends: Trend[] = [
@@ -57,26 +69,53 @@
 	const toggleFollow = (id: string) => {
 		following = { ...following, [id]: !following[id] };
 	};
+	const unavailableError = (error: RequestError) => error.status === 404 || error.status === 410;
 </script>
 
 {#if kind === 'trends'}
-	<div class="card surface-card">
+	<div class="card surface-card" data-testid="trends-card">
 		<div class="card-head">
 			<span class="card-title">Trends</span>
 			<Icon name="trend" width={16} height={16} className="surface-head-icon" />
 		</div>
-		<div class="trend-list">
-			{#each trends as trend}
-				<button type="button" class="trend-item">
-					<span class="trend-rank">{trend.rank}</span>
-					<span>
-						<span class="trend-tag">{trend.tag}</span>
-						<span class="trend-meta">{trend.count} posts</span>
-					</span>
-				</button>
-			{/each}
-		</div>
-		<button type="button" class="card-foot">View all trends →</button>
+		{#if trendsState}
+			{#if trendsState.status === 'idle' || trendsState.status === 'loading'}
+				<div class="surface-state" role="status">Loading trends</div>
+			{:else if trendsState.status === 'empty'}
+				<div class="surface-state">No trends available</div>
+			{:else if trendsState.status === 'error'}
+				<div class="surface-state surface-state-error">
+					<strong>{unavailableError(trendsState.error) ? 'Trends unavailable' : trendsState.error.title}</strong>
+					{#if !unavailableError(trendsState.error)}<span>{trendsState.error.message}</span>{/if}
+				</div>
+			{:else}
+				<div class="trend-list">
+					{#each trendsState.data as trend}
+						<button type="button" class="trend-item">
+							<span class="trend-rank">{trend.rank}</span>
+							<span>
+								<span class="trend-tag">{trend.tag}</span>
+								{#if trend.count}<span class="trend-meta">{trend.count}</span>{/if}
+							</span>
+						</button>
+					{/each}
+				</div>
+				<button type="button" class="card-foot">View all trends →</button>
+			{/if}
+		{:else}
+			<div class="trend-list">
+				{#each trends as trend}
+					<button type="button" class="trend-item">
+						<span class="trend-rank">{trend.rank}</span>
+						<span>
+							<span class="trend-tag">{trend.tag}</span>
+							<span class="trend-meta">{trend.count} posts</span>
+						</span>
+					</button>
+				{/each}
+			</div>
+			<button type="button" class="card-foot">View all trends →</button>
+		{/if}
 	</div>
 {:else if kind === 'who-to-follow'}
 	<div class="card surface-card">
@@ -117,16 +156,38 @@
 		</div>
 	</div>
 {:else if kind === 'instance-status'}
-	<div class="card surface-card">
+	<div class="card surface-card" data-testid="instance-status-card">
 		<div class="card-head">
 			<span class="card-title">Instance status</span>
 			<Icon name="pulse" width={16} height={16} className="surface-head-icon" />
 		</div>
-		<div>
-			<div class="status-row"><span class="l">pleromanet.social</span><Pill>All systems normal</Pill></div>
-			<div class="status-row"><span class="l">Uptime</span><span class="r">30d 12h 42m</span></div>
-			<div class="status-row"><span class="l">Users</span><span class="r">2,487</span></div>
-		</div>
+		{#if instanceState}
+			{#if instanceState.status === 'idle' || instanceState.status === 'loading'}
+				<div class="surface-state" role="status">Loading instance metadata</div>
+			{:else if instanceState.status === 'empty'}
+				<div class="surface-state">No instance metadata</div>
+			{:else if instanceState.status === 'error'}
+				<div class="surface-state surface-state-error">
+					<strong>{unavailableError(instanceState.error) ? 'Instance metadata unavailable' : instanceState.error.title}</strong>
+					{#if !unavailableError(instanceState.error)}<span>{instanceState.error.message}</span>{/if}
+				</div>
+			{:else}
+				<div>
+					{#if instanceState.data.title || instanceState.data.domain}
+						<div class="status-row no-dot"><span class="l">{instanceState.data.title ?? instanceState.data.domain}</span>{#if instanceState.data.title && instanceState.data.domain}<span class="r">{instanceState.data.domain}</span>{/if}</div>
+					{/if}
+					{#each instanceState.data.rows as row}
+						<div class="status-row"><span class="l">{row.label}</span><span class="r">{row.value}</span></div>
+					{/each}
+				</div>
+			{/if}
+		{:else}
+			<div>
+				<div class="status-row"><span class="l">pleromanet.social</span><Pill>All systems normal</Pill></div>
+				<div class="status-row"><span class="l">Uptime</span><span class="r">30d 12h 42m</span></div>
+				<div class="status-row"><span class="l">Users</span><span class="r">2,487</span></div>
+			</div>
+		{/if}
 	</div>
 {:else if kind === 'quick-search'}
 	<div class="card surface-card">

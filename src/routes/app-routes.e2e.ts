@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { pleromaFixtures } from '../lib/pleroma/fixtures';
-import { expectNoHorizontalOverflow, setViewport, viewports } from '../test/playwright';
+import { expectNoHorizontalOverflow, mockRightRailApis, setViewport, viewports } from '../test/playwright';
 
 const session = {
 	instanceUrl: 'https://pleroma.example',
@@ -24,12 +24,14 @@ const alternateSession = {
 };
 
 const authenticate = async (page: Page) => {
+	await mockRightRailApis(page);
 	await page.addInitScript((storedSession) => {
 		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
 	}, session);
 };
 
 const authenticateAsAlternateAccount = async (page: Page) => {
+	await mockRightRailApis(page);
 	await page.addInitScript((storedSession) => {
 		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
 	}, alternateSession);

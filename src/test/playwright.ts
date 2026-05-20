@@ -1,4 +1,5 @@
-import { expect, type Locator, type Page } from '@playwright/test';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { pleromaFixtures } from '../lib/pleroma/fixtures';
 
 export const viewports = {
 	desktop: { width: 1280, height: 900 },
@@ -34,4 +35,21 @@ export const expectElementIsTruncatedWithinParent = async (locator: Locator) => 
 
 	expect(result.fits).toBe(true);
 	expect(result.truncated).toBe(true);
+};
+
+export const fulfillJson = async (route: Route, body: unknown, status = 200) => {
+	await route.fulfill({
+		status,
+		contentType: 'application/json',
+		body: JSON.stringify(body)
+	});
+};
+
+export const mockRightRailApis = async (page: Page) => {
+	await page.route('https://pleroma.example/api/v1/trends/tags**', async (route) => {
+		await fulfillJson(route, pleromaFixtures.trends);
+	});
+	await page.route('https://pleroma.example/api/v2/instance', async (route) => {
+		await fulfillJson(route, pleromaFixtures.instance);
+	});
 };

@@ -29,11 +29,11 @@
 		type PaginatedTimelineBaseState,
 		type PaginatedTimelineSuccess
 	} from '$lib/pleroma/timeline-state';
-	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, normalizePleromaRequestError, statusCharacterLimit, type PleromaNotificationView, type PleromaRequestErrorView, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, normalizePleromaRequestError, statusCharacterLimit, type PleromaNotificationView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import { composerPollPayload, createComposerPollDraft, type ComposerPollDraft } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
-	import type { PleromaSession, PleromaStatus } from '$lib/pleroma/types';
+	import type { PleromaInstance, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
 	import type { SocialNotificationData, SocialPost } from '$lib/social/types';
 	import { onMount } from 'svelte';
 
@@ -115,6 +115,8 @@
 		| { status: 'empty' }
 		| { status: 'error'; error: PleromaRequestErrorView }
 		| { status: 'success'; data: PleromaNotificationView[] };
+	type TrendView = { rank: number; tag: string; count: string | null };
+	type InstanceStatusView = { title: string | null; domain: string | null; rows: { label: string; value: string }[] };
 	type StatusActionErrorState = { targetId: string; key: StatusActionKey; route: StatusActionOrigin; error: PleromaRequestErrorView };
 	type NotificationPopoverStatus = 'ready' | 'loading' | 'empty' | 'error';
 	const HOME_TIMELINE_CHECK_EVENT = 'pleromanet:check-home-timeline';
@@ -137,6 +139,8 @@
 	let homeTimelineState = $state<HomeTimelineState>({ status: 'idle' });
 	let threadState = $state<ThreadState>({ status: 'idle' });
 	let notificationState = $state<NotificationState>({ status: 'idle' });
+	let trendsState = $state<PleromaRequestState<TrendView[]>>({ status: 'idle' });
+	let instanceStatusState = $state<PleromaRequestState<InstanceStatusView>>({ status: 'idle' });
 	let localHomePosts = $state<RebuildPost[]>([]);
 	let composerText = $state('');
 	let composerSpoilerActive = $state(false);
@@ -166,6 +170,7 @@
 	let homeTimelineNewPostsRequestId = 0;
 	let threadRequestId = 0;
 	let notificationRequestId = 0;
+	let trendsRequestId = 0;
 	let statusActionRequestId = 0;
 	let inlineReplyRequestId = 0;
 	let homePostSubmitRequestId = 0;
@@ -176,6 +181,7 @@
 	let loadedNotificationsKey = '';
 	let loadedForegroundNotificationsKey = '';
 	let loadedProfileAccountKey = '';
+	let loadedTrendsKey = '';
 	let loadedInstanceConfigKey = '';
 	let homeTimelineFallbackSinceId: string | null = null;
 	let homeTimelineStreamKey = '';
@@ -247,9 +253,15 @@
 		loadedProfileAccountKey = '';
 		profileAccountLoadError = null;
 	};
+	const invalidateTrendsRequests = () => {
+		trendsRequestId += 1;
+		loadedTrendsKey = '';
+		trendsState = { status: 'idle' };
+	};
 	const invalidateInstanceConfigRequests = () => {
 		instanceConfigRequestId += 1;
 		loadedInstanceConfigKey = '';
+		instanceStatusState = { status: 'idle' };
 		composerCharacterLimit = DEFAULT_STATUS_CHARACTER_LIMIT;
 	};
 	const isCurrentSessionRequest = (requestSessionKey: string) => sessionKey(currentSession) === requestSessionKey;
@@ -625,6 +637,63 @@
 
 	const isActive = (item: NavItem) => item.route === route;
 	const isTimelineRoute = (value: AppRoute) => timelineRoutes.includes(value);
+	const numberFormatter = new Intl.NumberFormat('en-US');
+	const compactString = (value: unknown) => typeof value === 'string' && value.trim() ? value.trim() : null;
+	const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object');
+	const nonNegativeInteger = (value: unknown) => {
+		const parsed = typeof value === 'string' && value.trim() ? Number(value) : value;
+		return typeof parsed === 'number' && Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : null;
+	};
+	const positiveInteger = (value: unknown) => {
+		const parsed = nonNegativeInteger(value);
+		return parsed && parsed > 0 ? parsed : null;
+	};
+	const explicitStatusCharacterLimit = (instance: PleromaInstance) => {
+		const configuration = isRecord(instance.configuration) ? instance.configuration : null;
+		const statuses = isRecord(configuration?.statuses) ? configuration.statuses : null;
+		const pleroma = isRecord(instance.pleroma) ? instance.pleroma : null;
+		const metadata = isRecord(pleroma?.metadata) ? pleroma.metadata : null;
+
+		return positiveInteger(statuses?.max_characters)
+			?? positiveInteger(instance.max_toot_chars)
+			?? positiveInteger(metadata?.max_toot_chars);
+	};
+	const trendUses = (tag: PleromaTag) => (tag.history ?? []).reduce((total, history) => total + (positiveInteger(history.uses) ?? 0), 0);
+	const adaptTrendTags = (tags: PleromaTag[]): TrendView[] => tags
+		.map((tag) => {
+			const name = compactString(tag.name);
+			return name ? { tag, name } : null;
+		})
+		.filter((tag): tag is { tag: PleromaTag; name: string } => Boolean(tag))
+		.map(({ tag, name }, index) => {
+			const uses = trendUses(tag);
+			return {
+				rank: index + 1,
+				tag: `#${name.replace(/^#/, '')}`,
+				count: uses > 0 ? `${numberFormatter.format(uses)} ${uses === 1 ? 'post' : 'posts'}` : null
+			};
+		});
+	const instanceFeatures = (instance: PleromaInstance) => {
+		const pleroma = isRecord(instance.pleroma) ? instance.pleroma : null;
+		const metadata = isRecord(pleroma?.metadata) ? pleroma.metadata : null;
+		const features = metadata?.features;
+
+		return Array.isArray(features) ? features.filter((feature) => typeof feature === 'string' && feature.trim()).length : 0;
+	};
+	const adaptInstanceStatus = (instance: PleromaInstance): InstanceStatusView | null => {
+		const title = compactString(instance.title);
+		const domain = compactString(instance.domain);
+		const activeUsers = nonNegativeInteger(instance.usage?.users?.active_month);
+		const characterLimit = explicitStatusCharacterLimit(instance);
+		const featureCount = instanceFeatures(instance);
+		const rows: InstanceStatusView['rows'] = [];
+
+		if (activeUsers !== null) rows.push({ label: 'Users', value: `${numberFormatter.format(activeUsers)} active/mo` });
+		if (characterLimit) rows.push({ label: 'Status limit', value: `${numberFormatter.format(characterLimit)} chars` });
+		if (featureCount > 0) rows.push({ label: 'Features', value: `${numberFormatter.format(featureCount)} ${featureCount === 1 ? 'feature' : 'features'}` });
+
+		return title || domain || rows.length > 0 ? { title, domain, rows } : null;
+	};
 	const updateProfile = <Key extends keyof ProfileSettings>(key: Key, value: ProfileSettings[Key]) => {
 		profile = { ...profile, [key]: value };
 		settingsSaveState = 'Unsaved changes';
@@ -834,6 +903,7 @@
 		invalidateStatusActionRequests();
 		invalidateNotificationRequests();
 		invalidateProfileAccountRequests();
+		invalidateTrendsRequests();
 		invalidateInstanceConfigRequests();
 		closeHomeTimelineStreaming();
 		localHomePosts = [];
@@ -856,6 +926,7 @@
 			invalidateStatusActionRequests();
 			invalidateNotificationRequests();
 			invalidateProfileAccountRequests();
+			invalidateTrendsRequests();
 			invalidateInstanceConfigRequests();
 			closeHomeTimelineStreaming();
 			localHomePosts = [];
@@ -898,10 +969,40 @@
 		loadedProfileAccountKey = requestSessionKey;
 		void loadProfileAccount(session);
 	};
+	const loadTrends = async (session: PleromaSession) => {
+		const requestSessionKey = sessionKey(session);
+		const requestId = trendsRequestId + 1;
+		trendsRequestId = requestId;
+		trendsState = { status: 'loading' };
+
+		try {
+			const client = createPleromaClient({
+				instanceUrl: session.instanceUrl,
+				accessToken: session.accessToken,
+				fetch: window.fetch.bind(window)
+			});
+			const trends = adaptTrendTags(await client.getTrendingTags({ limit: 5 }));
+			if (requestId !== trendsRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			trendsState = trends.length > 0 ? { status: 'success', data: trends } : { status: 'empty' };
+		} catch (error) {
+			if (requestId !== trendsRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			trendsState = { status: 'error', error: normalizePleromaRequestError(error) };
+		}
+	};
+	const ensureTrends = (session: PleromaSession) => {
+		const requestSessionKey = sessionKey(session);
+		if (loadedTrendsKey === requestSessionKey) return;
+
+		loadedTrendsKey = requestSessionKey;
+		void loadTrends(session);
+	};
 	const loadInstanceConfig = async (session: PleromaSession) => {
 		const requestSessionKey = sessionKey(session);
 		const requestId = instanceConfigRequestId + 1;
 		instanceConfigRequestId = requestId;
+		instanceStatusState = { status: 'loading' };
 
 		try {
 			const client = createPleromaClient({
@@ -913,8 +1014,13 @@
 			if (requestId !== instanceConfigRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			composerCharacterLimit = statusCharacterLimit(instance);
-		} catch {
+			const status = adaptInstanceStatus(instance);
+			instanceStatusState = status ? { status: 'success', data: status } : { status: 'empty' };
+		} catch (error) {
+			if (requestId !== instanceConfigRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
 			// Character limits are best-effort; keep the conservative default if instance metadata is unavailable.
+			instanceStatusState = { status: 'error', error: normalizePleromaRequestError(error) };
 		}
 	};
 	const ensureInstanceConfig = (session: PleromaSession) => {
@@ -1367,7 +1473,10 @@
 			else ensureNotifications(session);
 		}
 		else if (route === 'notifications' && profileAccountLoadError) notificationState = { status: 'error', error: profileAccountLoadError };
-		if (pathname.startsWith('/app/home') || pathname.startsWith('/app/thread')) ensureInstanceConfig(session);
+		if (isTimelineRoute(route)) {
+			ensureInstanceConfig(session);
+			ensureTrends(session);
+		}
 		if (pathname.startsWith('/app/home')) {
 			const loadKey = `${sessionKey(session)}\n${pathname}`;
 			if (loadedHomeTimelineKey !== loadKey) {
@@ -1820,10 +1929,10 @@
 			<aside class="app-right-rail" data-testid="right-rail">
 				{#if isTimelineRoute(route)}
 					<div class="rail-title">Trends &amp; Activity</div>
-					<SurfaceCard kind="trends" />
+					<SurfaceCard kind="trends" trendsState={trendsState} />
 					<SurfaceCard kind="who-to-follow" />
 					<SurfaceCard kind="shortcuts" />
-					<SurfaceCard kind="instance-status" />
+					<SurfaceCard kind="instance-status" instanceState={instanceStatusState} />
 				{:else if route === 'explore'}
 					<div class="rail-title">Discover</div>
 					<div aria-label="Quick search Explore"><SurfaceCard kind="quick-search" /></div>

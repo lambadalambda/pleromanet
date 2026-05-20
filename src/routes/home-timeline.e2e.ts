@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 import { pleromaFixtures } from '../lib/pleroma/fixtures';
-import { expectElementIsTruncatedWithinParent, expectNoHorizontalOverflow, setViewport } from '../test/playwright';
+import { expectElementIsTruncatedWithinParent, expectNoHorizontalOverflow, mockRightRailApis, setViewport } from '../test/playwright';
 
 const session = {
 	instanceUrl: 'https://pleroma.example',
@@ -15,6 +15,7 @@ const homeUrl = 'https://pleroma.example/api/v1/timelines/home**';
 const instanceUrl = 'https://pleroma.example/api/v2/instance';
 
 const authenticate = async (page: Page) => {
+	await mockRightRailApis(page);
 	await page.addInitScript((storedSession) => {
 			type MockSocket = {
 				url: string;
@@ -53,6 +54,7 @@ const authenticate = async (page: Page) => {
 };
 
 const authenticateWithThrowingWebSocket = async (page: Page) => {
+	await mockRightRailApis(page);
 	await page.addInitScript((storedSession) => {
 		const ThrowingWebSocket = function () {
 			throw new Error('socket blocked');

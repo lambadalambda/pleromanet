@@ -3,6 +3,5 @@
 - [ ] [23 Wire profile settings save](issues/23-wire-profile-settings-save.md)
 - [ ] [24 Wire follow and unfollow relationships](issues/24-wire-follow-and-unfollow-relationships.md)
 - [ ] [25 Wire explore search](issues/25-wire-explore-search.md)
-- [ ] [26 Wire trends and instance metadata](issues/26-wire-trends-and-instance-metadata.md)
 - [ ] [28 Retire mockup prototype](issues/28-retire-mockup-prototype.md)
 - [ ] [39 Design and wire emoji reaction row](issues/39-design-and-wire-emoji-reaction-row.md)

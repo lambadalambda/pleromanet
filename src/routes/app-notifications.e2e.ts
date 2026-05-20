@@ -2,7 +2,7 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 import { NOTIFICATION_POLL_EVENT, notificationLastSeenStorageKey } from '../lib/pleroma/notifications';
 import { pleromaFixtures } from '../lib/pleroma/fixtures';
 import type { PleromaAccount, PleromaNotification, PleromaStatus } from '../lib/pleroma/types';
-import { expectNoHorizontalOverflow, setViewport } from '../test/playwright';
+import { expectNoHorizontalOverflow, mockRightRailApis, setViewport } from '../test/playwright';
 
 const session = {
 	instanceUrl: 'https://pleroma.example',
@@ -14,12 +14,14 @@ const session = {
 };
 
 const authenticate = async (page: Page) => {
+	await mockRightRailApis(page);
 	await page.addInitScript((storedSession) => {
 		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
 	}, session);
 };
 
 const authenticateTokenOnly = async (page: Page) => {
+	await mockRightRailApis(page);
 	await page.addInitScript((storedSession) => {
 		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
 	}, {

@@ -1333,6 +1333,19 @@ body[data-theme='simoun'] .pill {
 .surface-card-list {
 	padding: 6px 0;
 }
+.surface-state {
+	display: grid;
+	gap: 4px;
+	padding: 14px 16px;
+	color: var(--muted);
+	font-size: 12.5px;
+}
+.surface-state strong {
+	color: var(--ink);
+	font-weight: 600;
+}
+.surface-state span { color: var(--muted); }
+.surface-state-error { background: color-mix(in srgb, var(--bad) 8%, transparent); }
 .trend-list {
 	padding: 4px 0;
 }

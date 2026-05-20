@@ -26,9 +26,9 @@ Replace mocked trend and instance metadata panels with Pleroma API-backed data w
 
 ## Current Status
 
-- Partially done: the API client has `getTrendingTags` and `getInstance` methods.
-- Partially done: authenticated app routes use `getInstance` for the composer status character limit.
-- Still open: trend and instance metadata panels remain static/design-backed and do not cover loading, empty, unavailable, or error states.
+- Done: the authenticated app right rail loads trend tags from `getTrendingTags({ limit: 5 })`.
+- Done: instance metadata uses `getInstance` for both the rail card and composer status character limit.
+- Done: trend and instance metadata panels cover loading, success, empty, unavailable, and error states.
 
 ## Notes
 

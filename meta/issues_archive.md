@@ -19,6 +19,7 @@
 - [x] [19 Wire status creation and composer](issues/19-wire-status-creation-and-composer.md)
 - [x] [20 Wire favorite and boost status actions](issues/20-wire-favorite-and-boost-status-actions.md)
 - [x] [21 Wire thread detail and replies](issues/21-wire-thread-detail-and-replies.md)
+- [x] [26 Wire trends and instance metadata](issues/26-wire-trends-and-instance-metadata.md)
 - [x] [27 Add notification API polling and badge count](issues/27-add-notification-api-polling-and-badge-count.md)
 - [x] [29 Port poll attachments from updated handoff](issues/29-port-poll-attachments-from-updated-handoff.md)
 - [x] [30 Port composer CW and poll editor panels](issues/30-port-composer-cw-and-poll-editor-panels.md)
