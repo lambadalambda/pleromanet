@@ -18,12 +18,14 @@ test('shows converted canonical design-system sections and switches themes', asy
 	await expect(page.getByRole('heading', { name: 'Surfaces' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Navigation' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Mobile' })).toBeVisible();
+	await expect(page.locator('.ds-nav-foot')).toContainText('18 shared primitives');
 
 	await expect(page.locator('#controls')).toContainText('Button · primary');
 	await expect(page.locator('#attachments')).toContainText('pickAttachmentLayout →');
+	await expect(page.locator('#attachments')).toContainText('Single media (1 attachment of any kind)');
 	await expect(page.locator('#composer')).toContainText('Composer · with CW input');
 	await expect(page.locator('#posts')).toContainText('Quoted posts');
-	await expect(page.locator('#thread')).toContainText('ReplyPost → InlineReplyComposer below selected reply');
+	await expect(page.locator('#thread')).toContainText('AncestorPost → FocusedPost → ReplyPost');
 	await expect(page.locator('#notifications')).toContainText('NotifRow k-mention unread');
 	await expect(page.locator('#radio')).toContainText('Radio · Now playing tab');
 	await expect(page.locator('#oekaki')).toContainText('Tool rail');
@@ -41,6 +43,7 @@ test('renders canonical composer content-warning specimen', async ({ page }) => 
 	await page.goto('/design-system');
 
 	const composer = page.locator('#composer');
+	await expect(composer).toContainText('both panels persist as `composer.cw` and `composer.poll` state, attached on Post');
 	await expect(composer.getByText('Composer · idle')).toBeVisible();
 	await expect(composer.getByText('Composer · with CW input')).toBeVisible();
 	await expect(composer.getByText('Composer · with poll editor')).toBeVisible();
@@ -69,6 +72,7 @@ test('renders canonical composer content-warning specimen', async ({ page }) => 
 	await expect(pollSpec.locator('.composer-poll-head')).toContainText('Poll · 2–6 choices');
 	await expect(pollSpec.getByRole('textbox', { name: 'Poll choice 1' })).toHaveValue('warm cassette');
 	await expect(pollSpec.getByRole('textbox', { name: 'Poll choice 3' })).toHaveValue('spinning vinyl');
+	await expect(pollSpec.locator('.ds-spec-note')).toHaveText('composer.poll · 2–6 choices · drag handles, duration, single/multi');
 	await expect(pollSpec.getByLabel('Duration')).toHaveValue('24h');
 	await expect(pollSpec.getByLabel('Voting')).toHaveValue('single');
 	await expect(pollSpec.getByRole('button', { name: 'Poll', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -81,6 +85,7 @@ test('renders canonical composer content-warning specimen', async ({ page }) => 
 	const combinedSpec = composer.locator('.ds-spec').filter({ hasText: 'Composer · CW + poll together' });
 	await expect(combinedSpec.locator('.composer-cw')).toBeVisible();
 	await expect(combinedSpec.locator('.composer-poll')).toBeVisible();
+	await expect(combinedSpec.locator('.ds-spec-note')).toHaveText('both panels stack');
 	await expect(combinedSpec.getByRole('button', { name: 'CW' })).toHaveAttribute('aria-pressed', 'true');
 	await expect(combinedSpec.getByRole('button', { name: 'Poll', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
@@ -245,6 +250,9 @@ test('renders canonical poll attachment specimens', async ({ page }) => {
 
 	const attachments = page.locator('#attachments');
 	await expect(attachments.locator('.ds-sub-h').filter({ hasText: /^Polls$/ })).toBeVisible();
+	await expect(attachments).toContainText('never mixed in');
+	await expect(attachments).toContainText('Your vote gets a "You" chip');
+	await expect(attachments).toContainText('winning row gets the strongest accent fill');
 	await expect(attachments.getByText('Voting · single choice')).toBeVisible();
 	await expect(attachments.getByText('Voting · multiple choices')).toBeVisible();
 	await expect(attachments.getByText('Results · with vote')).toBeVisible();
@@ -297,12 +305,15 @@ test('renders canonical reply addressee chip specimens', async ({ page }) => {
 	await expect(posts.getByText('Reply · parent only')).toBeVisible();
 	await expect(posts.getByText('Reply + cc-list')).toBeVisible();
 	await expect(posts.getByText('Long cc-chain')).toBeVisible();
+	await expect(posts).toContainText('ghost chip prefixed with a ↪ glyph');
+	await expect(posts).toContainText('chip fill matches the cc chips');
 
 	const parentOnly = posts.locator('.ds-spec').filter({ hasText: 'Reply · parent only' });
 	const parentChip = parentOnly.locator('.post-pinged-chip-parent');
 	await expect(parentOnly.locator('.post-pinged-l')).toHaveText('Replying to');
 	await expect(parentChip).toContainText('@gridwave');
 	await expect(parentChip.locator('svg')).toBeVisible();
+	await expect(parentOnly.locator('.ds-spec-note')).toHaveText("addressees=[parent] · ghost chip + ↪ glyph · no 'also'");
 	await expect(parentChip).toHaveCSS('font-weight', '500');
 	await expect(parentChip).not.toHaveCSS('color', 'rgb(255, 255, 255)');
 	await expect(parentChip).not.toHaveCSS('background-color', 'rgb(164, 139, 217)');
@@ -328,6 +339,10 @@ test('renders canonical reply addressee chip specimens', async ({ page }) => {
 	await expect(firstCcChip).toHaveAttribute('title', '@feld@queer.party');
 	await expect(ccList.locator('.post-pinged-list')).not.toContainText('@dtluna@retro.social');
 	await expect(ccList.locator('.post-pinged-list')).not.toContainText('@feld@queer.party');
+	await expect(ccList.locator('.ds-spec-note')).toHaveText('addressees=[parent, …cc] · all ghost chips · parent prefixed with ↪');
+
+	const longChain = posts.locator('.ds-spec').filter({ hasText: 'Long cc-chain' });
+	await expect(longChain.locator('.ds-spec-note')).toHaveText('parent stays prominent · cc-list wraps to second row');
 
 	await setViewport(page, 'mobile');
 	await expectNoHorizontalOverflow(page);
@@ -339,6 +354,8 @@ test('renders canonical boosted post specimens', async ({ page }) => {
 
 	const posts = page.locator('#posts');
 	await expect(posts.getByText('Boosts')).toBeVisible();
+	await expect(posts).toContainText('A 4px accent-green left edge runs the full height of the boost');
+	await expect(posts).toContainText('Long names get the full row width');
 	await expect(posts.getByText('Boosted · text post')).toBeVisible();
 	await expect(posts.getByText('Boosted · with photo')).toBeVisible();
 
@@ -359,6 +376,7 @@ test('renders canonical boosted post specimens', async ({ page }) => {
 	await expect(boostedText.locator('.post')).toContainText("the algorithm doesn't care about you");
 
 	const boostedPhoto = posts.locator('.ds-spec').filter({ hasText: 'Boosted · with photo' });
+	await expect(boostedPhoto.locator('.ds-spec-note')).toHaveText('left edge runs full height regardless of content');
 	await expect(boostedPhoto.locator('.post-boost > .post-boost-attr')).toBeVisible();
 	await boostedPhoto.locator('.post-photos button').click();
 	const dialog = page.getByRole('dialog');
@@ -376,6 +394,7 @@ test('renders canonical content warning post specimens', async ({ page }) => {
 
 	const posts = page.locator('#posts');
 	await expect(posts.getByText('Content warnings')).toBeVisible();
+	await expect(posts).toContainText('<PostCW/> primitive wraps the hidden region');
 	await expect(posts.getByText('Folded · with media')).toBeVisible();
 	await expect(posts.getByText('Folded · text only')).toBeVisible();
 	await expect(posts.getByText('Folded · with poll')).toBeVisible();
@@ -395,6 +414,8 @@ test('renders canonical content warning post specimens', async ({ page }) => {
 	const pollCw = posts.locator('.ds-spec').filter({ hasText: 'Folded · with poll' });
 	await expect(pollCw.locator('.post-cw-meta-chip')).toContainText(['poll', '~16 words']);
 	await expect(pollCw).not.toContainText('rough day');
+	const textCw = posts.locator('.ds-spec').filter({ hasText: 'Folded · text only' });
+	await expect(textCw.locator('.ds-spec-note')).toHaveText('no attachments · no chips row');
 	await setViewport(page, 'mobile');
 	await expectNoHorizontalOverflow(page);
 });
@@ -404,11 +425,34 @@ test('renders the canonical thread specimen with targeted inline reply composers
 	await page.goto('/design-system');
 
 	const thread = page.locator('#thread');
+	await expect(thread).toContainText('Pressing Reply on any post unfolds an inline composer beneath it');
+	await expect(thread.getByText('Full thread')).toBeVisible();
+	await expect(thread.locator('.ds-spec-note')).toHaveText('AncestorPost → FocusedPost → ReplyPost');
 	await expect(thread.getByText('gridwave', { exact: true })).toBeVisible();
 	await expect(thread.getByText('nyan.binary', { exact: true })).toBeVisible();
 	await expect(thread.getByText('2 replies')).toBeVisible();
 	await expect(thread.locator('.thread-reply-composer')).toHaveCount(0);
 	await expect(thread.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+
+	const ancestorPost = thread.locator('.post-ancestor').filter({ hasText: 'gridwave' }).first();
+	const ancestorReplyButton = ancestorPost.getByRole('button', { name: 'Reply 18' });
+	await expect(ancestorReplyButton).toHaveAttribute('aria-expanded', 'false');
+	await ancestorReplyButton.click();
+	const ancestorComposer = thread.getByRole('form', { name: 'Inline reply to @gridwave' });
+	await expect(ancestorComposer).toBeVisible();
+	await expect(ancestorReplyButton).toHaveAttribute('aria-expanded', 'true');
+	await expect(ancestorReplyButton).toHaveAttribute('aria-controls', await ancestorComposer.getAttribute('id') ?? 'missing-inline-reply-id');
+	await ancestorComposer.getByRole('button', { name: 'Cancel' }).click();
+
+	const focusedPost = thread.locator('.focused-post');
+	const focusedReplyButton = focusedPost.getByRole('button', { name: 'Reply 2' });
+	await expect(focusedReplyButton).toHaveAttribute('aria-expanded', 'false');
+	await focusedReplyButton.click();
+	const focusedComposer = thread.getByRole('form', { name: 'Inline reply to @emichan' });
+	await expect(focusedComposer).toBeVisible();
+	await expect(focusedReplyButton).toHaveAttribute('aria-expanded', 'true');
+	await expect(focusedReplyButton).toHaveAttribute('aria-controls', await focusedComposer.getAttribute('id') ?? 'missing-inline-reply-id');
+	await focusedComposer.getByRole('button', { name: 'Cancel' }).click();
 
 	const nyanReply = thread.locator('.post-reply').filter({ hasText: 'this is the energy i needed today' }).first();
 	await nyanReply.getByRole('button', { name: 'Reply 2' }).click();

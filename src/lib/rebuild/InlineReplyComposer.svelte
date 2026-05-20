@@ -6,6 +6,7 @@
 	import { onMount } from 'svelte';
 
 	type Props = {
+		id?: string;
 		targetHandle: string;
 		targetName?: string;
 		targetAvClass?: string;
@@ -21,6 +22,7 @@
 	};
 
 	let {
+		id,
 		targetHandle,
 		targetName,
 		targetAvClass,
@@ -51,7 +53,7 @@
 	});
 </script>
 
-<form class="thread-inline-reply" aria-label={formLabel} onsubmit={(event) => { event.preventDefault(); onSubmit(); }}>
+<form {id} class="thread-inline-reply" aria-label={formLabel} onsubmit={(event) => { event.preventDefault(); onSubmit(); }}>
 	<Avatar
 		post={targetAvatar}
 		alt={avatarAlt}

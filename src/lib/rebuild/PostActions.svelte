@@ -10,10 +10,12 @@
 			actions: { reply: boolean; boost: boolean; fav: boolean };
 		};
 		disabledActions?: { reply?: boolean; boost?: boolean; fav?: boolean };
+		replyExpanded?: boolean;
+		replyControlsId?: string;
 		onAction?: (key: string) => void;
 	};
 
-	let { post, disabledActions = {}, onAction }: Props = $props();
+	let { post, disabledActions = {}, replyExpanded, replyControlsId, onAction }: Props = $props();
 	let menuOpen = $state(false);
 	let copyStatus = $state('');
 
@@ -49,7 +51,8 @@
 <div class="post-actions">
 	<button
 		class="post-action reply {post.actions.reply ? 'on' : ''}"
-		aria-pressed={post.actions.reply ? 'true' : 'false'}
+		aria-expanded={replyExpanded}
+		aria-controls={replyControlsId}
 		aria-label={`Reply ${post.replies}`}
 		disabled={disabledActions.reply}
 		onclick={() => onAction?.('reply')}

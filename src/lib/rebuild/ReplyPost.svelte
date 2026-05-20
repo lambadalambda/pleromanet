@@ -88,6 +88,7 @@
 		});
 	};
 	const inlineReplyOpenFor = (target: ThreadReply) => inlineReplyRenderId === String(target.id);
+	const inlineReplyComposerId = (target: ThreadReply) => target.id == null ? undefined : `thread-inline-reply-${String(target.id)}`;
 	const nestedRepliesOpenFor = (target: ThreadReply) => target.id != null && Boolean(expandedReplyIds[String(target.id)]);
 </script>
 
@@ -106,7 +107,7 @@
 				<QuotedPost quoted={post.quotedPost} />
 				<PostMedia post={post} onOpen={(idx) => handleLightbox(post, idx)} />
 			</PostCW>
-			<PostActions post={post} onAction={(key) => onAction?.(post.id, key)} />
+			<PostActions post={post} replyExpanded={inlineReplyOpenFor(post)} replyControlsId={inlineReplyOpenFor(post) ? inlineReplyComposerId(post) : undefined} onAction={(key) => onAction?.(post.id, key)} />
 			{#if nestedReplies.length > 0 && !nestedRepliesOpenFor(post)}
 				<button type="button" class="show-replies" onclick={() => onShowNested?.(post.id)}>
 					<span class="show-replies-line"></span>
@@ -117,6 +118,7 @@
 	</div>
 	{#if inlineReplyOpenFor(post)}
 		<InlineReplyComposer
+			id={inlineReplyComposerId(post)}
 			targetHandle={inlineReplyTargetHandle}
 			targetName={inlineReplyTargetName}
 			targetAvClass={inlineReplyTargetAvClass}

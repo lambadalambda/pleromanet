@@ -5,5 +5,4 @@
 - [ ] [25 Wire explore search](issues/25-wire-explore-search.md)
 - [ ] [26 Wire trends and instance metadata](issues/26-wire-trends-and-instance-metadata.md)
 - [ ] [28 Retire mockup prototype](issues/28-retire-mockup-prototype.md)
-- [ ] [35 Align Svelte design system with updated canonical handoff](issues/35-align-svelte-design-system-with-updated-canonical-handoff.md)
 - [ ] [39 Design and wire emoji reaction row](issues/39-design-and-wire-emoji-reaction-row.md)

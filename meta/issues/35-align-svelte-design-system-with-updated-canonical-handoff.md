@@ -33,15 +33,13 @@ Bring `/design-system` back into parity with the updated canonical handoff after
 
 ## Current Status
 
-- Partially done: several canonical specimen groups are present, including polls, content warnings, boosted posts, reply addressee chips, notifications, radio, and oekaki.
-- Still open: the sidebar still reports `0 shared primitives`, and issue 30 composer specimens are missing.
-- Still open: final parity with the latest imported `design-system.jsx` has not been audited section-by-section.
-- New handoff delta: boost specimens now describe the V4e top attribution row, not the older side rail.
-- New handoff delta: reply addressee specimens now describe a ghost parent chip with a glyph, not a filled accent parent chip.
-- New handoff delta: thread styles add rail bridging and adjust the focused-post top line alignment.
-- New handoff delta: new `pinged-variants`, `reaction-variants`, and `postmark-variants` pages were added to the canonical project.
+- Completed: `/design-system` section order and stable specimen groups have been audited against `design-system.jsx` v2.4.58.
+- Completed: the sidebar shared-primitive count is no longer hardcoded to `0 shared primitives`.
+- Completed: composer, poll, content warning, boost, reply addressee, and thread copy/specimen notes match the latest canonical handoff for stable shared primitives.
+- Completed: new `pinged-variants`, `reaction-variants`, and `postmark-variants` pages remain canonical references until a stable reaction/postmark direction is chosen.
 
 ## Notes
 
 - Follow the project rule to port `/design-system` section by section from the JSX handoff and stop after each section for visual confirmation when doing substantial visual work.
 - Source of truth: `meta/design/claude-handoff/project/design-system.jsx` and `meta/design/claude-handoff/project/design-system.css`.
+- Decision: keep `pinged-variants`, `reaction-variants`, and `postmark-variants` as canonical handoff references for now. The stable reply addressee treatment is represented in `/design-system`; reactions remain deferred to issue 39.

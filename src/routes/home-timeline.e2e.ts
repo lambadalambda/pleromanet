@@ -350,9 +350,13 @@ test('home timeline inline reply composer creates a reply for the selected post'
 	await page.goto('/app/home');
 
 	const post = page.locator('[data-status-id="status-inline-reply"]');
-	await post.getByRole('button', { name: 'Reply 0' }).click();
+	const replyButton = post.getByRole('button', { name: 'Reply 0' });
+	await expect(replyButton).toHaveAttribute('aria-expanded', 'false');
+	await replyButton.click();
 	const replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
 	await expect(replyForm).toBeVisible();
+	await expect(replyButton).toHaveAttribute('aria-expanded', 'true');
+	await expect(replyButton).toHaveAttribute('aria-controls', await replyForm.getAttribute('id') ?? 'missing-inline-reply-id');
 	await expect(replyForm).toContainText('Replying to');
 	await expect(replyForm).toContainText('@quietadmin');
 	await expect(replyForm.getByRole('img', { name: 'quiet admin avatar' })).toHaveAttribute('src', 'https://pleroma.example/avatar.png');
@@ -360,7 +364,7 @@ test('home timeline inline reply composer creates a reply for the selected post'
 	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
 
 	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
-	await expect(post.getByRole('button', { name: 'Reply 1' })).toHaveAttribute('aria-pressed', 'false');
+	await expect(post.getByRole('button', { name: 'Reply 1' })).toHaveAttribute('aria-expanded', 'false');
 	expect(createAuthorization).toBe('Bearer access-token');
 	const params = new URLSearchParams(createBody);
 	expect(params.get('status')).toBe('timeline inline reply body');

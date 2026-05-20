@@ -31,11 +31,13 @@
 			favs: number;
 			actions: { reply: boolean; boost: boolean; fav: boolean };
 		};
+		replyExpanded?: boolean;
+		replyControlsId?: string;
 		onAction?: (key: string) => void;
 		onOpen?: () => void;
 	};
 
-	let { post, onAction, onOpen }: Props = $props();
+	let { post, replyExpanded, replyControlsId, onAction, onOpen }: Props = $props();
 
 	const handleLightbox = (idx: number) => {
 		const attachments = normalizeRenderableAttachments(post);
@@ -58,7 +60,7 @@
 			<QuotedPost quoted={post.quotedPost} />
 			<PostMedia post={post} onOpen={handleLightbox} />
 		</PostCW>
-		<PostActions post={post} onAction={onAction} />
+		<PostActions post={post} replyExpanded={replyExpanded} replyControlsId={replyControlsId} onAction={onAction} />
 	</div>
 {/snippet}
 

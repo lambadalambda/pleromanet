@@ -6,6 +6,7 @@
 	import ComposerPollPanel from '$lib/rebuild/ComposerPollPanel.svelte';
 	import FocusedPost from '$lib/rebuild/FocusedPost.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
+	import InlineReplyComposer from '$lib/rebuild/InlineReplyComposer.svelte';
 	import Pill from '$lib/rebuild/Pill.svelte';
 	import Post from '$lib/rebuild/Post.svelte';
 	import ReplyPost from '$lib/rebuild/ReplyPost.svelte';
@@ -144,6 +145,19 @@
 		{ id: 'navigation', label: 'Navigation' },
 		{ id: 'mobile', label: 'Mobile' }
 	];
+	const sharedPrimitiveModules = import.meta.glob('../../lib/rebuild/*.svelte');
+	const sharedPrimitiveNames = Object.keys(sharedPrimitiveModules).map((path) => path.split('/').pop()?.replace('.svelte', '') ?? '');
+	const SHARED_PRIMITIVE_COUNT = sharedPrimitiveNames.filter((name) =>
+		name === 'Avatar' ||
+		name === 'Button' ||
+		name === 'Pill' ||
+		name === 'Seg' ||
+		name === 'SurfaceCard' ||
+		name === 'Toggle' ||
+		name.startsWith('Post') ||
+		name.endsWith('Post') ||
+		name.startsWith('Stat')
+	).length;
 
 	const colorTokens: ColorToken[] = [
 		{ name: '--bg', value: 'page' },
@@ -209,7 +223,7 @@
 	});
 
 	const ATT_RULES = [
-		{ input: '1 media attachment', layout: 'single', highlight: false },
+		{ input: '1 attachment of any kind', layout: 'single', highlight: false },
 		{ input: '2–4 photos only', layout: 'photoGrid', highlight: false },
 		{ input: '1 photo + 1 audio', layout: 'photoAudio', highlight: true },
 		{ input: '2–4 photos + 1 audio', layout: 'photosAudio', highlight: false },
@@ -282,6 +296,8 @@
 		threadInlineReplyId = id;
 		threadInlineReplyDraft = '';
 	};
+	const threadInlineReplyOpenFor = (id: string | number | undefined) => id != null && String(threadInlineReplyId) === String(id);
+	const threadInlineReplyComposerId = (id: string | number | undefined) => id == null ? undefined : `ds-thread-inline-reply-${String(id)}`;
 	const POLL_CHOICES = [
 		{ id: 'warm', label: 'warm cassette', votes: 142 },
 		{ id: 'cold', label: 'cold terminal', votes: 38 },
@@ -322,7 +338,7 @@
 			},
 		],
 	};
-	let threadInlineReplyTarget = $derived(threadInlineReplyId == null ? null : findDemoPost(THREAD_DEMO.replies, threadInlineReplyId));
+	let threadInlineReplyTarget = $derived(threadInlineReplyId == null ? null : findDemoPost([...THREAD_DEMO.ancestors, THREAD_DEMO.focused, ...THREAD_DEMO.replies], threadInlineReplyId));
 
 	const sampleNotification = (kind: NotificationKind): NotificationData =>
 		SAMPLE_NOTIFS.find((notification) => notification.kind === kind) ?? SAMPLE_NOTIFS[0];
@@ -435,7 +451,7 @@
 				</a>
 			{/each}
 			<div class="ds-nav-foot">
-				<div>0 shared primitives</div>
+				<div>{SHARED_PRIMITIVE_COUNT} shared primitives</div>
 				<div>4 themes</div>
 			</div>
 		</aside>
@@ -820,7 +836,7 @@
 						{/each}
 					</div>
 
-					<div class="ds-sub-h">Single media (1 media attachment)</div>
+					<div class="ds-sub-h">Single media (1 attachment of any kind)</div>
 					<div class="ds-grid ds-grid-3">
 						<div class="ds-spec">
 							<div class="ds-spec-stage">
@@ -953,7 +969,7 @@
 					</div>
 
 					<div class="ds-sub-h">Polls</div>
-					<p class="ds-sub" style="margin-bottom:14px">Polls live alongside media as <code style="font-family:var(--mono);font-size:11px">kind: 'poll'</code> attachments, but render in a dedicated slot below the media block. Pre-vote rows use radio/check controls; voted and expired polls render horizontal result bars.</p>
+					<p class="ds-sub" style="margin-bottom:14px">Polls live alongside media as <code style="font-family:var(--mono);font-size:11px">kind: 'poll'</code> attachments, but render in a dedicated slot below the media block (never mixed in). The component is the same in every state — pre-vote it draws radio/check rows + a Vote button, post-vote (or post-expiry) it draws a horizontal bar chart with raw vote counts. Your vote gets a "You" chip and an accent-ink fill; the winning row gets the strongest accent fill.</p>
 					<div class="ds-grid ds-grid-2">
 						<div class="ds-spec">
 							<div class="ds-spec-stage">
@@ -1059,7 +1075,7 @@
 				<header class="ds-slab-head">
 					<div class="ds-kicker">07</div>
 					<h2 class="ds-h2">Composer</h2>
-					<p class="ds-sub">The post composer. Lives at the top of the feed and inside threads (as a reply composer). Tool rail buttons toggle in-line panels for content warnings and polls; both panels persist as composer state until posting.</p>
+					<p class="ds-sub">The post composer. Lives at the top of the feed and inside threads (as a reply composer). Tool rail buttons toggle in-line panels for content warnings and polls; both panels persist as `composer.cw` and `composer.poll` state, attached on Post.</p>
 				</header>
 				<div class="ds-slab-body">
 					<div class="ds-grid ds-grid-2">
@@ -1159,7 +1175,7 @@
 							</div>
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Composer · with poll editor</span>
-								<span class="ds-spec-note">composer.poll · 2–6 choices · duration · single/multi</span>
+								<span class="ds-spec-note">composer.poll · 2–6 choices · drag handles, duration, single/multi</span>
 							</div>
 						</div>
 
@@ -1193,7 +1209,7 @@
 							</div>
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Composer · CW + poll together</span>
-								<span class="ds-spec-note">both panels stack flush inside composer body</span>
+								<span class="ds-spec-note">both panels stack</span>
 							</div>
 						</div>
 					</div>
@@ -1227,7 +1243,7 @@
 					</div>
 
 					<div class="ds-sub-h">Body, mentions &amp; reply addressees</div>
-					<p class="ds-sub" style="margin-bottom:14px">The <code style="font-family:var(--mono);font-size:11px">&lt;PostBody/&gt;</code> primitive auto-parses <code style="font-family:var(--mono);font-size:11px">@handle</code> patterns in the body string and renders them as inline links. A separate <code style="font-family:var(--mono);font-size:11px">addressees</code> array (the leading recipient pile-up from a fediverse reply) renders as a "Replying to" footer below the body, so the first line of a reply stays content, not a recipient list. The <b>first</b> addressee is the direct parent and renders as a ghost chip prefixed with a reply glyph; inherited cc addressees render as the same ghost chip without the glyph after <code style="font-family:var(--mono);font-size:11px">· also</code>.</p>
+					<p class="ds-sub" style="margin-bottom:14px">The <code style="font-family:var(--mono);font-size:11px">&lt;PostBody/&gt;</code> primitive auto-parses <code style="font-family:var(--mono);font-size:11px">@handle</code> patterns in the body string and renders them as inline links. A separate <code style="font-family:var(--mono);font-size:11px">addressees</code> array (the leading recipient pile-up from a fediverse reply) renders as a "Replying to" footer below the body, so the first line of a reply stays content, not a recipient list. The <b>first</b> element of <code style="font-family:var(--mono);font-size:11px">addressees</code> is, by convention, the author of the post being directly replied to — it renders as a ghost chip prefixed with a ↪ glyph (the glyph is what marks the role; the chip fill matches the cc chips so it doesn't dominate the post body). The rest are inherited cc-addressees and render as the same ghost chip without the glyph, after an <code style="font-family:var(--mono);font-size:11px">· also</code> divider.</p>
 					<div class="ds-grid ds-grid-2">
 						<div class="ds-spec">
 							<div class="ds-spec-stage">
@@ -1244,7 +1260,7 @@
 							</div>
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Reply · parent only</span>
-								<span class="ds-spec-note">addressees=[parent] · ghost chip + glyph · no 'also'</span>
+								<span class="ds-spec-note">addressees=[parent] · ghost chip + ↪ glyph · no 'also'</span>
 							</div>
 						</div>
 						<div class="ds-spec ds-spec-span-2">
@@ -1253,7 +1269,7 @@
 							</div>
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Reply + cc-list</span>
-								<span class="ds-spec-note">addressees=[parent, …cc] · parent glyph · all ghost</span>
+								<span class="ds-spec-note">addressees=[parent, …cc] · all ghost chips · parent prefixed with ↪</span>
 							</div>
 						</div>
 						<div class="ds-spec ds-spec-span-2">
@@ -1262,7 +1278,7 @@
 							</div>
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Long cc-chain</span>
-								<span class="ds-spec-note">parent uses glyph role marker · cc-list wraps to second row</span>
+								<span class="ds-spec-note">parent stays prominent · cc-list wraps to second row</span>
 							</div>
 						</div>
 					</div>
@@ -1376,7 +1392,7 @@
 					</div>
 
 					<div class="ds-sub-h">Content warnings</div>
-					<p class="ds-sub" style="margin-bottom:14px">Setting <code style="font-family:var(--mono);font-size:11px">post.cw</code> to a summary string folds the body, quoted post, and all media into a warn-tinted card. The reader presses <i>Show post</i> to reveal; once revealed, a compact summary strip with a Hide link replaces the card so the content can be re-folded.</p>
+					<p class="ds-sub" style="margin-bottom:14px">Setting <code style="font-family:var(--mono);font-size:11px">post.cw</code> to a summary string folds the body, quoted post, and ALL media into a warn-tinted card. The reader presses <i>Show post</i> to reveal; once revealed, a compact summary strip with a Hide link replaces the card so the content can be re-folded. The <code style="font-family:var(--mono);font-size:11px">&lt;PostCW/&gt;</code> primitive wraps the hidden region — used internally by <code style="font-family:var(--mono);font-size:11px">Post / AncestorPost / ReplyPost</code>.</p>
 					<div class="ds-grid ds-grid-2">
 						<div class="ds-spec ds-spec-span-2">
 							<div class="ds-spec-stage">
@@ -1421,7 +1437,7 @@
 							</div>
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Folded · text only</span>
-								<span class="ds-spec-note">no attachments · no media chips</span>
+								<span class="ds-spec-note">no attachments · no chips row</span>
 							</div>
 						</div>
 						<div class="ds-spec">
@@ -1462,7 +1478,7 @@
 					</div>
 
 					<div class="ds-sub-h">Boosts</div>
-					<p class="ds-sub" style="margin-bottom:14px">When a post is reshared, the original post is rendered inside a <code style="font-family:var(--mono);font-size:11px">&lt;PostBoost/&gt;</code> wrapper with a full-height accent-green left edge and a horizontal top attribution row. The row holds a boost tag pill, mini repeater avatar, name, handle, and short relative time without stealing a side rail from the post.</p>
+					<p class="ds-sub" style="margin-bottom:14px">When a post is reshared (boosted), the original post is rendered inside a <code style="font-family:var(--mono);font-size:11px">&lt;PostBoost/&gt;</code> wrapper. A 4px accent-green left edge runs the full height of the boost; a horizontal attribution row at the top carries a small "boost" tag pill, the repeater's mini-avatar, name, handle, and short relative time. Long names get the full row width — the layout is identical at all viewport sizes.</p>
 					<div class="ds-grid ds-grid-2">
 						<div class="ds-spec ds-spec-span-2">
 							<div class="ds-spec-stage">
@@ -1504,7 +1520,7 @@
 							</div>
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Boosted · with photo</span>
-								<span class="ds-spec-note">left edge spans full post height · top row stays compact</span>
+								<span class="ds-spec-note">left edge runs full height regardless of content</span>
 							</div>
 						</div>
 					</div>
@@ -1515,7 +1531,7 @@
 				<header class="ds-slab-head">
 					<div class="ds-kicker">09</div>
 					<h2 class="ds-h2">Thread</h2>
-					<p class="ds-sub">The thread view stacks three post shapes — Ancestor (collapsed), Focused (expanded with meta), Reply (with branching line).</p>
+					<p class="ds-sub">The thread view stacks three post shapes — Ancestor (collapsed), Focused (expanded with meta), Reply (with branching line). Pressing Reply on any post unfolds an inline composer beneath it, pre-addressed to that author, with its own tool rail.</p>
 				</header>
 				<div class="ds-slab-body">
 					<div class="ds-spec">
@@ -1533,12 +1549,42 @@
 								{#if THREAD_DEMO.ancestors.length > 0}
 									<div class="thread-ancestors">
 										{#each THREAD_DEMO.ancestors as ancestor (ancestor.id)}
-											<AncestorPost post={ancestor} />
+											<AncestorPost post={ancestor} replyExpanded={threadInlineReplyOpenFor(ancestor.id)} replyControlsId={threadInlineReplyOpenFor(ancestor.id) ? threadInlineReplyComposerId(ancestor.id) : undefined} onAction={handleThreadReplyAction} />
+											{#if threadInlineReplyOpenFor(ancestor.id)}
+												<InlineReplyComposer
+													id={threadInlineReplyComposerId(ancestor.id)}
+													targetHandle={threadInlineReplyTarget ? inlineReplyTargetHandle(threadInlineReplyTarget.handle) : ''}
+													targetName={threadInlineReplyTarget?.name ?? ''}
+													targetAvClass={threadInlineReplyTarget?.avClass}
+													targetAvBanner={threadInlineReplyTarget?.avBanner}
+													targetAvatarUrl={threadInlineReplyTarget?.avatarUrl}
+													draft={threadInlineReplyDraft}
+													remaining={threadInlineReplyRemaining}
+													onDraftInput={(value) => (threadInlineReplyDraft = value)}
+													onCancel={clearThreadInlineReply}
+													onSubmit={clearThreadInlineReply}
+												/>
+											{/if}
 										{/each}
 									</div>
 								{/if}
 
-								<FocusedPost post={THREAD_DEMO.focused} continuesAbove={THREAD_DEMO.ancestors.length > 0} />
+								<FocusedPost post={THREAD_DEMO.focused} continuesAbove={THREAD_DEMO.ancestors.length > 0} replyExpanded={threadInlineReplyOpenFor(THREAD_DEMO.focused.id)} replyControlsId={threadInlineReplyOpenFor(THREAD_DEMO.focused.id) ? threadInlineReplyComposerId(THREAD_DEMO.focused.id) : undefined} onAction={handleThreadReplyAction} />
+								{#if threadInlineReplyOpenFor(THREAD_DEMO.focused.id)}
+									<InlineReplyComposer
+										id={threadInlineReplyComposerId(THREAD_DEMO.focused.id)}
+										targetHandle={threadInlineReplyTarget ? inlineReplyTargetHandle(threadInlineReplyTarget.handle) : ''}
+										targetName={threadInlineReplyTarget?.name ?? ''}
+										targetAvClass={threadInlineReplyTarget?.avClass}
+										targetAvBanner={threadInlineReplyTarget?.avBanner}
+										targetAvatarUrl={threadInlineReplyTarget?.avatarUrl}
+										draft={threadInlineReplyDraft}
+										remaining={threadInlineReplyRemaining}
+										onDraftInput={(value) => (threadInlineReplyDraft = value)}
+										onCancel={clearThreadInlineReply}
+										onSubmit={clearThreadInlineReply}
+									/>
+								{/if}
 
 								<div class="thread-reply-head">
 									<div class="thread-reply-count"><Icon name="reply" width={13} height={13} /><span>{THREAD_DEMO.replies.length} replies</span></div>
@@ -1573,8 +1619,8 @@
 							</div>
 						</div>
 						<div class="ds-spec-foot">
-							<span class="ds-spec-label">Thread · targeted inline replies</span>
-							<span class="ds-spec-note">ReplyPost → InlineReplyComposer below selected reply</span>
+							<span class="ds-spec-label">Full thread</span>
+							<span class="ds-spec-note">AncestorPost → FocusedPost → ReplyPost</span>
 						</div>
 					</div>
 				</div>

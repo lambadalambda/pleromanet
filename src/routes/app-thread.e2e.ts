@@ -563,9 +563,13 @@ test('real thread route inline reply composer submits for the focused post', asy
 	await page.goto('/app/thread/status-1');
 
 	const focused = page.getByTestId('focused-post');
-	await focused.getByRole('button', { name: 'Reply 2' }).click();
+	const focusedReplyButton = focused.getByRole('button', { name: 'Reply 2' });
+	await expect(focusedReplyButton).toHaveAttribute('aria-expanded', 'false');
+	await focusedReplyButton.click();
 	const replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
 	await expect(replyForm).toBeVisible();
+	await expect(focusedReplyButton).toHaveAttribute('aria-expanded', 'true');
+	await expect(focusedReplyButton).toHaveAttribute('aria-controls', await replyForm.getAttribute('id') ?? 'missing-inline-reply-id');
 	await expect(replyForm.getByRole('img', { name: 'quiet admin avatar' })).toHaveAttribute('src', 'https://pleroma.example/avatar.png');
 	await replyForm.getByRole('textbox', { name: 'Reply text' }).fill('replying inline to the focused thread');
 	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
@@ -587,9 +591,13 @@ test('real thread route inline reply composer opens below a targeted reply and c
 	await page.goto('/app/thread/status-1');
 
 	const reply = page.getByTestId('thread-reply').filter({ hasText: 'we used to log off. when did that stop being a thing.' });
-	await reply.getByRole('button', { name: 'Reply 0' }).click();
+	const replyButton = reply.getByRole('button', { name: 'Reply 0' });
+	await expect(replyButton).toHaveAttribute('aria-expanded', 'false');
+	await replyButton.click();
 	const replyForm = page.getByRole('form', { name: 'Inline reply to @datagram' });
 	await expect(replyForm).toBeVisible();
+	await expect(replyButton).toHaveAttribute('aria-expanded', 'true');
+	await expect(replyButton).toHaveAttribute('aria-controls', await replyForm.getAttribute('id') ?? 'missing-inline-reply-id');
 	await expect(replyForm).toContainText('Replying to');
 	await expect(replyForm).toContainText('@datagram');
 	await expect(replyForm.getByRole('img', { name: 'datagram avatar' })).toHaveAttribute('src', 'https://pleroma.example/datagram.png');
@@ -628,7 +636,7 @@ test('real thread route inline reply composer submits below a targeted reply', a
 
 	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
 	await expect(page.getByTestId('thread-reply-count')).toContainText('4 replies');
-	await expect(reply.getByRole('button', { name: 'Reply 1' })).toHaveAttribute('aria-pressed', 'false');
+	await expect(reply.getByRole('button', { name: 'Reply 1' })).toHaveAttribute('aria-expanded', 'false');
 	await expect(page.getByText('replying inline to a thread reply')).toBeVisible();
 	const params = new URLSearchParams(createBody);
 	expect(params.get('status')).toBe('replying inline to a thread reply');
@@ -665,7 +673,7 @@ test('real thread route inline reply composer submits below an expanded nested r
 
 	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
 	await expect(page.getByTestId('thread-reply-count')).toContainText('4 replies');
-	await expect(nested.getByRole('button', { name: 'Reply 1' })).toHaveAttribute('aria-pressed', 'false');
+	await expect(nested.getByRole('button', { name: 'Reply 1' })).toHaveAttribute('aria-expanded', 'false');
 	await expect(page.getByText('replying inline to a nested reply')).toBeVisible();
 	const params = new URLSearchParams(createBody);
 	expect(params.get('status')).toBe('replying inline to a nested reply');

@@ -37,10 +37,12 @@
 	type Props = {
 		post: FocusedThreadPost;
 		continuesAbove?: boolean;
+		replyExpanded?: boolean;
+		replyControlsId?: string;
 		onAction?: (id: string | number | undefined, key: string) => void;
 	};
 
-	let { post, continuesAbove = false, onAction }: Props = $props();
+	let { post, continuesAbove = false, replyExpanded, replyControlsId, onAction }: Props = $props();
 
 	const handleLightbox = (idx: number) => {
 		const attachments = normalizeRenderableAttachments(post);
@@ -92,7 +94,7 @@
 	</div>
 
 	<div class="focused-actions" data-testid="focused-engagement">
-		<button type="button" class="focused-action" aria-pressed={post.actions.reply ? 'true' : 'false'} aria-label={`Reply ${post.replies}`} onclick={() => onAction?.(post.id, 'reply')}>
+		<button type="button" class="focused-action" aria-expanded={replyExpanded} aria-controls={replyControlsId} aria-label={`Reply ${post.replies}`} onclick={() => onAction?.(post.id, 'reply')}>
 			<Icon name="reply" />
 			<span>Reply</span>
 			{#if post.replies > 0}<span class="focused-action-c">{post.replies}</span>{/if}

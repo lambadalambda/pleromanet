@@ -747,6 +747,10 @@
 		inlineReplyDraft = '';
 	};
 	const inlineReplyOpenFor = (targetRoute: StatusActionOrigin, post: { id?: string | number }) => inlineReplyTarget?.route === targetRoute && inlineReplyTarget.renderId === String(post.id);
+	const inlineReplyComposerId = (targetRoute: StatusActionOrigin, post: { id?: string | number }) => {
+		if (post.id == null) return undefined;
+		return `${targetRoute}-inline-reply-${String(post.id).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+	};
 	const submitInlineReply = async () => {
 		const target = inlineReplyTarget;
 		const body = inlineReplyDraft.trim();
@@ -1560,9 +1564,10 @@
 						{:else if homeTimelineState.status === 'success'}
 							<div data-testid="home-timeline-list">
 								{#each timelinePosts as post (post.id)}
-									<Post {post} onOpen={() => openThread(post)} onAction={(key) => handlePostAction(post, key)} />
+									<Post {post} replyExpanded={inlineReplyOpenFor('home', post)} replyControlsId={inlineReplyOpenFor('home', post) ? inlineReplyComposerId('home', post) : undefined} onOpen={() => openThread(post)} onAction={(key) => handlePostAction(post, key)} />
 									{#if inlineReplyOpenFor('home', post) && inlineReplyTarget}
 										<InlineReplyComposer
+											id={inlineReplyComposerId('home', post)}
 											targetHandle={inlineReplyTarget.handle}
 											targetName={inlineReplyTarget.name}
 											targetAvClass={inlineReplyTarget.avClass}
@@ -1659,10 +1664,11 @@
 								<div class="thread-ancestors">
 									{#each threadState.ancestors as ancestor (ancestor.id)}
 										<div data-testid="thread-ancestor">
-											<AncestorPost post={ancestor} onAction={handleThreadPostAction} />
+											<AncestorPost post={ancestor} replyExpanded={inlineReplyOpenFor('thread', ancestor)} replyControlsId={inlineReplyOpenFor('thread', ancestor) ? inlineReplyComposerId('thread', ancestor) : undefined} onAction={handleThreadPostAction} />
 										</div>
 										{#if inlineReplyOpenFor('thread', ancestor) && inlineReplyTarget}
 											<InlineReplyComposer
+												id={inlineReplyComposerId('thread', ancestor)}
 												targetHandle={inlineReplyTarget.handle}
 												targetName={inlineReplyTarget.name}
 												targetAvClass={inlineReplyTarget.avClass}
@@ -1680,9 +1686,10 @@
 									{/each}
 								</div>
 							{/if}
-							<FocusedPost post={threadState.focused} continuesAbove={threadState.ancestors.length > 0} onAction={handleThreadPostAction} />
+							<FocusedPost post={threadState.focused} continuesAbove={threadState.ancestors.length > 0} replyExpanded={inlineReplyOpenFor('thread', threadState.focused)} replyControlsId={inlineReplyOpenFor('thread', threadState.focused) ? inlineReplyComposerId('thread', threadState.focused) : undefined} onAction={handleThreadPostAction} />
 							{#if inlineReplyOpenFor('thread', threadState.focused) && inlineReplyTarget}
 								<InlineReplyComposer
+									id={inlineReplyComposerId('thread', threadState.focused)}
 									targetHandle={inlineReplyTarget.handle}
 									targetName={inlineReplyTarget.name}
 									targetAvClass={inlineReplyTarget.avClass}
