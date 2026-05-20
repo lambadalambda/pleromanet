@@ -90,6 +90,30 @@ test('renders canonical composer content-warning specimen', async ({ page }) => 
 	await expect(combinedSpec.getByRole('button', { name: 'Poll', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 
+test('renders canonical composer mention and emoji autocomplete specimen', async ({ page }) => {
+	await setViewport(page, 'desktop');
+	await page.goto('/design-system');
+
+	const composer = page.locator('#composer');
+	await expect(composer).toContainText('@mention & :shortcode: autocomplete');
+	const specimen = composer.locator('.ds-spec').filter({ hasText: 'Composer · autocomplete editor' });
+	const editor = specimen.getByRole('textbox', { name: 'Post text' });
+
+	await editor.fill('@so');
+	await expect(specimen.getByRole('listbox', { name: 'Mention suggestions' })).toBeVisible();
+	await expect(specimen.getByRole('option', { name: /soft.hertz/ })).toBeVisible();
+	await editor.press('Tab');
+	await expect(editor).toContainText('@soft.hertz');
+	await expect(specimen.locator('[data-serialized-text]')).toContainText('@soft.hertz@kolektiva.social');
+
+	await editor.pressSequentially(' :bl');
+	await expect(specimen.getByRole('listbox', { name: 'Emoji suggestions' })).toBeVisible();
+	await expect(specimen.getByRole('option', { name: /:blobcat:/ })).toBeVisible();
+	await editor.press('Enter');
+	await expect(editor.locator('.me-emoji img[alt=":blobcat:"]')).toBeVisible();
+	await expect(specimen.locator('[data-serialized-text]')).toContainText(':blobcat:');
+});
+
 test('renders canonical surface and right-rail card specimens', async ({ page }) => {
 	await setViewport(page, 'desktop');
 	await page.goto('/design-system');

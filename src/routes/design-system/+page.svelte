@@ -3,6 +3,7 @@
 	import AncestorPost from '$lib/rebuild/AncestorPost.svelte';
 	import Button from '$lib/rebuild/Button.svelte';
 	import ComposerCWPanel from '$lib/rebuild/ComposerCWPanel.svelte';
+	import ComposerMentionEditor, { type ComposerEmoji, type ComposerMentionAccount } from '$lib/rebuild/ComposerMentionEditor.svelte';
 	import ComposerPollPanel from '$lib/rebuild/ComposerPollPanel.svelte';
 	import FocusedPost from '$lib/rebuild/FocusedPost.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
@@ -201,7 +202,9 @@
 	let composerPollSpec = $state<ComposerPollDraft>({ ...createComposerPollDraft(), choices: ['warm cassette', 'cold terminal', 'spinning vinyl'] });
 	let composerCombinedPollSpec = $state<ComposerPollDraft>({ ...createComposerPollDraft(), choices: ['long walk', 'call a friend', 'just sleep'], duration: '6h', hideUntil: false });
 	let composerPrivacy = $state('Public');
+	let composerAutocompleteText = $state('');
 	let composerRemaining = $derived(500 - composerText.length);
+	let composerAutocompleteRemaining = $derived(500 - composerAutocompleteText.length);
 	let threadInlineReplyId = $state<string | number | null>(null);
 	let threadInlineReplyDraft = $state('');
 	let threadInlineReplyRemaining = $derived(500 - threadInlineReplyDraft.length);
@@ -228,6 +231,16 @@
 		{ input: '1 photo + 1 audio', layout: 'photoAudio', highlight: true },
 		{ input: '2–4 photos + 1 audio', layout: 'photosAudio', highlight: false },
 		{ input: 'anything else', layout: 'heroStrip', highlight: false },
+	];
+	const DS_MENTION_ACCOUNTS: ComposerMentionAccount[] = [
+		{ id: 'soft-hertz', username: 'soft.hertz', displayName: 'soft.hertz ✦', acct: 'soft.hertz@kolektiva.social', avClass: 'av-grad-3' },
+		{ id: 'softie', username: 'softie', displayName: 'softie ◌', acct: 'softie@graz.dev', avClass: 'av-orb' },
+		{ id: 'gridwave', username: 'gridwave', displayName: 'gridwave', acct: 'gridwave@retro.social', avClass: 'av-grad-2' }
+	];
+	const DS_CUSTOM_EMOJI: ComposerEmoji[] = [
+		{ shortcode: 'blobcat', url: 'samples/cat-door.webp', pack: 'blobcats' },
+		{ shortcode: 'blobfox', url: 'samples/cats-pair.webp', pack: 'blobcats' },
+		{ shortcode: 'slowweb', url: 'samples/falco.png', pack: 'pleromanet' }
 	];
 
 	const SAMPLE_POST: DemoPostData = {
@@ -506,6 +519,7 @@
 							</div>
 						{/each}
 					</div>
+
 				</div>
 			</section>
 
@@ -642,6 +656,7 @@
 							</div>
 						</div>
 					</div>
+
 				</div>
 			</section>
 
@@ -651,7 +666,7 @@
 					<h2 class="ds-h2">Forms</h2>
 					<p class="ds-sub">Inputs, textareas, selects, and the toggle row pattern.</p>
 				</header>
-				<div class="ds-slab-body">
+					<div class="ds-slab-body">
 					<div class="ds-grid ds-grid-2">
 						<div class="ds-spec">
 							<div class="ds-spec-stage padded">
@@ -711,6 +726,7 @@
 							</div>
 						</div>
 					</div>
+
 				</div>
 			</section>
 
@@ -1210,6 +1226,41 @@
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Composer · CW + poll together</span>
 								<span class="ds-spec-note">both panels stack</span>
+							</div>
+						</div>
+					</div>
+
+					<div class="ds-sub-h" style="margin-top:28px">@mention &amp; :shortcode: autocomplete</div>
+					<p class="ds-sub" style="margin-bottom:14px">The composer text surface is a contenteditable mention editor. Typing <code style="font-family:var(--mono);font-size:11px">@</code> opens account suggestions, while <code style="font-family:var(--mono);font-size:11px">:</code> plus 2+ shortcode characters opens custom emoji suggestions. Inserted atoms serialize back to federated <code style="font-family:var(--mono);font-size:11px">@user@server</code> and <code style="font-family:var(--mono);font-size:11px">:shortcode:</code> text for status creation.</p>
+					<div class="ds-grid ds-grid-2">
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage">
+								<div class="composer">
+									<Avatar variant="compose" avBanner="sunset" />
+									<div>
+										<ComposerMentionEditor
+											value={composerAutocompleteText}
+											onInput={(value) => (composerAutocompleteText = value)}
+											accounts={DS_MENTION_ACCOUNTS}
+											emojis={DS_CUSTOM_EMOJI}
+										/>
+										<div class="composer-row">
+											<button class="composer-tool" title="Image"><Icon name="image" width={18} height={18} /></button>
+											<button class="composer-tool" title="Poll"><Icon name="poll" width={18} height={18} /></button>
+											<button class="composer-tool active" title="Emoji"><Icon name="smile" width={18} height={18} /></button>
+											<button class="composer-tool cw" aria-pressed="false">CW</button>
+											<button class="composer-tool privacy"><Icon name="globe" width={13} height={13} /><span>Public</span><Icon name="chevDown" width={12} height={12} /></button>
+											<span class="composer-spacer"></span>
+											<span class="composer-count" class:over-limit={composerAutocompleteRemaining < 0}>{composerAutocompleteRemaining}</span>
+											<Button variant="primary" disabled={!composerAutocompleteText.trim()}>Post</Button>
+										</div>
+										<div class="ds-code" data-serialized-text>{composerAutocompleteText || 'serialized status text appears here'}</div>
+									</div>
+								</div>
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Composer · autocomplete editor</span>
+								<span class="ds-spec-note">MentionEditor · @account + :emoji: atoms serialize to status text</span>
 							</div>
 						</div>
 					</div>

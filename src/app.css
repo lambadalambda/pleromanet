@@ -918,6 +918,124 @@ body[data-theme='simoun'] .pill {
 	display: block;
 }
 .composer-input::placeholder { color: var(--muted-2); }
+.me-editor-wrap {
+	position: relative;
+	min-width: 0;
+}
+.me-editor {
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+.me-editor:empty::before {
+	content: attr(data-placeholder);
+	color: var(--muted-2);
+}
+.me-pill,
+.me-emoji {
+	display: inline-flex;
+	align-items: center;
+	vertical-align: baseline;
+	user-select: none;
+}
+.me-pill {
+	gap: 4px;
+	max-width: 100%;
+	margin: 0 2px;
+	padding: 2px 6px 2px 3px;
+	border: 1px solid var(--accent-soft);
+	border-radius: 999px;
+	background: var(--accent-soft-2);
+	color: var(--accent-ink);
+	font-size: 0.92em;
+}
+.me-pill-av,
+.me-row-av {
+	display: inline-block;
+	width: 18px;
+	height: 18px;
+	border-radius: 4px;
+	background: linear-gradient(135deg, var(--accent), var(--accent-ink));
+	box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35);
+}
+.me-pill-at { color: var(--muted); }
+.me-pill-handle { overflow: hidden; text-overflow: ellipsis; }
+.me-emoji {
+	width: 1.35em;
+	height: 1.35em;
+	margin: 0 1px;
+}
+.me-emoji img,
+.me-row-emoji img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+.me-pop {
+	position: absolute;
+	z-index: 20;
+	left: 0;
+	top: calc(100% + 4px);
+	width: min(360px, 100%);
+	padding: 8px;
+	border: 1px solid var(--border-strong);
+	border-radius: 8px;
+	background: var(--panel-2);
+	box-shadow: 0 18px 44px rgba(31,35,71,0.18);
+}
+.me-pop-l,
+.me-pop-foot {
+	font-family: var(--mono);
+	font-size: 10px;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--muted);
+}
+.me-pop-l { padding: 2px 4px 6px; }
+.me-pop-foot { padding: 6px 4px 2px; }
+.me-pop-empty {
+	padding: 10px 8px;
+	color: var(--muted);
+	font-size: 13px;
+}
+.me-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	min-width: 0;
+	padding: 7px 8px;
+	border-radius: 5px;
+	color: var(--ink-2);
+	text-align: left;
+}
+.me-row.sel,
+.me-row:hover {
+	background: var(--accent-soft);
+	color: var(--ink);
+}
+.me-row-name,
+.me-row-sc {
+	font-weight: 650;
+	color: var(--ink);
+}
+.me-row-acct,
+.me-row-pack {
+	margin-left: auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--muted);
+	font-family: var(--mono);
+	font-size: 11px;
+}
+.me-row-emoji {
+	display: inline-flex;
+	width: 22px;
+	height: 22px;
+	align-items: center;
+	justify-content: center;
+}
 .composer-row {
 	display: flex;
 	align-items: center;
