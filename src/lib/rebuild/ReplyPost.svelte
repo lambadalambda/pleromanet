@@ -14,6 +14,7 @@
 	import type { PleromaRequestErrorView } from '$lib/pleroma/ui';
 	import { normalizeRenderableAttachments, openLightbox } from './attachments';
 	import type { BannerVariant, PostLike } from './attachments';
+	import type { ComposerPollDraft } from './composer';
 
 	type ThreadReply = PostLike & {
 		id?: string | number;
@@ -51,6 +52,8 @@
 		inlineReplyError?: PleromaRequestErrorView | null;
 		inlineReplySpoilerActive?: boolean;
 		inlineReplySpoilerText?: string;
+		inlineReplyPoll?: ComposerPollDraft | null;
+		inlineReplyPollValid?: boolean;
 		inlineReplyAccounts?: ComposerMentionAccount[];
 		inlineReplyEmojis?: ComposerEmoji[];
 		inlineReplyUploads?: InlineReplyUpload[];
@@ -61,6 +64,9 @@
 		onInlineReplySpoilerToggle?: () => void;
 		onInlineReplySpoilerInput?: (value: string) => void;
 		onInlineReplySpoilerRemove?: () => void;
+		onInlineReplyPollToggle?: () => void;
+		onInlineReplyPollChange?: (poll: ComposerPollDraft) => void;
+		onInlineReplyPollRemove?: () => void;
 		onInlineReplyDraftInput?: (value: string) => void;
 		onInlineReplyCancel?: () => void;
 		onInlineReplySubmit?: () => void;
@@ -84,6 +90,8 @@
 		inlineReplyError = null,
 		inlineReplySpoilerActive = false,
 		inlineReplySpoilerText = '',
+		inlineReplyPoll = null,
+		inlineReplyPollValid = true,
 		inlineReplyAccounts = [],
 		inlineReplyEmojis = [],
 		inlineReplyUploads = [],
@@ -94,6 +102,9 @@
 		onInlineReplySpoilerToggle,
 		onInlineReplySpoilerInput,
 		onInlineReplySpoilerRemove,
+		onInlineReplyPollToggle,
+		onInlineReplyPollChange,
+		onInlineReplyPollRemove,
 		onInlineReplyDraftInput,
 		onInlineReplyCancel,
 		onInlineReplySubmit,
@@ -153,6 +164,8 @@
 			error={inlineReplyError}
 			spoilerActive={inlineReplySpoilerActive}
 			spoilerText={inlineReplySpoilerText}
+			poll={inlineReplyPoll}
+			pollValid={inlineReplyPollValid}
 			accounts={inlineReplyAccounts}
 			emojis={inlineReplyEmojis}
 			uploads={inlineReplyUploads}
@@ -162,6 +175,9 @@
 			onSpoilerToggle={onInlineReplySpoilerToggle}
 			onSpoilerInput={onInlineReplySpoilerInput}
 			onSpoilerRemove={onInlineReplySpoilerRemove}
+			onPollToggle={onInlineReplyPollToggle}
+			onPollChange={onInlineReplyPollChange}
+			onPollRemove={onInlineReplyPollRemove}
 			onDraftInput={(value) => onInlineReplyDraftInput?.(value)}
 			onCancel={() => onInlineReplyCancel?.()}
 			onSubmit={() => onInlineReplySubmit?.()}
@@ -189,6 +205,8 @@
 				inlineReplyError={inlineReplyError}
 				inlineReplySpoilerActive={inlineReplySpoilerActive}
 				inlineReplySpoilerText={inlineReplySpoilerText}
+				inlineReplyPoll={inlineReplyPoll}
+				inlineReplyPollValid={inlineReplyPollValid}
 				inlineReplyAccounts={inlineReplyAccounts}
 				inlineReplyEmojis={inlineReplyEmojis}
 				inlineReplyUploads={inlineReplyUploads}
@@ -199,6 +217,9 @@
 				onInlineReplySpoilerToggle={onInlineReplySpoilerToggle}
 				onInlineReplySpoilerInput={onInlineReplySpoilerInput}
 				onInlineReplySpoilerRemove={onInlineReplySpoilerRemove}
+				onInlineReplyPollToggle={onInlineReplyPollToggle}
+				onInlineReplyPollChange={onInlineReplyPollChange}
+				onInlineReplyPollRemove={onInlineReplyPollRemove}
 				onInlineReplyDraftInput={onInlineReplyDraftInput}
 				onInlineReplyCancel={onInlineReplyCancel}
 				onInlineReplySubmit={onInlineReplySubmit}

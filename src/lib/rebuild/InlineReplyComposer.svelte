@@ -2,10 +2,12 @@
 	import Avatar from './Avatar.svelte';
 	import ComposerCWPanel from './ComposerCWPanel.svelte';
 	import ComposerMentionEditor, { type ComposerEmoji, type ComposerMentionAccount } from './ComposerMentionEditor.svelte';
+	import ComposerPollPanel from './ComposerPollPanel.svelte';
 	import EmojiPicker from './EmojiPicker.svelte';
 	import Icon from './Icon.svelte';
 	import type { PleromaRequestErrorView } from '$lib/pleroma/ui';
 	import type { BannerVariant } from './attachments';
+	import type { ComposerPollDraft } from './composer';
 
 export type InlineReplyUpload = {
 	localId: string;
@@ -29,6 +31,8 @@ export type InlineReplyUpload = {
 		error?: PleromaRequestErrorView | null;
 		spoilerActive?: boolean;
 		spoilerText?: string;
+		poll?: ComposerPollDraft | null;
+		pollValid?: boolean;
 		accounts?: ComposerMentionAccount[];
 		emojis?: ComposerEmoji[];
 		uploads?: InlineReplyUpload[];
@@ -38,6 +42,9 @@ export type InlineReplyUpload = {
 		onSpoilerToggle?: () => void;
 		onSpoilerInput?: (value: string) => void;
 		onSpoilerRemove?: () => void;
+		onPollToggle?: () => void;
+		onPollChange?: (poll: ComposerPollDraft) => void;
+		onPollRemove?: () => void;
 		onDraftInput: (value: string) => void;
 		onCancel: () => void;
 		onSubmit: () => void;
@@ -56,6 +63,8 @@ export type InlineReplyUpload = {
 		error = null,
 		spoilerActive = false,
 		spoilerText = '',
+		poll = null,
+		pollValid = true,
 		accounts = [],
 		emojis = [],
 		uploads = [],
@@ -65,6 +74,9 @@ export type InlineReplyUpload = {
 		onSpoilerToggle,
 		onSpoilerInput,
 		onSpoilerRemove,
+		onPollToggle,
+		onPollChange,
+		onPollRemove,
 		onDraftInput,
 		onCancel,
 		onSubmit
@@ -89,7 +101,7 @@ export type InlineReplyUpload = {
 	let uploadsPending = $derived(uploads.some((upload) => upload.status === 'uploading'));
 	let hasUploadedMedia = $derived(uploads.some((upload) => upload.status === 'uploaded'));
 	let mediaEnabled = $derived(Boolean(onFiles));
-	let canSubmit = $derived((Boolean(draft.trim()) || hasUploadedMedia) && remaining >= 0 && !submitting && !uploadsPending);
+	let canSubmit = $derived((Boolean(draft.trim()) || hasUploadedMedia) && remaining >= 0 && (!poll || pollValid) && !submitting && !uploadsPending);
 
 	const uploadBadge = (kind: InlineReplyUpload['kind']) => kind === 'audio' ? 'WAV' : kind === 'video' ? 'MP4' : kind === 'photo' ? 'IMG' : 'FILE';
 	const pickFiles = () => {
@@ -200,10 +212,13 @@ export type InlineReplyUpload = {
 		{#if spoilerActive}
 			<ComposerCWPanel value={spoilerText} onInput={(value) => onSpoilerInput?.(value)} onRemove={() => onSpoilerRemove?.()} focusOnMount />
 		{/if}
+		{#if poll}
+			<ComposerPollPanel poll={poll} onPollChange={(nextPoll) => onPollChange?.(nextPoll)} onRemove={() => onPollRemove?.()} focusOnMount idPrefix={id ? `${id}-poll` : 'inline-reply-poll'} />
+		{/if}
 		<div class="thread-inline-reply-row">
 			<button type="button" class="thread-inline-reply-tool" title="Image" aria-label="Image" disabled={!mediaEnabled || submitting} onclick={pickFiles}><Icon name="image" width={16} height={16} /></button>
 			<button type="button" class="thread-inline-reply-tool" class:active={emojiPickerOpen} title="Emoji" aria-label="Emoji" aria-haspopup="dialog" aria-expanded={emojiPickerOpen} aria-pressed={emojiPickerOpen} disabled={submitting} data-emoji-trigger onclick={toggleEmojiPicker}><Icon name="smile" width={16} height={16} /></button>
-			<button type="button" class="thread-inline-reply-tool" title="Poll" aria-label="Poll"><Icon name="poll" width={16} height={16} /></button>
+			<button type="button" class="thread-inline-reply-tool" class:active={Boolean(poll)} title="Poll" aria-label="Poll" aria-pressed={Boolean(poll)} disabled={!onPollToggle || submitting} onclick={() => onPollToggle?.()}><Icon name="poll" width={16} height={16} /></button>
 			<button type="button" class="thread-inline-reply-cw" class:active={spoilerActive} aria-label="Content warning" aria-pressed={spoilerActive} disabled={!onSpoilerToggle || submitting} onclick={() => onSpoilerToggle?.()}>CW</button>
 			<span class="thread-inline-reply-spacer"></span>
 			<button type="button" class="thread-inline-reply-cancel" disabled={submitting} onclick={onCancel}>Cancel</button>

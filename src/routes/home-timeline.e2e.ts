@@ -779,6 +779,61 @@ test('home timeline inline reply composer submits content warnings', async ({ pa
 	expect(params.get('spoiler_text')).toBe('inline spoiler');
 });
 
+test('home timeline inline reply composer submits poll fields', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	const targetStatus = { ...statusWithText('status-inline-poll', 'reply poll target'), visibility: 'unlisted' as const, replies_count: 0 };
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [targetStatus]);
+	});
+	let createdBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createdBody = route.request().postData() ?? '';
+		await fulfillHome(route, {
+			...statusWithText('created-inline-poll-reply', 'reply poll'),
+			in_reply_to_id: 'status-inline-poll'
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await page.locator('[data-status-id="status-inline-poll"]').getByRole('button', { name: 'Reply 0' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
+	const pollButton = replyForm.getByRole('button', { name: 'Poll', exact: true });
+	await replyForm.getByRole('textbox', { name: 'Reply text' }).fill('reply poll');
+	await pollButton.click();
+	await expect(pollButton).toHaveAttribute('aria-pressed', 'true');
+	await expect(replyForm.locator('.composer-poll')).toBeVisible();
+	await expect(replyForm.getByRole('button', { name: 'Reply', exact: true })).toBeDisabled();
+	await replyForm.getByRole('textbox', { name: 'Poll choice 1' }).fill('warm cassette');
+	await replyForm.getByRole('textbox', { name: 'Poll choice 2' }).fill('cold terminal');
+	await expect(replyForm.getByRole('button', { name: 'Reply', exact: true })).toBeEnabled();
+	await replyForm.getByLabel('Duration').selectOption('1h');
+	await replyForm.getByLabel('Voting').selectOption('multi');
+	await replyForm.getByRole('button', { name: 'Hide totals until poll ends' }).click();
+	await expect(replyForm.getByRole('button', { name: 'Hide totals until poll ends' })).toHaveAttribute('aria-pressed', 'false');
+	await pollButton.click();
+	await expect(replyForm.locator('.composer-poll')).toHaveCount(0);
+	await expect(pollButton).toHaveAttribute('aria-pressed', 'false');
+	await pollButton.click();
+	await replyForm.getByRole('textbox', { name: 'Poll choice 1' }).fill('warm cassette');
+	await replyForm.getByRole('textbox', { name: 'Poll choice 2' }).fill('cold terminal');
+	await replyForm.getByLabel('Duration').selectOption('1h');
+	await replyForm.getByLabel('Voting').selectOption('multi');
+	await replyForm.getByRole('button', { name: 'Hide totals until poll ends' }).click();
+	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
+
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+	const params = new URLSearchParams(createdBody);
+	expect(params.get('status')).toBe('reply poll');
+	expect(params.get('in_reply_to_id')).toBe('status-inline-poll');
+	expect(params.get('visibility')).toBe('unlisted');
+	expect(params.getAll('poll[options][]')).toEqual(['warm cassette', 'cold terminal']);
+	expect(params.get('poll[expires_in]')).toBe('3600');
+	expect(params.get('poll[multiple]')).toBe('true');
+	expect(params.get('poll[hide_totals]')).toBe('false');
+});
+
 test('home timeline inline reply composer autocompletes mentions and custom emoji', async ({ page }) => {
 	await authenticate(page);
 	await mockInstance(page);
