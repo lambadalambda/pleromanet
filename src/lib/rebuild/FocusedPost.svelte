@@ -7,6 +7,7 @@
 	import PostPinged from './PostPinged.svelte';
 	import QuotedPost from './QuotedPost.svelte';
 	import RichText from './RichText.svelte';
+	import { profileHref } from './profile-links';
 	import VaporBanner from './VaporBanner.svelte';
 	import type { CustomEmoji } from '$lib/social/types';
 	import { normalizeRenderableAttachments, openLightbox } from './attachments';
@@ -43,6 +44,7 @@
 	};
 
 	let { post, continuesAbove = false, replyExpanded, replyControlsId, onAction }: Props = $props();
+	let href = $derived(profileHref(post.handle));
 
 	const handleLightbox = (idx: number) => {
 		const attachments = normalizeRenderableAttachments(post);
@@ -63,8 +65,12 @@
 	<div class="focused-post-head">
 		<Avatar post={post} variant="focused" />
 		<div style="min-width:0;flex:1">
-			<div class="focused-name"><RichText text={post.name} emojis={post.nameEmojis} /></div>
-			<div class="focused-handle">{post.handle}</div>
+			<div class="focused-name"><RichText text={post.name} emojis={post.nameEmojis} linkMentions={false} /></div>
+			{#if href}
+				<a class="focused-handle" href={href}>{post.handle}</a>
+			{:else}
+				<div class="focused-handle">{post.handle}</div>
+			{/if}
 		</div>
 		<Button variant="follow" className={post.following ? 'following' : ''}>{post.following ? 'Following' : 'Follow'}</Button>
 		<button type="button" class="post-more" aria-label="More"><Icon name="more" width={16} height={16} /></button>

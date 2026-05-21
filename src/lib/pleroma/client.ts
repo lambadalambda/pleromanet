@@ -11,6 +11,7 @@ import type {
 	PleromaStatus,
 	PleromaStatusContext,
 	PleromaTag,
+	AccountStatusesQuery,
 	AccountSearchQuery,
 	MediaUploadRequest,
 	NotificationQuery,
@@ -38,6 +39,16 @@ const timelineQuery = (query: TimelineQuery = {}) => ({
 	min_id: query.minId,
 	since_id: query.sinceId,
 	only_media: query.onlyMedia
+});
+
+const accountStatusesQuery = (query: AccountStatusesQuery = {}) => ({
+	...timelineQuery(query),
+	exclude_replies: query.excludeReplies,
+	pinned: query.pinned
+});
+
+const accountRelationshipsQuery = (ids: string[]) => ({
+	'id[]': ids
 });
 
 const notificationQuery = (query: NotificationQuery = {}) => ({
@@ -217,6 +228,29 @@ export const createPleromaClient = (config: ClientConfig) => {
 			http.request<PleromaAccount>({
 				path: `/api/v1/accounts/${encodePathSegment(id)}`,
 				auth: 'optional'
+			}),
+
+		getAccountStatuses: (id: string, query?: AccountStatusesQuery) =>
+			http.request<PleromaStatus[]>({
+				path: `/api/v1/accounts/${encodePathSegment(id)}/statuses`,
+				query: accountStatusesQuery(query),
+				auth: 'optional'
+			}),
+
+		getAccountStatusesPage: async (id: string, query?: AccountStatusesQuery) => {
+			const response = await http.requestWithHeaders<PleromaStatus[]>({
+				path: `/api/v1/accounts/${encodePathSegment(id)}/statuses`,
+				query: accountStatusesQuery(query),
+				auth: 'optional'
+			});
+			return timelinePage(response.body, response.headers);
+		},
+
+		getAccountRelationships: (ids: string[]) =>
+			http.request<PleromaRelationship[]>({
+				path: '/api/v1/accounts/relationships',
+				query: accountRelationshipsQuery(ids),
+				auth: 'required'
 			}),
 
 		searchAccounts: (query: AccountSearchQuery) =>

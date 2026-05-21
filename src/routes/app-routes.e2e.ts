@@ -48,6 +48,17 @@ const mockHomeTimeline = async (page: Page) => {
 	});
 };
 
+const mockProfileRoute = async (page: Page) => {
+	await page.route('https://pleroma.example/api/v1/accounts/account-1/statuses**', async (route: Route) => {
+		const url = new URL(route.request().url());
+		await route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify(url.searchParams.get('pinned') === 'true' ? [] : pleromaFixtures.timelines.home)
+		});
+	});
+};
+
 test('signed-out users are redirected away from authenticated app routes', async ({ page }) => {
 	await setViewport(page, 'desktop');
 	await page.goto('/app/home');
@@ -205,6 +216,7 @@ test('app route guard revalidates when session disappears during client navigati
 
 test('timeline, thread, profile, notification, and placeholder routes deep link in the real shell', async ({ page }) => {
 	await authenticate(page);
+	await mockProfileRoute(page);
 	await setViewport(page, 'desktop');
 
 	const cases = [

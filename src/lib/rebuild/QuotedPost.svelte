@@ -36,13 +36,13 @@
 {#snippet embeddedContents()}
 	<div class="quoted-head">
 		<Avatar variant="post" size={28} avClass={quoted?.avClass} avBanner={quoted?.avBanner} avatarUrl={quoted?.avatarUrl} alt={`${quoted?.name ?? quoted?.handle ?? 'User'} avatar`} className="quoted-av-sm" />
-		<span class="quoted-name"><RichText text={quoted?.name} emojis={quoted?.nameEmojis} /></span>
+		<span class="quoted-name"><RichText text={quoted?.name} emojis={quoted?.nameEmojis} linkMentions={false} /></span>
 		<span class="quoted-handle">{quoted?.handle}</span>
 		<span class="quoted-time">{quoted?.time}</span>
 		<span class="quoted-ext">↗</span>
 	</div>
 	<div class="quoted-text">
-		<RichText text={quoted?.body} emojis={quoted?.bodyEmojis} mentionClass="post-mention-inline" />
+		<RichText text={quoted?.body} emojis={quoted?.bodyEmojis} mentionClass="post-mention-inline" linkMentions={false} />
 	</div>
 	<div class="quoted-foot">
 		{#if quoted?.replies != null}<span>↩ {quoted.replies}</span>{/if}
@@ -75,11 +75,11 @@
 	<div class="quoted-body">
 		<div class="quoted-kicker">QUOTE{domain ? ' · ' + domain : ''}</div>
 		<div class="quoted-text">
-			<RichText text={quoted?.body} emojis={quoted?.bodyEmojis} mentionClass="post-mention-inline" />
+			<RichText text={quoted?.body} emojis={quoted?.bodyEmojis} mentionClass="post-mention-inline" linkMentions={false} />
 		</div>
 		<div class="quoted-attr">
 			<Avatar variant="post" size={22} avClass={quoted?.avClass} avBanner={quoted?.avBanner} avatarUrl={quoted?.avatarUrl} alt={`${quoted?.name ?? quoted?.handle ?? 'User'} avatar`} />
-			<span class="quoted-attr-name"><RichText text={quoted?.name} emojis={quoted?.nameEmojis} /></span>
+			<span class="quoted-attr-name"><RichText text={quoted?.name} emojis={quoted?.nameEmojis} linkMentions={false} /></span>
 			<span class="quoted-handle">{quoted?.handle}</span>
 			<span class="quoted-time">· {quoted?.time}</span>
 		</div>

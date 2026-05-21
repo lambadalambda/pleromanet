@@ -12,6 +12,7 @@ test('shows converted canonical design-system sections and switches themes', asy
 	await expect(page.getByRole('heading', { name: 'Attachments' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Posts' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Thread' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Profile' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Radio · PN.fm' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Oekaki' })).toBeVisible();
@@ -26,6 +27,7 @@ test('shows converted canonical design-system sections and switches themes', asy
 	await expect(page.locator('#composer')).toContainText('Composer · with CW input');
 	await expect(page.locator('#posts')).toContainText('Quoted posts');
 	await expect(page.locator('#thread')).toContainText('AncestorPost → FocusedPost → ReplyPost');
+	await expect(page.locator('#profile')).toContainText('ProfileView → ProfileSideRail');
 	await expect(page.locator('#notifications')).toContainText('NotifRow k-mention unread');
 	await expect(page.locator('#radio')).toContainText('Radio · Now playing tab');
 	await expect(page.locator('#oekaki')).toContainText('Tool rail');
@@ -528,6 +530,34 @@ test('renders the canonical thread specimen with targeted inline reply composers
 	await setViewport(page, 'mobile');
 	await softReply.getByRole('button', { name: 'Reply 0' }).click();
 	await expect(thread.getByRole('form', { name: 'Inline reply to @soft.hertz' })).toBeVisible();
+	await expectNoHorizontalOverflow(page);
+});
+
+test('renders the canonical profile specimen with tabs and side rail', async ({ page }) => {
+	await setViewport(page, 'desktop');
+	await page.goto('/design-system');
+
+	const profile = page.locator('#profile');
+	await expect(profile).toContainText('ProfileView → ProfileSideRail');
+	await expect(profile.getByRole('heading', { name: 'soft.hertz ✦' })).toBeVisible();
+	await expect(profile).toContainText('@soft.hertz@kolektiva.social');
+	await expect(profile).toContainText('field recordings + slow web');
+	await expect(profile).toContainText('Mutuals');
+	await expect(profile).toContainText('remote');
+	await expect(profile).toContainText('Numbers');
+	await expect(profile).toContainText('2,148');
+	await expect(profile).toContainText('Details');
+	await expect(profile).toContainText('softhertz.land');
+	await expect(profile).toContainText("the algorithm doesn't care about you");
+
+	await profile.getByRole('tab', { name: /Posts & Replies/ }).click();
+	await expect(profile).toContainText('reply from the margins');
+	await profile.getByRole('tab', { name: /Media/ }).click();
+	await expect(profile.locator('.pp-media-grid')).toBeVisible();
+	await expect(profile).toContainText('AUDIO');
+
+	await setViewport(page, 'mobile');
+	await expect(profile).toContainText('Numbers');
 	await expectNoHorizontalOverflow(page);
 });
 

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { CustomEmoji } from '$lib/social/types';
 	import RichText from './RichText.svelte';
+	import { profileHref } from './profile-links';
 
 	type Props = {
 		name?: string;
@@ -15,10 +16,15 @@
 	let emojis = $derived(nameEmojis ?? post?.nameEmojis ?? []);
 	let h = $derived(handle ?? post?.handle);
 	let t = $derived(time ?? post?.time);
+	let href = $derived(profileHref(h));
 </script>
 
 <div class="post-head">
-	<span class="post-name" title={n}><RichText text={n} {emojis} /></span>
-	<span class="post-handle" title={h}>{h}</span>
+	<span class="post-name" title={n}><RichText text={n} {emojis} linkMentions={false} /></span>
+	{#if href}
+		<a class="post-handle" title={h} href={href}>{h}</a>
+	{:else}
+		<span class="post-handle" title={h}>{h}</span>
+	{/if}
 	<span class="post-time">{t}</span>
 </div>

@@ -15,6 +15,8 @@
 	import NotifsPopover from '$lib/rebuild/NotifsPopover.svelte';
 	import Post from '$lib/rebuild/Post.svelte';
 	import ProfileMini from '$lib/rebuild/ProfileMini.svelte';
+	import ProfileSideRail from '$lib/rebuild/ProfileSideRail.svelte';
+	import ProfileView from '$lib/rebuild/ProfileView.svelte';
 	import ReplyPost from '$lib/rebuild/ReplyPost.svelte';
 	import RichText from '$lib/rebuild/RichText.svelte';
 	import SurfaceCard from '$lib/rebuild/SurfaceCard.svelte';
@@ -31,11 +33,12 @@
 		type PaginatedTimelineBaseState,
 		type PaginatedTimelineSuccess
 	} from '$lib/pleroma/timeline-state';
-	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, normalizePleromaRequestError, statusCharacterLimit, type PleromaNotificationView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, normalizePleromaRequestError, statusCharacterLimit, type PleromaNotificationView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, composerUploadBadge, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
-	import type { PleromaInstance, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
+	import type { ProfileData, ProfileMediaItem, ProfilePost } from '$lib/rebuild/profile';
+	import type { PleromaAccount, PleromaInstance, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
 	import type { SocialNotificationData, SocialPost } from '$lib/social/types';
 	import { onMount } from 'svelte';
 
@@ -55,7 +58,7 @@
 	};
 	type ReplySort = 'top' | 'newest';
 	type StatusActionKey = 'boost' | 'fav';
-	type StatusActionOrigin = 'home' | 'thread';
+	type StatusActionOrigin = 'home' | 'thread' | 'profile';
 	type StatusActionScope = StatusActionOrigin | 'all';
 	type StatusActionOriginSnapshot = { route: StatusActionOrigin; requestId: number };
 	type StatusActionValue = { active: boolean; count: number };
@@ -112,6 +115,11 @@
 		| { status: 'loading' }
 		| { status: 'error'; error: PleromaRequestErrorView }
 		| { status: 'success'; focused: ThreadViewPost; ancestors: ThreadViewPost[]; replies: ThreadViewPost[] };
+	type ProfileState =
+		| { status: 'idle' }
+		| { status: 'loading' }
+		| { status: 'error'; error: PleromaRequestErrorView }
+		| { status: 'success'; data: ProfileData };
 	type NotificationState =
 		| { status: 'idle' }
 		| { status: 'loading' }
@@ -141,6 +149,7 @@
 	let currentSession = $state<PleromaSession | null>(null);
 	let homeTimelineState = $state<HomeTimelineState>({ status: 'idle' });
 	let threadState = $state<ThreadState>({ status: 'idle' });
+	let profileRouteState = $state<ProfileState>({ status: 'idle' });
 	let notificationState = $state<NotificationState>({ status: 'idle' });
 	let trendsState = $state<PleromaRequestState<TrendView[]>>({ status: 'idle' });
 	let instanceStatusState = $state<PleromaRequestState<InstanceStatusView>>({ status: 'idle' });
@@ -187,6 +196,7 @@
 	let homeTimelineRequestId = 0;
 	let homeTimelineNewPostsRequestId = 0;
 	let threadRequestId = 0;
+	let profileRouteRequestId = 0;
 	let notificationRequestId = 0;
 	let trendsRequestId = 0;
 	let statusActionRequestId = 0;
@@ -198,6 +208,7 @@
 	let composerCustomEmojiRequestId = 0;
 	let loadedHomeTimelineKey = '';
 	let loadedThreadKey = '';
+	let loadedProfileRouteKey = '';
 	let loadedNotificationsKey = '';
 	let loadedForegroundNotificationsKey = '';
 	let loadedProfileAccountKey = '';
@@ -268,6 +279,12 @@
 		clearInlineReply('thread');
 		clearStatusActionErrors('thread');
 	};
+	const invalidateProfileRouteRequests = () => {
+		profileRouteRequestId += 1;
+		loadedProfileRouteKey = '';
+		profileRouteState = { status: 'idle' };
+		clearStatusActionErrors('profile');
+	};
 	const invalidateNotificationRequests = () => {
 		notificationRequestId += 1;
 		clearNotificationLoadPromise(true);
@@ -327,6 +344,7 @@
 	let headerAccountLabel = $derived(`${headerAccountName} account menu`);
 	let homeStatusActionErrors = $derived(statusActionErrors.filter((error) => error.route === 'home'));
 	let threadStatusActionErrors = $derived(statusActionErrors.filter((error) => error.route === 'thread'));
+	let profileStatusActionErrors = $derived(statusActionErrors.filter((error) => error.route === 'profile'));
 
 	let navItems = $derived<NavItem[]>([
 		{ route: 'home', label: 'Home', icon: 'home', href: '/app/home' },
@@ -397,6 +415,20 @@
 		source: post.applicationName ?? 'Pleroma',
 		views: null
 	});
+	const profilePostForRebuild = (post: PleromaStatusView): ProfilePost => postForRebuild(post);
+	const profileMediaItem = (attachment: PleromaStatusView['mediaAttachments'][number]): ProfileMediaItem | null => {
+		const type = attachment.type.toLowerCase();
+		if (type === 'image' || type === 'photo') return { kind: 'photo', src: attachment.previewUrl ?? attachment.url, alt: attachment.description ?? undefined };
+		if (type === 'video' || type === 'gifv') return { kind: 'video', src: attachment.previewUrl ?? attachment.url, alt: attachment.description ?? undefined, title: attachment.description ?? attachment.filename ?? 'video' };
+		if (type === 'audio') return { kind: 'audio', title: attachment.description ?? attachment.filename ?? 'audio' };
+		return null;
+	};
+	const profileMediaItems = (posts: PleromaStatusView[]): ProfileMediaItem[] => posts
+		.filter((post) => !post.mediaHidden && !post.hasContentWarning)
+		.flatMap((post) => post.mediaAttachments.map(profileMediaItem))
+		.filter((item): item is ProfileMediaItem => item !== null);
+	const profileLockedForViewer = (profile: { relations: { locked: boolean }; followState: string }) =>
+		profile.relations.locked && !['mutual', 'following', 'self'].includes(profile.followState);
 	const threadRepliesForRebuild = (focusedStatusId: string, descendants: PleromaStatusView[]) => {
 		const posts: ThreadViewPost[] = descendants.map((post) => ({ ...threadPostForRebuild(post), nestedReplies: [] }));
 		const byId = new Map(posts.map((post) => [String(post.id), post]));
@@ -418,10 +450,16 @@
 	const threadPostCount = (posts: ThreadViewPost[]): number => posts.reduce((total, post) => total + 1 + threadPostCount(post.nestedReplies ?? []), 0);
 	const actionStateKey = (key: StatusActionKey) => key === 'fav' ? 'favorite' : 'boost';
 	const statusActionPendingKey = (targetId: string, key: StatusActionKey) => `${targetId}:${key}`;
-	const statusActionOriginRequestId = (originRoute: StatusActionOrigin) => originRoute === 'home' ? homeTimelineRequestId : threadRequestId;
-	const statusActionOriginActive = (origin: StatusActionOriginSnapshot) => origin.route === 'home'
-		? route === 'home' && homeTimelineRequestId === origin.requestId
-		: route === 'thread' && threadRequestId === origin.requestId;
+	const statusActionOriginRequestId = (originRoute: StatusActionOrigin) =>
+		originRoute === 'home' ? homeTimelineRequestId :
+		originRoute === 'thread' ? threadRequestId :
+		profileRouteRequestId;
+	const statusActionOriginActive = (origin: StatusActionOriginSnapshot) =>
+		origin.route === 'home'
+			? route === 'home' && homeTimelineRequestId === origin.requestId
+			: origin.route === 'thread'
+				? route === 'thread' && threadRequestId === origin.requestId
+				: route === 'profile' && profileRouteRequestId === origin.requestId;
 	const statusActionTargetId = (post: { id?: string | number; actionStatusId?: string }) => String(post.actionStatusId ?? post.id ?? '');
 	const statusReplyTargetId = (post: { id?: string | number; actionStatusId?: string; threadStatusId?: string }) => String(post.threadStatusId ?? post.actionStatusId ?? post.id ?? '');
 	const inlineReplyTargetHandle = (handle = '') => {
@@ -462,6 +500,8 @@
 		});
 	const updateStatusViewsByActionTarget = (posts: PleromaStatusView[], targetId: string, update: (post: PleromaStatusView) => PleromaStatusView) =>
 		posts.map((post) => matchesStatusActionTarget(post, targetId) ? update(post) : post);
+	const updateProfilePostsByActionTarget = (posts: ProfilePost[], targetId: string, update: (post: ProfilePost) => ProfilePost) =>
+		posts.map((post) => matchesStatusActionTarget(post, targetId) ? update(post) : post);
 	const updateRebuildPostsByReplyTarget = <PostType extends RebuildPost & { nestedReplies?: PostType[] }>(posts: PostType[], targetId: string, update: (post: PostType) => PostType): PostType[] =>
 		posts.map((post) => {
 			const updated = matchesStatusReplyTarget(post, targetId) ? update(post) : post;
@@ -469,6 +509,8 @@
 			return updated.nestedReplies ? { ...updated, nestedReplies: updateRebuildPostsByReplyTarget(updated.nestedReplies, targetId, update) } : updated;
 		});
 	const updateStatusViewsByReplyTarget = (posts: PleromaStatusView[], targetId: string, update: (post: PleromaStatusView) => PleromaStatusView) =>
+		posts.map((post) => matchesStatusReplyTarget(post, targetId) ? update(post) : post);
+	const updateProfilePostsByReplyTarget = (posts: ProfilePost[], targetId: string, update: (post: ProfilePost) => ProfilePost) =>
 		posts.map((post) => matchesStatusReplyTarget(post, targetId) ? update(post) : post);
 	const incrementStatusViewReplies = <PostType extends PleromaStatusView>(post: PostType): PostType => ({ ...post, replies: post.replies + 1 });
 	const incrementRebuildPostReplies = <PostType extends RebuildPost>(post: PostType): PostType => ({ ...post, replies: post.replies + 1 });
@@ -531,6 +573,17 @@
 				replies: updateRebuildPostsByActionTarget(threadState.replies, targetId, rebuildUpdate)
 			};
 		}
+		if ((scope === 'profile' || scope === 'all') && profileRouteState.status === 'success') {
+			profileRouteState = {
+				...profileRouteState,
+				data: {
+					...profileRouteState.data,
+					posts: updateProfilePostsByActionTarget(profileRouteState.data.posts, targetId, rebuildUpdate),
+					replies: updateProfilePostsByActionTarget(profileRouteState.data.replies, targetId, rebuildUpdate),
+					pinned: updateProfilePostsByActionTarget(profileRouteState.data.pinned, targetId, rebuildUpdate)
+				}
+			};
+		}
 	};
 	const applyReplyCountUpdate = (targetId: string) => {
 		localHomePosts = updateRebuildPostsByReplyTarget(localHomePosts, targetId, incrementRebuildPostReplies);
@@ -547,6 +600,17 @@
 				focused: matchesStatusReplyTarget(threadState.focused, targetId) ? incrementRebuildPostReplies(threadState.focused) : threadState.focused,
 				ancestors: updateRebuildPostsByReplyTarget(threadState.ancestors, targetId, incrementRebuildPostReplies),
 				replies: updateRebuildPostsByReplyTarget(threadState.replies, targetId, incrementRebuildPostReplies)
+			};
+		}
+		if (profileRouteState.status === 'success') {
+			profileRouteState = {
+				...profileRouteState,
+				data: {
+					...profileRouteState.data,
+					posts: updateProfilePostsByReplyTarget(profileRouteState.data.posts, targetId, incrementRebuildPostReplies),
+					replies: updateProfilePostsByReplyTarget(profileRouteState.data.replies, targetId, incrementRebuildPostReplies),
+					pinned: updateProfilePostsByReplyTarget(profileRouteState.data.pinned, targetId, incrementRebuildPostReplies)
+				}
 			};
 		}
 	};
@@ -626,7 +690,7 @@
 			}
 		})();
 	};
-	const openThread = (post: RebuildPost) => {
+	const openThread = (post: { id: string | number; actionStatusId?: string; threadStatusId?: string }) => {
 		const statusId = post.threadStatusId ?? post.actionStatusId ?? String(post.id);
 		goto(`/app/thread/${encodeURIComponent(statusId)}`);
 	};
@@ -642,6 +706,7 @@
 		'home'
 	);
 	const threadStatusId = $derived(route === 'thread' ? decodeURIComponent(page.url.pathname.split('/').filter(Boolean).slice(2).join('/') || '') : '');
+	const profileRouteHandle = $derived(route === 'profile' ? decodeURIComponent(page.url.pathname.split('/').filter(Boolean).slice(2).join('/') || '') : '');
 	const composerRemaining = $derived(composerCharacterLimit - composerText.length);
 	const inlineReplyRemaining = $derived(composerCharacterLimit - inlineReplyDraft.length);
 	const preparedComposerPoll = $derived(composerPoll ? composerPollPayload(composerPoll) : undefined);
@@ -1028,6 +1093,16 @@
 		const targetId = post ? statusActionTargetId(post) : '';
 		if (post && targetId) mutateStatusAction(targetId, key, rebuildPostActionValue(post, key), 'thread');
 	};
+	const handleProfilePostAction = (post: ProfilePost, key: string) => {
+		if (key !== 'reply' && key !== 'boost' && key !== 'fav') return;
+		if (key === 'reply') {
+			openThread(post);
+			return;
+		}
+
+		const targetId = statusActionTargetId(post);
+		if (targetId) mutateStatusAction(targetId, key, rebuildPostActionValue(post, key), 'profile');
+	};
 	const closeMobilePanels = () => {
 		mobileDrawerOpen = false;
 		mobileSheetOpen = false;
@@ -1048,6 +1123,7 @@
 	const redirectToLanding = () => {
 		invalidateHomeTimelineRequests();
 		invalidateThreadRequests();
+		invalidateProfileRouteRequests();
 		invalidateStatusActionRequests();
 		invalidateNotificationRequests();
 		invalidateProfileAccountRequests();
@@ -1072,6 +1148,7 @@
 		if (sessionKey(currentSession) !== sessionKey(session)) {
 			invalidateHomeTimelineRequests();
 			invalidateThreadRequests();
+			invalidateProfileRouteRequests();
 			invalidateStatusActionRequests();
 			invalidateNotificationRequests();
 			invalidateProfileAccountRequests();
@@ -1562,6 +1639,102 @@
 			threadState = { status: 'error', error: normalized };
 		}
 	};
+	const normalizedProfileHandle = (value: string) => value.replace(/^@/, '').trim().toLowerCase();
+	const accountMatchesProfileHandle = (account: PleromaStatus['account'], handle: string) => {
+		const normalized = normalizedProfileHandle(handle);
+		return normalized === account.id.toLowerCase()
+			|| normalized === normalizedProfileHandle(account.acct)
+			|| normalized === normalizedProfileHandle(account.username);
+	};
+	const resolveProfileAccount = async (client: ReturnType<typeof createPleromaClient>, session: PleromaSession, handle: string) => {
+		if (session.account && (!handle || accountMatchesProfileHandle(session.account, handle))) return session.account;
+		const matches = await client.searchAccounts({ q: handle, limit: 5, resolve: true });
+		return matches.find((account) => accountMatchesProfileHandle(account, handle)) ?? client.getAccount(handle);
+	};
+	const accountWithFetchedRelationship = async (client: ReturnType<typeof createPleromaClient>, account: PleromaAccount, currentAccountId?: string) => {
+		if (currentAccountId && account.id === currentAccountId) return account;
+		const [relationship] = await client.getAccountRelationships([account.id]);
+		if (!relationship) return account;
+
+		return {
+			...account,
+			pleroma: {
+				...account.pleroma,
+				relationship
+			}
+		};
+	};
+	const loadProfileRoute = async (session: PleromaSession, handle: string) => {
+		const requestSessionKey = sessionKey(session);
+		const requestId = profileRouteRequestId + 1;
+		profileRouteRequestId = requestId;
+
+		if (!handle && !session.account) {
+			profileRouteState = {
+				status: 'error',
+				error: {
+					kind: 'request',
+					title: 'Profile unavailable',
+					message: 'PleromaNet needs an account handle to load a profile.',
+					retryable: false,
+					reauthRequired: false
+				}
+			};
+			return;
+		}
+
+		profileRouteState = { status: 'loading' };
+
+		try {
+			const client = createPleromaClient({
+				instanceUrl: session.instanceUrl,
+				accessToken: session.accessToken,
+				fetch: window.fetch.bind(window)
+			});
+			const resolvedAccount = await resolveProfileAccount(client, session, handle);
+			const currentAccountId = currentSession?.account?.id ?? session.account?.id;
+			const account = await accountWithFetchedRelationship(client, resolvedAccount, currentAccountId);
+			const profile = adaptPleromaProfile(account, { instanceUrl: session.instanceUrl, currentAccountId });
+			if (profileLockedForViewer(profile)) {
+				if (route !== 'profile' || requestId !== profileRouteRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+				profileRouteState = { status: 'success', data: { profile, posts: [], replies: [], pinned: [], media: [] } };
+				return;
+			}
+			const [postsPage, repliesPage, mediaPage, pinnedStatuses] = await Promise.all([
+				client.getAccountStatusesPage(account.id, { limit: 20, excludeReplies: true }),
+				client.getAccountStatusesPage(account.id, { limit: 20 }),
+				client.getAccountStatusesPage(account.id, { limit: 18, onlyMedia: true }),
+				client.getAccountStatuses(account.id, { limit: 5, pinned: true })
+			]);
+			if (route !== 'profile' || requestId !== profileRouteRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			const posts = adaptPleromaStatuses(postsPage.items).map(profilePostForRebuild);
+			const replies = adaptPleromaStatuses(repliesPage.items).map(profilePostForRebuild);
+			const mediaStatuses = adaptPleromaStatuses(mediaPage.items);
+			const pinned = adaptPleromaStatuses(pinnedStatuses).map(profilePostForRebuild);
+			profileRouteState = {
+				status: 'success',
+				data: {
+					profile,
+					posts,
+					replies,
+					pinned,
+					media: profileMediaItems(mediaStatuses)
+				}
+			};
+		} catch (error) {
+			if (requestId !== profileRouteRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			const normalized = normalizePleromaRequestError(error);
+			if (normalized.reauthRequired) {
+				signOutPleroma(localStorage);
+				redirectToLanding();
+				return;
+			}
+
+			profileRouteState = { status: 'error', error: normalized };
+		}
+	};
 	const loadMoreHomeTimeline = async () => {
 		const session = currentSession;
 		if (!session || homeTimelineState.status !== 'success' || !homeTimelineState.nextCursor || homeTimelineState.loadMoreStatus === 'loading') return;
@@ -1671,6 +1844,9 @@
 	const retryThread = () => {
 		if (currentSession) void loadThread(currentSession, threadStatusId);
 	};
+	const retryProfileRoute = () => {
+		if (currentSession) void loadProfileRoute(currentSession, profileRouteHandle);
+	};
 	const openNotificationsRoute = () => {
 		notificationsMenuOpen = false;
 		goto('/app/notifications');
@@ -1719,6 +1895,7 @@
 
 		return () => {
 			invalidateHomeTimelineRequests();
+			invalidateProfileRouteRequests();
 			invalidateStatusActionRequests();
 			invalidateNotificationRequests();
 			invalidateComposerAutocompleteRequests();
@@ -1769,6 +1946,17 @@
 			}
 		} else if (loadedThreadKey) {
 			invalidateThreadRequests();
+		}
+		if (pathname.startsWith('/app/profiles')) {
+			const viewerAccountId = currentSession?.account?.id ?? session.account?.id ?? '';
+			const loadKey = `${sessionKey(session)}\n${viewerAccountId}\n${profileRouteHandle}`;
+			if (loadedProfileRouteKey !== loadKey) {
+				clearStatusActionErrors('profile');
+				loadedProfileRouteKey = loadKey;
+				void loadProfileRoute(session, profileRouteHandle);
+			}
+		} else if (loadedProfileRouteKey) {
+			invalidateProfileRouteRequests();
 		}
 	});
 </script>
@@ -2112,6 +2300,37 @@
 									</div>
 								{/each}
 							</div>
+					{/if}
+					</section>
+				{:else if route === 'profile'}
+					<section class="profile-route" data-testid="profile-route">
+						{#each profileStatusActionErrors as actionError (`${actionError.targetId}:${actionError.key}`)}
+							<div class="status-action-error" role="alert">
+								<strong>{actionError.error.title}</strong>
+								<span>{actionError.error.message}</span>
+							</div>
+						{/each}
+						{#if profileRouteState.status === 'loading' || profileRouteState.status === 'idle'}
+							<div class="card request-state" role="status" aria-label="Request status">Loading profile</div>
+						{:else if profileRouteState.status === 'error'}
+							<div class="card request-state request-error">
+								<h2>{profileRouteState.error.title}</h2>
+								<p>{profileRouteState.error.message}</p>
+								{#if profileRouteState.error.retryable && currentSession}
+									<Button variant="secondary" onclick={retryProfileRoute}>Retry profile</Button>
+								{/if}
+							</div>
+						{:else}
+							<ProfileView
+								profile={profileRouteState.data.profile}
+								posts={profileRouteState.data.posts}
+								replies={profileRouteState.data.replies}
+								pinned={profileRouteState.data.pinned}
+								media={profileRouteState.data.media}
+								onPostOpen={(post) => openThread(post)}
+								onPostAction={handleProfilePostAction}
+								onEditProfile={() => goto('/app/settings')}
+							/>
 						{/if}
 					</section>
 				{:else if route === 'notifications'}
@@ -2203,6 +2422,8 @@
 					<div aria-label="Quick search Explore"><SurfaceCard kind="quick-search" /></div>
 					<div class="card rail-card"><div class="card-head"><span class="card-title">Known instances</span></div><div class="card-body">pleroma.example · retro.social</div></div>
 					<div class="card rail-card"><div class="card-head"><span class="card-title">Discovery mode</span></div><div class="card-body">Popular across friendly instances</div></div>
+				{:else if route === 'profile' && profileRouteState.status === 'success'}
+					<ProfileSideRail profile={profileRouteState.data.profile} pinned={profileRouteState.data.pinned} />
 				{:else if route === 'settings'}
 					<div class="card surface-card surface-profile-preview" data-testid="profile-preview-card">
 						<div class="surface-profile-head"><div>Profile preview</div></div>

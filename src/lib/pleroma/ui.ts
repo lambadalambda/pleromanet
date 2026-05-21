@@ -19,6 +19,39 @@ export type PleromaAccountView = {
 	tags: string[];
 };
 
+export type PleromaProfileFollowState = 'stranger' | 'following' | 'mutual' | 'self' | 'requested' | 'blocked';
+
+export type PleromaProfileFieldView = {
+	key: string;
+	value: string;
+	verified: boolean;
+};
+
+export type PleromaProfileView = {
+	id: string;
+	username: string;
+	displayName: string;
+	displayNameEmojis: CustomEmoji[];
+	acct: string;
+	handle: string;
+	url: string;
+	bio: string;
+	avatarUrl: string | null;
+	headerUrl: string | null;
+	fields: PleromaProfileFieldView[];
+	stats: {
+		posts: number;
+		following: number;
+		followers: number;
+	};
+	relations: {
+		locked: boolean;
+		bot: boolean;
+		remote: boolean;
+	};
+	followState: PleromaProfileFollowState;
+};
+
 export type PleromaMediaAttachmentView = {
 	id: string;
 	type: string;
@@ -105,7 +138,11 @@ const decodeHtmlEntities = (value: string) =>
 	});
 
 export const htmlToPlainText = (html: string) => {
-	const withBreaks = html
+	const safeHtml = html
+		.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+		.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+		.replace(/<template\b[^>]*>[\s\S]*?<\/template>/gi, '');
+	const withBreaks = safeHtml
 		.replace(/<br\s*\/?>/gi, '\n')
 		.replace(/<\/p>\s*<p[^>]*>/gi, '\n\n')
 		.replace(/<\/(div|li|blockquote|p)>/gi, '\n')
@@ -186,6 +223,8 @@ const formatStatusDate = (createdAt: string) => {
 };
 
 const avatarUrl = (account: PleromaAccount) => account.avatar || account.avatar_static || null;
+
+const headerUrl = (account: PleromaAccount) => account.header || account.header_static || null;
 
 const avatarVariant = (account: PleromaAccount): AvatarVariant => (avatarUrl(account) ? 'orb' : 'grad-2');
 
@@ -493,6 +532,68 @@ export const adaptPleromaAccount = (account: PleromaAccount): PleromaAccountView
 	isAdmin: account.pleroma.is_admin ?? false,
 	isModerator: account.pleroma.is_moderator ?? false,
 	tags: account.pleroma.tags ?? []
+});
+
+const hostname = (value: string | null | undefined) => {
+	if (!value) return null;
+	try {
+		return new URL(value).hostname.toLowerCase();
+	} catch {
+		return null;
+	}
+};
+
+const acctHost = (acct: string) => {
+	const parts = acct.replace(/^@/, '').split('@').filter(Boolean);
+	return parts.length > 1 ? parts.at(-1)?.toLowerCase() ?? null : null;
+};
+
+const profileRemote = (account: PleromaAccount, instanceUrl?: string) => {
+	const accountHost = acctHost(account.acct) ?? hostname(account.url);
+	const instanceHost = hostname(instanceUrl);
+	return Boolean(accountHost && instanceHost && accountHost !== instanceHost);
+};
+
+const profileFollowState = (account: PleromaAccount, currentAccountId?: string): PleromaProfileFollowState => {
+	if (currentAccountId && account.id === currentAccountId) return 'self';
+	const relationship = account.pleroma.relationship;
+	if (!relationship) return 'stranger';
+	if (relationship.blocking) return 'blocked';
+	if (relationship.requested) return 'requested';
+	if (relationship.following && relationship.followed_by) return 'mutual';
+	if (relationship.following) return 'following';
+	return 'stranger';
+};
+
+export const adaptPleromaProfile = (account: PleromaAccount, options: { instanceUrl?: string; currentAccountId?: string } = {}): PleromaProfileView => ({
+	id: account.id,
+	username: account.username,
+	displayName: displayName(account),
+	displayNameEmojis: adaptCustomEmojis(account.emojis),
+	acct: account.acct,
+	handle: handle(account.acct),
+	url: account.url,
+	bio: htmlToPlainText(account.note ?? ''),
+	avatarUrl: avatarUrl(account),
+	headerUrl: headerUrl(account),
+	fields: (account.fields ?? [])
+		.map((field) => ({
+			key: htmlToPlainText(field.name ?? ''),
+			value: htmlToPlainText(field.value ?? ''),
+			verified: Boolean(field.verified_at)
+		}))
+		.filter((field) => field.key || field.value),
+	stats: {
+		posts: account.statuses_count,
+		following: account.following_count,
+		followers: account.followers_count
+	},
+	relations: {
+		locked: account.locked,
+		bot: account.bot,
+		remote: profileRemote(account, options.instanceUrl)
+	},
+	followState: profileFollowState(account, options.currentAccountId)
 });
 
 export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaStatusOptions = {}): PleromaStatusView => {

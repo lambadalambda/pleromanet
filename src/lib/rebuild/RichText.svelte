@@ -1,14 +1,16 @@
 <script lang="ts">
 	import type { CustomEmoji } from '$lib/social/types';
 	import { renderBodyText } from './mentions';
+	import { profileHref } from './profile-links';
 
 	type Props = {
 		text?: string;
 		emojis?: CustomEmoji[];
 		mentionClass?: string;
+		linkMentions?: boolean;
 	};
 
-	let { text = '', emojis = [], mentionClass = '' }: Props = $props();
+	let { text = '', emojis = [], mentionClass = '', linkMentions = true }: Props = $props();
 	let parts = $derived(renderBodyText(text, emojis));
 </script>
 
@@ -17,6 +19,8 @@
 		{part}
 	{:else if part.kind === 'emoji'}
 		<img class="custom-emoji" src={part.url} alt={`:${part.shortcode}:`} title={`:${part.shortcode}:`} loading="lazy" decoding="async" />
+	{:else if linkMentions}
+		<a class={mentionClass} href={profileHref(part.text) ?? undefined}>{part.text}</a>
 	{:else}
 		<span class={mentionClass}>{part.text}</span>
 	{/if}

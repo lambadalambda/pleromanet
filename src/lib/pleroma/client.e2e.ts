@@ -69,6 +69,8 @@ test('Pleroma client isolates typed endpoints and authorization headers', async 
 		if (request.url.pathname === '/api/v1/statuses/status-1') return { body: pleromaFixtures.status };
 		if (request.url.pathname === '/api/v1/statuses/status-1/context') return { body: pleromaFixtures.context };
 		if (request.url.pathname === '/api/v1/accounts/account-1') return { body: pleromaFixtures.account };
+		if (request.url.pathname === '/api/v1/accounts/account-1/statuses') return { body: pleromaFixtures.timelines.home };
+		if (request.url.pathname === '/api/v1/accounts/relationships') return { body: [pleromaFixtures.relationship] };
 		if (request.url.pathname === '/api/v1/accounts/search') return { body: [pleromaFixtures.account] };
 		if (request.url.pathname === '/api/v1/custom_emojis') return { body: pleromaFixtures.customEmojis };
 		if (request.url.pathname === '/api/v2/instance') return { body: pleromaFixtures.instance };
@@ -92,6 +94,8 @@ test('Pleroma client isolates typed endpoints and authorization headers', async 
 	const status = await client.getStatus('status-1');
 	const context = await client.getStatusContext('status-1');
 	const account = await client.getAccount('account-1');
+	const accountStatuses = await client.getAccountStatusesPage('account-1', { limit: 3, excludeReplies: true, pinned: true, onlyMedia: true });
+	const relationships = await client.getAccountRelationships(['account-1']);
 	const accountMatches = await client.searchAccounts({ q: 'quiet', limit: 5, resolve: true });
 	const customEmojis = await client.getCustomEmojis();
 	const ownAccount = await client.getOwnAccount();
@@ -106,6 +110,8 @@ test('Pleroma client isolates typed endpoints and authorization headers', async 
 	expect(status.pleroma.content?.['text/plain']).toContain('quiet');
 	expect(context.ancestors[0].id).toBe('ancestor-1');
 	expect(account.pleroma.is_admin).toBe(false);
+	expect(accountStatuses.items[0].account.id).toBe('account-1');
+	expect(relationships[0].following).toBe(true);
 	expect(accountMatches[0].acct).toBe('quietadmin@pleroma.example');
 	expect(customEmojis[0].shortcode).toBe('blobcat');
 	expect(ownAccount.id).toBe('account-1');
@@ -123,19 +129,26 @@ test('Pleroma client isolates typed endpoints and authorization headers', async 
 	expectPath(requests[3], '/api/v1/statuses/status-1');
 	expectPath(requests[4], '/api/v1/statuses/status-1/context');
 	expectPath(requests[5], '/api/v1/accounts/account-1');
-	expectPath(requests[6], '/api/v1/accounts/search');
-	expect(requests[6].url.searchParams.get('q')).toBe('quiet');
-	expect(requests[6].url.searchParams.get('limit')).toBe('5');
-	expect(requests[6].url.searchParams.get('resolve')).toBe('true');
-	expectPath(requests[7], '/api/v1/custom_emojis');
-	expectPath(requests[8], '/api/v1/accounts/verify_credentials');
-	expectPath(requests[9], '/api/v2/instance');
-	expect(requests[10].url.searchParams.get('q')).toBe('small web');
-	expect(requests[10].url.searchParams.get('type')).toBe('statuses');
-	expect(requests[11].url.searchParams.get('limit')).toBe('4');
-	expectPath(requests[12], '/api/v1/media');
-	expect(requests[12].method).toBe('POST');
-	expect(requests[12].bodyKind).toBe('form-data');
+	expectPath(requests[6], '/api/v1/accounts/account-1/statuses');
+	expect(requests[6].url.searchParams.get('limit')).toBe('3');
+	expect(requests[6].url.searchParams.get('exclude_replies')).toBe('true');
+	expect(requests[6].url.searchParams.get('pinned')).toBe('true');
+	expect(requests[6].url.searchParams.get('only_media')).toBe('true');
+	expectPath(requests[7], '/api/v1/accounts/relationships');
+	expect(requests[7].url.searchParams.getAll('id[]')).toEqual(['account-1']);
+	expectPath(requests[8], '/api/v1/accounts/search');
+	expect(requests[8].url.searchParams.get('q')).toBe('quiet');
+	expect(requests[8].url.searchParams.get('limit')).toBe('5');
+	expect(requests[8].url.searchParams.get('resolve')).toBe('true');
+	expectPath(requests[9], '/api/v1/custom_emojis');
+	expectPath(requests[10], '/api/v1/accounts/verify_credentials');
+	expectPath(requests[11], '/api/v2/instance');
+	expect(requests[12].url.searchParams.get('q')).toBe('small web');
+	expect(requests[12].url.searchParams.get('type')).toBe('statuses');
+	expect(requests[13].url.searchParams.get('limit')).toBe('4');
+	expectPath(requests[14], '/api/v1/media');
+	expect(requests[14].method).toBe('POST');
+	expect(requests[14].bodyKind).toBe('form-data');
 });
 
 test('Pleroma client sends media ids on status creation', async () => {

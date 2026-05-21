@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Avatar from './Avatar.svelte';
 	import type { BoostAttribution } from './attachments';
+	import { profileHref } from './profile-links';
 
 	type Props = {
 		boostedBy?: BoostAttribution;
@@ -8,6 +9,7 @@
 	};
 
 	let { boostedBy, children }: Props = $props();
+	let href = $derived(profileHref(boostedBy?.handle));
 </script>
 
 {#if boostedBy}
@@ -19,10 +21,18 @@
 				</svg>
 				boost
 			</span>
-			<Avatar variant="post" size={18} avClass={boostedBy.avClass} avBanner={boostedBy.avBanner} avatarUrl={boostedBy.avatarUrl} alt={`${boostedBy.name ?? boostedBy.handle ?? 'Booster'} avatar`} className="post-boost-av" />
-			<span class="post-boost-name">{boostedBy.name ?? boostedBy.handle}</span>
+			<Avatar variant="post" size={18} avClass={boostedBy.avClass} avBanner={boostedBy.avBanner} avatarUrl={boostedBy.avatarUrl} alt={`${boostedBy.name ?? boostedBy.handle ?? 'Booster'} avatar`} profileHref={href} className="post-boost-av" />
+			{#if href}
+				<a class="post-boost-name" href={href}>{boostedBy.name ?? boostedBy.handle}</a>
+			{:else}
+				<span class="post-boost-name">{boostedBy.name ?? boostedBy.handle}</span>
+			{/if}
 			{#if boostedBy.handle}
-				<span class="post-boost-handle">{boostedBy.handle}</span>
+				{#if href}
+					<a class="post-boost-handle" href={href}>{boostedBy.handle}</a>
+				{:else}
+					<span class="post-boost-handle">{boostedBy.handle}</span>
+				{/if}
 			{/if}
 			{#if boostedBy.time}
 				<span class="post-boost-time">{boostedBy.time}</span>

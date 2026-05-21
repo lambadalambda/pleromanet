@@ -11,6 +11,8 @@
 	import InlineReplyComposer, { type InlineReplyComposerProps } from '$lib/rebuild/InlineReplyComposer.svelte';
 	import Pill from '$lib/rebuild/Pill.svelte';
 	import Post from '$lib/rebuild/Post.svelte';
+	import ProfileSideRail from '$lib/rebuild/ProfileSideRail.svelte';
+	import ProfileView from '$lib/rebuild/ProfileView.svelte';
 	import ReplyPost from '$lib/rebuild/ReplyPost.svelte';
 	import CompactAudio from '$lib/rebuild/CompactAudio.svelte';
 	import AttachmentLightboxHost from '$lib/rebuild/AttachmentLightboxHost.svelte';
@@ -33,6 +35,8 @@
 	import { iconNames, type IconName } from '$lib/rebuild/icons';
 	import { SAMPLE_NOTIFS, type NotificationData, type NotificationKind } from '$lib/rebuild/notifications';
 	import type { Attachment, BannerVariant, PostLike } from '$lib/rebuild/attachments';
+	import type { ProfileMediaItem, ProfilePost } from '$lib/rebuild/profile';
+	import type { PleromaProfileView } from '$lib/pleroma/ui';
 	import { onMount } from 'svelte';
 
 	type AvatarVariant = 'post' | 'focused' | 'notif' | 'compose';
@@ -140,6 +144,7 @@
 		{ id: 'composer', label: 'Composer' },
 		{ id: 'posts', label: 'Posts' },
 		{ id: 'thread', label: 'Thread' },
+		{ id: 'profile', label: 'Profile' },
 		{ id: 'notifications', label: 'Notifications' },
 		{ id: 'radio', label: 'Radio' },
 		{ id: 'oekaki', label: 'Oekaki' },
@@ -383,6 +388,69 @@
 		renderId: threadInlineReplyId == null ? null : String(threadInlineReplyId),
 		props: threadInlineReplyComposerProps
 	} : null);
+	const PROFILE_DEMO: PleromaProfileView = {
+		id: 'profile-soft-hertz',
+		username: 'soft.hertz',
+		displayName: 'soft.hertz ✦',
+		displayNameEmojis: [],
+		acct: 'soft.hertz@kolektiva.social',
+		handle: '@soft.hertz@kolektiva.social',
+		url: 'https://kolektiva.social/users/soft.hertz',
+		bio: "field recordings + slow web · cassette decks · taipei.\nthe algorithm doesn't care about you. the timeline does.",
+		avatarUrl: null,
+		headerUrl: null,
+		fields: [
+			{ key: 'Pronouns', value: 'they / them', verified: false },
+			{ key: 'Location', value: 'Taipei, TW', verified: false },
+			{ key: 'Web', value: 'softhertz.land', verified: true },
+			{ key: 'Instance', value: 'kolektiva.social', verified: false }
+		],
+		stats: { posts: 2148, following: 312, followers: 1921 },
+		relations: { locked: false, bot: false, remote: true },
+		followState: 'mutual'
+	};
+	const PROFILE_POSTS: ProfilePost[] = [
+		{
+			id: 'profile-post-1', name: PROFILE_DEMO.displayName, handle: PROFILE_DEMO.handle, time: '2h',
+			avClass: 'av-grad-3', body: "rain recording from this morning's walk — 11 minutes, two takes, the kettle made it onto the second one.",
+			attachments: [{ kind: 'audio', title: 'rain on glass · take 2', byline: 'soft.hertz · field · 2026', duration: '11:42' }],
+			replies: 8, boosts: 24, favs: 86,
+			actions: { reply: false, boost: false, fav: false }
+		},
+		{
+			id: 'profile-post-2', name: PROFILE_DEMO.displayName, handle: PROFILE_DEMO.handle, time: '6h',
+			avClass: 'av-grad-3', body: "thinking about how the slow web isn't really slow — it's just the pace at which a person can actually pay attention.",
+			replies: 12, boosts: 38, favs: 142,
+			actions: { reply: false, boost: false, fav: false }
+		}
+	];
+	const PROFILE_REPLIES: ProfilePost[] = [
+		{
+			id: 'profile-reply-1', name: PROFILE_DEMO.displayName, handle: PROFILE_DEMO.handle, time: '42m',
+			avClass: 'av-grad-3', body: 'reply from the margins, still part of the shape.',
+			replies: 1, boosts: 2, favs: 9,
+			actions: { reply: false, boost: false, fav: false }
+		},
+		...PROFILE_POSTS
+	];
+	const PROFILE_PINNED: ProfilePost[] = [
+		{
+			id: 'profile-pin-1', name: PROFILE_DEMO.displayName, handle: PROFILE_DEMO.handle, time: '3w',
+			avClass: 'av-grad-3', body: "the algorithm doesn't care about you. the timeline doesn't either. but the people in it do, and that's worth keeping.",
+			replies: 142, boosts: 312, favs: 891,
+			actions: { reply: false, boost: false, fav: true }
+		},
+		{
+			id: 'profile-pin-2', name: PROFILE_DEMO.displayName, handle: PROFILE_DEMO.handle, time: '2mo',
+			avClass: 'av-grad-3', body: 'follow whoever you want. mute liberally. block when you need to. the timeline is yours to tend.',
+			replies: 38, boosts: 124, favs: 612,
+			actions: { reply: false, boost: false, fav: false }
+		}
+	];
+	const PROFILE_MEDIA: ProfileMediaItem[] = [
+		{ kind: 'audio', title: 'rain on glass · take 2' },
+		{ kind: 'photo', src: 'samples/cat-door.webp', alt: 'door with cat at dusk' }
+	];
 
 	const sampleNotification = (kind: NotificationKind): NotificationData =>
 		SAMPLE_NOTIFS.find((notification) => notification.kind === kind) ?? SAMPLE_NOTIFS[0];
@@ -1887,9 +1955,37 @@
 				</div>
 			</section>
 
-			<section id="notifications" class="ds-slab">
+			<section id="profile" class="ds-slab">
 				<header class="ds-slab-head">
 					<div class="ds-kicker">10</div>
+					<h2 class="ds-h2">Profile</h2>
+					<p class="ds-sub">Canonical account profile route: header, relationship badges, pinned posts, timeline tabs, media grid, and side rail.</p>
+				</header>
+				<div class="ds-slab-body">
+					<div class="ds-spec">
+						<div class="ds-spec-stage ds-profile-stage">
+							<div class="ds-profile-shell">
+								<ProfileView
+									profile={PROFILE_DEMO}
+									posts={PROFILE_POSTS}
+									replies={PROFILE_REPLIES}
+									pinned={PROFILE_PINNED}
+									media={PROFILE_MEDIA}
+								/>
+								<div class="ds-profile-side"><ProfileSideRail profile={PROFILE_DEMO} pinned={PROFILE_PINNED} /></div>
+							</div>
+						</div>
+						<div class="ds-spec-foot">
+							<span class="ds-spec-label">Full profile</span>
+							<span class="ds-spec-note">ProfileView → ProfileSideRail</span>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section id="notifications" class="ds-slab">
+				<header class="ds-slab-head">
+					<div class="ds-kicker">11</div>
 					<h2 class="ds-h2">Notifications</h2>
 					<p class="ds-sub">Six kinds — mention, fav, boost, reply, follow, follow_req, poll. Each kind has a tint and an icon.</p>
 				</header>
@@ -1925,7 +2021,7 @@
 
 			<section id="radio" class="ds-slab">
 				<header class="ds-slab-head">
-					<div class="ds-kicker">11</div>
+					<div class="ds-kicker">12</div>
 					<h2 class="ds-h2">Radio · PN.fm</h2>
 					<p class="ds-sub">A persistent server-radio dock. Floats bottom-left in the live app. Two states (compact bar, expanded panel), four sample albums.</p>
 				</header>
@@ -1985,7 +2081,7 @@
 
 			<section id="oekaki" class="ds-slab">
 				<header class="ds-slab-head">
-					<div class="ds-kicker">12</div>
+					<div class="ds-kicker">13</div>
 					<h2 class="ds-h2">Oekaki</h2>
 					<p class="ds-sub">In-composer drawing tool. Fullscreen modal triggered from the composer pencil button. Tool rail, canvas, side panel (color / brush / layers).</p>
 				</header>
@@ -2017,7 +2113,7 @@
 
 			<section id="surfaces" class="ds-slab">
 				<header class="ds-slab-head">
-					<div class="ds-kicker">13</div>
+					<div class="ds-kicker">14</div>
 					<h2 class="ds-h2">Surfaces</h2>
 					<p class="ds-sub">Cards and the right-rail card library. Each card is title + content + optional foot link.</p>
 				</header>
@@ -2040,7 +2136,7 @@
 
 			<section id="navigation" class="ds-slab">
 				<header class="ds-slab-head">
-					<div class="ds-kicker">14</div>
+					<div class="ds-kicker">15</div>
 					<h2 class="ds-h2">Navigation</h2>
 					<p class="ds-sub">Header, side nav, profile mini. The shell-level chrome.</p>
 				</header>
@@ -2083,7 +2179,7 @@
 
 			<section id="mobile" class="ds-slab">
 				<header class="ds-slab-head">
-					<div class="ds-kicker">15</div>
+					<div class="ds-kicker">16</div>
 					<h2 class="ds-h2">Mobile</h2>
 					<p class="ds-sub">The same components, scaled into a 375-wide viewport. Bottom tab bar, drawer (left), sheet (right) replace the rails.</p>
 				</header>
@@ -2617,6 +2713,25 @@
 		width: 100%;
 		padding: 18px;
 		background: var(--bg);
+	}
+
+	.ds-profile-stage {
+		width: 100%;
+		padding: 18px;
+		background: var(--bg);
+		align-items: flex-start;
+	}
+
+	.ds-profile-shell {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 280px;
+		gap: 18px;
+		width: min(100%, 980px);
+		align-items: start;
+	}
+
+	.ds-profile-side {
+		min-width: 0;
 	}
 
 	.ds-notif-pop-stage {
@@ -3416,6 +3531,18 @@
 
 		.ds-thread-stage {
 			padding: 10px;
+		}
+
+		.ds-profile-stage {
+			padding: 10px;
+		}
+
+		.ds-profile-shell {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.ds-profile-side {
+			display: none;
 		}
 
 		:global(.ds-att-rule) {

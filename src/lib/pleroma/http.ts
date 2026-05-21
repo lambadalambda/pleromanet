@@ -5,7 +5,8 @@ export type PleromaClientError =
 	| { kind: 'http'; status: number; message: string; path: string; response: unknown }
 	| { kind: 'network'; message: string; path: string; cause: unknown };
 
-type QueryValue = string | number | boolean | null | undefined;
+type QueryScalar = string | number | boolean | null | undefined;
+type QueryValue = QueryScalar | readonly QueryScalar[];
 type RequestOptions = {
 	method?: string;
 	path: string;
@@ -49,6 +50,13 @@ export const encodePathSegment = (segment: string) => encodeURIComponent(segment
 
 const appendQuery = (url: URL, query: Record<string, QueryValue> = {}) => {
 	for (const [key, value] of Object.entries(query)) {
+		if (Array.isArray(value)) {
+			for (const item of value) {
+				if (item === undefined || item === null || item === '') continue;
+				url.searchParams.append(key, String(item));
+			}
+			continue;
+		}
 		if (value === undefined || value === null || value === '') continue;
 		url.searchParams.set(key, String(value));
 	}

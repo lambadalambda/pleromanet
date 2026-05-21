@@ -177,6 +177,11 @@ export type TimelineQuery = {
 	onlyMedia?: boolean;
 };
 
+export type AccountStatusesQuery = TimelineQuery & {
+	excludeReplies?: boolean;
+	pinned?: boolean;
+};
+
 export type NotificationQuery = Pick<TimelineQuery, 'limit' | 'maxId' | 'minId' | 'sinceId'>;
 
 export type TimelineCursor = Pick<TimelineQuery, 'maxId' | 'minId' | 'sinceId'>;
