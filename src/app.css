@@ -944,10 +944,6 @@ body[data-theme='simoun'] .pill {
 	white-space: pre-wrap;
 	word-break: break-word;
 }
-.composer .me-editor:focus-visible {
-	border-radius: 4px;
-	box-shadow: 0 0 0 2px var(--accent-soft);
-}
 .me-editor:empty::before {
 	content: attr(data-placeholder);
 	color: var(--muted-2);
