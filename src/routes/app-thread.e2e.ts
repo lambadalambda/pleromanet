@@ -767,6 +767,65 @@ test('real thread route nested inline reply composer autocompletes mentions and 
 	expect(params.get('in_reply_to_id')).toBe('reply-1-child');
 });
 
+test('real thread route inline reply composer attaches pasted and dropped media', async ({ page }) => {
+	await authenticate(page);
+	await mockThread(page);
+	let uploadCount = 0;
+	await page.route('https://pleroma.example/api/v1/media', async (route) => {
+		uploadCount += 1;
+		await fulfillJson(route, {
+			id: `reply-interaction-${uploadCount}`,
+			type: 'image',
+			url: `https://cdn.example/uploads/reply-interaction-${uploadCount}.png`,
+			preview_url: `https://cdn.example/uploads/reply-interaction-${uploadCount}-thumb.png`,
+			description: null
+		});
+	});
+	let createBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createBody = route.request().postData() ?? '';
+		await fulfillJson(route, statusWithText('created-thread-media-reply', 'with uploads', {
+			in_reply_to_id: 'status-1',
+			in_reply_to_account_id: 'account-1',
+			replies_count: 0,
+			reblogs_count: 0,
+			favourites_count: 0
+		}));
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	await page.getByTestId('focused-post').getByRole('button', { name: 'Reply 2' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
+	const replyEditor = replyForm.getByRole('textbox', { name: 'Reply text' });
+	await replyEditor.fill('with uploads');
+	await replyEditor.evaluate((node) => {
+		const file = new File(['paste'], 'reply-pasted.png', { type: 'image/png' });
+		const dataTransfer = new DataTransfer();
+		dataTransfer.items.add(file);
+		const event = new ClipboardEvent('paste', { clipboardData: dataTransfer, bubbles: true, cancelable: true });
+		node.dispatchEvent(event);
+	});
+	await expect(replyForm.getByText('reply-pasted.png')).toBeVisible();
+
+	await replyForm.evaluate((node) => {
+		const file = new File(['drop'], 'reply-dropped.png', { type: 'image/png' });
+		const dataTransfer = new DataTransfer();
+		dataTransfer.items.add(file);
+		node.dispatchEvent(new DragEvent('dragover', { dataTransfer, bubbles: true, cancelable: true }));
+		node.dispatchEvent(new DragEvent('drop', { dataTransfer, bubbles: true, cancelable: true }));
+	});
+	await expect(replyForm.getByText('reply-dropped.png')).toBeVisible();
+	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
+
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+	const params = new URLSearchParams(createBody);
+	expect(params.get('status')).toBe('with uploads');
+	expect(params.get('in_reply_to_id')).toBe('status-1');
+	expect(params.getAll('media_ids[]')).toEqual(['reply-interaction-1', 'reply-interaction-2']);
+	expect(uploadCount).toBe(2);
+});
+
 test('real thread route action failures rollback and show scoped errors', async ({ page }) => {
 	await authenticate(page);
 	await mockThread(page);

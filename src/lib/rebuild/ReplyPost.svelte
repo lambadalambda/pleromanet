@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Avatar from './Avatar.svelte';
 	import type { ComposerEmoji, ComposerMentionAccount } from './ComposerMentionEditor.svelte';
-	import InlineReplyComposer from './InlineReplyComposer.svelte';
+	import InlineReplyComposer, { type InlineReplyUpload } from './InlineReplyComposer.svelte';
 	import PostActions from './PostActions.svelte';
 	import PostBoost from './PostBoost.svelte';
 	import PostBody from './PostBody.svelte';
@@ -51,8 +51,11 @@
 		inlineReplyError?: PleromaRequestErrorView | null;
 		inlineReplyAccounts?: ComposerMentionAccount[];
 		inlineReplyEmojis?: ComposerEmoji[];
+		inlineReplyUploads?: InlineReplyUpload[];
 		expandedReplyIds?: Record<string, boolean>;
 		onInlineReplyMentionQuery?: (query: string) => void;
+		onInlineReplyFiles?: (files: FileList | File[]) => void;
+		onInlineReplyRemoveUpload?: (localId: string) => void;
 		onInlineReplyDraftInput?: (value: string) => void;
 		onInlineReplyCancel?: () => void;
 		onInlineReplySubmit?: () => void;
@@ -76,8 +79,11 @@
 		inlineReplyError = null,
 		inlineReplyAccounts = [],
 		inlineReplyEmojis = [],
+		inlineReplyUploads = [],
 		expandedReplyIds = {},
 		onInlineReplyMentionQuery,
+		onInlineReplyFiles,
+		onInlineReplyRemoveUpload,
 		onInlineReplyDraftInput,
 		onInlineReplyCancel,
 		onInlineReplySubmit,
@@ -137,7 +143,10 @@
 			error={inlineReplyError}
 			accounts={inlineReplyAccounts}
 			emojis={inlineReplyEmojis}
+			uploads={inlineReplyUploads}
 			onMentionQuery={onInlineReplyMentionQuery}
+			onFiles={onInlineReplyFiles}
+			onRemoveUpload={onInlineReplyRemoveUpload}
 			onDraftInput={(value) => onInlineReplyDraftInput?.(value)}
 			onCancel={() => onInlineReplyCancel?.()}
 			onSubmit={() => onInlineReplySubmit?.()}
@@ -165,8 +174,11 @@
 				inlineReplyError={inlineReplyError}
 				inlineReplyAccounts={inlineReplyAccounts}
 				inlineReplyEmojis={inlineReplyEmojis}
+				inlineReplyUploads={inlineReplyUploads}
 				expandedReplyIds={expandedReplyIds}
 				onInlineReplyMentionQuery={onInlineReplyMentionQuery}
+				onInlineReplyFiles={onInlineReplyFiles}
+				onInlineReplyRemoveUpload={onInlineReplyRemoveUpload}
 				onInlineReplyDraftInput={onInlineReplyDraftInput}
 				onInlineReplyCancel={onInlineReplyCancel}
 				onInlineReplySubmit={onInlineReplySubmit}

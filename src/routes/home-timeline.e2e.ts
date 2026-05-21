@@ -786,6 +786,53 @@ test('home timeline inline reply composer autocompletes mentions and custom emoj
 	expect(params.get('in_reply_to_id')).toBe('status-inline-autocomplete');
 });
 
+test('home timeline inline reply composer uploads media-only replies', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	const targetStatus = { ...statusWithText('status-inline-media', 'reply media target'), replies_count: 0 };
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [targetStatus]);
+	});
+	let uploadAuthorization: string | undefined;
+	await page.route('https://pleroma.example/api/v1/media', async (route) => {
+		uploadAuthorization = route.request().headers().authorization;
+		await fulfillHome(route, {
+			id: 'reply-media-1',
+			type: 'image',
+			url: 'https://cdn.example/uploads/reply-cat.png',
+			preview_url: 'https://cdn.example/uploads/reply-cat-thumb.png',
+			description: null
+		});
+	});
+	let createdBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createdBody = route.request().postData() ?? '';
+		await fulfillHome(route, {
+			...statusWithText('created-inline-media-reply', ''),
+			in_reply_to_id: 'status-inline-media'
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await page.locator('[data-status-id="status-inline-media"]').getByRole('button', { name: 'Reply 0' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
+	await expect(replyForm.getByRole('button', { name: 'Reply', exact: true })).toBeDisabled();
+	await replyForm.getByLabel('Attach reply media').setInputFiles({ name: 'reply-cat.png', mimeType: 'image/png', buffer: Buffer.from('cat') });
+
+	await expect(replyForm.getByText('reply-cat.png')).toBeVisible();
+	await expect(replyForm.getByRole('progressbar', { name: 'Upload progress for reply-cat.png' })).toHaveAttribute('aria-valuenow', '100');
+	await expect(replyForm.getByRole('button', { name: 'Reply', exact: true })).toBeEnabled();
+	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
+
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+	expect(uploadAuthorization).toBe('Bearer access-token');
+	const params = new URLSearchParams(createdBody);
+	expect(params.get('status')).toBe('');
+	expect(params.get('in_reply_to_id')).toBe('status-inline-media');
+	expect(params.getAll('media_ids[]')).toEqual(['reply-media-1']);
+});
+
 test('home timeline inline reply composer moves between targets and cancels', async ({ page }) => {
 	await authenticate(page);
 	await mockInstance(page);

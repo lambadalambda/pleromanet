@@ -1234,6 +1234,7 @@ body[data-theme='simoun'] .pill {
 	background: var(--accent-soft);
 	color: var(--accent-ink);
 }
+.composer-drop-slot:disabled { cursor: not-allowed; opacity: 0.55; }
 .composer-drop-slot.active { animation: composer-dz-slot-fade 140ms ease; }
 .composer-drop-slot strong { color: var(--ink); font-weight: 700; }
 .composer-drop-slot:hover strong,
@@ -1257,6 +1258,7 @@ body[data-theme='simoun'] .pill {
 .composer-upload-error { margin-top: 4px; color: var(--bad); font-family: var(--mono); font-size: 10px; }
 .composer-upload-rm { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid transparent; border-radius: 3px; color: var(--muted-2); }
 .composer-upload-rm:hover { color: var(--bad); border-color: var(--border); background: var(--panel); }
+.composer-upload-rm:disabled { cursor: not-allowed; opacity: 0.5; }
 .composer-row {
 	display: flex;
 	align-items: center;
@@ -3914,6 +3916,13 @@ body[data-theme='simoun'] .pill {
 }
 .thread-inline-reply textarea:focus,
 .thread-inline-reply .me-editor:focus-visible { border-color: var(--accent); }
+.thread-inline-reply .composer-uploads { margin: 8px 0 0; }
+.thread-inline-reply .composer-drop-slot {
+	margin-top: 8px;
+	min-height: 38px;
+	padding: 8px 10px;
+	font-size: 11px;
+}
 .thread-inline-reply-row {
 	display: flex;
 	align-items: center;
@@ -3930,6 +3939,8 @@ body[data-theme='simoun'] .pill {
 	cursor: pointer;
 }
 .thread-inline-reply-tool:hover { background: var(--panel); color: var(--accent-ink); }
+.thread-inline-reply-tool:disabled { cursor: not-allowed; opacity: 0.45; }
+.thread-inline-reply-tool:disabled:hover { background: transparent; color: var(--muted); }
 .thread-inline-reply-cw {
 	height: 24px;
 	padding: 0 8px;

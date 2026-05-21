@@ -181,6 +181,7 @@
 	let homePostSubmitError = $state<PleromaRequestErrorView | null>(null);
 	let inlineReplyTarget = $state<InlineReplyTarget | null>(null);
 	let inlineReplyDraft = $state('');
+	let inlineReplyUploads = $state<ComposerUpload[]>([]);
 	let inlineReplySubmitState = $state<'idle' | 'submitting'>('idle');
 	let inlineReplySubmitError = $state<PleromaRequestErrorView | null>(null);
 	let statusActionErrors = $state<StatusActionErrorState[]>([]);
@@ -223,6 +224,7 @@
 		inlineReplyRequestId += 1;
 		inlineReplyTarget = null;
 		inlineReplyDraft = '';
+		inlineReplyUploads = [];
 		inlineReplySubmitState = 'idle';
 		inlineReplySubmitError = null;
 	};
@@ -647,6 +649,8 @@
 	const preparedComposerPoll = $derived(composerPoll ? composerPollPayload(composerPoll) : undefined);
 	const composerUploadedMediaIds = $derived(composerUploads.filter((upload) => upload.status === 'uploaded' && upload.media?.id).map((upload) => upload.media?.id as string));
 	const composerUploadsPending = $derived(composerUploads.some((upload) => upload.status === 'uploading'));
+	const inlineReplyUploadedMediaIds = $derived(inlineReplyUploads.filter((upload) => upload.status === 'uploaded' && upload.media?.id).map((upload) => upload.media?.id as string));
+	const inlineReplyUploadsPending = $derived(inlineReplyUploads.some((upload) => upload.status === 'uploading'));
 	const composerHasPostContent = $derived(Boolean(composerText.trim()) || composerUploadedMediaIds.length > 0);
 	const canSubmitHomePost = $derived(composerHasPostContent && composerRemaining >= 0 && (!composerPoll || Boolean(preparedComposerPoll)) && !composerUploadsPending && homePostSubmitState !== 'submitting');
 	const timelinePosts = $derived([
@@ -759,11 +763,11 @@
 		file.type.startsWith('video/') ? 'video' :
 		'file';
 	const isComposerUploadType = (file: File) => file.type.startsWith('image/') || file.type.startsWith('audio/') || file.type.startsWith('video/');
-	const queueComposerFiles = (files: FileList | File[]) => {
+	const queueUploadFiles = (files: FileList | File[], uploads: ComposerUpload[], updateUploads: (updater: (uploads: ComposerUpload[]) => ComposerUpload[]) => void, isStillCurrent: () => boolean = () => true) => {
 		const session = currentSession;
 		if (!session) return;
 		const incoming = Array.from(files).filter((file) => file.size > 0);
-		const usedSlots = composerUploads.filter((upload) => upload.status !== 'error').length;
+		const usedSlots = uploads.filter((upload) => upload.status !== 'error').length;
 		const slots = Math.max(0, MAX_COMPOSER_UPLOADS - usedSlots);
 		const rejected: ComposerUpload[] = [];
 		const accepted: File[] = [];
@@ -773,7 +777,7 @@
 			else if (accepted.length >= slots) rejected.push(composerUploadError(file, `Could not attach ${file.name} · 8 file limit.`));
 			else accepted.push(file);
 		}
-		if (rejected.length > 0) composerUploads = [...composerUploads, ...rejected];
+		if (rejected.length > 0) updateUploads((current) => [...current, ...rejected]);
 		if (accepted.length === 0) return;
 		const requestSessionKey = sessionKey(session);
 		const additions = accepted.map((file, index): ComposerUpload => ({
@@ -783,25 +787,41 @@
 			progress: 5,
 			status: 'uploading'
 		}));
-		composerUploads = [...composerUploads, ...additions];
+		updateUploads((current) => [...current, ...additions]);
 		void accepted.forEach((file, index) => {
 			const localId = additions[index].localId;
 			void (async () => {
 				try {
 					const client = createPleromaClient({ instanceUrl: session.instanceUrl, accessToken: session.accessToken, fetch: window.fetch.bind(window) });
 					const media = await client.uploadMedia(file);
-					if (!isCurrentSessionRequest(requestSessionKey)) return;
-					composerUploads = composerUploads.map((upload) => upload.localId === localId ? { ...upload, progress: 100, status: 'uploaded', media } : upload);
+					if (!isCurrentSessionRequest(requestSessionKey) || !isStillCurrent()) return;
+					updateUploads((current) => current.map((upload) => upload.localId === localId ? { ...upload, progress: 100, status: 'uploaded', media } : upload));
 				} catch (error) {
-					if (!isCurrentSessionRequest(requestSessionKey)) return;
+					if (!isCurrentSessionRequest(requestSessionKey) || !isStillCurrent()) return;
 					const normalized = normalizePleromaRequestError(error);
-					composerUploads = composerUploads.map((upload) => upload.localId === localId ? { ...upload, progress: 0, status: 'error', error: normalized.message } : upload);
+					updateUploads((current) => current.map((upload) => upload.localId === localId ? { ...upload, progress: 0, status: 'error', error: normalized.message } : upload));
 				}
 			})();
 		});
 	};
+	const updateComposerUploads = (updater: (uploads: ComposerUpload[]) => ComposerUpload[]) => {
+		composerUploads = updater(composerUploads);
+	};
+	const updateInlineReplyUploads = (updater: (uploads: ComposerUpload[]) => ComposerUpload[]) => {
+		inlineReplyUploads = updater(inlineReplyUploads);
+	};
+	const queueComposerFiles = (files: FileList | File[]) => queueUploadFiles(files, composerUploads, updateComposerUploads);
+	const queueInlineReplyFiles = (files: FileList | File[]) => {
+		const target = inlineReplyTarget;
+		if (!target) return;
+		const targetRequestId = inlineReplyRequestId;
+		queueUploadFiles(files, inlineReplyUploads, updateInlineReplyUploads, () => inlineReplyRequestId === targetRequestId && inlineReplyTarget?.targetId === target.targetId && inlineReplyTarget?.route === target.route);
+	};
 	const removeComposerUpload = (localId: string) => {
 		composerUploads = composerUploads.filter((upload) => upload.localId !== localId);
+	};
+	const removeInlineReplyUpload = (localId: string) => {
+		inlineReplyUploads = inlineReplyUploads.filter((upload) => upload.localId !== localId);
 	};
 	const pickComposerFiles = () => composerFileInput?.click();
 	const handleComposerFileChange = (event: Event) => {
@@ -937,6 +957,7 @@
 		inlineReplySubmitState = 'idle';
 		inlineReplySubmitError = null;
 		inlineReplyDraft = '';
+		inlineReplyUploads = [];
 	};
 	const inlineReplyOpenFor = (targetRoute: StatusActionOrigin, post: { id?: string | number }) => inlineReplyTarget?.route === targetRoute && inlineReplyTarget.renderId === String(post.id);
 	const inlineReplyComposerId = (targetRoute: StatusActionOrigin, post: { id?: string | number }) => {
@@ -947,7 +968,7 @@
 		const target = inlineReplyTarget;
 		const body = inlineReplyDraft.trim();
 		const session = currentSession;
-		if (!target || !body || inlineReplyRemaining < 0 || inlineReplySubmitState === 'submitting' || !session) return;
+		if (!target || (!body && inlineReplyUploadedMediaIds.length === 0) || inlineReplyRemaining < 0 || inlineReplyUploadsPending || inlineReplySubmitState === 'submitting' || !session) return;
 
 		const requestSessionKey = sessionKey(session);
 		const requestId = inlineReplyRequestId + 1;
@@ -961,7 +982,7 @@
 				accessToken: session.accessToken,
 				fetch: window.fetch.bind(window)
 			});
-			const status = await client.createStatus({ status: body, visibility: target.visibility, inReplyToId: target.targetId });
+			const status = await client.createStatus({ status: body, visibility: target.visibility, inReplyToId: target.targetId, mediaIds: inlineReplyUploadedMediaIds });
 			if (requestId !== inlineReplyRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 			if (!inlineReplyTarget || inlineReplyTarget.route !== target.route || inlineReplyTarget.targetId !== target.targetId) return;
 
@@ -1939,7 +1960,10 @@
 											error={inlineReplySubmitError}
 											accounts={composerMentionAccounts}
 											emojis={composerCustomEmojis}
+											uploads={inlineReplyUploads}
 											onMentionQuery={searchComposerMentionAccounts}
+											onFiles={queueInlineReplyFiles}
+											onRemoveUpload={removeInlineReplyUpload}
 											onDraftInput={(value) => (inlineReplyDraft = value)}
 											onCancel={() => clearInlineReply()}
 											onSubmit={submitInlineReply}
@@ -2043,7 +2067,10 @@
 												error={inlineReplySubmitError}
 												accounts={composerMentionAccounts}
 												emojis={composerCustomEmojis}
+												uploads={inlineReplyUploads}
 												onMentionQuery={searchComposerMentionAccounts}
+												onFiles={queueInlineReplyFiles}
+												onRemoveUpload={removeInlineReplyUpload}
 												onDraftInput={(value) => (inlineReplyDraft = value)}
 												onCancel={() => clearInlineReply()}
 												onSubmit={submitInlineReply}
@@ -2067,7 +2094,10 @@
 									error={inlineReplySubmitError}
 									accounts={composerMentionAccounts}
 									emojis={composerCustomEmojis}
+									uploads={inlineReplyUploads}
 									onMentionQuery={searchComposerMentionAccounts}
+									onFiles={queueInlineReplyFiles}
+									onRemoveUpload={removeInlineReplyUpload}
 									onDraftInput={(value) => (inlineReplyDraft = value)}
 									onCancel={() => clearInlineReply()}
 									onSubmit={submitInlineReply}
@@ -2100,8 +2130,11 @@
 											inlineReplyError={inlineReplySubmitError}
 											inlineReplyAccounts={composerMentionAccounts}
 											inlineReplyEmojis={composerCustomEmojis}
+											inlineReplyUploads={inlineReplyUploads}
 											expandedReplyIds={expandedThreadReplyIds}
 											onInlineReplyMentionQuery={searchComposerMentionAccounts}
+											onInlineReplyFiles={queueInlineReplyFiles}
+											onInlineReplyRemoveUpload={removeInlineReplyUpload}
 											onInlineReplyDraftInput={(value) => (inlineReplyDraft = value)}
 											onInlineReplyCancel={() => clearInlineReply()}
 											onInlineReplySubmit={submitInlineReply}
