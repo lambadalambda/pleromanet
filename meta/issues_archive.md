@@ -31,3 +31,4 @@
 - [x] [36 Port updated boost attribution row](issues/36-port-updated-boost-attribution-row.md)
 - [x] [37 Soften reply addressee parent chip](issues/37-soften-reply-addressee-parent-chip.md)
 - [x] [38 Fix thread rail continuity](issues/38-fix-thread-rail-continuity.md)
+- [x] [43 Add central account cache](issues/43-add-central-account-cache.md)

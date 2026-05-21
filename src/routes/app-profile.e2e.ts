@@ -148,7 +148,7 @@ const mockProfileApis = async (page: Page, account: PleromaAccount = profileAcco
 				: url.searchParams.get('exclude_replies') === 'true'
 					? postStatuses
 					: replyStatuses;
-		await fulfillJson(route, body);
+		await fulfillJson(route, body.map((status) => ({ ...status, account })));
 	});
 };
 
@@ -220,6 +220,94 @@ test('profile route loads the canonical account timeline surface', async ({ page
 	await expect(profile.getByRole('heading', { name: 'soft.hertz ✦' })).toBeVisible();
 	await expect(profile).toContainText('Numbers');
 	await expectNoHorizontalOverflow(page);
+});
+
+test('profile navigation uses cached timeline account and refreshes existing post identity', async ({ page }) => {
+	const cachedAccount: PleromaAccount = {
+		...profileAccount,
+		id: 'account-cached-soft',
+		username: 'cached.soft',
+		acct: 'cached.soft@kolektiva.social',
+		display_name: 'cached.soft old',
+		avatar: 'https://cdn.example/cached-soft-old.png',
+		avatar_static: 'https://cdn.example/cached-soft-old.png',
+		pleroma: { ...profileAccount.pleroma, relationship: undefined }
+	};
+	const freshAccount: PleromaAccount = {
+		...cachedAccount,
+		display_name: 'cached.soft updated',
+		avatar: 'https://cdn.example/cached-soft-new.png',
+		avatar_static: 'https://cdn.example/cached-soft-new.png'
+	};
+	const homeStatus = { ...statusForProfile('cached-home', 'cached account identity should refresh.'), account: cachedAccount };
+	const newerStatus = { ...statusForProfile('cached-newer', 'newer account payload updates the cache.'), account: freshAccount };
+	let searchRequestCount = 0;
+	let releaseNewerTimeline: () => void = () => undefined;
+	const newerTimelineReady = new Promise<void>((resolve) => {
+		releaseNewerTimeline = resolve;
+	});
+
+	await authenticate(page);
+	await page.route('https://pleroma.example/api/v1/timelines/home**', async (route) => {
+		const url = new URL(route.request().url());
+		if (url.searchParams.get('since_id')) await newerTimelineReady;
+		await fulfillJson(route, url.searchParams.get('since_id') ? [newerStatus] : [homeStatus]);
+	});
+	await page.route('https://pleroma.example/api/v1/accounts/search**', async (route: Route) => {
+		searchRequestCount += 1;
+		await fulfillJson(route, [freshAccount]);
+	});
+	await page.route(`https://pleroma.example/api/v1/accounts/${freshAccount.id}/statuses**`, async (route: Route) => {
+		const url = new URL(route.request().url());
+		await fulfillJson(route, url.searchParams.get('pinned') === 'true' ? [] : postStatuses.map((status) => ({ ...status, account: freshAccount })));
+	});
+	await page.route('https://pleroma.example/api/v1/accounts/relationships**', async (route: Route) => fulfillJson(route, [relationshipFor(freshAccount.id, { following: true })]));
+	await setViewport(page, 'desktop');
+
+	await page.goto('/app/home');
+	const post = page.getByTestId('home-timeline-list').locator('.post').first();
+	await expect(post).toContainText('cached.soft old');
+	releaseNewerTimeline();
+	await page.evaluate(() => window.dispatchEvent(new CustomEvent('pleromanet:check-home-timeline')));
+	await expect(post).toContainText('cached.soft updated');
+	await expect(page.getByRole('button', { name: 'New posts available (1)' })).toBeVisible();
+	await post.getByRole('link', { name: '@cached.soft@kolektiva.social' }).click();
+
+	await expect(page).toHaveURL(/\/app\/profiles\/cached\.soft%40kolektiva\.social$/);
+	await expect(page.getByTestId('profile-view').getByRole('heading', { name: 'cached.soft updated' })).toBeVisible();
+	expect(searchRequestCount).toBe(0);
+});
+
+test('direct profile route falls back to account search when no cached account matches', async ({ page }) => {
+	const fallbackAccount: PleromaAccount = {
+		...profileAccount,
+		id: 'account-direct-soft',
+		username: 'direct.soft',
+		acct: 'direct.soft@kolektiva.social',
+		display_name: 'direct.soft',
+		pleroma: { ...profileAccount.pleroma, relationship: undefined }
+	};
+	let searchRequestCount = 0;
+
+	await authenticate(page);
+	await page.route('https://pleroma.example/api/v1/accounts/search**', async (route: Route) => {
+		searchRequestCount += 1;
+		const url = new URL(route.request().url());
+		expect(url.searchParams.get('q')).toBe(fallbackAccount.acct);
+		expect(url.searchParams.get('resolve')).toBe('true');
+		await fulfillJson(route, [fallbackAccount]);
+	});
+	await page.route(`https://pleroma.example/api/v1/accounts/${fallbackAccount.id}/statuses**`, async (route: Route) => {
+		const url = new URL(route.request().url());
+		await fulfillJson(route, url.searchParams.get('pinned') === 'true' ? [] : postStatuses.map((status) => ({ ...status, account: fallbackAccount })));
+	});
+	await page.route('https://pleroma.example/api/v1/accounts/relationships**', async (route: Route) => fulfillJson(route, [relationshipFor(fallbackAccount.id, { following: true })]));
+	await setViewport(page, 'desktop');
+
+	await page.goto('/app/profiles/direct.soft@kolektiva.social');
+
+	await expect(page.getByTestId('profile-view').getByRole('heading', { name: 'direct.soft' })).toBeVisible();
+	expect(searchRequestCount).toBe(1);
 });
 
 test('profile route fetches missing relationship state before rendering follow labels', async ({ page }) => {

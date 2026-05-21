@@ -22,6 +22,7 @@
 	import SurfaceCard from '$lib/rebuild/SurfaceCard.svelte';
 	import TimelineLoadMore from '$lib/rebuild/TimelineLoadMore.svelte';
 	import TimelineNewPostsIndicator from '$lib/rebuild/TimelineNewPostsIndicator.svelte';
+	import { accountsFromPleromaNotifications, accountsFromPleromaStatus, accountsFromPleromaStatuses, createPleromaAccountCache, getCachedPleromaAccount, upsertPleromaAccounts } from '$lib/pleroma/account-cache';
 	import { createPleromaClient } from '$lib/pleroma/client';
 	import { NOTIFICATION_POLL_EVENT, NOTIFICATION_POLL_INTERVAL_MS, readNotificationLastSeenAt, writeNotificationLastSeenAt } from '$lib/pleroma/notifications';
 	import { readPleromaSession, signOutPleroma, writePleromaSession } from '$lib/pleroma/session';
@@ -33,7 +34,7 @@
 		type PaginatedTimelineBaseState,
 		type PaginatedTimelineSuccess
 	} from '$lib/pleroma/timeline-state';
-	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, normalizePleromaRequestError, statusCharacterLimit, type PleromaNotificationView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, normalizePleromaRequestError, statusCharacterLimit, type PleromaAccountView, type PleromaNotificationView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, composerUploadBadge, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
@@ -75,6 +76,7 @@
 		avatarUrl?: string | null;
 	};
 	type InlineReplyComposerData = Omit<InlineReplyComposerProps, 'id'>;
+	type AccountBackedPost = SocialPost & { visibility?: StatusVisibility; account?: PleromaAccountView; rebloggedBy?: PleromaAccountView };
 	type RebuildPost = PostLike & {
 		id: string | number;
 		actionStatusId?: string;
@@ -147,6 +149,7 @@
 	let sessionReady = $state(false);
 	let mounted = $state(false);
 	let currentSession = $state<PleromaSession | null>(null);
+	let accountCache = $state(createPleromaAccountCache());
 	let homeTimelineState = $state<HomeTimelineState>({ status: 'idle' });
 	let threadState = $state<ThreadState>({ status: 'idle' });
 	let profileRouteState = $state<ProfileState>({ status: 'idle' });
@@ -225,6 +228,14 @@
 	let notificationAbortController: AbortController | null = null;
 	let composerCharacterLimit = $state(DEFAULT_STATUS_CHARACTER_LIMIT);
 	const sessionKey = (session: PleromaSession | null) => session ? `${session.instanceUrl}\n${session.accessToken}\n${session.createdAt}` : '';
+	const resetAccountCache = () => {
+		accountCache = createPleromaAccountCache();
+	};
+	const upsertAccountCache = (accounts: PleromaAccount[], options?: Parameters<typeof upsertPleromaAccounts>[2]) => {
+		if (accounts.length === 0) return;
+		const nextCache = upsertPleromaAccounts(accountCache, accounts, options);
+		if (nextCache !== accountCache) accountCache = nextCache;
+	};
 	const clearInlineReply = (route?: StatusActionOrigin) => {
 		if (route && inlineReplyTarget?.route !== route) return;
 		inlineReplyRequestId += 1;
@@ -284,6 +295,20 @@
 		loadedProfileRouteKey = '';
 		profileRouteState = { status: 'idle' };
 		clearStatusActionErrors('profile');
+	};
+	const clearHomeRouteIfLoaded = () => {
+		if (!loadedHomeTimelineKey && homeTimelineState.status === 'idle' && !closeHomeTimelineStream) return;
+		invalidateHomeTimelineRequests();
+		loadedHomeTimelineKey = '';
+		closeHomeTimelineStreaming();
+	};
+	const clearThreadRouteIfLoaded = () => {
+		if (!loadedThreadKey && threadState.status === 'idle') return;
+		invalidateThreadRequests();
+	};
+	const clearProfileRouteIfLoaded = () => {
+		if (!loadedProfileRouteKey && profileRouteState.status === 'idle') return;
+		invalidateProfileRouteRequests();
 	};
 	const invalidateNotificationRequests = () => {
 		notificationRequestId += 1;
@@ -365,42 +390,52 @@
 		avatar === 'grad-2' ? 'av-grad-2' :
 		avatar === 'grad-3' ? 'av-grad-3' :
 		'av-anime';
+	const cachedAccountView = (account: PleromaAccountView | null | undefined): PleromaAccountView | null => {
+		if (!account) return null;
+		const cached = getCachedPleromaAccount(accountCache, account.id) ?? getCachedPleromaAccount(accountCache, account.acct);
+		return cached ? adaptPleromaAccount(cached) : account;
+	};
 
-	const postForRebuild = (post: SocialPost & { visibility?: StatusVisibility }): RebuildPost => ({
-		id: post.id,
-		actionStatusId: post.actionStatusId,
-		threadStatusId: post.threadStatusId,
-		visibility: post.visibility,
-		name: post.name,
-		nameEmojis: post.nameEmojis,
-		handle: post.handle,
-		time: post.time,
-		avClass: avatarClass(post.avatar),
-		avatarUrl: post.avatarUrl,
-		cw: post.cw,
-		body: post.body,
-		bodyEmojis: post.bodyEmojis,
-		media: post.media,
-		attachments: post.attachments,
-		addressees: post.addressees,
-		boostedBy: post.boostedBy ? {
-			name: post.boostedBy.name,
-			handle: post.boostedBy.handle,
-			time: post.boostedBy.time,
-			avClass: post.boostedBy.avatar ? avatarClass(post.boostedBy.avatar) : undefined,
-			avatarUrl: post.boostedBy.avatarUrl
-		} : undefined,
-		copyJson: post.copyJson,
-		quotedPost: post.quotedPost,
-		replies: post.replies,
-		boosts: post.boosts,
-		favs: post.favorites,
-		actions: {
-			reply: post.actions.reply,
-			boost: post.actions.boost,
-			fav: post.actions.favorite,
-		},
-	});
+	const postForRebuild = (post: AccountBackedPost): RebuildPost => {
+		const account = cachedAccountView(post.account);
+		const booster = cachedAccountView(post.rebloggedBy);
+
+		return {
+			id: post.id,
+			actionStatusId: post.actionStatusId,
+			threadStatusId: post.threadStatusId,
+			visibility: post.visibility,
+			name: account?.displayName ?? post.name,
+			nameEmojis: account?.emojis ?? post.nameEmojis,
+			handle: account?.handle ?? post.handle,
+			time: post.time,
+			avClass: avatarClass(post.avatar),
+			avatarUrl: account?.avatarUrl ?? post.avatarUrl,
+			cw: post.cw,
+			body: post.body,
+			bodyEmojis: post.bodyEmojis,
+			media: post.media,
+			attachments: post.attachments,
+			addressees: post.addressees,
+			boostedBy: post.boostedBy ? {
+				name: booster?.displayName ?? post.boostedBy.name,
+				handle: booster?.handle ?? post.boostedBy.handle,
+				time: post.boostedBy.time,
+				avClass: post.boostedBy.avatar ? avatarClass(post.boostedBy.avatar) : undefined,
+				avatarUrl: booster?.avatarUrl ?? post.boostedBy.avatarUrl
+			} : undefined,
+			copyJson: post.copyJson,
+			quotedPost: post.quotedPost,
+			replies: post.replies,
+			boosts: post.boosts,
+			favs: post.favorites,
+			actions: {
+				reply: post.actions.reply,
+				boost: post.actions.boost,
+				fav: post.actions.favorite,
+			},
+		};
+	};
 	const threadFullTime = (createdAt: string) => {
 		const date = new Date(createdAt);
 		if (Number.isNaN(date.getTime())) return '';
@@ -623,6 +658,7 @@
 	const insertThreadReply = (parentId: string, status: PleromaStatus) => {
 		if (threadState.status !== 'success') return;
 
+		upsertAccountCache(accountsFromPleromaStatus(status));
 		const reply = [{ ...threadPostForRebuild(adaptPleromaStatus(status)), nestedReplies: [] }];
 		threadState = String(threadState.focused.id) === parentId
 			? { ...threadState, replies: [...threadState.replies, ...reply] }
@@ -666,6 +702,7 @@
 				if (!isCurrentSessionRequest(requestSessionKey)) return;
 				if (statusActionPending[pendingKey] !== requestId) return;
 
+				upsertAccountCache(accountsFromPleromaStatus(status));
 				const serverPost = adaptPleromaStatus(status);
 				const reconciled = statusViewActionValue(serverPost, key);
 				applyStatusActionUpdate('all', targetId, (post) => setStatusViewAction(post, key, reconciled), (post) => setRebuildPostAction(post, key, reconciled));
@@ -922,6 +959,7 @@
 			const status = await client.createStatus({ status: body, visibility: 'public', spoilerText: spoilerText || undefined, poll, mediaIds: composerUploadedMediaIds });
 			if (requestId !== homePostSubmitRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
+			upsertAccountCache(accountsFromPleromaStatus(status));
 			const createdPost = adaptPleromaStatus(status, { timelines: ['home'] });
 			homeTimelineFallbackSinceId = String(createdPost.id);
 			if (homeTimelineState.status === 'success') {
@@ -1055,6 +1093,7 @@
 			if (requestId !== inlineReplyRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 			if (!inlineReplyTarget || inlineReplyTarget.route !== target.route || inlineReplyTarget.targetId !== target.targetId) return;
 
+			upsertAccountCache(accountsFromPleromaStatus(status));
 			applyReplyCountUpdate(target.targetId);
 			if (target.route === 'thread') insertThreadReply(target.targetId, status);
 			clearInlineReply();
@@ -1132,6 +1171,7 @@
 		invalidateComposerAutocompleteRequests();
 		closeHomeTimelineStreaming();
 		localHomePosts = [];
+		resetAccountCache();
 		loadedHomeTimelineKey = '';
 		homeTimelineFallbackSinceId = null;
 		currentSession = null;
@@ -1157,6 +1197,8 @@
 			invalidateComposerAutocompleteRequests();
 			closeHomeTimelineStreaming();
 			localHomePosts = [];
+			resetAccountCache();
+			if (session.account) accountCache = upsertPleromaAccounts(createPleromaAccountCache(), [session.account]);
 			loadedHomeTimelineKey = '';
 			homeTimelineFallbackSinceId = null;
 			currentSession = session;
@@ -1178,6 +1220,7 @@
 			const account = await client.getOwnAccount();
 			if (requestId !== profileAccountRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
+			upsertAccountCache([account]);
 			const nextSession = { ...session, account };
 			currentSession = nextSession;
 			profileAccountLoadError = null;
@@ -1321,6 +1364,7 @@
 				const accounts = await client.searchAccounts({ q, limit: 5, resolve: true });
 				if (requestId !== composerMentionSearchRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
+				upsertAccountCache(accounts);
 				composerMentionAccounts = accounts.map(composerMentionAccount);
 			} catch {
 				if (requestId !== composerMentionSearchRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
@@ -1408,6 +1452,7 @@
 				const notifications = await client.getNotifications({ limit: 40 }, { signal: abortController.signal });
 				if (requestId !== notificationRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
+				upsertAccountCache(accountsFromPleromaNotifications(notifications));
 				const lastSeenAt = readNotificationLastSeenAt(localStorage, notificationSession);
 				const adapted = adaptPleromaNotifications(notifications, { lastSeenAt });
 				notificationState = adapted.length > 0 ? { status: 'success', data: adapted } : { status: 'empty' };
@@ -1493,6 +1538,7 @@
 	const queueStreamedHomeStatus = (requestSessionKey: string, status: PleromaStatus) => {
 		if (!isCurrentSessionRequest(requestSessionKey)) return;
 
+		upsertAccountCache(accountsFromPleromaStatus(status));
 		const posts = adaptPleromaStatuses([status], { timelines: ['home'] });
 		if (posts.length === 0) return;
 
@@ -1568,6 +1614,7 @@
 			const timelinePage = await client.getHomeTimelinePage();
 			if (route !== 'home' || requestId !== homeTimelineRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
+			upsertAccountCache(accountsFromPleromaStatuses(timelinePage.items));
 			const posts = adaptPleromaStatuses(timelinePage.items, { timelines: ['home'] });
 			homeTimelineFallbackSinceId = posts[0]?.id ?? null;
 			homeTimelineState = posts.length > 0
@@ -1620,6 +1667,7 @@
 			]);
 			if (route !== 'thread' || requestId !== threadRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
+			upsertAccountCache(accountsFromPleromaStatuses([status, ...context.ancestors, ...context.descendants]));
 			threadState = {
 				status: 'success',
 				focused: threadPostForRebuild(adaptPleromaStatus(status)),
@@ -1642,14 +1690,21 @@
 	const normalizedProfileHandle = (value: string) => value.replace(/^@/, '').trim().toLowerCase();
 	const accountMatchesProfileHandle = (account: PleromaStatus['account'], handle: string) => {
 		const normalized = normalizedProfileHandle(handle);
+		const acct = normalizedProfileHandle(account.acct);
+		const username = normalizedProfileHandle(account.username);
 		return normalized === account.id.toLowerCase()
-			|| normalized === normalizedProfileHandle(account.acct)
-			|| normalized === normalizedProfileHandle(account.username);
+			|| normalized === acct
+			|| (!acct.includes('@') && normalized === username);
 	};
 	const resolveProfileAccount = async (client: ReturnType<typeof createPleromaClient>, session: PleromaSession, handle: string) => {
 		if (session.account && (!handle || accountMatchesProfileHandle(session.account, handle))) return session.account;
+		const cached = getCachedPleromaAccount(accountCache, handle);
+		if (cached && accountMatchesProfileHandle(cached, handle)) return cached;
 		const matches = await client.searchAccounts({ q: handle, limit: 5, resolve: true });
-		return matches.find((account) => accountMatchesProfileHandle(account, handle)) ?? client.getAccount(handle);
+		const exactMatch = matches.find((account) => accountMatchesProfileHandle(account, handle));
+		if (exactMatch) return exactMatch;
+		const account = await client.getAccount(handle);
+		return account;
 	};
 	const accountWithFetchedRelationship = async (client: ReturnType<typeof createPleromaClient>, account: PleromaAccount, currentAccountId?: string) => {
 		if (currentAccountId && account.id === currentAccountId) return account;
@@ -1694,9 +1749,11 @@
 			const resolvedAccount = await resolveProfileAccount(client, session, handle);
 			const currentAccountId = currentSession?.account?.id ?? session.account?.id;
 			const account = await accountWithFetchedRelationship(client, resolvedAccount, currentAccountId);
+			if (route !== 'profile' || requestId !== profileRouteRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			upsertAccountCache([account], { relationship: 'replace' });
 			const profile = adaptPleromaProfile(account, { instanceUrl: session.instanceUrl, currentAccountId });
 			if (profileLockedForViewer(profile)) {
-				if (route !== 'profile' || requestId !== profileRouteRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 				profileRouteState = { status: 'success', data: { profile, posts: [], replies: [], pinned: [], media: [] } };
 				return;
 			}
@@ -1708,6 +1765,7 @@
 			]);
 			if (route !== 'profile' || requestId !== profileRouteRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
+			upsertAccountCache(accountsFromPleromaStatuses([...postsPage.items, ...repliesPage.items, ...mediaPage.items, ...pinnedStatuses]));
 			const posts = adaptPleromaStatuses(postsPage.items).map(profilePostForRebuild);
 			const replies = adaptPleromaStatuses(repliesPage.items).map(profilePostForRebuild);
 			const mediaStatuses = adaptPleromaStatuses(mediaPage.items);
@@ -1754,6 +1812,7 @@
 			const timelinePage = await client.getHomeTimelinePage(nextCursor);
 			if (requestId !== homeTimelineRequestId || !isCurrentSessionRequest(requestSessionKey) || homeTimelineState.status !== 'success') return;
 
+			upsertAccountCache(accountsFromPleromaStatuses(timelinePage.items));
 			const posts = adaptPleromaStatuses(timelinePage.items, { timelines: ['home'] });
 			homeTimelineState = {
 				...homeTimelineState,
@@ -1796,6 +1855,7 @@
 			const timelinePage = await client.getHomeTimelinePage(sinceId ? { sinceId } : undefined);
 			if (requestId !== homeTimelineNewPostsRequestId || !isCurrentSessionRequest(requestSessionKey) || homeTimelineState.status !== 'success') return;
 
+			upsertAccountCache(accountsFromPleromaStatuses(timelinePage.items));
 			const posts = adaptPleromaStatuses(timelinePage.items, { timelines: ['home'] });
 			homeTimelineFallbackSinceId = posts[0]?.id ?? homeTimelineFallbackSinceId;
 			if (!sinceId && homeTimelineState.newerPosts.length === 0) {
@@ -1931,9 +1991,7 @@
 				void loadHomeTimeline(session);
 			}
 		} else {
-			invalidateHomeTimelineRequests();
-			loadedHomeTimelineKey = '';
-			closeHomeTimelineStreaming();
+			clearHomeRouteIfLoaded();
 		}
 		if (pathname.startsWith('/app/thread')) {
 			const loadKey = `${sessionKey(session)}\n${threadStatusId}`;
@@ -1944,8 +2002,8 @@
 				loadedThreadKey = loadKey;
 				void loadThread(session, threadStatusId);
 			}
-		} else if (loadedThreadKey) {
-			invalidateThreadRequests();
+		} else {
+			clearThreadRouteIfLoaded();
 		}
 		if (pathname.startsWith('/app/profiles')) {
 			const viewerAccountId = currentSession?.account?.id ?? session.account?.id ?? '';
@@ -1955,8 +2013,8 @@
 				loadedProfileRouteKey = loadKey;
 				void loadProfileRoute(session, profileRouteHandle);
 			}
-		} else if (loadedProfileRouteKey) {
-			invalidateProfileRouteRequests();
+		} else {
+			clearProfileRouteIfLoaded();
 		}
 	});
 </script>
