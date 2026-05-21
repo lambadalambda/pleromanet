@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import Avatar from './Avatar.svelte';
+	import { applyAvatarImageFallback } from './avatar';
 	import type { ComposerEmoji, ComposerMentionAccount } from './composer';
 
 	type PopState =
@@ -127,8 +129,12 @@
 		avatar.className = `me-pill-av ${account.avClass ?? ''}`.trim();
 		if (account.avatarUrl) {
 			const img = document.createElement('img');
+			img.className = 'avatar-img';
 			img.src = account.avatarUrl;
 			img.alt = `${account.displayName || account.username} avatar`;
+			img.loading = 'lazy';
+			img.decoding = 'async';
+			img.addEventListener('error', () => applyAvatarImageFallback(img, account.avClass), { once: true });
 			avatar.appendChild(img);
 		}
 		atom.appendChild(avatar);
@@ -374,9 +380,7 @@
 			<div id={listboxId} role="listbox" aria-label="Mention suggestions">
 				{#each visibleAccounts as account, index (account.id)}
 					<button id={`${listboxId}-${index}`} type="button" role="option" aria-selected={index === selectedIndex} class="me-row" class:sel={index === selectedIndex} onmousedown={(event) => { event.preventDefault(); selectedIndex = index; insertSelected(); }}>
-						<span class={`me-row-av ${account.avClass ?? ''}`}>
-							{#if account.avatarUrl}<img src={account.avatarUrl} alt={`${account.displayName || account.username} avatar`} />{/if}
-						</span>
+						<Avatar variant="plain" element="span" className="me-row-av" avClass={account.avClass} avatarUrl={account.avatarUrl} alt={`${account.displayName || account.username} avatar`} />
 						<span class="me-row-name">{account.displayName}</span>
 						<span class="me-row-acct">@{account.acct}</span>
 						{#if index === selectedIndex}<span class="me-row-go"><span class="me-kbd">Tab</span></span>{/if}

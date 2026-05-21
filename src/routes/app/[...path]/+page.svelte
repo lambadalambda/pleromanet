@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import AncestorPost from '$lib/rebuild/AncestorPost.svelte';
 	import AttachmentLightboxHost from '$lib/rebuild/AttachmentLightboxHost.svelte';
+	import Avatar from '$lib/rebuild/Avatar.svelte';
 	import Button from '$lib/rebuild/Button.svelte';
 	import ComposerCWPanel from '$lib/rebuild/ComposerCWPanel.svelte';
 	import ComposerMentionEditor from '$lib/rebuild/ComposerMentionEditor.svelte';
@@ -263,6 +264,7 @@
 	let notificationAbortController: AbortController | null = null;
 	let headerSearchDebounceTimer: number | null = null;
 	let searchPageDebounceTimer: number | null = null;
+	let headerSearchPointerActivated = false;
 	let searchFollowPending = $state<Record<string, boolean>>({});
 	let composerCharacterLimit = $state(DEFAULT_STATUS_CHARACTER_LIMIT);
 	const sessionKey = (session: PleromaSession | null) => session ? `${session.instanceUrl}\n${session.accessToken}\n${session.createdAt}` : '';
@@ -1436,7 +1438,7 @@
 			displayName: view.displayName,
 			acct: view.acct,
 			avatarUrl: view.avatarUrl,
-			avClass: view.avatarUrl ? undefined : 'av-grad-3'
+			avClass: 'av-grad-3'
 		};
 	};
 	const loadComposerCustomEmojis = async (session: PleromaSession) => {
@@ -1757,6 +1759,22 @@
 		}
 
 		openSearchPost(item.post);
+	};
+	const activateHeaderSearchPointerItem = (event: PointerEvent, item: HeaderSearchSelectableItem) => {
+		if (event.button !== 0) return;
+
+		event.preventDefault();
+		event.stopPropagation();
+		headerSearchPointerActivated = true;
+		activateHeaderSearchItem(item);
+		window.setTimeout(() => (headerSearchPointerActivated = false), 400);
+	};
+	const activateHeaderSearchClickItem = (event: MouseEvent, item: HeaderSearchSelectableItem) => {
+		event.preventDefault();
+		event.stopPropagation();
+		if (headerSearchPointerActivated) return;
+
+		activateHeaderSearchItem(item);
 	};
 	const moveHeaderSearchSelection = (direction: 1 | -1) => {
 		const itemCount = headerSearchSelectableItems.length;
@@ -2654,7 +2672,7 @@
 			{#each visibleSearchAccounts as account (account.id)}
 				<div class="se-row se-account-row">
 					<a class="se-row-open" href={profileHrefForAccount(account)}>
-						<span class="se-row-av" class:av-orb={!account.avatarUrl}>{#if account.avatarUrl}<img class="avatar-img" src={account.avatarUrl} alt={`${account.displayName} avatar`} />{/if}</span>
+						<Avatar variant="plain" element="span" className="se-row-av" avatarUrl={account.avatarUrl} alt={`${account.displayName} avatar`} />
 						<span class="se-row-main">
 							<span class="se-row-head">
 								<span class="se-row-name"><RichText text={account.displayName} emojis={account.emojis} linkMentions={false} /></span>
@@ -2670,7 +2688,7 @@
 			{/each}
 			{#each visibleSearchPosts as post (post.id)}
 				<button type="button" class="se-row" onclick={() => openThread(post)}>
-					<span class="se-row-av" class:av-orb={!post.avatarUrl}>{#if post.avatarUrl}<img class="avatar-img" src={post.avatarUrl} alt={`${post.name} avatar`} />{/if}</span>
+					<Avatar variant="plain" element="span" className="se-row-av" avatarUrl={post.avatarUrl} alt={`${post.name} avatar`} />
 					<span class="se-row-main">
 						<span class="se-row-head">
 							<span class="se-row-name"><RichText text={post.name} emojis={post.nameEmojis} linkMentions={false} /></span>
@@ -2744,8 +2762,8 @@
 											<div class="se-dd-section">
 												<div class="se-dd-l"><span>People</span><span class="se-dd-l-count">{headerSearchState.status === 'success' ? headerSearchState.accounts.length : 0}</span><button type="button" class="se-dd-l-see" onclick={() => { rememberSearch(headerSearchDraft); closeHeaderSearch(); submitSearch(headerSearchDraft, 'people'); }}>See all →</button></div>
 												{#each headerSearchAccounts as account, i (account.id)}
-													<button id={`header-search-option-${i}`} type="button" role="option" aria-selected={headerSearchSelectedIndex === i} class="se-dd-row" class:sel={headerSearchSelectedIndex === i} onclick={() => openSearchAccount(account)}>
-														<span class="se-dd-av" class:av-orb={!account.avatarUrl}>{#if account.avatarUrl}<img class="avatar-img" src={account.avatarUrl} alt={`${account.displayName} avatar`} />{/if}</span>
+													<button id={`header-search-option-${i}`} type="button" role="option" aria-selected={headerSearchSelectedIndex === i} class="se-dd-row" class:sel={headerSearchSelectedIndex === i} onpointerdown={(event) => activateHeaderSearchPointerItem(event, { kind: 'account', account })} onclick={(event) => activateHeaderSearchClickItem(event, { kind: 'account', account })}>
+														<Avatar variant="plain" element="span" className="se-dd-av" avatarUrl={account.avatarUrl} alt={`${account.displayName} avatar`} />
 														<span class="se-dd-user"><span class="se-dd-name"><RichText text={account.displayName} emojis={account.emojis} linkMentions={false} /></span><span class="se-dd-acct">{account.handle}</span></span>
 														<span class="se-dd-followers">{compactFormatter.format(account.followers)} followers</span>
 													</button>
@@ -2756,8 +2774,8 @@
 											<div class="se-dd-section">
 												<div class="se-dd-l"><span>Posts</span><span class="se-dd-l-count">{headerSearchState.status === 'success' ? headerSearchState.posts.length : 0}</span><button type="button" class="se-dd-l-see" onclick={() => { rememberSearch(headerSearchDraft); closeHeaderSearch(); submitSearch(headerSearchDraft, 'posts'); }}>See all →</button></div>
 												{#each headerSearchPosts as post, i (post.id)}
-													<button id={`header-search-option-${headerSearchAccounts.length + i}`} type="button" role="option" aria-selected={headerSearchSelectedIndex === headerSearchAccounts.length + i} class="se-dd-row" class:sel={headerSearchSelectedIndex === headerSearchAccounts.length + i} onclick={() => openSearchPost(post)}>
-														<span class="se-dd-av" class:av-orb={!post.avatarUrl}>{#if post.avatarUrl}<img class="avatar-img" src={post.avatarUrl} alt={`${post.name} avatar`} />{/if}</span>
+													<button id={`header-search-option-${headerSearchAccounts.length + i}`} type="button" role="option" aria-selected={headerSearchSelectedIndex === headerSearchAccounts.length + i} class="se-dd-row" class:sel={headerSearchSelectedIndex === headerSearchAccounts.length + i} onpointerdown={(event) => activateHeaderSearchPointerItem(event, { kind: 'post', post })} onclick={(event) => activateHeaderSearchClickItem(event, { kind: 'post', post })}>
+														<Avatar variant="plain" element="span" className="se-dd-av" avatarUrl={post.avatarUrl} alt={`${post.name} avatar`} />
 														<span class="se-dd-snippet"><RichText text={post.body} emojis={post.bodyEmojis} mentionClass="post-mention-inline" linkMentions={false} /></span>
 														<span class="se-dd-snippet-meta">{post.time}</span>
 													</button>
@@ -2790,11 +2808,7 @@
 							{/if}
 						</div>
 						<button type="button" class="user-chip" aria-label={headerAccountLabel} onclick={() => { notificationsMenuOpen = false; userMenuOpen = !userMenuOpen; }}>
-							<span class="user-chip-av" class:av-orb={!headerAccountAvatarUrl}>
-								{#if headerAccountAvatarUrl}
-									<img class="avatar-img" src={headerAccountAvatarUrl} alt={`${headerAccountName} avatar`} />
-								{/if}
-							</span>
+							<Avatar variant="plain" element="span" className="user-chip-av" avatarUrl={headerAccountAvatarUrl} alt={`${headerAccountName} avatar`} />
 							<span><RichText text={headerAccountName} emojis={headerAccount?.emojis ?? []} /></span>
 							<Icon name="chevDown" width={14} height={14} />
 						</button>
@@ -2848,11 +2862,7 @@
 						</div>
 
 						<form class="composer" aria-label="Composer" onsubmit={(e) => { e.preventDefault(); submitHomePost(); }} ondragover={handleComposerDragOver} ondragleave={() => { composerDragActive = false; composerDragCount = 0; }} ondrop={handleComposerDrop} onpaste={handleComposerPaste}>
-							<span class="composer-av" class:av-orb={!headerAccountAvatarUrl}>
-								{#if headerAccountAvatarUrl}
-									<img class="avatar-img" src={headerAccountAvatarUrl} alt={`${headerAccountName} avatar`} />
-								{/if}
-							</span>
+							<Avatar variant="plain" element="span" className="composer-av" avatarUrl={headerAccountAvatarUrl} alt={`${headerAccountName} avatar`} />
 							<div>
 								<ComposerMentionEditor
 									id="home-composer-editor"

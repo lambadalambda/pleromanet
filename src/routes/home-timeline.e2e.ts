@@ -149,6 +149,13 @@ test('authenticated home timeline loads and renders posts through adapters', asy
 	await mockHomeTimeline(page, async (route) => {
 		await fulfillHome(route, pleromaFixtures.timelines.home);
 	});
+	await page.route('https://pleroma.example/avatar.png', async (route) => {
+		await route.fulfill({
+			status: 200,
+			contentType: 'image/svg+xml',
+			body: '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'
+		});
+	});
 
 	await setViewport(page, 'desktop');
 	await page.goto('/app/home');
@@ -164,6 +171,27 @@ test('authenticated home timeline loads and renders posts through adapters', asy
 	await expect(avatar).toHaveAttribute('src', 'https://pleroma.example/avatar.png');
 	expect(await avatar.evaluate((node) => node.parentElement?.className ?? '')).not.toContain('av-orb');
 	await expectNoHorizontalOverflow(page);
+});
+
+test('home surfaces use avatar placeholders when remote avatar images fail', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, pleromaFixtures.timelines.home);
+	});
+	await page.route('https://pleroma.example/avatar.png', async (route) => {
+		await route.abort();
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	await expect(page.locator('.user-chip .user-chip-av.avatar-fallback')).toBeVisible();
+	await expect(page.getByTestId('profile-mini').locator('.profile-mini-avatar.avatar-fallback')).toBeVisible();
+	await expect(page.locator('form.composer .composer-av.avatar-fallback')).toBeVisible();
+	const postAvatar = page.locator('[data-status-id="status-1"] .post-av.avatar-fallback').first();
+	await expect(postAvatar).toBeVisible();
+	await expect(postAvatar.locator('img[alt="quiet admin avatar"]')).toHaveClass(/avatar-img-failed/);
 });
 
 test('home timeline autolinks safe URLs in post bodies', async ({ page }) => {
@@ -182,6 +210,28 @@ test('home timeline autolinks safe URLs in post bodies', async ({ page }) => {
 	await expect(link).toHaveAttribute('href', url);
 	await expect(link).toHaveAttribute('target', '_blank');
 	await expect(link).toHaveAttribute('rel', 'ugc noopener noreferrer');
+});
+
+test('home timeline breaks unbroken status text inside the post body', async ({ page }) => {
+	await authenticate(page);
+	const longToken = 'fediverse'.repeat(80);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [statusWithText('status-long-token', longToken)]);
+	});
+
+	await setViewport(page, 'mobile');
+	await page.goto('/app/home');
+
+	const body = page.locator('[data-status-id="status-long-token"] .post-body');
+	await expect(body).toContainText(longToken);
+	const dimensions = await body.evaluate((node) => ({
+		clientWidth: node.clientWidth,
+		scrollWidth: node.scrollWidth,
+		parentWidth: node.parentElement?.clientWidth ?? 0
+	}));
+	expect(dimensions.clientWidth).toBeLessThanOrEqual(dimensions.parentWidth);
+	expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+	await expectNoHorizontalOverflow(page);
 });
 
 test('home timeline sends the OAuth token in the request', async ({ page }) => {
@@ -546,6 +596,69 @@ test('home timeline composer autocompletes mentions and custom emoji before post
 	expect(params.get('status')).toBe('hello @soft.hertz@kolektiva.social :blobcat:');
 	await expect(page.locator('[data-status-id="created-autocomplete-status"]')).toContainText('hello @soft.hertz@kolektiva.social :blobcat:');
 	await expect(composer).toBeEmpty();
+});
+
+test('composer mention avatars fall back when remote avatar images fail', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, []);
+	});
+	await page.route(accountSearchUrl, async (route) => {
+		await fulfillHome(route, [{
+			...pleromaFixtures.account,
+			id: 'soft-hertz-dead-avatar',
+			username: 'soft.hertz',
+			acct: 'soft.hertz@kolektiva.social',
+			display_name: 'soft.hertz ✦',
+			avatar: 'https://pleroma.example/dead-mention-avatar.png',
+			avatar_static: 'https://pleroma.example/dead-mention-avatar.png'
+		}]);
+	});
+	await page.route('https://pleroma.example/dead-mention-avatar.png', async (route) => {
+		await route.abort();
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const composer = page.getByRole('textbox', { name: 'Post text' });
+
+	await composer.click();
+	await expect(composer).toBeFocused();
+	await composer.evaluate((node) => {
+		const text = document.createTextNode('@so');
+		node.replaceChildren(text);
+		const range = document.createRange();
+		range.setStart(text, text.length);
+		range.setEnd(text, text.length);
+		const selection = window.getSelection();
+		selection?.removeAllRanges();
+		selection?.addRange(range);
+		node.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: '@so' }));
+	});
+	await expect(page.getByRole('listbox', { name: 'Mention suggestions' })).toBeVisible();
+	const suggestionFallbackApplied = await page.evaluate(async () => {
+		const row = document.querySelector('.me-pop .me-row');
+		if (!row) throw new Error('mention suggestion row missing');
+		const img = document.querySelector('.me-pop .me-row-av img[alt="soft.hertz ✦ avatar"]');
+		if (!img) throw new Error('mention suggestion avatar missing');
+		img.dispatchEvent(new Event('error'));
+		await new Promise(requestAnimationFrame);
+		const fallbackApplied = Boolean(document.querySelector('.me-pop .me-row-av.avatar-fallback'));
+		row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+		return fallbackApplied;
+	});
+	expect(suggestionFallbackApplied).toBe(true);
+
+	const pillImg = composer.locator('.me-pill img[alt="soft.hertz ✦ avatar"]');
+	await expect(pillImg).toHaveAttribute('src', 'https://pleroma.example/dead-mention-avatar.png');
+	await page.evaluate(() => {
+		const img = document.querySelector('.me-pill img[alt="soft.hertz ✦ avatar"]');
+		if (!img) throw new Error('mention pill avatar missing');
+		img.dispatchEvent(new Event('error'));
+	});
+	await expect(composer.locator('.me-pill-av.avatar-fallback')).toBeVisible();
+	await expect(pillImg).toHaveClass(/avatar-img-failed/);
 });
 
 test('home timeline composer inserts custom emoji from picker before posting', async ({ page }) => {

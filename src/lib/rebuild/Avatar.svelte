@@ -1,9 +1,10 @@
 <script lang="ts">
 	import VaporBanner from './VaporBanner.svelte';
+	import { avatarFallbackClassName } from './avatar';
 	import type { BannerVariant } from './attachments';
 	import { profileHref as hrefForProfile } from './profile-links';
 
-	type AvatarVariant = 'post' | 'focused' | 'notif' | 'compose';
+	type AvatarVariant = 'post' | 'focused' | 'notif' | 'compose' | 'plain';
 
 	type PostLike = { avClass?: string; avBanner?: BannerVariant; avatarUrl?: string | null; name?: string; handle?: string };
 
@@ -18,11 +19,13 @@
 		className?: string;
 		style?: string;
 		profileHref?: string | null;
+		element?: 'div' | 'span';
 		children?: import('svelte').Snippet;
 		[key: string]: unknown;
 	};
 
-	let { post, variant = 'post', avClass, avBanner, avatarUrl, alt, size, className = '', style, profileHref, children, ...rest }: Props = $props();
+	let { post, variant = 'post', avClass, avBanner, avatarUrl, alt, size, className = '', style, profileHref, element = 'div', children, ...rest }: Props = $props();
+	let imageFailed = $state(false);
 
 	let resolvedClass = $derived(post?.avClass ?? avClass ?? '');
 	let resolvedBanner: BannerVariant | undefined = $derived(post?.avBanner ?? avBanner);
@@ -30,16 +33,19 @@
 	let resolvedAlt = $derived(alt ?? `${post?.name ?? post?.handle ?? 'User'} avatar`);
 	let resolvedHref = $derived(profileHref ?? hrefForProfile(post?.handle));
 	let profileLabel = $derived(`Open profile for ${post?.name ?? post?.handle ?? resolvedAlt.replace(/\s+avatar$/i, '')}`);
-	let placeholderClass = $derived(resolvedAvatarUrl ? '' : resolvedClass);
+	let showBanner = $derived(Boolean((!resolvedAvatarUrl || imageFailed) && resolvedBanner));
+	let showFallback = $derived(Boolean(!resolvedAvatarUrl || imageFailed) && !showBanner);
+	let placeholderClass = $derived(
+		showBanner && imageFailed ? 'avatar-fallback' : showFallback ? avatarFallbackClassName(resolvedClass) : ''
+	);
 
-	const baseClass = (v: AvatarVariant) =>
-		v === 'focused'
-			? 'focused-av'
-			: v === 'notif'
-				? 'notif-av'
-				: v === 'compose'
-					? 'composer-av'
-					: 'post-av';
+	const baseClass = (v: AvatarVariant) => {
+		if (v === 'plain') return '';
+		if (v === 'focused') return 'focused-av';
+		if (v === 'notif') return 'notif-av';
+		if (v === 'compose') return 'composer-av';
+		return 'post-av';
+	};
 
 	const variantSize = (v: AvatarVariant, s?: number) =>
 		s ?? (v === 'notif' ? 28 : undefined);
@@ -51,12 +57,26 @@
 			? `width:${sz}px;height:${sz}px;${style ?? ''}`
 			: (style ?? undefined)
 	);
+
+	$effect(() => {
+		resolvedAvatarUrl;
+		imageFailed = false;
+	});
 </script>
 
 {#snippet avatarContents()}
 	{#if resolvedAvatarUrl}
-		<img class="avatar-img" src={resolvedAvatarUrl} alt={resolvedAlt} loading="lazy" decoding="async" />
-	{:else if resolvedBanner}
+		<img
+			class="avatar-img"
+			class:avatar-img-failed={imageFailed}
+			src={resolvedAvatarUrl}
+			alt={resolvedAlt}
+			loading="lazy"
+			decoding="async"
+			onerror={() => (imageFailed = true)}
+		/>
+	{/if}
+	{#if showBanner}
 		<VaporBanner variant={resolvedBanner} />
 	{/if}
 	{@render children?.()}
@@ -67,7 +87,13 @@
 		{@render avatarContents()}
 	</a>
 {:else}
-	<div class={cn} style={inlineStyle} {...rest}>
-		{@render avatarContents()}
-	</div>
+	{#if element === 'span'}
+		<span class={cn} style={inlineStyle} {...rest}>
+			{@render avatarContents()}
+		</span>
+	{:else}
+		<div class={cn} style={inlineStyle} {...rest}>
+			{@render avatarContents()}
+		</div>
+	{/if}
 {/if}

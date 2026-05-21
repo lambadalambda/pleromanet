@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { adaptCustomEmojis, htmlToPlainText } from '$lib/pleroma/ui';
 	import type { PleromaAccount } from '$lib/pleroma/types';
+	import Avatar from './Avatar.svelte';
 	import NowPlayingLine from './NowPlayingLine.svelte';
 	import RichText from './RichText.svelte';
 	import VaporBanner from './VaporBanner.svelte';
@@ -57,9 +58,7 @@
 		{/if}
 	</div>
 	<div class="profile-mini-info">
-		{#if avatarUrl}
-			<img class="profile-mini-avatar" src={avatarUrl} alt={`${name} avatar`} />
-		{/if}
+		<Avatar variant="plain" className="profile-mini-avatar" avatarUrl={avatarUrl} alt={`${name} avatar`} />
 		<div class="profile-mini-name"><RichText text={name} emojis={nameEmojis} /></div>
 		<div class="profile-mini-handle">{handle}</div>
 		<div class="profile-mini-bio">{bio}</div>

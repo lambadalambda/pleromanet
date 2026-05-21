@@ -222,6 +222,29 @@ test('profile route loads the canonical account timeline surface', async ({ page
 	await expectNoHorizontalOverflow(page);
 });
 
+test('profile route uses a placeholder when the profile avatar image fails', async ({ page }) => {
+	const deadAvatarAccount = {
+		...profileAccount,
+		avatar: 'https://cdn.example/dead-profile-avatar.png',
+		avatar_static: 'https://cdn.example/dead-profile-avatar.png'
+	};
+	await authenticate(page);
+	await mockProfileApis(page, deadAvatarAccount);
+	await page.route('https://pleroma.example/api/v1/accounts/relationships**', async (route: Route) => {
+		await fulfillJson(route, [relationshipFor(profileAccount.id, { following: true, followed_by: true })]);
+	});
+	await page.route('https://cdn.example/dead-profile-avatar.png', async (route) => {
+		await route.abort();
+	});
+	await setViewport(page, 'desktop');
+
+	await page.goto('/app/profiles/soft.hertz@kolektiva.social');
+
+	const profileAvatar = page.getByTestId('profile-view').locator('.pp-v1-av.avatar-fallback');
+	await expect(profileAvatar).toBeVisible();
+	await expect(profileAvatar.locator('img[alt="soft.hertz ✦ avatar"]')).toHaveClass(/avatar-img-failed/);
+});
+
 test('profile navigation uses cached timeline account and refreshes existing post identity', async ({ page }) => {
 	const cachedAccount: PleromaAccount = {
 		...profileAccount,

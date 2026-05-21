@@ -134,6 +134,61 @@ test('header search shows live dropdown results and dismisses with Escape', asyn
 	await expect(dropdown).not.toBeVisible();
 });
 
+test('header search dropdown mouse clicks open results instead of submitting search', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page);
+	await mockSearch(page);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	await page.getByRole('combobox', { name: 'Search PleromaNet' }).fill('slow web');
+	await page.getByTestId('header-search-dropdown').getByRole('option', { name: /gridwave/ }).click();
+
+	await expect(page).toHaveURL(/\/app\/profiles\/gridwave%40retro\.social$/);
+
+	await page.goto('/app/home');
+	await page.getByRole('combobox', { name: 'Search PleromaNet' }).fill('slow web');
+	await page.getByTestId('header-search-dropdown').getByRole('option', { name: /the slow web is people/ }).click();
+
+	await expect(page).toHaveURL(/\/app\/thread\/status-search$/);
+});
+
+test('search avatars fall back when remote avatar images fail', async ({ page }) => {
+	const deadAccount = {
+		...searchAccount,
+		avatar: 'https://pleroma.example/dead-search-account.png',
+		avatar_static: 'https://pleroma.example/dead-search-account.png'
+	};
+	const deadPostAccount = accountResult('dead-search-post-account', 'dead relay', 'dead@relay.invalid');
+	deadPostAccount.avatar = 'https://pleroma.example/dead-search-post.png';
+	deadPostAccount.avatar_static = 'https://pleroma.example/dead-search-post.png';
+	await authenticate(page);
+	await mockHomeTimeline(page);
+	await mockSearch(page, {
+		accounts: [deadAccount],
+		statuses: [statusResult('dead-search-post', 'a result from a sleeping instance', deadPostAccount)],
+		hashtags: []
+	});
+	await page.route('https://pleroma.example/dead-search-*.png', async (route) => {
+		await route.abort();
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await page.getByRole('combobox', { name: 'Search PleromaNet' }).fill('sleeping instance');
+
+	const dropdown = page.getByTestId('header-search-dropdown');
+	await expect(dropdown.locator('.se-dd-av.avatar-fallback').first()).toBeVisible();
+	await expect(dropdown.locator('img[src="https://pleroma.example/dead-search-account.png"]')).toHaveClass(/avatar-img-failed/);
+	await expect(dropdown.locator('img[src="https://pleroma.example/dead-search-post.png"]')).toHaveClass(/avatar-img-failed/);
+
+	await page.keyboard.press('Enter');
+	const results = page.getByTestId('search-results');
+	await expect(results.locator('.se-row-av.avatar-fallback').first()).toBeVisible();
+	await expect(results.locator('img[src="https://pleroma.example/dead-search-account.png"]')).toHaveClass(/avatar-img-failed/);
+	await expect(results.locator('img[src="https://pleroma.example/dead-search-post.png"]')).toHaveClass(/avatar-img-failed/);
+});
+
 test('header search dropdown supports arrow navigation and Enter activation', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page);

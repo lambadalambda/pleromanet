@@ -1468,7 +1468,7 @@
 									<div class="me-editor composer-input" role="textbox" aria-label="Inserted mention demo" aria-readonly="true">
 										thanks for the recs
 										<span class="me-pill" contenteditable="false" data-acct="soft.hertz@kolektiva.social" title="@soft.hertz@kolektiva.social">
-											<span class="me-pill-av av-grad-3"><img src="samples/cat-door.webp" alt="soft.hertz ✦ avatar" /></span>
+											<Avatar variant="plain" element="span" className="me-pill-av" avClass="av-grad-3" avatarUrl="samples/cat-door.webp" alt="soft.hertz ✦ avatar" />
 											<span class="me-pill-at">@</span><span class="me-pill-handle">soft.hertz</span>
 										</span>
 										— going to try qwen 0.5b first.
@@ -1489,7 +1489,7 @@
 										<div class="me-pop-list" role="listbox" aria-label="Static mention suggestions">
 											{#each DS_MENTION_ACCOUNTS as account, index}
 												<div class="me-row" class:sel={index === 0} role="option" aria-selected={index === 0}>
-													<span class={`me-row-av ${account.avClass ?? ''}`}>{#if account.avatarUrl}<img src={account.avatarUrl} alt={`${account.displayName} avatar`} />{/if}</span>
+													<Avatar variant="plain" element="span" className="me-row-av" avClass={account.avClass} avatarUrl={account.avatarUrl} alt={`${account.displayName} avatar`} />
 													<span class="me-row-name">{account.displayName}</span>
 													<span class="me-row-acct">@{account.acct}</span>
 													{#if index === 0}<span class="me-row-go"><span class="me-kbd">Tab</span></span>{/if}
