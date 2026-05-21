@@ -1395,6 +1395,45 @@ test('home timeline moves leading reply recipients into parent and cc chips', as
 	await expect(post.locator('.post-pinged-list')).not.toContainText('@feld@queer.party');
 });
 
+test('home timeline shows reply pill from metadata when the body has no leading mention', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [
+			{
+				...pleromaFixtures.status,
+				id: 'status-metadata-reply',
+				in_reply_to_id: 'parent-status',
+				in_reply_to_account_id: 'parent-account',
+				content: 'amazing look',
+				pleroma: {
+					...pleromaFixtures.status.pleroma,
+					content: { 'text/plain': 'amazing look' },
+					in_reply_to_account_acct: 'mischievoustomato@tsundere.love'
+				},
+				mentions: [
+					{
+						id: 'parent-account',
+						url: 'https://tsundere.love/users/mischievoustomato',
+						username: 'mischievoustomato',
+						acct: 'mischievoustomato@tsundere.love'
+					}
+				]
+			}
+		]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('.post').filter({ hasText: 'amazing look' }).first();
+	await expect(post.locator('.post-body')).toHaveText('amazing look');
+	await expect(post.locator('.post-pinged-l')).toHaveText('Replying to');
+	await expect(post.locator('.post-pinged-chip-parent .post-pinged-handle')).toHaveText('@mischievoustomato');
+	await expect(post.locator('.post-pinged-chip-parent')).toHaveAttribute('title', '@mischievoustomato@tsundere.love');
+	await expect(post.locator('.post-pinged-chip-parent')).toHaveAttribute('href', '/app/profiles/mischievoustomato%40tsundere.love');
+	await expect(post.locator('.post-pinged-also')).toHaveCount(0);
+});
+
 test('home timeline post menu copies raw post JSON for bug reports', async ({ page }) => {
 	await authenticate(page);
 	await page.addInitScript(() => {

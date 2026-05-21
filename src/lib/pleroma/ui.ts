@@ -187,6 +187,27 @@ const leadingMentionHandles = (status: PleromaStatus) =>
 		})
 	);
 
+const handleFromAcct = (acct: unknown) => {
+	if (typeof acct !== 'string' || !acct.trim()) return null;
+	return `@${acct.trim().replace(/^@/, '')}`;
+};
+
+const directReplyAccountHandle = (status: PleromaStatus) => {
+	if (!status.in_reply_to_id) return null;
+	const pleromaAcct = handleFromAcct(status.pleroma.in_reply_to_account_acct);
+	if (pleromaAcct) return pleromaAcct;
+
+	const mention = status.mentions.find((entry) => {
+		if (!entry || typeof entry !== 'object') return false;
+		const values = entry as Record<string, unknown>;
+		return typeof values.id === 'string' && values.id === status.in_reply_to_account_id;
+	});
+	if (!mention || typeof mention !== 'object') return null;
+	const values = mention as Record<string, unknown>;
+
+	return handleFromAcct(values.acct) ?? handleFromAcct(values.username);
+};
+
 const extractLeadingReplyAddressees = (text: string, status: PleromaStatus) => {
 	const knownMentionHandles = leadingMentionHandles(status);
 	if (!status.in_reply_to_id && knownMentionHandles.size === 0) return { body: text };
@@ -205,7 +226,9 @@ const extractLeadingReplyAddressees = (text: string, status: PleromaStatus) => {
 		rest = rest.slice(separator[0].length);
 	}
 
-	return addressees.length > 0 ? { body: rest.trimStart(), addressees } : { body: text };
+	if (addressees.length > 0) return { body: rest.trimStart(), addressees };
+	const directReply = directReplyAccountHandle(status);
+	return directReply ? { body: text, addressees: [directReply] } : { body: text };
 };
 
 const spoilerText = (status: PleromaStatus) => {

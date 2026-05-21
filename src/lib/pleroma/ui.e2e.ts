@@ -154,6 +154,30 @@ test('Pleroma status adapters use mention metadata for leading recipient mention
 	expect(post.addressees).toEqual(['@vriska']);
 });
 
+test('Pleroma status adapters synthesize reply addressees from metadata without visible mentions', () => {
+	const post = adaptPleromaStatus(withStatus({
+		id: 'metadata-only-reply',
+		in_reply_to_id: 'parent-status',
+		in_reply_to_account_id: 'parent-account',
+		content: 'amazing look',
+		pleroma: {
+			content: { 'text/plain': 'amazing look' },
+			in_reply_to_account_acct: 'mischievoustomato@tsundere.love'
+		},
+		mentions: [
+			{
+				id: 'parent-account',
+				url: 'https://tsundere.love/users/mischievoustomato',
+				username: 'mischievoustomato',
+				acct: 'mischievoustomato@tsundere.love'
+			}
+		]
+	}));
+
+	expect(post.body).toBe('amazing look');
+	expect(post.addressees).toEqual(['@mischievoustomato@tsundere.love']);
+});
+
 test('Pleroma status adapters handle reblogs, remote handles, warnings, and fallback assets', () => {
 	const remoteAccount = {
 		...pleromaFixtures.account,
