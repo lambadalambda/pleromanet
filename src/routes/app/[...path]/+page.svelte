@@ -5,12 +5,12 @@
 	import AttachmentLightboxHost from '$lib/rebuild/AttachmentLightboxHost.svelte';
 	import Button from '$lib/rebuild/Button.svelte';
 	import ComposerCWPanel from '$lib/rebuild/ComposerCWPanel.svelte';
-	import ComposerMentionEditor, { type ComposerEmoji, type ComposerMentionAccount } from '$lib/rebuild/ComposerMentionEditor.svelte';
+	import ComposerMentionEditor from '$lib/rebuild/ComposerMentionEditor.svelte';
 	import EmojiPicker from '$lib/rebuild/EmojiPicker.svelte';
 	import ComposerPollPanel from '$lib/rebuild/ComposerPollPanel.svelte';
 	import FocusedPost from '$lib/rebuild/FocusedPost.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
-	import InlineReplyComposer from '$lib/rebuild/InlineReplyComposer.svelte';
+	import InlineReplyComposer, { type InlineReplyComposerProps } from '$lib/rebuild/InlineReplyComposer.svelte';
 	import NotifRow from '$lib/rebuild/NotifRow.svelte';
 	import NotifsPopover from '$lib/rebuild/NotifsPopover.svelte';
 	import Post from '$lib/rebuild/Post.svelte';
@@ -33,9 +33,9 @@
 	} from '$lib/pleroma/timeline-state';
 	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, normalizePleromaRequestError, statusCharacterLimit, type PleromaNotificationView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
-	import { composerPollPayload, createComposerPollDraft, type ComposerPollDraft } from '$lib/rebuild/composer';
+	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, composerUploadBadge, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
-	import type { PleromaInstance, PleromaMediaAttachment, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
+	import type { PleromaInstance, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
 	import type { SocialNotificationData, SocialPost } from '$lib/social/types';
 	import { onMount } from 'svelte';
 
@@ -71,6 +71,7 @@
 		avBanner?: BannerVariant;
 		avatarUrl?: string | null;
 	};
+	type InlineReplyComposerData = Omit<InlineReplyComposerProps, 'id'>;
 	type RebuildPost = PostLike & {
 		id: string | number;
 		actionStatusId?: string;
@@ -119,15 +120,6 @@
 		| { status: 'success'; data: PleromaNotificationView[] };
 	type TrendView = { rank: number; tag: string; count: string | null };
 	type InstanceStatusView = { title: string | null; domain: string | null; rows: { label: string; value: string }[] };
-	type ComposerUpload = {
-		localId: string;
-		name: string;
-		kind: 'photo' | 'audio' | 'video' | 'file';
-		progress: number;
-		status: 'uploading' | 'uploaded' | 'error';
-		media?: PleromaMediaAttachment;
-		error?: string;
-	};
 	type StatusActionErrorState = { targetId: string; key: StatusActionKey; route: StatusActionOrigin; error: PleromaRequestErrorView };
 	type NotificationPopoverStatus = 'ready' | 'loading' | 'empty' | 'error';
 	const HOME_TIMELINE_CHECK_EVENT = 'pleromanet:check-home-timeline';
@@ -654,10 +646,10 @@
 	const inlineReplyRemaining = $derived(composerCharacterLimit - inlineReplyDraft.length);
 	const preparedComposerPoll = $derived(composerPoll ? composerPollPayload(composerPoll) : undefined);
 	const preparedInlineReplyPoll = $derived(inlineReplyPoll ? composerPollPayload(inlineReplyPoll) : undefined);
-	const composerUploadedMediaIds = $derived(composerUploads.filter((upload) => upload.status === 'uploaded' && upload.media?.id).map((upload) => upload.media?.id as string));
-	const composerUploadsPending = $derived(composerUploads.some((upload) => upload.status === 'uploading'));
-	const inlineReplyUploadedMediaIds = $derived(inlineReplyUploads.filter((upload) => upload.status === 'uploaded' && upload.media?.id).map((upload) => upload.media?.id as string));
-	const inlineReplyUploadsPending = $derived(inlineReplyUploads.some((upload) => upload.status === 'uploading'));
+	const composerUploadedMediaIds = $derived(getComposerUploadedMediaIds(composerUploads));
+	const composerUploadsPending = $derived(hasComposerUploadsPending(composerUploads));
+	const inlineReplyUploadedMediaIds = $derived(getComposerUploadedMediaIds(inlineReplyUploads));
+	const inlineReplyUploadsPending = $derived(hasComposerUploadsPending(inlineReplyUploads));
 	const composerHasPostContent = $derived(Boolean(composerText.trim()) || composerUploadedMediaIds.length > 0);
 	const canSubmitHomePost = $derived(composerHasPostContent && composerRemaining >= 0 && (!composerPoll || Boolean(preparedComposerPoll)) && !composerUploadsPending && homePostSubmitState !== 'submitting');
 	const timelinePosts = $derived([
@@ -754,33 +746,17 @@
 		profile = { ...savedProfile };
 		settingsSaveState = 'Saved';
 	};
-	const MAX_COMPOSER_UPLOADS = 8;
-	const MAX_COMPOSER_UPLOAD_BYTES = 40 * 1024 * 1024;
-	const composerUploadError = (file: File, error: string): ComposerUpload => ({
-		localId: `${Date.now()}-error-${file.name}`,
-		name: file.name,
-		kind: uploadKind(file),
-		progress: 0,
-		status: 'error',
-		error
-	});
-	const uploadKind = (file: File): ComposerUpload['kind'] =>
-		file.type.startsWith('image/') ? 'photo' :
-		file.type.startsWith('audio/') ? 'audio' :
-		file.type.startsWith('video/') ? 'video' :
-		'file';
-	const isComposerUploadType = (file: File) => file.type.startsWith('image/') || file.type.startsWith('audio/') || file.type.startsWith('video/');
 	const queueUploadFiles = (files: FileList | File[], uploads: ComposerUpload[], updateUploads: (updater: (uploads: ComposerUpload[]) => ComposerUpload[]) => void, isStillCurrent: () => boolean = () => true) => {
 		const session = currentSession;
 		if (!session) return;
 		const incoming = Array.from(files).filter((file) => file.size > 0);
 		const usedSlots = uploads.filter((upload) => upload.status !== 'error').length;
-		const slots = Math.max(0, MAX_COMPOSER_UPLOADS - usedSlots);
+		const slots = Math.max(0, COMPOSER_MAX_UPLOADS - usedSlots);
 		const rejected: ComposerUpload[] = [];
 		const accepted: File[] = [];
 		for (const file of incoming) {
 			if (!isComposerUploadType(file)) rejected.push(composerUploadError(file, `Could not attach ${file.name} · only photos, audio, and video.`));
-			else if (file.size > MAX_COMPOSER_UPLOAD_BYTES) rejected.push(composerUploadError(file, `Could not attach ${file.name} · 40 MB limit per file.`));
+			else if (file.size > COMPOSER_MAX_UPLOAD_BYTES) rejected.push(composerUploadError(file, `Could not attach ${file.name} · 40 MB limit per file.`));
 			else if (accepted.length >= slots) rejected.push(composerUploadError(file, `Could not attach ${file.name} · 8 file limit.`));
 			else accepted.push(file);
 		}
@@ -790,7 +766,7 @@
 		const additions = accepted.map((file, index): ComposerUpload => ({
 			localId: `${Date.now()}-${index}-${file.name}`,
 			name: file.name,
-			kind: uploadKind(file),
+			kind: composerUploadKind(file),
 			progress: 5,
 			status: 'uploading'
 		}));
@@ -802,11 +778,11 @@
 					const client = createPleromaClient({ instanceUrl: session.instanceUrl, accessToken: session.accessToken, fetch: window.fetch.bind(window) });
 					const media = await client.uploadMedia(file);
 					if (!isCurrentSessionRequest(requestSessionKey) || !isStillCurrent()) return;
-					updateUploads((current) => current.map((upload) => upload.localId === localId ? { ...upload, progress: 100, status: 'uploaded', media } : upload));
+					updateUploads((current) => current.map((upload) => upload.localId === localId ? { localId: upload.localId, name: upload.name, kind: upload.kind, progress: 100, status: 'uploaded', media } : upload));
 				} catch (error) {
 					if (!isCurrentSessionRequest(requestSessionKey) || !isStillCurrent()) return;
 					const normalized = normalizePleromaRequestError(error);
-					updateUploads((current) => current.map((upload) => upload.localId === localId ? { ...upload, progress: 0, status: 'error', error: normalized.message } : upload));
+					updateUploads((current) => current.map((upload) => upload.localId === localId ? { localId: upload.localId, name: upload.name, kind: upload.kind, progress: 0, status: 'error', error: normalized.message } : upload));
 				}
 			})();
 		});
@@ -1288,6 +1264,40 @@
 		composerInsertRequestId += 1;
 		composerInsertRequest = { id: composerInsertRequestId, item };
 	};
+	const inlineReplyComposerProps = $derived<InlineReplyComposerData | null>(inlineReplyTarget ? {
+		targetHandle: inlineReplyTarget.handle,
+		targetName: inlineReplyTarget.name,
+		targetAvClass: inlineReplyTarget.avClass,
+		targetAvBanner: inlineReplyTarget.avBanner,
+		targetAvatarUrl: inlineReplyTarget.avatarUrl,
+		draft: inlineReplyDraft,
+		remaining: inlineReplyRemaining,
+		submitting: inlineReplySubmitState === 'submitting',
+		error: inlineReplySubmitError,
+		spoilerActive: inlineReplySpoilerActive,
+		spoilerText: inlineReplySpoilerText,
+		poll: inlineReplyPoll,
+		pollValid: Boolean(preparedInlineReplyPoll),
+		accounts: composerMentionAccounts,
+		emojis: composerCustomEmojis,
+		uploads: inlineReplyUploads,
+		onMentionQuery: searchComposerMentionAccounts,
+		onFiles: queueInlineReplyFiles,
+		onRemoveUpload: removeInlineReplyUpload,
+		onSpoilerToggle: toggleInlineReplySpoiler,
+		onSpoilerInput: (value: string) => (inlineReplySpoilerText = value),
+		onSpoilerRemove: clearInlineReplySpoiler,
+		onPollToggle: toggleInlineReplyPoll,
+		onPollChange: (poll: ComposerPollDraft) => (inlineReplyPoll = poll),
+		onPollRemove: () => (inlineReplyPoll = null),
+		onDraftInput: (value: string) => (inlineReplyDraft = value),
+		onCancel: () => clearInlineReply(),
+		onSubmit: submitInlineReply
+	} : null);
+	const threadInlineReplyBinding = $derived(inlineReplyComposerProps ? {
+		renderId: inlineReplyTarget?.route === 'thread' ? inlineReplyTarget.renderId : null,
+		props: inlineReplyComposerProps
+	} : null);
 	const clearNotificationLoadPromise = (abort = false) => {
 		if (abort) notificationAbortController?.abort();
 		notificationLoadPromise = null;
@@ -1895,14 +1905,14 @@
 								/>
 								<input bind:this={composerFileInput} class="sr-only" type="file" multiple tabindex="-1" aria-label="Attach media" accept="image/*,audio/*,video/*" onchange={handleComposerFileChange} />
 								{#if composerUploads.length > 0}
-					<div class="composer-uploads" aria-live="polite">
+									<div class="composer-uploads" aria-live="polite">
 										{#each composerUploads as upload (upload.localId)}
 											<div class="composer-upload-row" class:error={upload.status === 'error'} title={upload.error}>
-												<div class={`composer-upload-thumb ${upload.kind}`}>{upload.kind === 'audio' ? 'WAV' : upload.kind === 'video' ? 'MP4' : upload.kind === 'photo' ? 'IMG' : 'FILE'}</div>
+												<div class={`composer-upload-thumb ${upload.kind}`}>{composerUploadBadge(upload.kind)}</div>
 												<div class="composer-upload-meta">
 													<div class="composer-upload-name">{upload.name}</div>
 													<div class="composer-upload-prog-row">
-								<div class="composer-upload-bar" role="progressbar" aria-label={`Upload progress for ${upload.name}`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={upload.progress}><span style={`width:${upload.progress}%`}></span></div>
+														<div class="composer-upload-bar" role="progressbar" aria-label={`Upload progress for ${upload.name}`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={upload.progress}><span style={`width:${upload.progress}%`}></span></div>
 														<span class="composer-upload-pct">{upload.status === 'error' ? 'Error' : `${upload.progress}%`}</span>
 													</div>
 													{#if upload.error}<div class="composer-upload-error">{upload.error}</div>{/if}
@@ -1974,37 +1984,10 @@
 							<div data-testid="home-timeline-list">
 								{#each timelinePosts as post (post.id)}
 									<Post {post} replyExpanded={inlineReplyOpenFor('home', post)} replyControlsId={inlineReplyOpenFor('home', post) ? inlineReplyComposerId('home', post) : undefined} onOpen={() => openThread(post)} onAction={(key) => handlePostAction(post, key)} />
-									{#if inlineReplyOpenFor('home', post) && inlineReplyTarget}
+									{#if inlineReplyOpenFor('home', post) && inlineReplyComposerProps}
 										<InlineReplyComposer
 											id={inlineReplyComposerId('home', post)}
-											targetHandle={inlineReplyTarget.handle}
-											targetName={inlineReplyTarget.name}
-											targetAvClass={inlineReplyTarget.avClass}
-											targetAvBanner={inlineReplyTarget.avBanner}
-											targetAvatarUrl={inlineReplyTarget.avatarUrl}
-											draft={inlineReplyDraft}
-											remaining={inlineReplyRemaining}
-											submitting={inlineReplySubmitState === 'submitting'}
-											error={inlineReplySubmitError}
-											spoilerActive={inlineReplySpoilerActive}
-											spoilerText={inlineReplySpoilerText}
-											poll={inlineReplyPoll}
-											pollValid={Boolean(preparedInlineReplyPoll)}
-											accounts={composerMentionAccounts}
-											emojis={composerCustomEmojis}
-											uploads={inlineReplyUploads}
-											onMentionQuery={searchComposerMentionAccounts}
-											onFiles={queueInlineReplyFiles}
-											onRemoveUpload={removeInlineReplyUpload}
-											onSpoilerToggle={toggleInlineReplySpoiler}
-											onSpoilerInput={(value) => (inlineReplySpoilerText = value)}
-											onSpoilerRemove={clearInlineReplySpoiler}
-											onPollToggle={toggleInlineReplyPoll}
-											onPollChange={(poll) => (inlineReplyPoll = poll)}
-											onPollRemove={() => (inlineReplyPoll = null)}
-											onDraftInput={(value) => (inlineReplyDraft = value)}
-											onCancel={() => clearInlineReply()}
-											onSubmit={submitInlineReply}
+											{...inlineReplyComposerProps}
 										/>
 									{/if}
 								{/each}
@@ -2091,74 +2074,20 @@
 										<div data-testid="thread-ancestor">
 											<AncestorPost post={ancestor} replyExpanded={inlineReplyOpenFor('thread', ancestor)} replyControlsId={inlineReplyOpenFor('thread', ancestor) ? inlineReplyComposerId('thread', ancestor) : undefined} onAction={handleThreadPostAction} />
 										</div>
-										{#if inlineReplyOpenFor('thread', ancestor) && inlineReplyTarget}
+										{#if inlineReplyOpenFor('thread', ancestor) && inlineReplyComposerProps}
 											<InlineReplyComposer
 												id={inlineReplyComposerId('thread', ancestor)}
-												targetHandle={inlineReplyTarget.handle}
-												targetName={inlineReplyTarget.name}
-												targetAvClass={inlineReplyTarget.avClass}
-												targetAvBanner={inlineReplyTarget.avBanner}
-												targetAvatarUrl={inlineReplyTarget.avatarUrl}
-												draft={inlineReplyDraft}
-												remaining={inlineReplyRemaining}
-												submitting={inlineReplySubmitState === 'submitting'}
-												error={inlineReplySubmitError}
-												spoilerActive={inlineReplySpoilerActive}
-												spoilerText={inlineReplySpoilerText}
-												poll={inlineReplyPoll}
-												pollValid={Boolean(preparedInlineReplyPoll)}
-												accounts={composerMentionAccounts}
-												emojis={composerCustomEmojis}
-												uploads={inlineReplyUploads}
-												onMentionQuery={searchComposerMentionAccounts}
-												onFiles={queueInlineReplyFiles}
-												onRemoveUpload={removeInlineReplyUpload}
-												onSpoilerToggle={toggleInlineReplySpoiler}
-												onSpoilerInput={(value) => (inlineReplySpoilerText = value)}
-												onSpoilerRemove={clearInlineReplySpoiler}
-												onPollToggle={toggleInlineReplyPoll}
-												onPollChange={(poll) => (inlineReplyPoll = poll)}
-												onPollRemove={() => (inlineReplyPoll = null)}
-												onDraftInput={(value) => (inlineReplyDraft = value)}
-												onCancel={() => clearInlineReply()}
-												onSubmit={submitInlineReply}
+												{...inlineReplyComposerProps}
 											/>
 										{/if}
 									{/each}
 								</div>
 							{/if}
 							<FocusedPost post={threadState.focused} continuesAbove={threadState.ancestors.length > 0} replyExpanded={inlineReplyOpenFor('thread', threadState.focused)} replyControlsId={inlineReplyOpenFor('thread', threadState.focused) ? inlineReplyComposerId('thread', threadState.focused) : undefined} onAction={handleThreadPostAction} />
-							{#if inlineReplyOpenFor('thread', threadState.focused) && inlineReplyTarget}
+							{#if inlineReplyOpenFor('thread', threadState.focused) && inlineReplyComposerProps}
 								<InlineReplyComposer
 									id={inlineReplyComposerId('thread', threadState.focused)}
-									targetHandle={inlineReplyTarget.handle}
-									targetName={inlineReplyTarget.name}
-									targetAvClass={inlineReplyTarget.avClass}
-									targetAvBanner={inlineReplyTarget.avBanner}
-									targetAvatarUrl={inlineReplyTarget.avatarUrl}
-									draft={inlineReplyDraft}
-									remaining={inlineReplyRemaining}
-									submitting={inlineReplySubmitState === 'submitting'}
-									error={inlineReplySubmitError}
-									spoilerActive={inlineReplySpoilerActive}
-									spoilerText={inlineReplySpoilerText}
-									poll={inlineReplyPoll}
-									pollValid={Boolean(preparedInlineReplyPoll)}
-									accounts={composerMentionAccounts}
-									emojis={composerCustomEmojis}
-									uploads={inlineReplyUploads}
-									onMentionQuery={searchComposerMentionAccounts}
-									onFiles={queueInlineReplyFiles}
-									onRemoveUpload={removeInlineReplyUpload}
-									onSpoilerToggle={toggleInlineReplySpoiler}
-									onSpoilerInput={(value) => (inlineReplySpoilerText = value)}
-									onSpoilerRemove={clearInlineReplySpoiler}
-									onPollToggle={toggleInlineReplyPoll}
-									onPollChange={(poll) => (inlineReplyPoll = poll)}
-									onPollRemove={() => (inlineReplyPoll = null)}
-									onDraftInput={(value) => (inlineReplyDraft = value)}
-									onCancel={() => clearInlineReply()}
-									onSubmit={submitInlineReply}
+									{...inlineReplyComposerProps}
 								/>
 							{/if}
 							<div class="thread-reply-head">
@@ -2176,36 +2105,8 @@
 											isLast={i === sortedThreadReplyPosts.length - 1}
 											nestedReplies={reply.nestedReplies}
 											onAction={handleThreadPostAction}
-											inlineReplyRenderId={inlineReplyTarget?.route === 'thread' ? inlineReplyTarget.renderId : null}
-											inlineReplyTargetHandle={inlineReplyTarget?.handle ?? ''}
-											inlineReplyTargetName={inlineReplyTarget?.name ?? ''}
-											inlineReplyTargetAvClass={inlineReplyTarget?.avClass}
-											inlineReplyTargetAvBanner={inlineReplyTarget?.avBanner}
-											inlineReplyTargetAvatarUrl={inlineReplyTarget?.avatarUrl}
-											inlineReplyDraft={inlineReplyDraft}
-											inlineReplyRemaining={inlineReplyRemaining}
-											inlineReplySubmitting={inlineReplySubmitState === 'submitting'}
-											inlineReplyError={inlineReplySubmitError}
-											inlineReplySpoilerActive={inlineReplySpoilerActive}
-											inlineReplySpoilerText={inlineReplySpoilerText}
-											inlineReplyPoll={inlineReplyPoll}
-											inlineReplyPollValid={Boolean(preparedInlineReplyPoll)}
-											inlineReplyAccounts={composerMentionAccounts}
-											inlineReplyEmojis={composerCustomEmojis}
-											inlineReplyUploads={inlineReplyUploads}
+											inlineReply={threadInlineReplyBinding}
 											expandedReplyIds={expandedThreadReplyIds}
-											onInlineReplyMentionQuery={searchComposerMentionAccounts}
-											onInlineReplyFiles={queueInlineReplyFiles}
-											onInlineReplyRemoveUpload={removeInlineReplyUpload}
-											onInlineReplySpoilerToggle={toggleInlineReplySpoiler}
-											onInlineReplySpoilerInput={(value) => (inlineReplySpoilerText = value)}
-											onInlineReplySpoilerRemove={clearInlineReplySpoiler}
-											onInlineReplyPollToggle={toggleInlineReplyPoll}
-											onInlineReplyPollChange={(poll) => (inlineReplyPoll = poll)}
-											onInlineReplyPollRemove={() => (inlineReplyPoll = null)}
-											onInlineReplyDraftInput={(value) => (inlineReplyDraft = value)}
-											onInlineReplyCancel={() => clearInlineReply()}
-											onInlineReplySubmit={submitInlineReply}
 											onShowNested={showThreadReplyNested}
 										/>
 									</div>

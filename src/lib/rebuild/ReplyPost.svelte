@@ -1,7 +1,6 @@
 <script lang="ts">
 	import Avatar from './Avatar.svelte';
-	import type { ComposerEmoji, ComposerMentionAccount } from './ComposerMentionEditor.svelte';
-	import InlineReplyComposer, { type InlineReplyUpload } from './InlineReplyComposer.svelte';
+	import InlineReplyComposer, { type InlineReplyComposerProps } from './InlineReplyComposer.svelte';
 	import PostActions from './PostActions.svelte';
 	import PostBoost from './PostBoost.svelte';
 	import PostBody from './PostBody.svelte';
@@ -11,10 +10,8 @@
 	import QuotedPost from './QuotedPost.svelte';
 	import ReplyPostBranch from './ReplyPost.svelte';
 	import type { CustomEmoji } from '$lib/social/types';
-	import type { PleromaRequestErrorView } from '$lib/pleroma/ui';
 	import { normalizeRenderableAttachments, openLightbox } from './attachments';
 	import type { BannerVariant, PostLike } from './attachments';
-	import type { ComposerPollDraft } from './composer';
 
 	type ThreadReply = PostLike & {
 		id?: string | number;
@@ -34,42 +31,18 @@
 		actions: { reply: boolean; boost: boolean; fav: boolean };
 		nestedReplies?: ThreadReply[];
 	};
+	type InlineReplyBinding = {
+		renderId: string | null;
+		props: Omit<InlineReplyComposerProps, 'id'>;
+	};
 
 	type Props = {
 		post: ThreadReply;
 		isLast?: boolean;
 		nestedReplies?: ThreadReply[];
 		onAction?: (id: string | number | undefined, key: string) => void;
-		inlineReplyRenderId?: string | null;
-		inlineReplyTargetHandle?: string;
-		inlineReplyTargetName?: string;
-		inlineReplyTargetAvClass?: string;
-		inlineReplyTargetAvBanner?: BannerVariant;
-		inlineReplyTargetAvatarUrl?: string | null;
-		inlineReplyDraft?: string;
-		inlineReplyRemaining?: number;
-		inlineReplySubmitting?: boolean;
-		inlineReplyError?: PleromaRequestErrorView | null;
-		inlineReplySpoilerActive?: boolean;
-		inlineReplySpoilerText?: string;
-		inlineReplyPoll?: ComposerPollDraft | null;
-		inlineReplyPollValid?: boolean;
-		inlineReplyAccounts?: ComposerMentionAccount[];
-		inlineReplyEmojis?: ComposerEmoji[];
-		inlineReplyUploads?: InlineReplyUpload[];
+		inlineReply?: InlineReplyBinding | null;
 		expandedReplyIds?: Record<string, boolean>;
-		onInlineReplyMentionQuery?: (query: string) => void;
-		onInlineReplyFiles?: (files: FileList | File[]) => void;
-		onInlineReplyRemoveUpload?: (localId: string) => void;
-		onInlineReplySpoilerToggle?: () => void;
-		onInlineReplySpoilerInput?: (value: string) => void;
-		onInlineReplySpoilerRemove?: () => void;
-		onInlineReplyPollToggle?: () => void;
-		onInlineReplyPollChange?: (poll: ComposerPollDraft) => void;
-		onInlineReplyPollRemove?: () => void;
-		onInlineReplyDraftInput?: (value: string) => void;
-		onInlineReplyCancel?: () => void;
-		onInlineReplySubmit?: () => void;
 		onShowNested?: (id: string | number | undefined) => void;
 	};
 
@@ -78,36 +51,8 @@
 		isLast = false,
 		nestedReplies = [],
 		onAction,
-		inlineReplyRenderId = null,
-		inlineReplyTargetHandle = '',
-		inlineReplyTargetName = '',
-		inlineReplyTargetAvClass,
-		inlineReplyTargetAvBanner,
-		inlineReplyTargetAvatarUrl,
-		inlineReplyDraft = '',
-		inlineReplyRemaining = 0,
-		inlineReplySubmitting = false,
-		inlineReplyError = null,
-		inlineReplySpoilerActive = false,
-		inlineReplySpoilerText = '',
-		inlineReplyPoll = null,
-		inlineReplyPollValid = true,
-		inlineReplyAccounts = [],
-		inlineReplyEmojis = [],
-		inlineReplyUploads = [],
+		inlineReply = null,
 		expandedReplyIds = {},
-		onInlineReplyMentionQuery,
-		onInlineReplyFiles,
-		onInlineReplyRemoveUpload,
-		onInlineReplySpoilerToggle,
-		onInlineReplySpoilerInput,
-		onInlineReplySpoilerRemove,
-		onInlineReplyPollToggle,
-		onInlineReplyPollChange,
-		onInlineReplyPollRemove,
-		onInlineReplyDraftInput,
-		onInlineReplyCancel,
-		onInlineReplySubmit,
 		onShowNested
 	}: Props = $props();
 
@@ -121,7 +66,7 @@
 			avBanner: target.avBanner
 		});
 	};
-	const inlineReplyOpenFor = (target: ThreadReply) => inlineReplyRenderId === String(target.id);
+	const inlineReplyOpenFor = (target: ThreadReply) => inlineReply?.renderId === String(target.id);
 	const inlineReplyComposerId = (target: ThreadReply) => target.id == null ? undefined : `thread-inline-reply-${String(target.id)}`;
 	const nestedRepliesOpenFor = (target: ThreadReply) => target.id != null && Boolean(expandedReplyIds[String(target.id)]);
 </script>
@@ -150,37 +95,10 @@
 			{/if}
 		</div>
 	</div>
-	{#if inlineReplyOpenFor(post)}
+	{#if inlineReplyOpenFor(post) && inlineReply}
 		<InlineReplyComposer
 			id={inlineReplyComposerId(post)}
-			targetHandle={inlineReplyTargetHandle}
-			targetName={inlineReplyTargetName}
-			targetAvClass={inlineReplyTargetAvClass}
-			targetAvBanner={inlineReplyTargetAvBanner}
-			targetAvatarUrl={inlineReplyTargetAvatarUrl}
-			draft={inlineReplyDraft}
-			remaining={inlineReplyRemaining}
-			submitting={inlineReplySubmitting}
-			error={inlineReplyError}
-			spoilerActive={inlineReplySpoilerActive}
-			spoilerText={inlineReplySpoilerText}
-			poll={inlineReplyPoll}
-			pollValid={inlineReplyPollValid}
-			accounts={inlineReplyAccounts}
-			emojis={inlineReplyEmojis}
-			uploads={inlineReplyUploads}
-			onMentionQuery={onInlineReplyMentionQuery}
-			onFiles={onInlineReplyFiles}
-			onRemoveUpload={onInlineReplyRemoveUpload}
-			onSpoilerToggle={onInlineReplySpoilerToggle}
-			onSpoilerInput={onInlineReplySpoilerInput}
-			onSpoilerRemove={onInlineReplySpoilerRemove}
-			onPollToggle={onInlineReplyPollToggle}
-			onPollChange={onInlineReplyPollChange}
-			onPollRemove={onInlineReplyPollRemove}
-			onDraftInput={(value) => onInlineReplyDraftInput?.(value)}
-			onCancel={() => onInlineReplyCancel?.()}
-			onSubmit={() => onInlineReplySubmit?.()}
+			{...inlineReply.props}
 		/>
 	{/if}
 </PostBoost>
@@ -193,36 +111,8 @@
 				isLast={i === nestedReplies.length - 1}
 				nestedReplies={reply.nestedReplies}
 				onAction={onAction}
-				inlineReplyRenderId={inlineReplyRenderId}
-				inlineReplyTargetHandle={inlineReplyTargetHandle}
-				inlineReplyTargetName={inlineReplyTargetName}
-				inlineReplyTargetAvClass={inlineReplyTargetAvClass}
-				inlineReplyTargetAvBanner={inlineReplyTargetAvBanner}
-				inlineReplyTargetAvatarUrl={inlineReplyTargetAvatarUrl}
-				inlineReplyDraft={inlineReplyDraft}
-				inlineReplyRemaining={inlineReplyRemaining}
-				inlineReplySubmitting={inlineReplySubmitting}
-				inlineReplyError={inlineReplyError}
-				inlineReplySpoilerActive={inlineReplySpoilerActive}
-				inlineReplySpoilerText={inlineReplySpoilerText}
-				inlineReplyPoll={inlineReplyPoll}
-				inlineReplyPollValid={inlineReplyPollValid}
-				inlineReplyAccounts={inlineReplyAccounts}
-				inlineReplyEmojis={inlineReplyEmojis}
-				inlineReplyUploads={inlineReplyUploads}
+				inlineReply={inlineReply}
 				expandedReplyIds={expandedReplyIds}
-				onInlineReplyMentionQuery={onInlineReplyMentionQuery}
-				onInlineReplyFiles={onInlineReplyFiles}
-				onInlineReplyRemoveUpload={onInlineReplyRemoveUpload}
-				onInlineReplySpoilerToggle={onInlineReplySpoilerToggle}
-				onInlineReplySpoilerInput={onInlineReplySpoilerInput}
-				onInlineReplySpoilerRemove={onInlineReplySpoilerRemove}
-				onInlineReplyPollToggle={onInlineReplyPollToggle}
-				onInlineReplyPollChange={onInlineReplyPollChange}
-				onInlineReplyPollRemove={onInlineReplyPollRemove}
-				onInlineReplyDraftInput={onInlineReplyDraftInput}
-				onInlineReplyCancel={onInlineReplyCancel}
-				onInlineReplySubmit={onInlineReplySubmit}
 				onShowNested={onShowNested}
 			/>
 		{/each}

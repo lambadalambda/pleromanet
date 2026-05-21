@@ -3,19 +3,19 @@
 	import AncestorPost from '$lib/rebuild/AncestorPost.svelte';
 	import Button from '$lib/rebuild/Button.svelte';
 	import ComposerCWPanel from '$lib/rebuild/ComposerCWPanel.svelte';
-	import ComposerMentionEditor, { type ComposerEmoji, type ComposerMentionAccount } from '$lib/rebuild/ComposerMentionEditor.svelte';
+	import ComposerMentionEditor from '$lib/rebuild/ComposerMentionEditor.svelte';
 	import EmojiPicker from '$lib/rebuild/EmojiPicker.svelte';
 	import ComposerPollPanel from '$lib/rebuild/ComposerPollPanel.svelte';
 	import FocusedPost from '$lib/rebuild/FocusedPost.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
-	import InlineReplyComposer from '$lib/rebuild/InlineReplyComposer.svelte';
+	import InlineReplyComposer, { type InlineReplyComposerProps } from '$lib/rebuild/InlineReplyComposer.svelte';
 	import Pill from '$lib/rebuild/Pill.svelte';
 	import Post from '$lib/rebuild/Post.svelte';
 	import ReplyPost from '$lib/rebuild/ReplyPost.svelte';
 	import CompactAudio from '$lib/rebuild/CompactAudio.svelte';
 	import AttachmentLightboxHost from '$lib/rebuild/AttachmentLightboxHost.svelte';
 	import { openLightbox } from '$lib/rebuild/attachments';
-	import { createComposerPollDraft, type ComposerPollDraft } from '$lib/rebuild/composer';
+	import { createComposerPollDraft, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft } from '$lib/rebuild/composer';
 	import MediaStripThumb from '$lib/rebuild/MediaStripThumb.svelte';
 	import MediaStripKindBadge from '$lib/rebuild/MediaStripKindBadge.svelte';
 	import MobilePreview from '$lib/rebuild/MobilePreview.svelte';
@@ -367,6 +367,22 @@
 		],
 	};
 	let threadInlineReplyTarget = $derived(threadInlineReplyId == null ? null : findDemoPost([...THREAD_DEMO.ancestors, THREAD_DEMO.focused, ...THREAD_DEMO.replies], threadInlineReplyId));
+	const threadInlineReplyComposerProps = $derived<Omit<InlineReplyComposerProps, 'id'> | null>(threadInlineReplyTarget ? {
+		targetHandle: inlineReplyTargetHandle(threadInlineReplyTarget.handle),
+		targetName: threadInlineReplyTarget.name,
+		targetAvClass: threadInlineReplyTarget.avClass,
+		targetAvBanner: threadInlineReplyTarget.avBanner,
+		targetAvatarUrl: threadInlineReplyTarget.avatarUrl,
+		draft: threadInlineReplyDraft,
+		remaining: threadInlineReplyRemaining,
+		onDraftInput: (value: string) => (threadInlineReplyDraft = value),
+		onCancel: clearThreadInlineReply,
+		onSubmit: clearThreadInlineReply
+	} : null);
+	const threadInlineReplyBinding = $derived(threadInlineReplyComposerProps ? {
+		renderId: threadInlineReplyId == null ? null : String(threadInlineReplyId),
+		props: threadInlineReplyComposerProps
+	} : null);
 
 	const sampleNotification = (kind: NotificationKind): NotificationData =>
 		SAMPLE_NOTIFS.find((notification) => notification.kind === kind) ?? SAMPLE_NOTIFS[0];
@@ -1823,19 +1839,10 @@
 									<div class="thread-ancestors">
 										{#each THREAD_DEMO.ancestors as ancestor (ancestor.id)}
 											<AncestorPost post={ancestor} replyExpanded={threadInlineReplyOpenFor(ancestor.id)} replyControlsId={threadInlineReplyOpenFor(ancestor.id) ? threadInlineReplyComposerId(ancestor.id) : undefined} onAction={handleThreadReplyAction} />
-											{#if threadInlineReplyOpenFor(ancestor.id)}
+											{#if threadInlineReplyOpenFor(ancestor.id) && threadInlineReplyComposerProps}
 												<InlineReplyComposer
 													id={threadInlineReplyComposerId(ancestor.id)}
-													targetHandle={threadInlineReplyTarget ? inlineReplyTargetHandle(threadInlineReplyTarget.handle) : ''}
-													targetName={threadInlineReplyTarget?.name ?? ''}
-													targetAvClass={threadInlineReplyTarget?.avClass}
-													targetAvBanner={threadInlineReplyTarget?.avBanner}
-													targetAvatarUrl={threadInlineReplyTarget?.avatarUrl}
-													draft={threadInlineReplyDraft}
-													remaining={threadInlineReplyRemaining}
-													onDraftInput={(value) => (threadInlineReplyDraft = value)}
-													onCancel={clearThreadInlineReply}
-													onSubmit={clearThreadInlineReply}
+													{...threadInlineReplyComposerProps}
 												/>
 											{/if}
 										{/each}
@@ -1843,19 +1850,10 @@
 								{/if}
 
 								<FocusedPost post={THREAD_DEMO.focused} continuesAbove={THREAD_DEMO.ancestors.length > 0} replyExpanded={threadInlineReplyOpenFor(THREAD_DEMO.focused.id)} replyControlsId={threadInlineReplyOpenFor(THREAD_DEMO.focused.id) ? threadInlineReplyComposerId(THREAD_DEMO.focused.id) : undefined} onAction={handleThreadReplyAction} />
-								{#if threadInlineReplyOpenFor(THREAD_DEMO.focused.id)}
+								{#if threadInlineReplyOpenFor(THREAD_DEMO.focused.id) && threadInlineReplyComposerProps}
 									<InlineReplyComposer
 										id={threadInlineReplyComposerId(THREAD_DEMO.focused.id)}
-										targetHandle={threadInlineReplyTarget ? inlineReplyTargetHandle(threadInlineReplyTarget.handle) : ''}
-										targetName={threadInlineReplyTarget?.name ?? ''}
-										targetAvClass={threadInlineReplyTarget?.avClass}
-										targetAvBanner={threadInlineReplyTarget?.avBanner}
-										targetAvatarUrl={threadInlineReplyTarget?.avatarUrl}
-										draft={threadInlineReplyDraft}
-										remaining={threadInlineReplyRemaining}
-										onDraftInput={(value) => (threadInlineReplyDraft = value)}
-										onCancel={clearThreadInlineReply}
-										onSubmit={clearThreadInlineReply}
+										{...threadInlineReplyComposerProps}
 									/>
 								{/if}
 
@@ -1874,17 +1872,7 @@
 											isLast={i === THREAD_DEMO.replies.length - 1}
 											nestedReplies={reply.nestedReplies}
 											onAction={handleThreadReplyAction}
-											inlineReplyRenderId={threadInlineReplyId == null ? null : String(threadInlineReplyId)}
-											inlineReplyTargetHandle={threadInlineReplyTarget ? inlineReplyTargetHandle(threadInlineReplyTarget.handle) : ''}
-											inlineReplyTargetName={threadInlineReplyTarget?.name ?? ''}
-											inlineReplyTargetAvClass={threadInlineReplyTarget?.avClass}
-											inlineReplyTargetAvBanner={threadInlineReplyTarget?.avBanner}
-											inlineReplyTargetAvatarUrl={threadInlineReplyTarget?.avatarUrl}
-											inlineReplyDraft={threadInlineReplyDraft}
-											inlineReplyRemaining={threadInlineReplyRemaining}
-											onInlineReplyDraftInput={(value) => (threadInlineReplyDraft = value)}
-											onInlineReplyCancel={clearThreadInlineReply}
-											onInlineReplySubmit={clearThreadInlineReply}
+											inlineReply={threadInlineReplyBinding}
 											onShowNested={() => {}}
 										/>
 									{/each}

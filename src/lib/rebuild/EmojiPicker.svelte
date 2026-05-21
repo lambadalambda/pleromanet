@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import Icon from './Icon.svelte';
-	import type { ComposerEmoji } from './ComposerMentionEditor.svelte';
+	import type { ComposerEmoji } from './composer';
 
 	type UnicodeGroup = { id: string; label: string; items: string[] };
 	type Anchor = { left?: number; top?: number; bottom?: number; placement?: 'above' | 'below' };

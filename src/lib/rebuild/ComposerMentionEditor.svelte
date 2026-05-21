@@ -1,21 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-
-	export type ComposerMentionAccount = {
-		id: string;
-		username: string;
-		displayName: string;
-		acct: string;
-		avatarUrl?: string | null;
-		avClass?: string;
-	};
-
-	export type ComposerEmoji = {
-		shortcode: string;
-		url: string;
-		staticUrl?: string;
-		pack?: string;
-	};
+	import type { ComposerEmoji, ComposerMentionAccount } from './composer';
 
 	type PopState =
 		| { type: 'mention'; query: string; accounts: ComposerMentionAccount[]; emojis?: never; top: number; left: number }

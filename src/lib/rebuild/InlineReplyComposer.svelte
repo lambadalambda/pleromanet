@@ -1,24 +1,15 @@
 <script lang="ts">
 	import Avatar from './Avatar.svelte';
 	import ComposerCWPanel from './ComposerCWPanel.svelte';
-	import ComposerMentionEditor, { type ComposerEmoji, type ComposerMentionAccount } from './ComposerMentionEditor.svelte';
+	import ComposerMentionEditor from './ComposerMentionEditor.svelte';
 	import ComposerPollPanel from './ComposerPollPanel.svelte';
 	import EmojiPicker from './EmojiPicker.svelte';
 	import Icon from './Icon.svelte';
 	import type { PleromaRequestErrorView } from '$lib/pleroma/ui';
 	import type { BannerVariant } from './attachments';
-	import type { ComposerPollDraft } from './composer';
+	import { composerUploadBadge, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from './composer';
 
-export type InlineReplyUpload = {
-	localId: string;
-	name: string;
-	kind: 'photo' | 'audio' | 'video' | 'file';
-	progress: number;
-	status: 'uploading' | 'uploaded' | 'error';
-	error?: string;
-};
-
-	type Props = {
+	export type InlineReplyComposerProps = {
 		id?: string;
 		targetHandle: string;
 		targetName?: string;
@@ -35,7 +26,7 @@ export type InlineReplyUpload = {
 		pollValid?: boolean;
 		accounts?: ComposerMentionAccount[];
 		emojis?: ComposerEmoji[];
-		uploads?: InlineReplyUpload[];
+		uploads?: ComposerUpload[];
 		onMentionQuery?: (query: string) => void;
 		onFiles?: (files: FileList | File[]) => void;
 		onRemoveUpload?: (localId: string) => void;
@@ -80,7 +71,7 @@ export type InlineReplyUpload = {
 		onDraftInput,
 		onCancel,
 		onSubmit
-	}: Props = $props();
+	}: InlineReplyComposerProps = $props();
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let dragActive = $state(false);
 	let dragCount = $state(0);
@@ -103,7 +94,6 @@ export type InlineReplyUpload = {
 	let mediaEnabled = $derived(Boolean(onFiles));
 	let canSubmit = $derived((Boolean(draft.trim()) || hasUploadedMedia) && remaining >= 0 && (!poll || pollValid) && !submitting && !uploadsPending);
 
-	const uploadBadge = (kind: InlineReplyUpload['kind']) => kind === 'audio' ? 'WAV' : kind === 'video' ? 'MP4' : kind === 'photo' ? 'IMG' : 'FILE';
 	const pickFiles = () => {
 		if (submitting) return;
 		fileInput?.click();
@@ -190,7 +180,7 @@ export type InlineReplyUpload = {
 			<div class="composer-uploads thread-inline-reply-uploads" aria-live="polite">
 				{#each uploads as upload (upload.localId)}
 					<div class="composer-upload-row" class:error={upload.status === 'error'} title={upload.error}>
-						<div class={`composer-upload-thumb ${upload.kind}`}>{uploadBadge(upload.kind)}</div>
+						<div class={`composer-upload-thumb ${upload.kind}`}>{composerUploadBadge(upload.kind)}</div>
 						<div class="composer-upload-meta">
 							<div class="composer-upload-name">{upload.name}</div>
 							<div class="composer-upload-prog-row">
