@@ -14,6 +14,6 @@
 </script>
 
 <div class="post-body {className}">
-	<RichText text={body} {emojis} mentionClass="post-mention-inline" />
+	<RichText text={body} {emojis} mentionClass="post-mention-inline" linkUrls />
 </div>
 <PostPinged {addressees} />

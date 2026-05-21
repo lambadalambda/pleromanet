@@ -77,7 +77,7 @@
 	</div>
 
 	<PostCW post={post}>
-		<div class="focused-body"><RichText text={post.body} emojis={post.bodyEmojis} mentionClass="post-mention-inline" /></div>
+		<div class="focused-body"><RichText text={post.body} emojis={post.bodyEmojis} mentionClass="post-mention-inline" linkUrls /></div>
 		<QuotedPost quoted={post.quotedPost} />
 		<PostPinged addressees={post.addressees} focused />
 

@@ -166,6 +166,24 @@ test('authenticated home timeline loads and renders posts through adapters', asy
 	await expectNoHorizontalOverflow(page);
 });
 
+test('home timeline autolinks safe URLs in post bodies', async ({ page }) => {
+	await authenticate(page);
+	const url = 'https://news.ycombinator.com/item?id=47637828';
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [statusWithText('status-link', `${url} neat project`)]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const list = page.getByTestId('home-timeline-list');
+	const link = list.getByRole('link', { name: url });
+	await expect(list).toContainText(`${url} neat project`);
+	await expect(link).toHaveAttribute('href', url);
+	await expect(link).toHaveAttribute('target', '_blank');
+	await expect(link).toHaveAttribute('rel', 'ugc noopener noreferrer');
+});
+
 test('home timeline sends the OAuth token in the request', async ({ page }) => {
 	await authenticate(page);
 	let authorization: string | undefined;

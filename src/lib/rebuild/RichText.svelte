@@ -8,9 +8,10 @@
 		emojis?: CustomEmoji[];
 		mentionClass?: string;
 		linkMentions?: boolean;
+		linkUrls?: boolean;
 	};
 
-	let { text = '', emojis = [], mentionClass = '', linkMentions = true }: Props = $props();
+	let { text = '', emojis = [], mentionClass = '', linkMentions = true, linkUrls = false }: Props = $props();
 	let parts = $derived(renderBodyText(text, emojis));
 </script>
 
@@ -19,6 +20,12 @@
 		{part}
 	{:else if part.kind === 'emoji'}
 		<img class="custom-emoji" src={part.url} alt={`:${part.shortcode}:`} title={`:${part.shortcode}:`} loading="lazy" decoding="async" />
+	{:else if part.kind === 'link'}
+		{#if linkUrls}
+			<a class={mentionClass} href={part.href} target="_blank" rel="ugc noopener noreferrer">{part.text}</a>
+		{:else}
+			{part.text}
+		{/if}
 	{:else if linkMentions}
 		<a class={mentionClass} href={profileHref(part.text) ?? undefined}>{part.text}</a>
 	{:else}
