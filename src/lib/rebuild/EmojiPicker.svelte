@@ -36,6 +36,7 @@
 	let searchInput = $state<HTMLInputElement | null>(null);
 	let tab = $state('recent');
 	let search = $state('');
+	let selectedIndex = $state(0);
 
 	let packs = $derived([...new Set(emojis.map((emoji) => emoji.pack ?? 'custom'))]);
 	let sidebar = $derived([
@@ -84,6 +85,38 @@
 		onPick(item);
 		onClose();
 	};
+	const clampSelectedIndex = () => {
+		if (cells.length === 0) selectedIndex = 0;
+		else if (selectedIndex >= cells.length) selectedIndex = cells.length - 1;
+	};
+	const handlePickerKeydown = (event: KeyboardEvent) => {
+		if (cells.length === 0) return;
+		const columns = 5;
+		if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+			event.preventDefault();
+			selectedIndex = Math.min(cells.length - 1, selectedIndex + (event.key === 'ArrowDown' ? columns : 1));
+			return;
+		}
+		if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+			event.preventDefault();
+			selectedIndex = Math.max(0, selectedIndex - (event.key === 'ArrowUp' ? columns : 1));
+			return;
+		}
+		if (event.key === 'Home') {
+			event.preventDefault();
+			selectedIndex = 0;
+			return;
+		}
+		if (event.key === 'End') {
+			event.preventDefault();
+			selectedIndex = cells.length - 1;
+			return;
+		}
+		if (event.key === 'Enter') {
+			event.preventDefault();
+			pick(cells[selectedIndex]);
+		}
+	};
 
 	onMount(() => {
 		const onDoc = (event: MouseEvent) => {
@@ -105,7 +138,19 @@
 	$effect(() => {
 		if (!open || isStatic) return;
 		search = '';
+		selectedIndex = 0;
 		setTimeout(() => searchInput?.focus(), 30);
+	});
+
+	$effect(() => {
+		search;
+		tab;
+		selectedIndex = 0;
+	});
+
+	$effect(() => {
+		cells;
+		clampSelectedIndex();
 	});
 </script>
 
@@ -128,13 +173,13 @@
 		<div class="ep-main">
 			<label class="ep-search">
 				<Icon name="search" width={14} height={14} />
-				<input bind:this={searchInput} bind:value={search} aria-label="Search emoji" placeholder="Search…" spellcheck="false" />
+				<input bind:this={searchInput} bind:value={search} aria-label="Search emoji" placeholder="Search…" spellcheck="false" onkeydown={handlePickerKeydown} />
 			</label>
 			<div class="ep-pack-l">{search ? `"${search}"` : activeEntry?.label}<span class="ep-pack-count">{cells.length}</span></div>
 			<div class="ep-grid">
 				{#if cells.length === 0}<div class="ep-empty">No matches.</div>{/if}
 				{#each cells as cell, index (`${isCustomEmoji(cell) ? cell.shortcode : cell}-${index}`)}
-					<button type="button" class="ep-cell" title={isCustomEmoji(cell) ? `:${cell.shortcode}:` : cell} aria-label={isCustomEmoji(cell) ? `:${cell.shortcode}:` : cell} onclick={() => pick(cell)}>
+					<button type="button" class="ep-cell" class:sel={index === selectedIndex} title={isCustomEmoji(cell) ? `:${cell.shortcode}:` : cell} aria-label={isCustomEmoji(cell) ? `:${cell.shortcode}:` : cell} aria-pressed={index === selectedIndex} onclick={() => pick(cell)} onkeydown={handlePickerKeydown}>
 						{#if isCustomEmoji(cell)}
 							<span class="me-emoji ep-cell-cx"><img src={cell.url} alt={`:${cell.shortcode}:`} /></span>
 						{:else}

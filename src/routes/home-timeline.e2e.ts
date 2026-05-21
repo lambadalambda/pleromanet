@@ -540,6 +540,38 @@ test('home timeline composer inserts custom emoji from picker before posting', a
 	await expect(page.locator('[data-status-id="created-picker-status"]')).toContainText('picker :blobcat:');
 });
 
+test('home timeline emoji picker supports keyboard navigation and escape', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, []);
+	});
+	await page.route(customEmojisUrl, async (route) => {
+		await fulfillHome(route, pleromaFixtures.customEmojis);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const composer = page.getByRole('textbox', { name: 'Post text' });
+	await composer.fill('keyboard ');
+	await page.getByRole('button', { name: 'Emoji' }).click();
+	const picker = page.getByRole('dialog', { name: 'Emoji picker' });
+	await expect(picker).toBeVisible();
+	const search = page.getByRole('textbox', { name: 'Search emoji' });
+	await expect(search).toBeFocused();
+	await search.fill('cat');
+	await search.press('ArrowDown');
+	await expect(page.getByRole('button', { name: ':blobcat:' })).toHaveAttribute('aria-pressed', 'true');
+	await search.press('Enter');
+	await expect(picker).toBeHidden();
+	await expect(composer.locator('.me-emoji img[alt=":blobcat:"]')).toBeVisible();
+
+	await page.getByRole('button', { name: 'Emoji' }).click();
+	await expect(picker).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(picker).toBeHidden();
+});
+
 test('home timeline composer toggles poll editor and submits poll fields', async ({ page }) => {
 	await authenticate(page);
 	await mockInstance(page);

@@ -1186,7 +1186,9 @@ body[data-theme='simoun'] .pill {
 .ep-pack-count { color: var(--accent-ink); }
 .ep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); align-content: start; gap: 4px; padding: 8px 12px 12px; overflow-y: auto; }
 .ep-cell { display: grid; place-items: center; height: 42px; border-radius: 5px; background: var(--panel-2); }
-.ep-cell:hover { background: var(--accent-soft); }
+.ep-cell:hover,
+.ep-cell.sel { background: var(--accent-soft); }
+.ep-cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ep-cell-cx { width: 26px; height: 26px; }
 .ep-cell-uni { font-size: 22px; }
 .ep-foot { display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; border-top: 1px solid var(--border); font-family: var(--mono); font-size: 10px; color: var(--muted); }
