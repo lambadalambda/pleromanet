@@ -49,6 +49,8 @@
 		inlineReplyRemaining?: number;
 		inlineReplySubmitting?: boolean;
 		inlineReplyError?: PleromaRequestErrorView | null;
+		inlineReplySpoilerActive?: boolean;
+		inlineReplySpoilerText?: string;
 		inlineReplyAccounts?: ComposerMentionAccount[];
 		inlineReplyEmojis?: ComposerEmoji[];
 		inlineReplyUploads?: InlineReplyUpload[];
@@ -56,6 +58,9 @@
 		onInlineReplyMentionQuery?: (query: string) => void;
 		onInlineReplyFiles?: (files: FileList | File[]) => void;
 		onInlineReplyRemoveUpload?: (localId: string) => void;
+		onInlineReplySpoilerToggle?: () => void;
+		onInlineReplySpoilerInput?: (value: string) => void;
+		onInlineReplySpoilerRemove?: () => void;
 		onInlineReplyDraftInput?: (value: string) => void;
 		onInlineReplyCancel?: () => void;
 		onInlineReplySubmit?: () => void;
@@ -77,6 +82,8 @@
 		inlineReplyRemaining = 0,
 		inlineReplySubmitting = false,
 		inlineReplyError = null,
+		inlineReplySpoilerActive = false,
+		inlineReplySpoilerText = '',
 		inlineReplyAccounts = [],
 		inlineReplyEmojis = [],
 		inlineReplyUploads = [],
@@ -84,6 +91,9 @@
 		onInlineReplyMentionQuery,
 		onInlineReplyFiles,
 		onInlineReplyRemoveUpload,
+		onInlineReplySpoilerToggle,
+		onInlineReplySpoilerInput,
+		onInlineReplySpoilerRemove,
 		onInlineReplyDraftInput,
 		onInlineReplyCancel,
 		onInlineReplySubmit,
@@ -141,12 +151,17 @@
 			remaining={inlineReplyRemaining}
 			submitting={inlineReplySubmitting}
 			error={inlineReplyError}
+			spoilerActive={inlineReplySpoilerActive}
+			spoilerText={inlineReplySpoilerText}
 			accounts={inlineReplyAccounts}
 			emojis={inlineReplyEmojis}
 			uploads={inlineReplyUploads}
 			onMentionQuery={onInlineReplyMentionQuery}
 			onFiles={onInlineReplyFiles}
 			onRemoveUpload={onInlineReplyRemoveUpload}
+			onSpoilerToggle={onInlineReplySpoilerToggle}
+			onSpoilerInput={onInlineReplySpoilerInput}
+			onSpoilerRemove={onInlineReplySpoilerRemove}
 			onDraftInput={(value) => onInlineReplyDraftInput?.(value)}
 			onCancel={() => onInlineReplyCancel?.()}
 			onSubmit={() => onInlineReplySubmit?.()}
@@ -172,6 +187,8 @@
 				inlineReplyRemaining={inlineReplyRemaining}
 				inlineReplySubmitting={inlineReplySubmitting}
 				inlineReplyError={inlineReplyError}
+				inlineReplySpoilerActive={inlineReplySpoilerActive}
+				inlineReplySpoilerText={inlineReplySpoilerText}
 				inlineReplyAccounts={inlineReplyAccounts}
 				inlineReplyEmojis={inlineReplyEmojis}
 				inlineReplyUploads={inlineReplyUploads}
@@ -179,6 +196,9 @@
 				onInlineReplyMentionQuery={onInlineReplyMentionQuery}
 				onInlineReplyFiles={onInlineReplyFiles}
 				onInlineReplyRemoveUpload={onInlineReplyRemoveUpload}
+				onInlineReplySpoilerToggle={onInlineReplySpoilerToggle}
+				onInlineReplySpoilerInput={onInlineReplySpoilerInput}
+				onInlineReplySpoilerRemove={onInlineReplySpoilerRemove}
 				onInlineReplyDraftInput={onInlineReplyDraftInput}
 				onInlineReplyCancel={onInlineReplyCancel}
 				onInlineReplySubmit={onInlineReplySubmit}

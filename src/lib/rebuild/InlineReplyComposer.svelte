@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Avatar from './Avatar.svelte';
+	import ComposerCWPanel from './ComposerCWPanel.svelte';
 	import ComposerMentionEditor, { type ComposerEmoji, type ComposerMentionAccount } from './ComposerMentionEditor.svelte';
 	import EmojiPicker from './EmojiPicker.svelte';
 	import Icon from './Icon.svelte';
@@ -26,12 +27,17 @@ export type InlineReplyUpload = {
 		remaining: number;
 		submitting?: boolean;
 		error?: PleromaRequestErrorView | null;
+		spoilerActive?: boolean;
+		spoilerText?: string;
 		accounts?: ComposerMentionAccount[];
 		emojis?: ComposerEmoji[];
 		uploads?: InlineReplyUpload[];
 		onMentionQuery?: (query: string) => void;
 		onFiles?: (files: FileList | File[]) => void;
 		onRemoveUpload?: (localId: string) => void;
+		onSpoilerToggle?: () => void;
+		onSpoilerInput?: (value: string) => void;
+		onSpoilerRemove?: () => void;
 		onDraftInput: (value: string) => void;
 		onCancel: () => void;
 		onSubmit: () => void;
@@ -48,12 +54,17 @@ export type InlineReplyUpload = {
 		remaining,
 		submitting = false,
 		error = null,
+		spoilerActive = false,
+		spoilerText = '',
 		accounts = [],
 		emojis = [],
 		uploads = [],
 		onMentionQuery,
 		onFiles,
 		onRemoveUpload,
+		onSpoilerToggle,
+		onSpoilerInput,
+		onSpoilerRemove,
 		onDraftInput,
 		onCancel,
 		onSubmit
@@ -186,11 +197,14 @@ export type InlineReplyUpload = {
 				<span>{#if dragActive}<strong>Drop to add {dragCount} {dragCount === 1 ? 'file' : 'files'}</strong> <span class="drop-copy-muted">· photos · audio · video</span>{:else}<strong>Drag &amp; drop</strong> <span class="drop-copy-muted">files to attach</span> <em>· or browse</em>{/if}</span>
 			</button>
 		{/if}
+		{#if spoilerActive}
+			<ComposerCWPanel value={spoilerText} onInput={(value) => onSpoilerInput?.(value)} onRemove={() => onSpoilerRemove?.()} focusOnMount />
+		{/if}
 		<div class="thread-inline-reply-row">
 			<button type="button" class="thread-inline-reply-tool" title="Image" aria-label="Image" disabled={!mediaEnabled || submitting} onclick={pickFiles}><Icon name="image" width={16} height={16} /></button>
 			<button type="button" class="thread-inline-reply-tool" class:active={emojiPickerOpen} title="Emoji" aria-label="Emoji" aria-haspopup="dialog" aria-expanded={emojiPickerOpen} aria-pressed={emojiPickerOpen} disabled={submitting} data-emoji-trigger onclick={toggleEmojiPicker}><Icon name="smile" width={16} height={16} /></button>
 			<button type="button" class="thread-inline-reply-tool" title="Poll" aria-label="Poll"><Icon name="poll" width={16} height={16} /></button>
-			<button type="button" class="thread-inline-reply-cw" aria-label="Content warning">CW</button>
+			<button type="button" class="thread-inline-reply-cw" class:active={spoilerActive} aria-label="Content warning" aria-pressed={spoilerActive} disabled={!onSpoilerToggle || submitting} onclick={() => onSpoilerToggle?.()}>CW</button>
 			<span class="thread-inline-reply-spacer"></span>
 			<button type="button" class="thread-inline-reply-cancel" disabled={submitting} onclick={onCancel}>Cancel</button>
 			<span class="thread-inline-reply-count" class:over-limit={remaining < 0}>{remaining}</span>

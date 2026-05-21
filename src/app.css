@@ -3951,7 +3951,9 @@ body[data-theme='simoun'] .pill {
 	letter-spacing: 0.1em;
 	cursor: pointer;
 }
-.thread-inline-reply-cw:hover { border-color: var(--accent); color: var(--accent-ink); }
+.thread-inline-reply-cw:hover,
+.thread-inline-reply-cw.active { border-color: var(--accent); color: var(--accent-ink); }
+.thread-inline-reply-cw:disabled { cursor: not-allowed; opacity: 0.45; }
 .thread-inline-reply-spacer { flex: 1; }
 .thread-inline-reply-cancel {
 	padding: 6px 10px;

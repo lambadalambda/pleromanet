@@ -737,6 +737,48 @@ test('home timeline inline reply composer creates a reply for the selected post'
 	expect(params.get('visibility')).toBe('unlisted');
 });
 
+test('home timeline inline reply composer submits content warnings', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	const targetStatus = { ...statusWithText('status-inline-cw', 'reply cw target'), visibility: 'unlisted' as const, replies_count: 0 };
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [targetStatus]);
+	});
+	let createdBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createdBody = route.request().postData() ?? '';
+		await fulfillHome(route, {
+			...statusWithText('created-inline-cw-reply', 'reply with warning'),
+			in_reply_to_id: 'status-inline-cw'
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await page.locator('[data-status-id="status-inline-cw"]').getByRole('button', { name: 'Reply 0' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
+	const cwButton = replyForm.getByRole('button', { name: 'Content warning', exact: true });
+	await cwButton.click();
+	await expect(cwButton).toHaveAttribute('aria-pressed', 'true');
+	const warning = replyForm.getByRole('textbox', { name: 'Content warning text' });
+	await expect(warning).toBeFocused();
+	await warning.fill('inline spoiler');
+	await cwButton.click();
+	await expect(replyForm.getByRole('textbox', { name: 'Content warning text' })).toHaveCount(0);
+	await expect(cwButton).toHaveAttribute('aria-pressed', 'false');
+	await cwButton.click();
+	await replyForm.getByRole('textbox', { name: 'Content warning text' }).fill('inline spoiler');
+	await replyForm.getByRole('textbox', { name: 'Reply text' }).fill('reply with warning');
+	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
+
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+	const params = new URLSearchParams(createdBody);
+	expect(params.get('status')).toBe('reply with warning');
+	expect(params.get('in_reply_to_id')).toBe('status-inline-cw');
+	expect(params.get('visibility')).toBe('unlisted');
+	expect(params.get('spoiler_text')).toBe('inline spoiler');
+});
+
 test('home timeline inline reply composer autocompletes mentions and custom emoji', async ({ page }) => {
 	await authenticate(page);
 	await mockInstance(page);

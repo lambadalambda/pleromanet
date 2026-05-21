@@ -182,6 +182,8 @@
 	let inlineReplyTarget = $state<InlineReplyTarget | null>(null);
 	let inlineReplyDraft = $state('');
 	let inlineReplyUploads = $state<ComposerUpload[]>([]);
+	let inlineReplySpoilerActive = $state(false);
+	let inlineReplySpoilerText = $state('');
 	let inlineReplySubmitState = $state<'idle' | 'submitting'>('idle');
 	let inlineReplySubmitError = $state<PleromaRequestErrorView | null>(null);
 	let statusActionErrors = $state<StatusActionErrorState[]>([]);
@@ -225,6 +227,8 @@
 		inlineReplyTarget = null;
 		inlineReplyDraft = '';
 		inlineReplyUploads = [];
+		inlineReplySpoilerActive = false;
+		inlineReplySpoilerText = '';
 		inlineReplySubmitState = 'idle';
 		inlineReplySubmitError = null;
 	};
@@ -958,6 +962,20 @@
 		inlineReplySubmitError = null;
 		inlineReplyDraft = '';
 		inlineReplyUploads = [];
+		inlineReplySpoilerActive = false;
+		inlineReplySpoilerText = '';
+	};
+	const clearInlineReplySpoiler = () => {
+		inlineReplySpoilerActive = false;
+		inlineReplySpoilerText = '';
+	};
+	const toggleInlineReplySpoiler = () => {
+		if (inlineReplySpoilerActive) {
+			clearInlineReplySpoiler();
+			return;
+		}
+
+		inlineReplySpoilerActive = true;
 	};
 	const inlineReplyOpenFor = (targetRoute: StatusActionOrigin, post: { id?: string | number }) => inlineReplyTarget?.route === targetRoute && inlineReplyTarget.renderId === String(post.id);
 	const inlineReplyComposerId = (targetRoute: StatusActionOrigin, post: { id?: string | number }) => {
@@ -967,6 +985,7 @@
 	const submitInlineReply = async () => {
 		const target = inlineReplyTarget;
 		const body = inlineReplyDraft.trim();
+		const spoilerText = inlineReplySpoilerActive ? inlineReplySpoilerText.trim() : '';
 		const session = currentSession;
 		if (!target || (!body && inlineReplyUploadedMediaIds.length === 0) || inlineReplyRemaining < 0 || inlineReplyUploadsPending || inlineReplySubmitState === 'submitting' || !session) return;
 
@@ -982,7 +1001,7 @@
 				accessToken: session.accessToken,
 				fetch: window.fetch.bind(window)
 			});
-			const status = await client.createStatus({ status: body, visibility: target.visibility, inReplyToId: target.targetId, mediaIds: inlineReplyUploadedMediaIds });
+			const status = await client.createStatus({ status: body, visibility: target.visibility, inReplyToId: target.targetId, spoilerText: spoilerText || undefined, mediaIds: inlineReplyUploadedMediaIds });
 			if (requestId !== inlineReplyRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 			if (!inlineReplyTarget || inlineReplyTarget.route !== target.route || inlineReplyTarget.targetId !== target.targetId) return;
 
@@ -1958,12 +1977,17 @@
 											remaining={inlineReplyRemaining}
 											submitting={inlineReplySubmitState === 'submitting'}
 											error={inlineReplySubmitError}
+											spoilerActive={inlineReplySpoilerActive}
+											spoilerText={inlineReplySpoilerText}
 											accounts={composerMentionAccounts}
 											emojis={composerCustomEmojis}
 											uploads={inlineReplyUploads}
 											onMentionQuery={searchComposerMentionAccounts}
 											onFiles={queueInlineReplyFiles}
 											onRemoveUpload={removeInlineReplyUpload}
+											onSpoilerToggle={toggleInlineReplySpoiler}
+											onSpoilerInput={(value) => (inlineReplySpoilerText = value)}
+											onSpoilerRemove={clearInlineReplySpoiler}
 											onDraftInput={(value) => (inlineReplyDraft = value)}
 											onCancel={() => clearInlineReply()}
 											onSubmit={submitInlineReply}
@@ -2065,12 +2089,17 @@
 												remaining={inlineReplyRemaining}
 												submitting={inlineReplySubmitState === 'submitting'}
 												error={inlineReplySubmitError}
+												spoilerActive={inlineReplySpoilerActive}
+												spoilerText={inlineReplySpoilerText}
 												accounts={composerMentionAccounts}
 												emojis={composerCustomEmojis}
 												uploads={inlineReplyUploads}
 												onMentionQuery={searchComposerMentionAccounts}
 												onFiles={queueInlineReplyFiles}
 												onRemoveUpload={removeInlineReplyUpload}
+												onSpoilerToggle={toggleInlineReplySpoiler}
+												onSpoilerInput={(value) => (inlineReplySpoilerText = value)}
+												onSpoilerRemove={clearInlineReplySpoiler}
 												onDraftInput={(value) => (inlineReplyDraft = value)}
 												onCancel={() => clearInlineReply()}
 												onSubmit={submitInlineReply}
@@ -2092,12 +2121,17 @@
 									remaining={inlineReplyRemaining}
 									submitting={inlineReplySubmitState === 'submitting'}
 									error={inlineReplySubmitError}
+									spoilerActive={inlineReplySpoilerActive}
+									spoilerText={inlineReplySpoilerText}
 									accounts={composerMentionAccounts}
 									emojis={composerCustomEmojis}
 									uploads={inlineReplyUploads}
 									onMentionQuery={searchComposerMentionAccounts}
 									onFiles={queueInlineReplyFiles}
 									onRemoveUpload={removeInlineReplyUpload}
+									onSpoilerToggle={toggleInlineReplySpoiler}
+									onSpoilerInput={(value) => (inlineReplySpoilerText = value)}
+									onSpoilerRemove={clearInlineReplySpoiler}
 									onDraftInput={(value) => (inlineReplyDraft = value)}
 									onCancel={() => clearInlineReply()}
 									onSubmit={submitInlineReply}
@@ -2128,6 +2162,8 @@
 											inlineReplyRemaining={inlineReplyRemaining}
 											inlineReplySubmitting={inlineReplySubmitState === 'submitting'}
 											inlineReplyError={inlineReplySubmitError}
+											inlineReplySpoilerActive={inlineReplySpoilerActive}
+											inlineReplySpoilerText={inlineReplySpoilerText}
 											inlineReplyAccounts={composerMentionAccounts}
 											inlineReplyEmojis={composerCustomEmojis}
 											inlineReplyUploads={inlineReplyUploads}
@@ -2135,6 +2171,9 @@
 											onInlineReplyMentionQuery={searchComposerMentionAccounts}
 											onInlineReplyFiles={queueInlineReplyFiles}
 											onInlineReplyRemoveUpload={removeInlineReplyUpload}
+											onInlineReplySpoilerToggle={toggleInlineReplySpoiler}
+											onInlineReplySpoilerInput={(value) => (inlineReplySpoilerText = value)}
+											onInlineReplySpoilerRemove={clearInlineReplySpoiler}
 											onInlineReplyDraftInput={(value) => (inlineReplyDraft = value)}
 											onInlineReplyCancel={() => clearInlineReply()}
 											onInlineReplySubmit={submitInlineReply}
