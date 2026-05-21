@@ -39,7 +39,7 @@
 	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, composerUploadBadge, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
 	import type { ProfileData, ProfileMediaItem, ProfilePost } from '$lib/rebuild/profile';
-	import type { PleromaAccount, PleromaInstance, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
+	import type { PleromaAccount, PleromaInstance, PleromaNotification, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
 	import type { SocialNotificationData, SocialPost } from '$lib/social/types';
 	import { onMount } from 'svelte';
 
@@ -135,6 +135,7 @@
 	const HOME_TIMELINE_CHECK_EVENT = 'pleromanet:check-home-timeline';
 	const HOME_TIMELINE_FALLBACK_INTERVAL_MS = 60_000;
 	const HOME_TIMELINE_STREAM_RECONNECT_MS = HOME_TIMELINE_FALLBACK_INTERVAL_MS;
+	const NOTIFICATION_STREAM_RECONNECT_MS = NOTIFICATION_POLL_INTERVAL_MS;
 	const defaultProfile: ProfileSettings = {
 		displayName: 'dreambyte',
 		username: 'dreambyte',
@@ -220,8 +221,13 @@
 	let loadedComposerCustomEmojiKey = '';
 	let homeTimelineFallbackSinceId: string | null = null;
 	let homeTimelineStreamKey = '';
+	let homeTimelineStreamReadyKey = '';
 	let closeHomeTimelineStream: (() => void) | null = null;
 	let homeTimelineStreamReconnectTimer: number | null = null;
+	let notificationStreamKey = '';
+	let notificationStreamReadyKey = '';
+	let closeNotificationStream: (() => void) | null = null;
+	let notificationStreamReconnectTimer: number | null = null;
 	let notificationLoadPromise: Promise<void> | null = null;
 	let notificationLoadPromiseKey = '';
 	let notificationLoadStartedAt = 0;
@@ -313,6 +319,7 @@
 	const invalidateNotificationRequests = () => {
 		notificationRequestId += 1;
 		clearNotificationLoadPromise(true);
+		closeNotificationStreaming();
 		loadedNotificationsKey = '';
 		loadedForegroundNotificationsKey = '';
 		notificationState = { status: 'idle' };
@@ -351,6 +358,19 @@
 		closeHomeTimelineStream?.();
 		closeHomeTimelineStream = null;
 		homeTimelineStreamKey = '';
+		homeTimelineStreamReadyKey = '';
+	};
+	const clearNotificationStreamReconnect = () => {
+		if (notificationStreamReconnectTimer === null) return;
+		window.clearTimeout(notificationStreamReconnectTimer);
+		notificationStreamReconnectTimer = null;
+	};
+	const closeNotificationStreaming = () => {
+		clearNotificationStreamReconnect();
+		closeNotificationStream?.();
+		closeNotificationStream = null;
+		notificationStreamKey = '';
+		notificationStreamReadyKey = '';
 	};
 
 	let notificationItems = $derived(notificationState.status === 'success' ? notificationState.data : []);
@@ -1427,6 +1447,26 @@
 		notificationLoadStartedAt = 0;
 		notificationAbortController = null;
 	};
+	const notificationTimestamp = (notification: PleromaNotificationView) => {
+		const createdMs = notification.createdAt ? Date.parse(notification.createdAt) : Number.NaN;
+		return Number.isFinite(createdMs) ? createdMs : notification.t;
+	};
+	const mergeNotificationViews = (current: PleromaNotificationView[], incoming: PleromaNotificationView[]) => {
+		const byId = new Map<string, PleromaNotificationView>();
+		for (const notification of current) byId.set(notification.id, notification);
+		for (const notification of incoming) {
+			const existing = byId.get(notification.id);
+			byId.set(notification.id, existing ? { ...existing, ...notification, read: existing.read || notification.read } : notification);
+		}
+
+		return Array.from(byId.values()).sort((left, right) => notificationTimestamp(right) - notificationTimestamp(left));
+	};
+	const adaptNotificationsForSession = (session: PleromaSession, notifications: PleromaNotification[]) => {
+		if (!session.account) return [];
+		const notificationSession = { instanceUrl: session.instanceUrl, account: session.account };
+		const lastSeenAt = readNotificationLastSeenAt(localStorage, notificationSession);
+		return adaptPleromaNotifications(notifications, { lastSeenAt });
+	};
 	const loadNotifications = (session: PleromaSession, options: { background?: boolean } = {}) => {
 		if (!session.account) return Promise.resolve();
 
@@ -1437,7 +1477,6 @@
 			notificationRequestId += 1;
 			clearNotificationLoadPromise(true);
 		}
-		const notificationSession = { instanceUrl: session.instanceUrl, account: session.account };
 		const abortController = new AbortController();
 		const requestId = notificationRequestId + 1;
 		notificationRequestId = requestId;
@@ -1454,9 +1493,9 @@
 				if (requestId !== notificationRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 				upsertAccountCache(accountsFromPleromaNotifications(notifications));
-				const lastSeenAt = readNotificationLastSeenAt(localStorage, notificationSession);
-				const adapted = adaptPleromaNotifications(notifications, { lastSeenAt });
-				notificationState = adapted.length > 0 ? { status: 'success', data: adapted } : { status: 'empty' };
+				const adapted = adaptNotificationsForSession(session, notifications);
+				const merged = notificationState.status === 'success' ? mergeNotificationViews(notificationState.data, adapted) : adapted;
+				notificationState = merged.length > 0 ? { status: 'success', data: merged } : { status: 'empty' };
 			} catch (error) {
 				if (requestId !== notificationRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
@@ -1496,6 +1535,10 @@
 		loadedForegroundNotificationsKey = requestSessionKey;
 		void loadNotifications(session);
 	};
+	const hasActiveNotificationStream = (session: PleromaSession) => {
+		const requestSessionKey = sessionKey(session);
+		return notificationStreamReadyKey === requestSessionKey || homeTimelineStreamReadyKey === requestSessionKey;
+	};
 	const pollNotifications = () => {
 		const session = readPleromaSession(localStorage);
 		if (!session) {
@@ -1503,8 +1546,60 @@
 			return;
 		}
 		if (!session.account) return;
+		if (hasActiveNotificationStream(session)) return;
 
 		void loadNotifications(session, { background: true });
+	};
+	const applyStreamedNotification = (requestSessionKey: string, notification: PleromaNotification) => {
+		const session = currentSession;
+		if (!session?.account || !isCurrentSessionRequest(requestSessionKey)) return;
+
+		upsertAccountCache(accountsFromPleromaNotifications([notification]));
+		const adapted = adaptNotificationsForSession(session, [notification]);
+		const merged = mergeNotificationViews(notificationState.status === 'success' ? notificationState.data : [], adapted);
+		notificationState = merged.length > 0 ? { status: 'success', data: merged } : { status: 'empty' };
+	};
+	const scheduleNotificationStreamReconnect = (session: PleromaSession, requestSessionKey: string) => {
+		clearNotificationStreamReconnect();
+		notificationStreamReconnectTimer = window.setTimeout(() => {
+			notificationStreamReconnectTimer = null;
+			if (route === 'home' || !isCurrentSessionRequest(requestSessionKey)) return;
+			connectNotificationStreaming(session);
+		}, NOTIFICATION_STREAM_RECONNECT_MS);
+	};
+	const handleNotificationStreamFailure = (session: PleromaSession, requestSessionKey: string) => {
+		if (!isCurrentSessionRequest(requestSessionKey) || notificationStreamKey !== requestSessionKey) return;
+
+		closeNotificationStream?.();
+		closeNotificationStream = null;
+		notificationStreamKey = '';
+		notificationStreamReadyKey = '';
+		void loadNotifications(session, { background: true });
+		if (route !== 'home') scheduleNotificationStreamReconnect(session, requestSessionKey);
+	};
+	const connectNotificationStreaming = (session: PleromaSession) => {
+		if (!session.account || route === 'home') {
+			closeNotificationStreaming();
+			return;
+		}
+
+		const requestSessionKey = sessionKey(session);
+		if (notificationStreamKey === requestSessionKey && closeNotificationStream) return;
+
+		closeNotificationStreaming();
+		notificationStreamKey = requestSessionKey;
+		const stream = openPleromaTimelineStream({
+			instanceUrl: session.instanceUrl,
+			accessToken: session.accessToken,
+			onNotification: (notification) => applyStreamedNotification(requestSessionKey, notification),
+			onOpen: () => {
+				if (notificationStreamKey === requestSessionKey && isCurrentSessionRequest(requestSessionKey)) notificationStreamReadyKey = requestSessionKey;
+			},
+			onError: () => handleNotificationStreamFailure(session, requestSessionKey),
+			onClose: () => handleNotificationStreamFailure(session, requestSessionKey)
+		});
+		if (notificationStreamKey === requestSessionKey) closeNotificationStream = stream.close;
+		else stream.close();
 	};
 	const latestNotificationCreatedAt = (notifications: SocialNotificationData[]) => notifications.reduce<string | null>((latest, notification) => {
 		if (!notification.createdAt) return latest;
@@ -1577,8 +1672,10 @@
 		closeHomeTimelineStream?.();
 		closeHomeTimelineStream = null;
 		homeTimelineStreamKey = '';
+		homeTimelineStreamReadyKey = '';
 		if (route !== 'home') return;
 
+		if (session.account) void loadNotifications(session, { background: true });
 		void checkHomeTimelineForNewPosts();
 		scheduleHomeTimelineStreamReconnect(session, requestSessionKey);
 	};
@@ -1594,6 +1691,10 @@
 			instanceUrl: session.instanceUrl,
 			accessToken: session.accessToken,
 			onUpdate: (status) => queueStreamedHomeStatus(requestSessionKey, status),
+			onNotification: (notification) => applyStreamedNotification(requestSessionKey, notification),
+			onOpen: () => {
+				if (homeTimelineStreamKey === requestSessionKey && isCurrentSessionRequest(requestSessionKey)) homeTimelineStreamReadyKey = requestSessionKey;
+			},
 			onError: () => handleHomeTimelineStreamFailure(session, requestSessionKey),
 			onClose: () => handleHomeTimelineStreamFailure(session, requestSessionKey)
 		});
@@ -2018,6 +2119,7 @@
 		if (session.account) {
 			if (route === 'notifications') ensureForegroundNotifications(session);
 			else ensureNotifications(session);
+			connectNotificationStreaming(session);
 		}
 		else if (route === 'notifications' && profileAccountLoadError) notificationState = { status: 'error', error: profileAccountLoadError };
 		if (isTimelineRoute(route)) {

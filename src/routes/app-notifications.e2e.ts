@@ -13,18 +13,50 @@ const session = {
 	account: pleromaFixtures.account
 };
 
-const authenticate = async (page: Page) => {
+const authenticateWithSession = async (page: Page, storedSession: unknown) => {
 	await mockRightRailApis(page);
 	await page.addInitScript((storedSession) => {
+		type MockSocket = {
+			url: string;
+			closeCalled: boolean;
+			onopen: ((event: Event) => void) | null;
+			onmessage: ((event: { data: string }) => void) | null;
+			onerror: ((event: Event) => void) | null;
+			onclose: ((event: Event) => void) | null;
+			close: () => void;
+		};
+		const testWindow = window as typeof window & { __pleromanetSockets?: MockSocket[] };
+		if (!testWindow.__pleromanetSockets) {
+			testWindow.__pleromanetSockets = [];
+			const MockWebSocket = function (url: string) {
+				const socket: MockSocket = {
+					url,
+					closeCalled: false,
+					onopen: null,
+					onmessage: null,
+					onerror: null,
+					onclose: null,
+					close() {
+						this.closeCalled = true;
+					}
+				};
+				testWindow.__pleromanetSockets?.push(socket);
+				return socket;
+			} as unknown as new (url: string) => MockSocket;
+
+			Object.defineProperty(window, 'WebSocket', { configurable: true, value: MockWebSocket });
+		}
+
 		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
-	}, session);
+	}, storedSession);
+};
+
+const authenticate = async (page: Page) => {
+	await authenticateWithSession(page, session);
 };
 
 const authenticateTokenOnly = async (page: Page) => {
-	await mockRightRailApis(page);
-	await page.addInitScript((storedSession) => {
-		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
-	}, {
+	await authenticateWithSession(page, {
 		instanceUrl: session.instanceUrl,
 		accessToken: session.accessToken,
 		tokenType: session.tokenType,
@@ -120,6 +152,37 @@ const mockNotifications = async (page: Page, body: () => PleromaNotification[] |
 const mockOwnAccount = async (page: Page) => {
 	await page.route('https://pleroma.example/api/v1/accounts/verify_credentials', async (route) => {
 		await fulfillJson(route, pleromaFixtures.account);
+	});
+};
+
+const openLatestStream = async (page: Page) => {
+	await expect.poll(() => page.evaluate(() => {
+		const testWindow = window as typeof window & { __pleromanetSockets?: unknown[] };
+		return testWindow.__pleromanetSockets?.length ?? 0;
+	})).toBeGreaterThan(0);
+	await page.evaluate(() => {
+		type MockSocket = { onopen: ((event: Event) => void) | null };
+		const testWindow = window as typeof window & { __pleromanetSockets?: MockSocket[] };
+		const socket = testWindow.__pleromanetSockets?.at(-1);
+		socket?.onopen?.(new Event('open'));
+	});
+};
+
+const emitStreamNotification = async (page: Page, nextNotification: PleromaNotification) => {
+	await page.evaluate((notification) => {
+		type MockSocket = { onmessage: ((event: { data: string }) => void) | null };
+		const testWindow = window as typeof window & { __pleromanetSockets?: MockSocket[] };
+		const socket = testWindow.__pleromanetSockets?.at(-1);
+		socket?.onmessage?.({ data: JSON.stringify({ event: 'notification', payload: JSON.stringify(notification) }) });
+	}, nextNotification);
+};
+
+const closeLatestStream = async (page: Page) => {
+	await page.evaluate(() => {
+		type MockSocket = { onclose: ((event: Event) => void) | null };
+		const testWindow = window as typeof window & { __pleromanetSockets?: MockSocket[] };
+		const socket = testWindow.__pleromanetSockets?.at(-1);
+		socket?.onclose?.(new Event('close'));
 	});
 };
 
@@ -229,6 +292,48 @@ test('notification badge updates on polling and mark-read state persists locally
 	await page.reload();
 	await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible();
 	await expect(notificationBadge(page)).toHaveCount(0);
+});
+
+test('websocket notification updates the badge and popover without polling', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page);
+	const requests = await mockNotifications(page, () => initialNotifications.slice(0, 1));
+	const streamActor = accountWithName('account-stream', 'nova', 'nova@moon.example');
+	const streamStatus = statusWithText('status-stream', 'a websocket notification arrived.', streamActor);
+	const streamNotification = notification('notif-stream', 'mention', streamActor, '2026-05-18T12:04:00.000Z', streamStatus);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await expect(notificationBadge(page)).toHaveText('1');
+
+	await openLatestStream(page);
+	await emitStreamNotification(page, streamNotification);
+	await expect(notificationBadge(page)).toHaveText('2');
+	await page.evaluate((eventName) => window.dispatchEvent(new Event(eventName)), NOTIFICATION_POLL_EVENT);
+	await page.waitForTimeout(50);
+	expect(requests()).toBe(1);
+
+	await headerBell(page).click();
+	await expect(page.getByTestId('header-notifications-popover')).toContainText('nova mentioned you');
+});
+
+test('notification polling fallback refreshes after the websocket closes', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page);
+	let response = initialNotifications.slice(0, 1);
+	const requests = await mockNotifications(page, () => response);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await expect(notificationBadge(page)).toHaveText('1');
+	await openLatestStream(page);
+
+	response = [
+		notification('notif-fallback', 'follow', followActor, '2026-05-18T12:05:00.000Z'),
+		...response
+	];
+	await closeLatestStream(page);
+
+	await expect(notificationBadge(page)).toHaveText('2');
+	expect(requests()).toBe(2);
 });
 
 test('notification read state waits for account hydration before choosing a storage key', async ({ page }) => {

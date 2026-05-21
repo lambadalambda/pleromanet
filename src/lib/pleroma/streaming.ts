@@ -1,9 +1,10 @@
 import { normalizeInstanceUrl } from './http';
-import type { PleromaStatus } from './types';
+import type { PleromaNotification, PleromaStatus } from './types';
 
 type StreamName = 'user' | 'public' | 'public:local';
 
 type WebSocketLike = {
+	onopen: ((event: Event) => void) | null;
 	onmessage: ((event: { data: unknown }) => void) | null;
 	onerror: ((event: Event) => void) | null;
 	onclose: ((event: Event) => void) | null;
@@ -16,6 +17,7 @@ export type PleromaStreamingMessage = {
 	event: string;
 	payload: unknown;
 	status?: PleromaStatus;
+	notification?: PleromaNotification;
 };
 
 type TimelineStreamOptions = {
@@ -23,7 +25,9 @@ type TimelineStreamOptions = {
 	accessToken: string;
 	stream?: StreamName;
 	WebSocketImpl?: WebSocketFactory;
-	onUpdate: (status: PleromaStatus) => void;
+	onUpdate?: (status: PleromaStatus) => void;
+	onNotification?: (notification: PleromaNotification) => void;
+	onOpen?: (event: unknown) => void;
 	onError?: (error: unknown) => void;
 	onClose?: (event: unknown) => void;
 };
@@ -40,6 +44,15 @@ const parsePayload = (payload: unknown) => {
 
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object');
 
+const isPleromaAccountPayload = (payload: unknown) => {
+	if (!isRecord(payload)) return false;
+
+	return typeof payload.id === 'string' &&
+		typeof payload.username === 'string' &&
+		typeof payload.acct === 'string' &&
+		typeof payload.display_name === 'string';
+};
+
 const isPleromaStatusPayload = (payload: unknown): payload is PleromaStatus => {
 	if (!isRecord(payload) || !isRecord(payload.account) || !isRecord(payload.pleroma)) return false;
 
@@ -50,10 +63,17 @@ const isPleromaStatusPayload = (payload: unknown): payload is PleromaStatus => {
 		typeof payload.created_at === 'string' &&
 		Array.isArray(payload.media_attachments) &&
 		Array.isArray(payload.mentions) &&
-		typeof payload.account.id === 'string' &&
-		typeof payload.account.username === 'string' &&
-		typeof payload.account.acct === 'string' &&
-		typeof payload.account.display_name === 'string';
+		isPleromaAccountPayload(payload.account);
+};
+
+const isPleromaNotificationPayload = (payload: unknown): payload is PleromaNotification => {
+	if (!isRecord(payload) || !isPleromaAccountPayload(payload.account)) return false;
+	const status = payload.status;
+
+	return typeof payload.id === 'string' &&
+		typeof payload.type === 'string' &&
+		typeof payload.created_at === 'string' &&
+		(status == null || isPleromaStatusPayload(status));
 };
 
 export const buildPleromaStreamingUrl = ({ instanceUrl, accessToken, stream = 'user' }: Pick<TimelineStreamOptions, 'instanceUrl' | 'accessToken' | 'stream'>) => {
@@ -79,7 +99,8 @@ export const parsePleromaStreamingMessage = (data: unknown): PleromaStreamingMes
 		return {
 			event,
 			payload,
-			status: event === 'update' && isPleromaStatusPayload(payload) ? payload : undefined
+			status: event === 'update' && isPleromaStatusPayload(payload) ? payload : undefined,
+			notification: event === 'notification' && isPleromaNotificationPayload(payload) ? payload : undefined
 		};
 	} catch {
 		return null;
@@ -92,6 +113,8 @@ export const openPleromaTimelineStream = ({
 	stream = 'user',
 	WebSocketImpl,
 	onUpdate,
+	onNotification,
+	onOpen,
 	onError,
 	onClose
 }: TimelineStreamOptions) => {
@@ -110,13 +133,17 @@ export const openPleromaTimelineStream = ({
 		return { close: () => undefined };
 	}
 
+	socket.onopen = (event) => {
+		if (!closed) onOpen?.(event);
+	};
 	socket.onmessage = (event) => {
 		if (closed) return;
 		const message = parsePleromaStreamingMessage(event.data);
-		if (!message?.status) return;
+		if (!message?.status && !message?.notification) return;
 
 		try {
-			onUpdate(message.status);
+			if (message.status) onUpdate?.(message.status);
+			if (message.notification) onNotification?.(message.notification);
 		} catch (error) {
 			if (!closed) onError?.(error);
 		}
@@ -132,6 +159,7 @@ export const openPleromaTimelineStream = ({
 		close: () => {
 			if (closed) return;
 			closed = true;
+			socket.onopen = null;
 			socket.onmessage = null;
 			socket.onerror = null;
 			socket.onclose = null;

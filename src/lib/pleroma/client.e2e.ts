@@ -214,7 +214,7 @@ test('Pleroma client fetches authenticated notifications with cursor query', asy
 	expect(requests[0].url.searchParams.get('since_id')).toBe('notif-old');
 });
 
-test('Pleroma streaming helpers build WebSocket URLs and parse update events', () => {
+test('Pleroma streaming helpers build WebSocket URLs and parse user stream events', () => {
 	expect(buildPleromaStreamingUrl({ instanceUrl: 'https://pleroma.example', accessToken: 'access-token' })).toBe(
 		'wss://pleroma.example/api/v1/streaming/?stream=user&access_token=access-token'
 	);
@@ -229,7 +229,15 @@ test('Pleroma streaming helpers build WebSocket URLs and parse update events', (
 
 	expect(message?.event).toBe('update');
 	expect(message?.status?.id).toBe('status-1');
+	const notificationMessage = parsePleromaStreamingMessage(JSON.stringify({
+		event: 'notification',
+		payload: JSON.stringify(pleromaFixtures.notifications[0])
+	}));
+
+	expect(notificationMessage?.event).toBe('notification');
+	expect(notificationMessage?.notification?.id).toBe('notif-mention');
 	expect(parsePleromaStreamingMessage(JSON.stringify({ event: 'update', payload: '{}' }))?.status).toBeUndefined();
+	expect(parsePleromaStreamingMessage(JSON.stringify({ event: 'notification', payload: '{}' }))?.notification).toBeUndefined();
 	expect(parsePleromaStreamingMessage('not json')).toBeNull();
 });
 
@@ -251,6 +259,7 @@ test('Pleroma streaming lifecycle handles unavailable and closed sockets', () =>
 			throw new Error('socket blocked');
 		} as unknown as new (url: string) => {
 			onmessage: ((event: { data: unknown }) => void) | null;
+			onopen: ((event: Event) => void) | null;
 			onerror: ((event: Event) => void) | null;
 			onclose: ((event: Event) => void) | null;
 			close: () => void;
@@ -268,6 +277,7 @@ test('Pleroma streaming lifecycle handles unavailable and closed sockets', () =>
 			url: string;
 			closeCount: number;
 			onmessage: ((event: { data: unknown }) => void) | null;
+			onopen: ((event: Event) => void) | null;
 			onerror: ((event: Event) => void) | null;
 			onclose: ((event: Event) => void) | null;
 			close: () => void;
@@ -278,6 +288,7 @@ test('Pleroma streaming lifecycle handles unavailable and closed sockets', () =>
 				url: _url,
 				closeCount: 0,
 				onmessage: null,
+				onopen: null,
 				onerror: null,
 				onclose: null,
 				close() {
@@ -288,6 +299,8 @@ test('Pleroma streaming lifecycle handles unavailable and closed sockets', () =>
 			return socket;
 		} as unknown as new (url: string) => TestSocket;
 		const updates: string[] = [];
+		const notifications: string[] = [];
+		let openCount = 0;
 		let errorCount = 0;
 		let closeCount = 0;
 		const stream = openPleromaTimelineStream({
@@ -295,14 +308,20 @@ test('Pleroma streaming lifecycle handles unavailable and closed sockets', () =>
 			accessToken: 'access-token',
 			WebSocketImpl: SocketImpl,
 			onUpdate: (status) => updates.push(status.id),
+			onNotification: (notification) => notifications.push(notification.id),
+			onOpen: () => (openCount += 1),
 			onError: () => (errorCount += 1),
 			onClose: () => (closeCount += 1)
 		});
 
 		const socket = sockets[0];
 		expect(socket.url).toBe('wss://pleroma.example/api/v1/streaming/?stream=user&access_token=access-token');
+		socket.onopen?.(new Event('open'));
 		socket.onmessage?.({ data: JSON.stringify({ event: 'update', payload: JSON.stringify({ ...pleromaFixtures.status, id: 'status-open' }) }) });
+		socket.onmessage?.({ data: JSON.stringify({ event: 'notification', payload: JSON.stringify({ ...pleromaFixtures.notifications[0], id: 'notif-open' }) }) });
+		expect(openCount).toBe(1);
 		expect(updates).toEqual(['status-open']);
+		expect(notifications).toEqual(['notif-open']);
 		socket.onerror?.(new Event('error'));
 		socket.onclose?.(new Event('close'));
 		expect(errorCount).toBe(1);
@@ -315,6 +334,7 @@ test('Pleroma streaming lifecycle handles unavailable and closed sockets', () =>
 		stream.close();
 		expect(socket.closeCount).toBe(1);
 		expect(socket.onmessage).toBeNull();
+		expect(socket.onopen).toBeNull();
 		expect(socket.onerror).toBeNull();
 		expect(socket.onclose).toBeNull();
 
