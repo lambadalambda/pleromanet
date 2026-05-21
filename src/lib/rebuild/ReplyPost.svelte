@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Avatar from './Avatar.svelte';
+	import type { ComposerEmoji, ComposerMentionAccount } from './ComposerMentionEditor.svelte';
 	import InlineReplyComposer from './InlineReplyComposer.svelte';
 	import PostActions from './PostActions.svelte';
 	import PostBoost from './PostBoost.svelte';
@@ -48,7 +49,10 @@
 		inlineReplyRemaining?: number;
 		inlineReplySubmitting?: boolean;
 		inlineReplyError?: PleromaRequestErrorView | null;
+		inlineReplyAccounts?: ComposerMentionAccount[];
+		inlineReplyEmojis?: ComposerEmoji[];
 		expandedReplyIds?: Record<string, boolean>;
+		onInlineReplyMentionQuery?: (query: string) => void;
 		onInlineReplyDraftInput?: (value: string) => void;
 		onInlineReplyCancel?: () => void;
 		onInlineReplySubmit?: () => void;
@@ -70,7 +74,10 @@
 		inlineReplyRemaining = 0,
 		inlineReplySubmitting = false,
 		inlineReplyError = null,
+		inlineReplyAccounts = [],
+		inlineReplyEmojis = [],
 		expandedReplyIds = {},
+		onInlineReplyMentionQuery,
 		onInlineReplyDraftInput,
 		onInlineReplyCancel,
 		onInlineReplySubmit,
@@ -128,6 +135,9 @@
 			remaining={inlineReplyRemaining}
 			submitting={inlineReplySubmitting}
 			error={inlineReplyError}
+			accounts={inlineReplyAccounts}
+			emojis={inlineReplyEmojis}
+			onMentionQuery={onInlineReplyMentionQuery}
 			onDraftInput={(value) => onInlineReplyDraftInput?.(value)}
 			onCancel={() => onInlineReplyCancel?.()}
 			onSubmit={() => onInlineReplySubmit?.()}
@@ -153,7 +163,10 @@
 				inlineReplyRemaining={inlineReplyRemaining}
 				inlineReplySubmitting={inlineReplySubmitting}
 				inlineReplyError={inlineReplyError}
+				inlineReplyAccounts={inlineReplyAccounts}
+				inlineReplyEmojis={inlineReplyEmojis}
 				expandedReplyIds={expandedReplyIds}
+				onInlineReplyMentionQuery={onInlineReplyMentionQuery}
 				onInlineReplyDraftInput={onInlineReplyDraftInput}
 				onInlineReplyCancel={onInlineReplyCancel}
 				onInlineReplySubmit={onInlineReplySubmit}

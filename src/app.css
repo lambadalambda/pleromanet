@@ -944,10 +944,9 @@ body[data-theme='simoun'] .pill {
 	white-space: pre-wrap;
 	word-break: break-word;
 }
-.me-editor:focus-visible {
-	outline: 2px solid var(--accent);
-	outline-offset: 4px;
+.composer .me-editor:focus-visible {
 	border-radius: 4px;
+	box-shadow: 0 0 0 2px var(--accent-soft);
 }
 .me-editor:empty::before {
 	content: attr(data-placeholder);
@@ -3898,7 +3897,8 @@ body[data-theme='simoun'] .pill {
 	letter-spacing: 0;
 	text-transform: none;
 }
-.thread-inline-reply textarea {
+.thread-inline-reply textarea,
+.thread-inline-reply .me-editor {
 	display: block;
 	width: 100%;
 	min-height: 70px;
@@ -3912,7 +3912,8 @@ body[data-theme='simoun'] .pill {
 	font-family: var(--sans);
 	font-size: 14px;
 }
-.thread-inline-reply textarea:focus { border-color: var(--accent); }
+.thread-inline-reply textarea:focus,
+.thread-inline-reply .me-editor:focus-visible { border-color: var(--accent); }
 .thread-inline-reply-row {
 	display: flex;
 	align-items: center;

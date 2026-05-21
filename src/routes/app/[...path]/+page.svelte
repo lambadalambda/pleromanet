@@ -1937,6 +1937,9 @@
 											remaining={inlineReplyRemaining}
 											submitting={inlineReplySubmitState === 'submitting'}
 											error={inlineReplySubmitError}
+											accounts={composerMentionAccounts}
+											emojis={composerCustomEmojis}
+											onMentionQuery={searchComposerMentionAccounts}
 											onDraftInput={(value) => (inlineReplyDraft = value)}
 											onCancel={() => clearInlineReply()}
 											onSubmit={submitInlineReply}
@@ -2038,6 +2041,9 @@
 												remaining={inlineReplyRemaining}
 												submitting={inlineReplySubmitState === 'submitting'}
 												error={inlineReplySubmitError}
+												accounts={composerMentionAccounts}
+												emojis={composerCustomEmojis}
+												onMentionQuery={searchComposerMentionAccounts}
 												onDraftInput={(value) => (inlineReplyDraft = value)}
 												onCancel={() => clearInlineReply()}
 												onSubmit={submitInlineReply}
@@ -2059,6 +2065,9 @@
 									remaining={inlineReplyRemaining}
 									submitting={inlineReplySubmitState === 'submitting'}
 									error={inlineReplySubmitError}
+									accounts={composerMentionAccounts}
+									emojis={composerCustomEmojis}
+									onMentionQuery={searchComposerMentionAccounts}
 									onDraftInput={(value) => (inlineReplyDraft = value)}
 									onCancel={() => clearInlineReply()}
 									onSubmit={submitInlineReply}
@@ -2089,7 +2098,10 @@
 											inlineReplyRemaining={inlineReplyRemaining}
 											inlineReplySubmitting={inlineReplySubmitState === 'submitting'}
 											inlineReplyError={inlineReplySubmitError}
+											inlineReplyAccounts={composerMentionAccounts}
+											inlineReplyEmojis={composerCustomEmojis}
 											expandedReplyIds={expandedThreadReplyIds}
+											onInlineReplyMentionQuery={searchComposerMentionAccounts}
 											onInlineReplyDraftInput={(value) => (inlineReplyDraft = value)}
 											onInlineReplyCancel={() => clearInlineReply()}
 											onInlineReplySubmit={submitInlineReply}

@@ -507,7 +507,7 @@ test('renders the canonical thread specimen with targeted inline reply composers
 
 	await nyanReply.getByRole('button', { name: 'Reply 2' }).click();
 	const reopenedNyanComposer = thread.getByRole('form', { name: 'Inline reply to @nyan' });
-	await expect(reopenedNyanComposer.getByRole('textbox', { name: 'Reply text' })).toHaveValue('');
+	await expect(reopenedNyanComposer.getByRole('textbox', { name: 'Reply text' })).toBeEmpty();
 	await reopenedNyanComposer.getByRole('textbox', { name: 'Reply text' }).fill('soft web yes');
 
 	const softReply = thread.locator('.post-reply').filter({ hasText: 'touched grass too' }).first();
@@ -515,7 +515,7 @@ test('renders the canonical thread specimen with targeted inline reply composers
 	await expect(thread.getByRole('form', { name: /Inline reply/ })).toHaveCount(1);
 	const softComposer = thread.getByRole('form', { name: 'Inline reply to @soft.hertz' });
 	await expect(softComposer).toBeVisible();
-	await expect(softComposer.getByRole('textbox', { name: 'Reply text' })).toHaveValue('');
+	await expect(softComposer.getByRole('textbox', { name: 'Reply text' })).toBeEmpty();
 
 	await softComposer.getByRole('button', { name: 'Cancel' }).click();
 	await expect(thread.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);

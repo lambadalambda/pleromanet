@@ -26,6 +26,7 @@
 		id?: string;
 		value: string;
 		onInput: (value: string) => void;
+		ariaLabel?: string;
 		placeholder?: string;
 		accounts?: ComposerMentionAccount[];
 		emojis?: ComposerEmoji[];
@@ -40,6 +41,7 @@
 		id = 'composer-mention-editor',
 		value,
 		onInput,
+		ariaLabel = 'Post text',
 		placeholder = "What's on your mind?",
 		accounts = [],
 		emojis = [],
@@ -368,7 +370,7 @@
 		contenteditable={!disabled}
 		role="textbox"
 		tabindex={disabled ? -1 : 0}
-		aria-label="Post text"
+		aria-label={ariaLabel}
 		aria-multiline="true"
 		aria-disabled={disabled}
 		aria-readonly={disabled}

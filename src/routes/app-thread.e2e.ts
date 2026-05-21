@@ -12,8 +12,14 @@ const session = {
 	account: pleromaFixtures.account
 };
 
+const accountSearchUrl = 'https://pleroma.example/api/v1/accounts/search**';
+const customEmojisUrl = 'https://pleroma.example/api/v1/custom_emojis';
+
 const authenticate = async (page: Page) => {
 	await mockRightRailApis(page);
+	await page.route(customEmojisUrl, async (route) => {
+		await fulfillJson(route, pleromaFixtures.customEmojis);
+	});
 	await page.addInitScript((storedSession) => {
 		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
 	}, session);
@@ -547,12 +553,21 @@ test('real thread route reply actions update local state', async ({ page }) => {
 test('real thread route inline reply composer submits for the focused post', async ({ page }) => {
 	await authenticate(page);
 	await mockThread(page);
+	await page.route(accountSearchUrl, async (route) => {
+		await fulfillJson(route, [{
+			...pleromaFixtures.account,
+			id: 'soft-hertz',
+			username: 'soft.hertz',
+			acct: 'soft.hertz@kolektiva.social',
+			display_name: 'soft.hertz ✦'
+		}]);
+	});
 	let createAuthorization = '';
 	let createBody = '';
 	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
 		createAuthorization = route.request().headers().authorization ?? '';
 		createBody = route.request().postData() ?? '';
-		await fulfillJson(route, statusWithText('created-thread-inline-reply', 'replying inline to the focused thread', {
+		await fulfillJson(route, statusWithText('created-thread-inline-reply', 'replying inline @soft.hertz@kolektiva.social :blobcat:', {
 			in_reply_to_id: 'status-1',
 			in_reply_to_account_id: 'account-1',
 			replies_count: 0,
@@ -572,15 +587,26 @@ test('real thread route inline reply composer submits for the focused post', asy
 	await expect(focusedReplyButton).toHaveAttribute('aria-expanded', 'true');
 	await expect(focusedReplyButton).toHaveAttribute('aria-controls', await replyForm.getAttribute('id') ?? 'missing-inline-reply-id');
 	await expect(replyForm.getByRole('img', { name: 'quiet admin avatar' })).toHaveAttribute('src', 'https://pleroma.example/avatar.png');
-	await replyForm.getByRole('textbox', { name: 'Reply text' }).fill('replying inline to the focused thread');
-	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
+	const replyEditor = replyForm.getByRole('textbox', { name: 'Reply text' });
+	await replyEditor.click();
+	await replyEditor.pressSequentially('replying inline @so', { delay: 20 });
+	await expect(replyForm.getByRole('listbox', { name: 'Mention suggestions' })).toBeVisible();
+	await expect(replyForm.getByRole('option', { name: /soft.hertz.*Tab/ })).toBeVisible();
+	await replyEditor.press('Enter');
+	await expect(replyEditor).toContainText('@soft.hertz');
+	await replyEditor.pressSequentially(':bl');
+	await expect(replyForm.getByRole('listbox', { name: 'Emoji suggestions' })).toBeVisible();
+	await expect(replyForm.getByRole('option', { name: /:blobcat:.*Tab/ })).toBeVisible();
+	await replyEditor.press('Enter');
+	await expect(replyEditor.locator('.me-emoji img[alt=":blobcat:"]')).toBeVisible();
+	await replyEditor.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
 
 	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
 	await expect(page.getByTestId('thread-reply-count')).toContainText('4 replies');
-	await expect(page.getByText('replying inline to the focused thread')).toBeVisible();
+	await expect(page.getByText('replying inline @soft.hertz@kolektiva.social :blobcat:')).toBeVisible();
 	expect(createAuthorization).toBe('Bearer access-token');
 	const params = new URLSearchParams(createBody);
-	expect(params.get('status')).toBe('replying inline to the focused thread');
+	expect(params.get('status')).toBe('replying inline @soft.hertz@kolektiva.social :blobcat:');
 	expect(params.get('in_reply_to_id')).toBe('status-1');
 	expect(params.get('visibility')).toBe('public');
 });
@@ -689,6 +715,56 @@ test('real thread route inline reply composer submits below an expanded nested r
 	await expect(reloadedNested).toBeVisible();
 	await reloadedNested.getByRole('button', { name: 'Show 1 reply' }).click();
 	await expect(page.getByText('replying inline to a nested reply')).toBeVisible();
+});
+
+test('real thread route nested inline reply composer autocompletes mentions and custom emoji', async ({ page }) => {
+	await authenticate(page);
+	await mockThread(page, threadStatus, [threadReply, nestedThreadReply, secondThreadReply]);
+	await page.route(accountSearchUrl, async (route) => {
+		await fulfillJson(route, [{
+			...pleromaFixtures.account,
+			id: 'soft-hertz',
+			username: 'soft.hertz',
+			acct: 'soft.hertz@kolektiva.social',
+			display_name: 'soft.hertz ✦'
+		}]);
+	});
+	let createBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createBody = route.request().postData() ?? '';
+		await fulfillJson(route, statusWithText('created-nested-autocomplete-reply', 'reply @soft.hertz@kolektiva.social :blobcat:', {
+			in_reply_to_id: 'reply-1-child',
+			in_reply_to_account_id: 'orbit',
+			replies_count: 0,
+			reblogs_count: 0,
+			favourites_count: 0
+		}));
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	await page.getByRole('button', { name: 'Show 1 reply' }).click();
+	const nested = page.locator('.nested-replies .post-reply').first();
+	await nested.getByRole('button', { name: 'Reply 0' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @orbit' });
+	const replyEditor = replyForm.getByRole('textbox', { name: 'Reply text' });
+	await replyEditor.click();
+	await replyEditor.pressSequentially('reply @so', { delay: 20 });
+	await expect(replyForm.getByRole('listbox', { name: 'Mention suggestions' })).toBeVisible();
+	await expect(replyForm.getByRole('option', { name: /soft.hertz.*Tab/ })).toBeVisible();
+	await replyEditor.press('Enter');
+	await expect(replyEditor).toContainText('@soft.hertz');
+	await replyEditor.pressSequentially(':bl');
+	await expect(replyForm.getByRole('listbox', { name: 'Emoji suggestions' })).toBeVisible();
+	await expect(replyForm.getByRole('option', { name: /:blobcat:.*Tab/ })).toBeVisible();
+	await replyEditor.press('Enter');
+	await expect(replyEditor.locator('.me-emoji img[alt=":blobcat:"]')).toBeVisible();
+	await replyEditor.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
+
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+	const params = new URLSearchParams(createBody);
+	expect(params.get('status')).toBe('reply @soft.hertz@kolektiva.social :blobcat:');
+	expect(params.get('in_reply_to_id')).toBe('reply-1-child');
 });
 
 test('real thread route action failures rollback and show scoped errors', async ({ page }) => {

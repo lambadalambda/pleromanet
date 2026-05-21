@@ -241,6 +241,29 @@ test('home timeline composer creates statuses through Pleroma', async ({ page })
 	expect(params.get('spoiler_text')).toBe('soft spoiler');
 });
 
+test('home timeline composer submits with keyboard shortcut', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, []);
+	});
+	let createdBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createdBody = route.request().postData() ?? '';
+		await fulfillHome(route, statusWithText('created-shortcut-status', 'shortcut post'));
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const composer = page.getByRole('textbox', { name: 'Post text' });
+	await composer.fill('shortcut post');
+	await composer.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
+
+	await expect(page.locator('[data-status-id="created-shortcut-status"]')).toContainText('shortcut post');
+	const params = new URLSearchParams(createdBody);
+	expect(params.get('status')).toBe('shortcut post');
+});
+
 test('home timeline composer uploads media and submits media ids', async ({ page }) => {
 	await authenticate(page);
 	await mockInstance(page);
@@ -703,7 +726,7 @@ test('home timeline inline reply composer creates a reply for the selected post'
 	await expect(replyForm).toContainText('@quietadmin');
 	await expect(replyForm.getByRole('img', { name: 'quiet admin avatar' })).toHaveAttribute('src', 'https://pleroma.example/avatar.png');
 	await replyForm.getByRole('textbox', { name: 'Reply text' }).fill('timeline inline reply body');
-	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
+	await replyForm.getByRole('textbox', { name: 'Reply text' }).press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
 
 	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
 	await expect(post.getByRole('button', { name: 'Reply 1' })).toHaveAttribute('aria-expanded', 'false');
@@ -712,6 +735,55 @@ test('home timeline inline reply composer creates a reply for the selected post'
 	expect(params.get('status')).toBe('timeline inline reply body');
 	expect(params.get('in_reply_to_id')).toBe('status-inline-reply');
 	expect(params.get('visibility')).toBe('unlisted');
+});
+
+test('home timeline inline reply composer autocompletes mentions and custom emoji', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	const targetStatus = { ...statusWithText('status-inline-autocomplete', 'reply autocomplete target'), replies_count: 0 };
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [targetStatus]);
+	});
+	await page.route(accountSearchUrl, async (route) => {
+		await fulfillHome(route, [{
+			...pleromaFixtures.account,
+			id: 'soft-hertz',
+			username: 'soft.hertz',
+			acct: 'soft.hertz@kolektiva.social',
+			display_name: 'soft.hertz ✦'
+		}]);
+	});
+	let createdBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createdBody = route.request().postData() ?? '';
+		await fulfillHome(route, {
+			...statusWithText('created-inline-autocomplete', 'reply @soft.hertz@kolektiva.social :blobcat:'),
+			in_reply_to_id: 'status-inline-autocomplete'
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await page.locator('[data-status-id="status-inline-autocomplete"]').getByRole('button', { name: 'Reply 0' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
+	const replyEditor = replyForm.getByRole('textbox', { name: 'Reply text' });
+	await replyEditor.click();
+	await replyEditor.pressSequentially('reply @so', { delay: 20 });
+	await expect(replyForm.getByRole('listbox', { name: 'Mention suggestions' })).toBeVisible();
+	await expect(replyForm.getByRole('option', { name: /soft.hertz.*Tab/ })).toBeVisible();
+	await replyEditor.press('Enter');
+	await expect(replyEditor).toContainText('@soft.hertz');
+	await replyEditor.pressSequentially(':bl');
+	await expect(replyForm.getByRole('listbox', { name: 'Emoji suggestions' })).toBeVisible();
+	await expect(replyForm.getByRole('option', { name: /:blobcat:.*Tab/ })).toBeVisible();
+	await replyEditor.press('Enter');
+	await expect(replyEditor.locator('.me-emoji img[alt=":blobcat:"]')).toBeVisible();
+	await replyEditor.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
+
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+	const params = new URLSearchParams(createdBody);
+	expect(params.get('status')).toBe('reply @soft.hertz@kolektiva.social :blobcat:');
+	expect(params.get('in_reply_to_id')).toBe('status-inline-autocomplete');
 });
 
 test('home timeline inline reply composer moves between targets and cancels', async ({ page }) => {
@@ -745,7 +817,7 @@ test('home timeline inline reply composer moves between targets and cancels', as
 	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(1);
 	const movedForm = page.getByRole('form', { name: 'Inline reply to @datagram' });
 	await expect(movedForm).toBeVisible();
-	await expect(movedForm.getByRole('textbox', { name: 'Reply text' })).toHaveValue('');
+	await expect(movedForm.getByRole('textbox', { name: 'Reply text' })).toBeEmpty();
 	await movedForm.getByRole('button', { name: 'Cancel' }).click();
 	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
 });
