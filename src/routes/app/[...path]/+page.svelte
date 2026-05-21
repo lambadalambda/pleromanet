@@ -34,19 +34,20 @@
 		type PaginatedTimelineBaseState,
 		type PaginatedTimelineSuccess
 	} from '$lib/pleroma/timeline-state';
-	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, normalizePleromaRequestError, statusCharacterLimit, type PleromaAccountView, type PleromaNotificationView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, normalizePleromaRequestError, statusCharacterLimit, type PleromaAccountView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, composerUploadBadge, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
 	import type { ProfileData, ProfileMediaItem, ProfilePost } from '$lib/rebuild/profile';
-	import type { PleromaAccount, PleromaInstance, PleromaNotification, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
+	import type { PleromaAccount, PleromaInstance, PleromaNotification, PleromaRelationship, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
 	import type { SocialNotificationData, SocialPost } from '$lib/social/types';
 	import { onMount } from 'svelte';
 
-	type AppRoute = 'home' | 'local' | 'federated' | 'public' | 'thread' | 'profile' | 'notifications' | 'explore' | 'settings';
+	type AppRoute = 'home' | 'local' | 'federated' | 'public' | 'thread' | 'profile' | 'notifications' | 'explore' | 'search' | 'settings';
 	type NavItem = { route: AppRoute; label: string; icon: IconName; href: string; count?: number };
 	type ThemeName = 'cream' | 'dusk' | 'drive' | 'simoun';
 	type ExploreFeed = 'popular' | 'new' | 'active';
+	type SearchTab = 'all' | 'people' | 'posts';
 	type ProfileSettings = {
 		displayName: string;
 		username: string;
@@ -128,6 +129,17 @@
 		| { status: 'empty' }
 		| { status: 'error'; error: PleromaRequestErrorView }
 		| { status: 'success'; data: PleromaNotificationView[] };
+	type SearchAccountView = PleromaAccountView & { bio: string; followers: number; posts: number; followState: PleromaProfileFollowState };
+	type SearchState =
+		| { status: 'idle' }
+		| { status: 'loading'; query: string }
+		| { status: 'empty'; query: string }
+		| { status: 'error'; query: string; error: PleromaRequestErrorView }
+		| { status: 'success'; query: string; accounts: SearchAccountView[]; posts: PleromaStatusView[] };
+	type HeaderSearchSelectableItem =
+		| { kind: 'recent'; query: string }
+		| { kind: 'account'; account: SearchAccountView }
+		| { kind: 'post'; post: PleromaStatusView };
 	type TrendView = { rank: number; tag: string; count: string | null };
 	type InstanceStatusView = { title: string | null; domain: string | null; rows: { label: string; value: string }[] };
 	type StatusActionErrorState = { targetId: string; key: StatusActionKey; route: StatusActionOrigin; error: PleromaRequestErrorView };
@@ -136,6 +148,9 @@
 	const HOME_TIMELINE_FALLBACK_INTERVAL_MS = 60_000;
 	const HOME_TIMELINE_STREAM_RECONNECT_MS = HOME_TIMELINE_FALLBACK_INTERVAL_MS;
 	const NOTIFICATION_STREAM_RECONNECT_MS = NOTIFICATION_POLL_INTERVAL_MS;
+	const HEADER_SEARCH_DEBOUNCE_MS = 160;
+	const SEARCH_PAGE_DEBOUNCE_MS = 260;
+	const SEARCH_RECENTS_STORAGE_KEY = 'pn-search-recents';
 	const defaultProfile: ProfileSettings = {
 		displayName: 'dreambyte',
 		username: 'dreambyte',
@@ -155,6 +170,8 @@
 	let threadState = $state<ThreadState>({ status: 'idle' });
 	let profileRouteState = $state<ProfileState>({ status: 'idle' });
 	let notificationState = $state<NotificationState>({ status: 'idle' });
+	let searchState = $state<SearchState>({ status: 'idle' });
+	let headerSearchState = $state<SearchState>({ status: 'idle' });
 	let trendsState = $state<PleromaRequestState<TrendView[]>>({ status: 'idle' });
 	let instanceStatusState = $state<PleromaRequestState<InstanceStatusView>>({ status: 'idle' });
 	let localHomePosts = $state<RebuildPost[]>([]);
@@ -177,6 +194,15 @@
 	let mobileSheetOpen = $state(false);
 	let userMenuOpen = $state(false);
 	let notificationsMenuOpen = $state(false);
+	let headerSearchDraft = $state('');
+	let exploreSearchDraft = $state('');
+	let searchPageDraft = $state('');
+	let searchRecents = $state<string[]>([]);
+	let headerSearchOpen = $state(false);
+	let headerSearchSelectedIndex = $state(-1);
+	let searchSidebarOpen = $state(false);
+	let headerSearchInput = $state<HTMLInputElement | null>(null);
+	let headerSearchForm = $state<HTMLFormElement | null>(null);
 	let exploreFeed = $state<ExploreFeed>('popular');
 	let joinedCommunities = $state<Record<string, boolean>>({});
 	let settingsSaveState = $state('Saved');
@@ -202,6 +228,8 @@
 	let threadRequestId = 0;
 	let profileRouteRequestId = 0;
 	let notificationRequestId = 0;
+	let searchRequestId = 0;
+	let headerSearchRequestId = 0;
 	let trendsRequestId = 0;
 	let statusActionRequestId = 0;
 	let inlineReplyRequestId = 0;
@@ -215,6 +243,7 @@
 	let loadedProfileRouteKey = '';
 	let loadedNotificationsKey = '';
 	let loadedForegroundNotificationsKey = '';
+	let loadedSearchKey = '';
 	let loadedProfileAccountKey = '';
 	let loadedTrendsKey = '';
 	let loadedInstanceConfigKey = '';
@@ -232,6 +261,9 @@
 	let notificationLoadPromiseKey = '';
 	let notificationLoadStartedAt = 0;
 	let notificationAbortController: AbortController | null = null;
+	let headerSearchDebounceTimer: number | null = null;
+	let searchPageDebounceTimer: number | null = null;
+	let searchFollowPending = $state<Record<string, boolean>>({});
 	let composerCharacterLimit = $state(DEFAULT_STATUS_CHARACTER_LIMIT);
 	const sessionKey = (session: PleromaSession | null) => session ? `${session.instanceUrl}\n${session.accessToken}\n${session.createdAt}` : '';
 	const resetAccountCache = () => {
@@ -323,6 +355,31 @@
 		loadedNotificationsKey = '';
 		loadedForegroundNotificationsKey = '';
 		notificationState = { status: 'idle' };
+	};
+	const clearHeaderSearchDebounce = () => {
+		if (!headerSearchDebounceTimer) return;
+		window.clearTimeout(headerSearchDebounceTimer);
+		headerSearchDebounceTimer = null;
+	};
+	const clearSearchPageDebounce = () => {
+		if (!searchPageDebounceTimer) return;
+		window.clearTimeout(searchPageDebounceTimer);
+		searchPageDebounceTimer = null;
+	};
+	const closeHeaderSearch = () => {
+		clearHeaderSearchDebounce();
+		headerSearchOpen = false;
+		headerSearchSelectedIndex = -1;
+	};
+	const invalidateSearchRequests = () => {
+		clearSearchPageDebounce();
+		searchRequestId += 1;
+		headerSearchRequestId += 1;
+		loadedSearchKey = '';
+		searchState = { status: 'idle' };
+		headerSearchState = { status: 'idle' };
+		searchFollowPending = {};
+		closeHeaderSearch();
 	};
 	const invalidateProfileAccountRequests = () => {
 		profileAccountRequestId += 1;
@@ -568,6 +625,20 @@
 		posts.map((post) => matchesStatusReplyTarget(post, targetId) ? update(post) : post);
 	const updateProfilePostsByReplyTarget = (posts: ProfilePost[], targetId: string, update: (post: ProfilePost) => ProfilePost) =>
 		posts.map((post) => matchesStatusReplyTarget(post, targetId) ? update(post) : post);
+	const profileHrefForAccount = (account: { acct: string }) => `/app/profiles/${encodeURIComponent(account.acct)}`;
+	const searchUrl = (query: string, tab: SearchTab = 'all') => {
+		const params = new URLSearchParams();
+		const trimmed = query.trim();
+		if (trimmed) params.set('q', trimmed);
+		if (tab !== 'all') params.set('tab', tab);
+		const queryString = params.toString();
+		return queryString ? `/app/search?${queryString}` : '/app/search';
+	};
+	const submitSearch = (query: string, tab: SearchTab = 'all') => {
+		const trimmed = query.trim();
+		if (!trimmed) return;
+		goto(searchUrl(trimmed, tab));
+	};
 	const incrementStatusViewReplies = <PostType extends PleromaStatusView>(post: PostType): PostType => ({ ...post, replies: post.replies + 1 });
 	const incrementRebuildPostReplies = <PostType extends RebuildPost>(post: PostType): PostType => ({ ...post, replies: post.replies + 1 });
 	const findPostInList = <PostType extends RebuildPost & { nestedReplies?: PostType[] }>(posts: PostType[], postId: string | number): PostType | null => {
@@ -753,6 +824,7 @@
 		goto(`/app/thread/${encodeURIComponent(statusId)}`);
 	};
 	const route = $derived<AppRoute>(
+		page.url.pathname.startsWith('/app/search') ? 'search' :
 		page.url.pathname.startsWith('/app/explore') ? 'explore' :
 		page.url.pathname.startsWith('/app/settings') ? 'settings' :
 		page.url.pathname.startsWith('/app/local') ? 'local' :
@@ -763,8 +835,15 @@
 		page.url.pathname.startsWith('/app/notifications') ? 'notifications' :
 		'home'
 	);
+	const searchShell = $derived(route === 'search');
 	const threadStatusId = $derived(route === 'thread' ? decodeURIComponent(page.url.pathname.split('/').filter(Boolean).slice(2).join('/') || '') : '');
 	const profileRouteHandle = $derived(route === 'profile' ? decodeURIComponent(page.url.pathname.split('/').filter(Boolean).slice(2).join('/') || '') : '');
+	const searchQuery = $derived(route === 'search' ? (page.url.searchParams.get('q') ?? '').trim() : '');
+	const searchTab = $derived<SearchTab>(
+		page.url.searchParams.get('tab') === 'people' ? 'people' :
+		page.url.searchParams.get('tab') === 'posts' ? 'posts' :
+		'all'
+	);
 	const composerRemaining = $derived(composerCharacterLimit - composerText.length);
 	const inlineReplyRemaining = $derived(composerCharacterLimit - inlineReplyDraft.length);
 	const preparedComposerPoll = $derived(composerPoll ? composerPollPayload(composerPoll) : undefined);
@@ -788,6 +867,24 @@
 		exploreFeed === 'new' ? 'Fresh instance dispatches' :
 		'Most replied threads'
 	);
+	const searchAccounts = $derived(searchState.status === 'success' ? searchState.accounts : []);
+	const searchPosts = $derived(searchState.status === 'success' ? searchState.posts : []);
+	const visibleSearchAccounts = $derived(searchTab === 'posts' ? [] : searchAccounts);
+	const visibleSearchPosts = $derived(searchTab === 'people' ? [] : searchPosts);
+	const searchResultTotal = $derived(searchAccounts.length + searchPosts.length);
+	const visibleSearchResultTotal = $derived(visibleSearchAccounts.length + visibleSearchPosts.length);
+	const headerSearchAccounts = $derived(headerSearchState.status === 'success' ? headerSearchState.accounts.slice(0, 3) : []);
+	const headerSearchPosts = $derived(headerSearchState.status === 'success' ? headerSearchState.posts.slice(0, 3) : []);
+	const headerSearchResultTotal = $derived(headerSearchState.status === 'success' ? headerSearchState.accounts.length + headerSearchState.posts.length : 0);
+	const headerSearchSelectableItems = $derived<HeaderSearchSelectableItem[]>(
+		!headerSearchDraft.trim()
+			? searchRecents.map((query) => ({ kind: 'recent', query }))
+			: [
+				...headerSearchAccounts.map((account) => ({ kind: 'account' as const, account })),
+				...headerSearchPosts.map((post) => ({ kind: 'post' as const, post }))
+			]
+	);
+	const headerSearchActiveDescendant = $derived(headerSearchSelectedIndex >= 0 && headerSearchSelectableItems[headerSearchSelectedIndex] ? `header-search-option-${headerSearchSelectedIndex}` : undefined);
 	const placeholderHeading = $derived(
 		route === 'public' ? 'Public timeline' :
 		route === 'local' ? 'Local timeline' :
@@ -801,6 +898,7 @@
 	const isActive = (item: NavItem) => item.route === route;
 	const isTimelineRoute = (value: AppRoute) => timelineRoutes.includes(value);
 	const numberFormatter = new Intl.NumberFormat('en-US');
+	const compactFormatter = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
 	const compactString = (value: unknown) => typeof value === 'string' && value.trim() ? value.trim() : null;
 	const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object');
 	const nonNegativeInteger = (value: unknown) => {
@@ -1174,9 +1272,16 @@
 		userMenuOpen = false;
 	};
 	const handleWindowKeydown = (event: KeyboardEvent) => {
+		if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+			event.preventDefault();
+			headerSearchInput?.focus();
+			headerSearchInput?.select();
+			return;
+		}
 		if (event.key !== 'Escape') return;
 		userMenuOpen = false;
 		notificationsMenuOpen = false;
+		closeHeaderSearch();
 		mobileDrawerOpen = false;
 		mobileSheetOpen = false;
 	};
@@ -1186,6 +1291,7 @@
 		invalidateProfileRouteRequests();
 		invalidateStatusActionRequests();
 		invalidateNotificationRequests();
+		invalidateSearchRequests();
 		invalidateProfileAccountRequests();
 		invalidateTrendsRequests();
 		invalidateInstanceConfigRequests();
@@ -1212,6 +1318,7 @@
 			invalidateProfileRouteRequests();
 			invalidateStatusActionRequests();
 			invalidateNotificationRequests();
+			invalidateSearchRequests();
 			invalidateProfileAccountRequests();
 			invalidateTrendsRequests();
 			invalidateInstanceConfigRequests();
@@ -1363,6 +1470,331 @@
 
 		loadedComposerCustomEmojiKey = requestSessionKey;
 		void loadComposerCustomEmojis(session);
+	};
+	const followStateFromRelationship = (relationship: PleromaRelationship | undefined, accountId: string, currentAccountId?: string): PleromaProfileFollowState => {
+		if (currentAccountId && accountId === currentAccountId) return 'self';
+		if (!relationship) return 'stranger';
+		if (relationship.blocking) return 'blocked';
+		if (relationship.requested) return 'requested';
+		if (relationship.following && relationship.followed_by) return 'mutual';
+		if (relationship.following) return 'following';
+		return 'stranger';
+	};
+	const searchFollowLabel = (followState: PleromaProfileFollowState) => (
+		followState === 'self' ? 'You' :
+		followState === 'mutual' ? 'Mutuals' :
+		followState === 'following' ? 'Following' :
+		followState === 'requested' ? 'Requested' :
+		followState === 'blocked' ? 'Blocked' :
+		'Follow'
+	);
+	const searchFollowIsFollowing = (followState: PleromaProfileFollowState) => ['following', 'mutual', 'requested'].includes(followState);
+	const searchFollowDisabled = (account: SearchAccountView) => account.followState === 'self' || account.followState === 'blocked' || Boolean(searchFollowPending[account.id]);
+	const adaptSearchAccount = (account: PleromaAccount, currentAccountId?: string, relationship: PleromaRelationship | undefined = account.pleroma.relationship): SearchAccountView => ({
+		...adaptPleromaAccount(account),
+		bio: htmlToPlainText(account.note ?? ''),
+		followers: account.followers_count,
+		posts: account.statuses_count,
+		followState: followStateFromRelationship(relationship, account.id, currentAccountId)
+	});
+	const readSearchRecents = () => {
+		try {
+			const value = JSON.parse(localStorage.getItem(SEARCH_RECENTS_STORAGE_KEY) ?? '[]') as unknown;
+			return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, 8) : [];
+		} catch {
+			return [];
+		}
+	};
+	const writeSearchRecents = (recents: string[]) => {
+		searchRecents = recents;
+		try {
+			localStorage.setItem(SEARCH_RECENTS_STORAGE_KEY, JSON.stringify(recents));
+		} catch {
+			// Recents are a local convenience; storage failures should not block search.
+		}
+	};
+	const rememberSearch = (query: string) => {
+		const q = query.trim();
+		if (!q) return;
+		writeSearchRecents([q, ...searchRecents.filter((recent) => recent !== q)].slice(0, 8));
+	};
+	const removeSearchRecent = (query: string) => {
+		headerSearchSelectedIndex = -1;
+		writeSearchRecents(searchRecents.filter((recent) => recent !== query));
+	};
+	const clearSearchRecents = () => {
+		headerSearchSelectedIndex = -1;
+		writeSearchRecents([]);
+	};
+	const searchResultState = async (session: PleromaSession, query: string) => {
+		const client = createPleromaClient({
+			instanceUrl: session.instanceUrl,
+			accessToken: session.accessToken,
+			fetch: window.fetch.bind(window)
+		});
+		const result = await client.search({ q: query, limit: 20, resolve: true });
+		upsertAccountCache([...result.accounts, ...accountsFromPleromaStatuses(result.statuses)]);
+		const accountIds = result.accounts.map((account) => account.id);
+		const relationshipById = new Map(
+			accountIds.length > 0
+				? (await client.getAccountRelationships(accountIds)).map((relationship) => [relationship.id, relationship] as const)
+				: []
+		);
+		const currentAccountId = currentSession?.account?.id ?? session.account?.id;
+		const accounts = result.accounts.map((account) => adaptSearchAccount(account, currentAccountId, relationshipById.get(account.id)));
+		const posts = adaptPleromaStatuses(result.statuses, { timelines: ['home'] });
+
+		return accounts.length + posts.length > 0
+			? { status: 'success' as const, query, accounts, posts }
+			: { status: 'empty' as const, query };
+	};
+	const loadSearch = async (session: PleromaSession, query: string) => {
+		const q = query.trim();
+		if (!q) {
+			searchRequestId += 1;
+			loadedSearchKey = '';
+			searchState = { status: 'idle' };
+			return;
+		}
+
+		const requestSessionKey = sessionKey(session);
+		const requestId = searchRequestId + 1;
+		searchRequestId = requestId;
+		searchState = { status: 'loading', query: q };
+
+		try {
+			const nextState = await searchResultState(session, q);
+			if (requestId !== searchRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+			searchState = nextState;
+		} catch (error) {
+			if (requestId !== searchRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			const normalized = normalizePleromaRequestError(error);
+			if (normalized.reauthRequired) {
+				signOutPleroma(localStorage);
+				redirectToLanding();
+				return;
+			}
+
+			searchState = { status: 'error', query: q, error: normalized };
+		}
+	};
+	const loadHeaderSearch = async (session: PleromaSession, query: string) => {
+		const q = query.trim();
+		if (!q) {
+			headerSearchRequestId += 1;
+			headerSearchState = { status: 'idle' };
+			return;
+		}
+
+		const requestSessionKey = sessionKey(session);
+		const requestId = headerSearchRequestId + 1;
+		headerSearchRequestId = requestId;
+		headerSearchState = { status: 'loading', query: q };
+
+		try {
+			const nextState = await searchResultState(session, q);
+			if (requestId !== headerSearchRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+			headerSearchState = nextState;
+		} catch (error) {
+			if (requestId !== headerSearchRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+			headerSearchState = { status: 'error', query: q, error: normalizePleromaRequestError(error) };
+		}
+	};
+	const ensureSearch = (session: PleromaSession, query: string) => {
+		const q = query.trim();
+		if (!q) {
+			searchRequestId += 1;
+			if (searchState.status !== 'idle') searchState = { status: 'idle' };
+			loadedSearchKey = '';
+			return;
+		}
+
+		const requestSessionKey = sessionKey(session);
+		const viewerAccountId = currentSession?.account?.id ?? session.account?.id ?? '';
+		const loadKey = `${requestSessionKey}\n${viewerAccountId}\n${q}`;
+		if (loadedSearchKey === loadKey) return;
+
+		loadedSearchKey = loadKey;
+		void loadSearch(session, q);
+	};
+	const retrySearch = () => {
+		if (currentSession && searchQuery) void loadSearch(currentSession, searchQuery);
+	};
+	const submitHeaderSearch = (event: SubmitEvent) => {
+		event.preventDefault();
+		rememberSearch(headerSearchDraft);
+		closeHeaderSearch();
+		submitSearch(headerSearchDraft);
+	};
+	const submitExploreSearch = (event: SubmitEvent) => {
+		event.preventDefault();
+		rememberSearch(exploreSearchDraft);
+		submitSearch(exploreSearchDraft);
+	};
+	const submitSearchPage = (event: SubmitEvent) => {
+		event.preventDefault();
+		clearSearchPageDebounce();
+		rememberSearch(searchPageDraft);
+		submitSearch(searchPageDraft, searchTab);
+	};
+	const updateSearchPageDraft = (value: string) => {
+		searchPageDraft = value;
+		clearSearchPageDebounce();
+		searchPageDebounceTimer = window.setTimeout(() => {
+			searchPageDebounceTimer = null;
+			const q = searchPageDraft.trim();
+			goto(q ? searchUrl(q, searchTab) : '/app/search', { replaceState: true });
+		}, SEARCH_PAGE_DEBOUNCE_MS);
+	};
+	const scheduleHeaderSearch = (session: PleromaSession, query: string) => {
+		const q = query.trim();
+		clearHeaderSearchDebounce();
+		headerSearchRequestId += 1;
+		headerSearchSelectedIndex = -1;
+		if (!q) {
+			headerSearchState = { status: 'idle' };
+			return;
+		}
+
+		headerSearchState = { status: 'loading', query: q };
+		headerSearchDebounceTimer = window.setTimeout(() => {
+			headerSearchDebounceTimer = null;
+			void loadHeaderSearch(session, q);
+		}, HEADER_SEARCH_DEBOUNCE_MS);
+	};
+	const focusHeaderSearch = () => {
+		headerSearchOpen = true;
+		if (headerSearchDraft.trim() && currentSession) scheduleHeaderSearch(currentSession, headerSearchDraft);
+	};
+	const updateHeaderSearch = (value: string) => {
+		headerSearchDraft = value;
+		headerSearchOpen = true;
+		headerSearchSelectedIndex = -1;
+		const session = currentSession;
+		if (!session || !value.trim()) {
+			clearHeaderSearchDebounce();
+			headerSearchRequestId += 1;
+			headerSearchState = { status: 'idle' };
+			return;
+		}
+
+		scheduleHeaderSearch(session, value);
+	};
+	const pickSearchRecent = (query: string) => {
+		headerSearchDraft = query;
+		rememberSearch(query);
+		closeHeaderSearch();
+		submitSearch(query);
+	};
+	const openSearchAccount = (account: { acct: string }) => {
+		rememberSearch(headerSearchDraft || searchQuery);
+		closeHeaderSearch();
+		goto(profileHrefForAccount(account));
+	};
+	const openSearchPost = (post: { id: string | number; actionStatusId?: string; threadStatusId?: string }) => {
+		rememberSearch(headerSearchDraft || searchQuery);
+		closeHeaderSearch();
+		openThread(post);
+	};
+	const updateSearchAccountFollowState = (accountId: string, followState: PleromaProfileFollowState) => {
+		const updateAccount = (account: SearchAccountView) => account.id === accountId ? { ...account, followState } : account;
+		if (searchState.status === 'success') {
+			searchState = { ...searchState, accounts: searchState.accounts.map(updateAccount) };
+		}
+		if (headerSearchState.status === 'success') {
+			headerSearchState = { ...headerSearchState, accounts: headerSearchState.accounts.map(updateAccount) };
+		}
+	};
+	const setSearchFollowPending = (accountId: string, pending: boolean) => {
+		if (pending) {
+			searchFollowPending = { ...searchFollowPending, [accountId]: true };
+			return;
+		}
+
+		const { [accountId]: _cleared, ...rest } = searchFollowPending;
+		searchFollowPending = rest;
+	};
+	const toggleSearchFollow = async (event: MouseEvent, account: SearchAccountView) => {
+		event.preventDefault();
+		event.stopPropagation();
+		const session = currentSession;
+		if (!session || searchFollowDisabled(account)) return;
+
+		const requestSessionKey = sessionKey(session);
+		setSearchFollowPending(account.id, true);
+		try {
+			const client = createPleromaClient({
+				instanceUrl: session.instanceUrl,
+				accessToken: session.accessToken,
+				fetch: window.fetch.bind(window)
+			});
+			const relationship = searchFollowIsFollowing(account.followState)
+				? await client.unfollowAccount(account.id)
+				: await client.followAccount(account.id);
+			if (!isCurrentSessionRequest(requestSessionKey)) return;
+			updateSearchAccountFollowState(account.id, followStateFromRelationship(relationship, account.id, session.account?.id));
+		} catch (error) {
+			if (!isCurrentSessionRequest(requestSessionKey)) return;
+			const normalized = normalizePleromaRequestError(error);
+			if (normalized.reauthRequired) {
+				signOutPleroma(localStorage);
+				redirectToLanding();
+			}
+		} finally {
+			if (isCurrentSessionRequest(requestSessionKey)) setSearchFollowPending(account.id, false);
+		}
+	};
+	const activateHeaderSearchItem = (item: HeaderSearchSelectableItem) => {
+		if (item.kind === 'recent') {
+			pickSearchRecent(item.query);
+			return;
+		}
+
+		if (item.kind === 'account') {
+			openSearchAccount(item.account);
+			return;
+		}
+
+		openSearchPost(item.post);
+	};
+	const moveHeaderSearchSelection = (direction: 1 | -1) => {
+		const itemCount = headerSearchSelectableItems.length;
+		if (itemCount === 0) return;
+
+		headerSearchOpen = true;
+		headerSearchSelectedIndex = headerSearchSelectedIndex < 0
+			? direction === 1 ? 0 : itemCount - 1
+			: (headerSearchSelectedIndex + direction + itemCount) % itemCount;
+	};
+	const handleHeaderSearchKeydown = (event: KeyboardEvent) => {
+		if (event.key === 'Escape') {
+			event.preventDefault();
+			closeHeaderSearch();
+			return;
+		}
+
+		if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+			event.preventDefault();
+			moveHeaderSearchSelection(event.key === 'ArrowDown' ? 1 : -1);
+			return;
+		}
+
+		if (event.key !== 'Enter' || headerSearchSelectedIndex < 0) return;
+		const item = headerSearchSelectableItems[headerSearchSelectedIndex];
+		if (!item) return;
+
+		event.preventDefault();
+		activateHeaderSearchItem(item);
+	};
+	const handleWindowPointerdown = (event: PointerEvent) => {
+		if (!headerSearchOpen || !headerSearchForm) return;
+		const target = event.target;
+		if (target instanceof Node && !headerSearchForm.contains(target)) closeHeaderSearch();
+	};
+	const setSearchTab = (tab: SearchTab) => {
+		if (!searchQuery) return;
+		goto(searchUrl(searchQuery, tab));
 	};
 	const searchComposerMentionAccounts = (query: string) => {
 		const session = currentSession;
@@ -2085,6 +2517,7 @@
 	onMount(() => {
 		const storedTheme = localStorage.getItem('pn-theme');
 		if (storedTheme === 'dusk' || storedTheme === 'drive' || storedTheme === 'simoun') applyTheme(storedTheme);
+		searchRecents = readSearchRecents();
 		mounted = true;
 
 		const triggerHomeTimelineCheck = () => {
@@ -2100,6 +2533,7 @@
 			invalidateProfileRouteRequests();
 			invalidateStatusActionRequests();
 			invalidateNotificationRequests();
+			invalidateSearchRequests();
 			invalidateComposerAutocompleteRequests();
 			closeHomeTimelineStreaming();
 			window.removeEventListener(HOME_TIMELINE_CHECK_EVENT, triggerHomeTimelineCheck);
@@ -2112,6 +2546,12 @@
 	$effect(() => {
 		const pathname = page.url.pathname;
 		if (!mounted) return;
+		if (route === 'search') {
+			headerSearchDraft = searchQuery;
+			searchPageDraft = searchQuery;
+		} else {
+			clearSearchPageDebounce();
+		}
 
 		const session = readSessionOrRedirect();
 		if (!session) return;
@@ -2127,6 +2567,7 @@
 			ensureTrends(session);
 			ensureComposerCustomEmojis(session);
 		}
+		if (route === 'search') ensureSearch(session, searchQuery);
 		if (pathname.startsWith('/app/home')) {
 			const loadKey = `${sessionKey(session)}\n${pathname}`;
 			if (loadedHomeTimelineKey !== loadKey) {
@@ -2166,9 +2607,84 @@
 	<title>PleromaNet · App</title>
 </svelte:head>
 
-<svelte:window onkeydown={handleWindowKeydown} />
+<svelte:window onkeydown={handleWindowKeydown} onpointerdown={handleWindowPointerdown} />
 
 <AttachmentLightboxHost />
+
+{#snippet searchResultsBody()}
+	{#if searchState.status === 'idle'}
+		<div class="se-empty">
+			<h2 class="se-empty-h">Start a search</h2>
+			<p class="se-empty-s">Use the field above or the header search box to look up people and posts.</p>
+		</div>
+	{:else if searchState.status === 'loading'}
+		<div class="se-skel" role="status" aria-label="Search status">
+			<div class="se-empty-h">Searching “{searchState.query}”</div>
+			{#each Array.from({ length: 3 }) as _}
+				<div class="se-skel-row" aria-hidden="true">
+					<span class="se-skel-av"></span>
+					<span>
+						<span class="se-skel-line long"></span>
+						<span class="se-skel-line mid"></span>
+						<span class="se-skel-line short"></span>
+					</span>
+				</div>
+			{/each}
+		</div>
+	{:else if searchState.status === 'empty'}
+		<div class="se-empty" data-testid="search-results">
+			<h2 class="se-empty-h">No results for {searchState.query}</h2>
+			<p class="se-empty-s">No people or posts matched. Try a shorter query, a handle, or a few words from a post.</p>
+		</div>
+	{:else if searchState.status === 'error'}
+		<div class="se-empty se-error" role="alert">
+			<h2 class="se-empty-h">{searchState.error.title}</h2>
+			<p class="se-empty-s">{searchState.error.message}</p>
+			{#if searchState.error.retryable}
+				<Button variant="secondary" onclick={retrySearch}>Retry search</Button>
+			{/if}
+		</div>
+	{:else if visibleSearchResultTotal === 0}
+		<div class="se-empty" data-testid="search-results">
+			<h2 class="se-empty-h">No {searchTab} results for {searchState.query}</h2>
+			<p class="se-empty-s">Switch tabs or widen your query.</p>
+		</div>
+	{:else if searchState.status === 'success'}
+		<div class="se-list" data-testid="search-results">
+			{#each visibleSearchAccounts as account (account.id)}
+				<div class="se-row se-account-row">
+					<a class="se-row-open" href={profileHrefForAccount(account)}>
+						<span class="se-row-av" class:av-orb={!account.avatarUrl}>{#if account.avatarUrl}<img class="avatar-img" src={account.avatarUrl} alt={`${account.displayName} avatar`} />{/if}</span>
+						<span class="se-row-main">
+							<span class="se-row-head">
+								<span class="se-row-name"><RichText text={account.displayName} emojis={account.emojis} linkMentions={false} /></span>
+								<span class="se-row-acct">{account.handle}</span>
+								{#if account.acct.includes('@')}<span class="se-row-tag user">Remote</span>{/if}
+							</span>
+							{#if account.bio}<span class="se-row-snippet">{account.bio}</span>{/if}
+							<span class="se-row-meta"><span>{compactFormatter.format(account.followers)} followers</span><span>{compactFormatter.format(account.posts)} posts</span></span>
+						</span>
+					</a>
+					<button type="button" class="se-follow-btn" class:is-following={searchFollowIsFollowing(account.followState)} disabled={searchFollowDisabled(account)} onclick={(event) => toggleSearchFollow(event, account)}>{searchFollowPending[account.id] ? 'Working...' : searchFollowLabel(account.followState)}</button>
+				</div>
+			{/each}
+			{#each visibleSearchPosts as post (post.id)}
+				<button type="button" class="se-row" onclick={() => openThread(post)}>
+					<span class="se-row-av" class:av-orb={!post.avatarUrl}>{#if post.avatarUrl}<img class="avatar-img" src={post.avatarUrl} alt={`${post.name} avatar`} />{/if}</span>
+					<span class="se-row-main">
+						<span class="se-row-head">
+							<span class="se-row-name"><RichText text={post.name} emojis={post.nameEmojis} linkMentions={false} /></span>
+							<span class="se-row-acct">{post.handle}</span>
+							<span class="se-row-time">{post.time}</span>
+						</span>
+						<span class="se-row-snippet"><RichText text={post.body} emojis={post.bodyEmojis} mentionClass="post-mention-inline" linkMentions={false} /></span>
+						<span class="se-row-meta"><span>↩ {post.replies}</span><span>↻ {post.boosts}</span><span>★ {post.favorites}</span></span>
+					</span>
+				</button>
+			{/each}
+		</div>
+	{/if}
+{/snippet}
 
 {#if sessionReady}
 	<div class="app-route-shell">
@@ -2192,11 +2708,67 @@
 					</nav>
 					<div class="app-header-spacer"></div>
 					<div class="app-header-right">
-						<label class="app-search">
+						<form bind:this={headerSearchForm} class="app-search" role="search" onsubmit={submitHeaderSearch} onfocusin={focusHeaderSearch}>
 							<Icon name="search" width={14} height={14} />
-							<input type="search" aria-label="Search PleromaNet" placeholder="Search..." />
+							<input bind:this={headerSearchInput} value={headerSearchDraft} type="search" role="combobox" aria-label="Search PleromaNet" placeholder="Search..." aria-autocomplete="list" aria-expanded={headerSearchOpen} aria-controls={headerSearchOpen ? 'header-search-dropdown' : undefined} aria-activedescendant={headerSearchActiveDescendant} oninput={(event) => updateHeaderSearch(event.currentTarget.value)} onkeydown={handleHeaderSearchKeydown} />
 							<span class="search-kbd">⌘K</span>
-						</label>
+							{#if headerSearchOpen}
+								<div id="header-search-dropdown" class="se-dropdown" role="listbox" data-testid="header-search-dropdown">
+									{#if !headerSearchDraft.trim()}
+										{#if searchRecents.length === 0}
+											<div class="se-dd-empty">
+												<div class="se-dd-empty-h">Search across PleromaNet</div>
+												<div class="se-dd-empty-s">Find people and posts on this instance and across the federation. Hashtags are ignored.</div>
+											</div>
+										{:else}
+											<div class="se-dd-section">
+												<div class="se-dd-l"><span>Recent</span><span class="se-dd-l-count">{searchRecents.length}</span><button type="button" class="se-dd-l-see" onclick={clearSearchRecents}>Clear all</button></div>
+												{#each searchRecents as recent, i}
+													<div id={`header-search-option-${i}`} class="se-recent-row" role="option" aria-selected={headerSearchSelectedIndex === i} class:sel={headerSearchSelectedIndex === i}>
+														<button type="button" class="se-recent-pick" onclick={() => pickSearchRecent(recent)}><span class="se-recent-q">{recent}</span></button>
+														<button type="button" class="se-recent-x" aria-label={`Remove ${recent} from recent searches`} onclick={() => removeSearchRecent(recent)}>×</button>
+													</div>
+												{/each}
+											</div>
+										{/if}
+										<div class="se-dd-foot"><span class="se-kbd">↵</span> open · <span class="se-kbd">Esc</span> dismiss<span class="se-dd-foot-r">⌘K from anywhere</span></div>
+									{:else if headerSearchState.status === 'loading'}
+										<div class="se-dd-empty"><div class="se-dd-empty-h">Searching “{headerSearchState.query}”</div><div class="se-dd-empty-s">Looking through people and posts...</div></div>
+									{:else if headerSearchState.status === 'error'}
+										<div class="se-dd-empty"><div class="se-dd-empty-h">Search unavailable</div><div class="se-dd-empty-s">{headerSearchState.error.message}</div></div>
+									{:else if headerSearchState.status === 'empty' || headerSearchResultTotal === 0}
+										<div class="se-dd-empty"><div class="se-dd-empty-h">No matches for “{headerSearchDraft}”</div><div class="se-dd-empty-s">Press ↵ to open the full search and try a wider query.</div></div>
+										<div class="se-dd-foot"><span class="se-kbd">↵</span> open · <span class="se-kbd">Esc</span> dismiss</div>
+									{:else}
+										{#if headerSearchAccounts.length > 0}
+											<div class="se-dd-section">
+												<div class="se-dd-l"><span>People</span><span class="se-dd-l-count">{headerSearchState.status === 'success' ? headerSearchState.accounts.length : 0}</span><button type="button" class="se-dd-l-see" onclick={() => { rememberSearch(headerSearchDraft); closeHeaderSearch(); submitSearch(headerSearchDraft, 'people'); }}>See all →</button></div>
+												{#each headerSearchAccounts as account, i (account.id)}
+													<button id={`header-search-option-${i}`} type="button" role="option" aria-selected={headerSearchSelectedIndex === i} class="se-dd-row" class:sel={headerSearchSelectedIndex === i} onclick={() => openSearchAccount(account)}>
+														<span class="se-dd-av" class:av-orb={!account.avatarUrl}>{#if account.avatarUrl}<img class="avatar-img" src={account.avatarUrl} alt={`${account.displayName} avatar`} />{/if}</span>
+														<span class="se-dd-user"><span class="se-dd-name"><RichText text={account.displayName} emojis={account.emojis} linkMentions={false} /></span><span class="se-dd-acct">{account.handle}</span></span>
+														<span class="se-dd-followers">{compactFormatter.format(account.followers)} followers</span>
+													</button>
+												{/each}
+											</div>
+										{/if}
+										{#if headerSearchPosts.length > 0}
+											<div class="se-dd-section">
+												<div class="se-dd-l"><span>Posts</span><span class="se-dd-l-count">{headerSearchState.status === 'success' ? headerSearchState.posts.length : 0}</span><button type="button" class="se-dd-l-see" onclick={() => { rememberSearch(headerSearchDraft); closeHeaderSearch(); submitSearch(headerSearchDraft, 'posts'); }}>See all →</button></div>
+												{#each headerSearchPosts as post, i (post.id)}
+													<button id={`header-search-option-${headerSearchAccounts.length + i}`} type="button" role="option" aria-selected={headerSearchSelectedIndex === headerSearchAccounts.length + i} class="se-dd-row" class:sel={headerSearchSelectedIndex === headerSearchAccounts.length + i} onclick={() => openSearchPost(post)}>
+														<span class="se-dd-av" class:av-orb={!post.avatarUrl}>{#if post.avatarUrl}<img class="avatar-img" src={post.avatarUrl} alt={`${post.name} avatar`} />{/if}</span>
+														<span class="se-dd-snippet"><RichText text={post.body} emojis={post.bodyEmojis} mentionClass="post-mention-inline" linkMentions={false} /></span>
+														<span class="se-dd-snippet-meta">{post.time}</span>
+													</button>
+												{/each}
+											</div>
+										{/if}
+										<div class="se-dd-foot">Showing top results for <span class="se-dd-query">“{headerSearchDraft}”</span><span class="se-dd-foot-r"><span class="se-kbd">↵</span> view all · <span class="se-kbd">Esc</span> dismiss</span></div>
+									{/if}
+								</div>
+							{/if}
+						</form>
 						<div class="header-notifs">
 							<button type="button" class="icon-btn" aria-label={headerNotificationLabel} aria-expanded={notificationsMenuOpen} aria-controls={notificationsMenuOpen ? 'header-notifications-popover' : undefined} data-bell onclick={toggleNotificationsPopover}>
 								<Icon name="bell" width={20} height={20} />
@@ -2239,7 +2811,7 @@
 			</div>
 		</header>
 
-		<div class="app-shell-grid">
+		<div class="app-shell-grid" class:search-grid={searchShell}>
 			<aside class="app-left-sidebar" data-testid="left-sidebar">
 				<ProfileMini account={currentSession?.account} instanceUrl={currentSession?.instanceUrl} />
 				<div class="card app-side-card">
@@ -2394,11 +2966,11 @@
 						<div class="app-page-kicker">Explore</div>
 						<h1>Explore the network</h1>
 						<p>Discover people, topics, and small communities across friendly Pleroma instances.</p>
-						<label class="hero-search">
+						<form class="hero-search" role="search" onsubmit={submitExploreSearch}>
 							<Icon name="search" width={16} height={16} />
-							<input type="search" aria-label="Search topics, people, and posts" placeholder="Search topics, people, and posts" />
-							<Button variant="primary">Search</Button>
-						</label>
+							<input bind:value={exploreSearchDraft} type="search" aria-label="Search topics, people, and posts" placeholder="Search topics, people, and posts" />
+							<Button variant="primary" type="submit">Search</Button>
+						</form>
 						<div class="hero-tags">
 							<button type="button" class="tag">#fediverse</button>
 							<button type="button" class="tag">#privacy</button>
@@ -2432,6 +3004,39 @@
 								<button type="button" role="tab" aria-selected={exploreFeed === 'active'} class:active={exploreFeed === 'active'} onclick={() => (exploreFeed = 'active')}>Active</button>
 							</div>
 							<p>{exploreFeedText}</p>
+						</div>
+					</section>
+				{:else if route === 'search'}
+					<section class="search-panel">
+						<div class="se-pageframe card" data-testid="search-pageframe">
+							<form class="se-bar" role="search" onsubmit={submitSearchPage}>
+								<Icon name="search" width={18} height={18} />
+								<input class="se-bar-input" value={searchPageDraft} type="search" aria-label="Search this instance and federation" placeholder="Search PleromaNet..." oninput={(event) => updateSearchPageDraft(event.currentTarget.value)} />
+								<span class="se-bar-count">{searchResultTotal} {searchResultTotal === 1 ? 'result' : 'results'}</span>
+							</form>
+							<div class="se-tabs" role="tablist" aria-label="Search result types">
+								<button type="button" role="tab" aria-selected={searchTab === 'all'} class="se-tab" class:active={searchTab === 'all'} onclick={() => setSearchTab('all')}>All <span class="se-tab-count">{searchResultTotal}</span></button>
+								<button type="button" role="tab" aria-selected={searchTab === 'people'} class="se-tab" class:active={searchTab === 'people'} onclick={() => setSearchTab('people')}>People <span class="se-tab-count">{searchAccounts.length}</span></button>
+								<button type="button" role="tab" aria-selected={searchTab === 'posts'} class="se-tab" class:active={searchTab === 'posts'} onclick={() => setSearchTab('posts')}>Posts <span class="se-tab-count">{searchPosts.length}</span></button>
+								<span class="se-tabs-spacer"></span>
+								<button type="button" class="se-tab-tool" class:on={searchSidebarOpen} aria-expanded={searchSidebarOpen} aria-controls="search-filter-sidebar" onclick={() => (searchSidebarOpen = !searchSidebarOpen)}>{searchSidebarOpen ? 'Hide filters ◂' : 'More filters ▸'}</button>
+							</div>
+							{#if searchSidebarOpen}
+								<div class="se-v2-cols">
+									<aside id="search-filter-sidebar" class="se-v2-side" data-testid="search-filter-sidebar">
+										<div class="se-v2-side-head"><span class="se-v2-side-h">Filters</span><button type="button" class="se-v2-side-close" title="Close filters" onclick={() => (searchSidebarOpen = false)}>◂</button></div>
+										<div class="se-v2-group"><div class="se-v2-group-l">Source</div><div class="se-v2-opt on">Federated</div><div class="se-v2-opt">This instance</div><div class="se-v2-opt">People you follow</div></div>
+										<div class="se-v2-group"><div class="se-v2-group-l">Date</div><div class="se-v2-opt">Past 24 hours</div><div class="se-v2-opt on">Past week</div><div class="se-v2-opt">Past month</div><div class="se-v2-opt">All time</div></div>
+										<div class="se-v2-group"><label class="se-v2-group-l" for="search-filter-user">From user</label><input id="search-filter-user" class="se-v2-input" placeholder="@user@server" disabled /></div>
+										<div class="se-v2-group"><div class="se-v2-group-l">Has media</div><div class="se-v2-opt">Photos</div><div class="se-v2-opt">Audio</div><div class="se-v2-opt">Video</div></div>
+										<div class="se-v2-group"><div class="se-v2-group-l">Sort</div><div class="se-v2-opt on">Most relevant</div><div class="se-v2-opt">Newest first</div><div class="se-v2-opt">Most boosted</div></div>
+										<button type="button" class="se-v2-clear" disabled>CLEAR ALL</button>
+									</aside>
+									<div>{@render searchResultsBody()}</div>
+								</div>
+							{:else}
+								{@render searchResultsBody()}
+							{/if}
 						</div>
 					</section>
 				{:else if route === 'thread'}
@@ -2644,7 +3249,7 @@
 						<div class="card-head surface-head-quiet"><span class="surface-tip-title"><Icon name="info" width={14} height={14} />Profile tips</span></div>
 						<div class="surface-tip-list"><div class="surface-tip"><Icon name="image" width={14} height={14} /><span>Your avatar will be shown at 96×96px.</span></div></div>
 					</div>
-				{:else}
+				{:else if route !== 'search'}
 					<SurfaceCard kind="profile-preview" />
 					<SurfaceCard kind="profile-tips" />
 				{/if}

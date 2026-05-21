@@ -2,13 +2,14 @@
 	type Variant = 'primary' | 'secondary' | 'follow' | 'upload' | 'ghost';
 	type Props = {
 		variant?: Variant;
+		type?: 'button' | 'submit';
 		className?: string;
 		disabled?: boolean;
 		children?: import('svelte').Snippet;
 		onclick?: (e: MouseEvent) => void;
 	};
 
-	let { variant = 'primary', className = '', disabled = false, children, onclick }: Props = $props();
+	let { variant = 'primary', type = 'button', className = '', disabled = false, children, onclick }: Props = $props();
 
 	const variantClass = (v: Variant) =>
 		v === 'primary' ? 'btn-primary' :
@@ -20,7 +21,7 @@
 </script>
 
 <button
-	type="button"
+	{type}
 	class="{variantClass(variant)} {className}"
 	{disabled}
 	{onclick}
