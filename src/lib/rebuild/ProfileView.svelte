@@ -15,16 +15,17 @@
 		replies?: ProfilePost[];
 		pinned?: ProfilePost[];
 		media?: ProfileMediaItem[];
+		timelineLoading?: boolean;
 		onPostOpen?: (post: ProfilePost) => void;
 		onPostAction?: (post: ProfilePost, key: string) => void;
 		onEditProfile?: () => void;
 	};
 
-	let { profile, posts = [], replies = [], pinned = [], media = [], onPostOpen, onPostAction, onEditProfile }: Props = $props();
+	let { profile, posts = [], replies = [], pinned = [], media = [], timelineLoading = false, onPostOpen, onPostAction, onEditProfile }: Props = $props();
 	let tab = $state<ProfileTab>('posts');
 	let pinnedExpanded = $state(false);
 	let locked = $derived(profile.relations.locked && !['mutual', 'following', 'self'].includes(profile.followState));
-	let empty = $derived(posts.length === 0 && replies.length === 0 && pinned.length === 0 && media.length === 0 && !locked);
+	let empty = $derived(posts.length === 0 && replies.length === 0 && pinned.length === 0 && media.length === 0 && !locked && !timelineLoading);
 	let visiblePinned = $derived(pinnedExpanded ? pinned : pinned.slice(0, 1));
 	let tabPosts = $derived(tab === 'replies' ? replies : posts);
 	let href = $derived(profileHref(profile.handle));
@@ -108,6 +109,11 @@
 				<div class="pp-locked-h">This account is locked</div>
 				<div class="pp-locked-s">{profile.displayName} approves followers manually. Follow requests will be wired with account actions.</div>
 				<button type="button" class="pp-follow-btn" disabled>Send follow request</button>
+			</div>
+		{:else if timelineLoading}
+			<div class="pp-empty" role="status" aria-label="Profile timeline status">
+				<div class="pp-empty-h">Loading profile posts</div>
+				<div class="pp-empty-s">Fetching {profile.displayName}'s posts, replies, pinned posts, and media.</div>
 			</div>
 		{:else if empty}
 			<div class="pp-empty">

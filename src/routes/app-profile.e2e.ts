@@ -278,6 +278,126 @@ test('profile navigation uses cached timeline account and refreshes existing pos
 	expect(searchRequestCount).toBe(0);
 });
 
+test('profile route renders cached account header before relationship and statuses finish', async ({ page }) => {
+	const cachedAccount: PleromaAccount = {
+		...profileAccount,
+		id: 'account-fast-soft',
+		username: 'fast.soft',
+		acct: 'fast.soft@kolektiva.social',
+		display_name: 'fast.soft cached',
+		pleroma: { ...profileAccount.pleroma, relationship: undefined }
+	};
+	const homeStatus = { ...statusForProfile('fast-home', 'cached profile should render immediately.'), account: cachedAccount };
+	let searchRequestCount = 0;
+	let releaseRelationship: () => void = () => undefined;
+	let releaseStatuses: () => void = () => undefined;
+	const relationshipReady = new Promise<void>((resolve) => {
+		releaseRelationship = resolve;
+	});
+	const statusesReady = new Promise<void>((resolve) => {
+		releaseStatuses = resolve;
+	});
+
+	await authenticate(page);
+	await page.route('https://pleroma.example/api/v1/timelines/home**', async (route) => fulfillJson(route, [homeStatus]));
+	await page.route('https://pleroma.example/api/v1/accounts/search**', async (route: Route) => {
+		searchRequestCount += 1;
+		await fulfillJson(route, [cachedAccount]);
+	});
+	await page.route(`https://pleroma.example/api/v1/accounts/${cachedAccount.id}/statuses**`, async (route: Route) => {
+		await statusesReady;
+		const url = new URL(route.request().url());
+		await fulfillJson(route, url.searchParams.get('pinned') === 'true' ? [] : postStatuses.map((status) => ({ ...status, account: cachedAccount })));
+	});
+	await page.route('https://pleroma.example/api/v1/accounts/relationships**', async (route: Route) => {
+		await relationshipReady;
+		await fulfillJson(route, [relationshipFor(cachedAccount.id, { following: true })]);
+	});
+	await setViewport(page, 'desktop');
+
+	await page.goto('/app/home');
+	await page.getByTestId('home-timeline-list').locator('.post').first().getByRole('link', { name: '@fast.soft@kolektiva.social' }).click();
+
+	const profile = page.getByTestId('profile-view');
+	await expect(profile.getByRole('heading', { name: 'fast.soft cached' })).toBeVisible();
+	await expect(profile).toContainText('Loading profile posts');
+	await expect(page.getByTestId('right-rail')).toContainText('Numbers');
+	await expect(page.getByTestId('right-rail')).not.toContainText('Profile preview');
+	await expect(page.getByTestId('right-rail')).not.toContainText('Profile tips');
+	expect(searchRequestCount).toBe(0);
+
+	releaseRelationship();
+	releaseStatuses();
+	await expect(profile.getByRole('button', { name: 'Following' })).toBeVisible();
+	await expect(profile.getByTestId('profile-posts')).toContainText("rain recording from this morning's walk");
+});
+
+test('profile route reconciles relationship before slow statuses finish', async ({ page }) => {
+	const cachedAccount: PleromaAccount = {
+		...profileAccount,
+		id: 'account-fast-relation',
+		username: 'fast.relation',
+		acct: 'fast.relation@kolektiva.social',
+		display_name: 'fast.relation cached',
+		pleroma: { ...profileAccount.pleroma, relationship: undefined }
+	};
+	const homeStatus = { ...statusForProfile('fast-relation-home', 'relationship should update before statuses.'), account: cachedAccount };
+	let releaseStatuses: () => void = () => undefined;
+	const statusesReady = new Promise<void>((resolve) => {
+		releaseStatuses = resolve;
+	});
+
+	await authenticate(page);
+	await page.route('https://pleroma.example/api/v1/timelines/home**', async (route) => fulfillJson(route, [homeStatus]));
+	await page.route(`https://pleroma.example/api/v1/accounts/${cachedAccount.id}/statuses**`, async (route: Route) => {
+		await statusesReady;
+		const url = new URL(route.request().url());
+		await fulfillJson(route, url.searchParams.get('pinned') === 'true' ? [] : postStatuses.map((status) => ({ ...status, account: cachedAccount })));
+	});
+	await page.route('https://pleroma.example/api/v1/accounts/relationships**', async (route: Route) => fulfillJson(route, [relationshipFor(cachedAccount.id, { following: true })]));
+	await setViewport(page, 'desktop');
+
+	await page.goto('/app/home');
+	await page.getByTestId('home-timeline-list').locator('.post').first().getByRole('link', { name: '@fast.relation@kolektiva.social' }).click();
+
+	const profile = page.getByTestId('profile-view');
+	await expect(profile.getByRole('heading', { name: 'fast.relation cached' })).toBeVisible();
+	await expect(profile).toContainText('Loading profile posts');
+	await expect(profile.getByRole('button', { name: 'Following' })).toBeVisible();
+
+	releaseStatuses();
+	await expect(profile.getByTestId('profile-posts')).toContainText("rain recording from this morning's walk");
+});
+
+test('profile loading state does not show settings profile preview rail', async ({ page }) => {
+	let releaseSearch: () => void = () => undefined;
+	const searchReady = new Promise<void>((resolve) => {
+		releaseSearch = resolve;
+	});
+
+	await authenticate(page);
+	await page.route('https://pleroma.example/api/v1/accounts/search**', async (route: Route) => {
+		await searchReady;
+		await fulfillJson(route, [profileAccount]);
+	});
+	await page.route('https://pleroma.example/api/v1/accounts/relationships**', async (route: Route) => fulfillJson(route, [relationshipFor(profileAccount.id, { following: true, followed_by: true })]));
+	await page.route(`https://pleroma.example/api/v1/accounts/${profileAccount.id}/statuses**`, async (route: Route) => {
+		const url = new URL(route.request().url());
+		await fulfillJson(route, url.searchParams.get('pinned') === 'true' ? [] : postStatuses.map((status) => ({ ...status, account: profileAccount })));
+	});
+	await setViewport(page, 'desktop');
+
+	await page.goto('/app/profiles/soft.hertz@kolektiva.social');
+
+	await expect(page.getByTestId('profile-route')).toContainText('Loading profile');
+	await expect(page.getByTestId('right-rail')).toContainText('Loading profile');
+	await expect(page.getByTestId('right-rail')).not.toContainText('Profile preview');
+	await expect(page.getByTestId('right-rail')).not.toContainText('Profile tips');
+
+	releaseSearch();
+	await expect(page.getByTestId('profile-view').getByRole('heading', { name: 'soft.hertz ✦' })).toBeVisible();
+});
+
 test('direct profile route falls back to account search when no cached account matches', async ({ page }) => {
 	const fallbackAccount: PleromaAccount = {
 		...profileAccount,

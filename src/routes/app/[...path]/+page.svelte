@@ -121,7 +121,7 @@
 		| { status: 'idle' }
 		| { status: 'loading' }
 		| { status: 'error'; error: PleromaRequestErrorView }
-		| { status: 'success'; data: ProfileData };
+		| { status: 'success'; data: ProfileData; timelineStatus: 'loading' | 'ready' };
 	type NotificationState =
 		| { status: 'idle' }
 		| { status: 'loading' }
@@ -464,6 +464,7 @@
 		.filter((item): item is ProfileMediaItem => item !== null);
 	const profileLockedForViewer = (profile: { relations: { locked: boolean }; followState: string }) =>
 		profile.relations.locked && !['mutual', 'following', 'self'].includes(profile.followState);
+	const emptyProfileData = (profile: ProfileData['profile']): ProfileData => ({ profile, posts: [], replies: [], pinned: [], media: [] });
 	const threadRepliesForRebuild = (focusedStatusId: string, descendants: PleromaStatusView[]) => {
 		const posts: ThreadViewPost[] = descendants.map((post) => ({ ...threadPostForRebuild(post), nestedReplies: [] }));
 		const byId = new Map(posts.map((post) => [String(post.id), post]));
@@ -1748,23 +1749,62 @@
 			});
 			const resolvedAccount = await resolveProfileAccount(client, session, handle);
 			const currentAccountId = currentSession?.account?.id ?? session.account?.id;
-			const account = await accountWithFetchedRelationship(client, resolvedAccount, currentAccountId);
+			if (route !== 'profile' || requestId !== profileRouteRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			upsertAccountCache([resolvedAccount]);
+			const provisionalProfile = adaptPleromaProfile(resolvedAccount, { instanceUrl: session.instanceUrl, currentAccountId });
+			profileRouteState = { status: 'success', data: emptyProfileData(provisionalProfile), timelineStatus: 'loading' };
+
+			const statusPages = (accountId: string) => Promise.all([
+				client.getAccountStatusesPage(accountId, { limit: 20, excludeReplies: true }),
+				client.getAccountStatusesPage(accountId, { limit: 20 }),
+				client.getAccountStatusesPage(accountId, { limit: 18, onlyMedia: true }),
+				client.getAccountStatuses(accountId, { limit: 5, pinned: true })
+			]);
+			let account = resolvedAccount;
+			let postsPage: Awaited<ReturnType<typeof client.getAccountStatusesPage>>;
+			let repliesPage: Awaited<ReturnType<typeof client.getAccountStatusesPage>>;
+			let mediaPage: Awaited<ReturnType<typeof client.getAccountStatusesPage>>;
+			let pinnedStatuses: PleromaStatus[];
+
+			if (resolvedAccount.locked) {
+				account = await accountWithFetchedRelationship(client, resolvedAccount, currentAccountId);
+				if (route !== 'profile' || requestId !== profileRouteRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+				upsertAccountCache([account], { relationship: 'replace' });
+				const profile = adaptPleromaProfile(account, { instanceUrl: session.instanceUrl, currentAccountId });
+				if (profileLockedForViewer(profile)) {
+					profileRouteState = { status: 'success', data: emptyProfileData(profile), timelineStatus: 'ready' };
+					return;
+				}
+
+				profileRouteState = { status: 'success', data: emptyProfileData(profile), timelineStatus: 'loading' };
+				[postsPage, repliesPage, mediaPage, pinnedStatuses] = await statusPages(account.id);
+			} else {
+				const relationshipPromise = accountWithFetchedRelationship(client, resolvedAccount, currentAccountId);
+				const statusesPromise = statusPages(resolvedAccount.id);
+				account = await relationshipPromise;
+				if (route !== 'profile' || requestId !== profileRouteRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+				upsertAccountCache([account], { relationship: 'replace' });
+				const profile = adaptPleromaProfile(account, { instanceUrl: session.instanceUrl, currentAccountId });
+				profileRouteState = {
+					status: 'success',
+					data: profileRouteState.status === 'success'
+						? { ...profileRouteState.data, profile }
+						: emptyProfileData(profile),
+					timelineStatus: 'loading'
+				};
+				[postsPage, repliesPage, mediaPage, pinnedStatuses] = await statusesPromise;
+			}
 			if (route !== 'profile' || requestId !== profileRouteRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			upsertAccountCache([account], { relationship: 'replace' });
 			const profile = adaptPleromaProfile(account, { instanceUrl: session.instanceUrl, currentAccountId });
 			if (profileLockedForViewer(profile)) {
-				profileRouteState = { status: 'success', data: { profile, posts: [], replies: [], pinned: [], media: [] } };
+				profileRouteState = { status: 'success', data: emptyProfileData(profile), timelineStatus: 'ready' };
 				return;
 			}
-			const [postsPage, repliesPage, mediaPage, pinnedStatuses] = await Promise.all([
-				client.getAccountStatusesPage(account.id, { limit: 20, excludeReplies: true }),
-				client.getAccountStatusesPage(account.id, { limit: 20 }),
-				client.getAccountStatusesPage(account.id, { limit: 18, onlyMedia: true }),
-				client.getAccountStatuses(account.id, { limit: 5, pinned: true })
-			]);
-			if (route !== 'profile' || requestId !== profileRouteRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
-
 			upsertAccountCache(accountsFromPleromaStatuses([...postsPage.items, ...repliesPage.items, ...mediaPage.items, ...pinnedStatuses]));
 			const posts = adaptPleromaStatuses(postsPage.items).map(profilePostForRebuild);
 			const replies = adaptPleromaStatuses(repliesPage.items).map(profilePostForRebuild);
@@ -1778,7 +1818,8 @@
 					replies,
 					pinned,
 					media: profileMediaItems(mediaStatuses)
-				}
+				},
+				timelineStatus: 'ready'
 			};
 		} catch (error) {
 			if (requestId !== profileRouteRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
@@ -2385,6 +2426,7 @@
 								replies={profileRouteState.data.replies}
 								pinned={profileRouteState.data.pinned}
 								media={profileRouteState.data.media}
+								timelineLoading={profileRouteState.timelineStatus === 'loading'}
 								onPostOpen={(post) => openThread(post)}
 								onPostAction={handleProfilePostAction}
 								onEditProfile={() => goto('/app/settings')}
@@ -2480,8 +2522,12 @@
 					<div aria-label="Quick search Explore"><SurfaceCard kind="quick-search" /></div>
 					<div class="card rail-card"><div class="card-head"><span class="card-title">Known instances</span></div><div class="card-body">pleroma.example · retro.social</div></div>
 					<div class="card rail-card"><div class="card-head"><span class="card-title">Discovery mode</span></div><div class="card-body">Popular across friendly instances</div></div>
-				{:else if route === 'profile' && profileRouteState.status === 'success'}
-					<ProfileSideRail profile={profileRouteState.data.profile} pinned={profileRouteState.data.pinned} />
+				{:else if route === 'profile'}
+					{#if profileRouteState.status === 'success'}
+						<ProfileSideRail profile={profileRouteState.data.profile} pinned={profileRouteState.data.pinned} />
+					{:else}
+						<div class="card request-state" role="status" aria-label="Profile rail status">Loading profile</div>
+					{/if}
 				{:else if route === 'settings'}
 					<div class="card surface-card surface-profile-preview" data-testid="profile-preview-card">
 						<div class="surface-profile-head"><div>Profile preview</div></div>
