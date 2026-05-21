@@ -31,6 +31,9 @@ PleromaNet is a new frontend for Pleroma with a reduced, refined visual style. T
 
 - Write tests before implementation when adding behavior.
 - Use Playwright for headless browser testing.
+- Use `pnpm exec playwright test` for `*.e2e.ts` route/browser tests.
+- In this workspace, use `PLAYWRIGHT_BROWSERS_PATH="/var/folders/_k/0yhtrj754g59m75jw73827q80000gn/T/opencode/ms-playwright"` for local Playwright runs.
+- Run focused Playwright suites with `--workers=1`; parallel Playwright can race on SvelteKit webServer output and cause `ERR_CONNECTION_REFUSED` or `.svelte-kit/output` copy errors.
 - Default tests should be fast, deterministic, and not require Docker or a live Pleroma instance.
 - Mock Pleroma backend behavior in default tests when needed.
 - Integration tests should be dockerized and use an ephemeral dockerized Pleroma backend.
@@ -46,6 +49,8 @@ PleromaNet is a new frontend for Pleroma with a reduced, refined visual style. T
 - Do not add Mastodon-compatibility abstractions unless they serve a concrete PleromaNet need.
 - Prefer typed, isolated API client code once the application scaffold exists.
 - Keep API-facing tests independent from a live backend unless explicitly running integration tests.
+- Mock Pleroma HTTP, WebSocket, and media upload endpoints in default tests.
+- Media upload/status tests should assert multipart upload and `media_ids[]` serialization without a live backend.
 
 ## Implementation Preferences
 
@@ -56,6 +61,13 @@ PleromaNet is a new frontend for Pleroma with a reduced, refined visual style. T
 - Do not write class declarations or class inheritance in application code. Framework internals and third-party APIs are exempt.
 - Keep code comments rare and focused on non-obvious behavior.
 - Agents should only create commits when explicitly requested.
+- For larger UI/handoff slices, request a focused review before committing, especially when porting canonical design behavior into the real app.
+
+## Composer Behavior
+
+- Composer posts are valid with either text or uploaded media. Do not require both.
+- Visible composer controls should work, be clearly disabled, or be hidden until implemented.
+- Keep composer autocomplete, emoji picker, and attachment behavior keyboard-accessible and covered by Playwright tests.
 
 ## Canonical Design Handoff
 
@@ -65,4 +77,8 @@ PleromaNet is a new frontend for Pleroma with a reduced, refined visual style. T
 - Treat `meta/design/claude-handoff/project/components.jsx` as the source of truth for shared reusable app primitives.
 - Treat `meta/design/claude-handoff/project/styles.css` as the source of truth for global tokens, themes, app layout, and primitive CSS classes.
 - Treat `meta/design/claude-handoff/project/attachments.jsx` as the source of truth for media and attachment behavior.
+- Treat `meta/design/claude-handoff/project/mention-editor.jsx` as the source of truth for autocomplete editor behavior.
+- Treat `meta/design/claude-handoff/project/emoji-picker.jsx` as the source of truth for full emoji picker behavior.
+- Treat `meta/design/claude-handoff/project/composer-dropzone.jsx` as the source of truth for composer attachment/dropzone behavior.
+- `/design-system` may include static state specimens; real app interactions should be implemented as reusable Svelte components when the behavior exists in the app.
 - Port `/design-system` section by section from the JSX handoff into Svelte, stopping after each section for visual confirmation before continuing.
