@@ -833,6 +833,55 @@ test('home timeline inline reply composer uploads media-only replies', async ({ 
 	expect(params.getAll('media_ids[]')).toEqual(['reply-media-1']);
 });
 
+test('home timeline inline reply composer inserts custom emoji from picker', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	const targetStatus = { ...statusWithText('status-inline-picker', 'reply picker target'), replies_count: 0 };
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [targetStatus]);
+	});
+	await page.route(customEmojisUrl, async (route) => {
+		await fulfillHome(route, pleromaFixtures.customEmojis);
+	});
+	let createCount = 0;
+	let createdBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createCount += 1;
+		createdBody = route.request().postData() ?? '';
+		await fulfillHome(route, {
+			...statusWithText('created-inline-picker-reply', 'picker :blobcat:'),
+			in_reply_to_id: 'status-inline-picker'
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await page.locator('[data-status-id="status-inline-picker"]').getByRole('button', { name: 'Reply 0' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
+	const replyEditor = replyForm.getByRole('textbox', { name: 'Reply text' });
+	await replyEditor.fill('picker ');
+	await replyForm.getByRole('button', { name: 'Emoji' }).click();
+	const picker = page.getByRole('dialog', { name: 'Emoji picker' });
+	await expect(picker).toBeVisible();
+	const search = page.getByRole('textbox', { name: 'Search emoji' });
+	await search.fill('zzzz-no-results');
+	await search.press('Enter');
+	await expect(replyForm).toBeVisible();
+	await expect(picker).toBeVisible();
+	expect(createCount).toBe(0);
+	await search.fill('cat');
+	await page.getByRole('button', { name: ':blobcat:' }).click();
+	await expect(picker).toBeHidden();
+	await expect(replyEditor.locator('.me-emoji img[alt=":blobcat:"]')).toBeVisible();
+	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
+
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+	const params = new URLSearchParams(createdBody);
+	expect(createCount).toBe(1);
+	expect(params.get('status')).toBe('picker :blobcat:');
+	expect(params.get('in_reply_to_id')).toBe('status-inline-picker');
+});
+
 test('home timeline inline reply composer moves between targets and cancels', async ({ page }) => {
 	await authenticate(page);
 	await mockInstance(page);

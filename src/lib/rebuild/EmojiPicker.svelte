@@ -90,6 +90,10 @@
 		else if (selectedIndex >= cells.length) selectedIndex = cells.length - 1;
 	};
 	const handlePickerKeydown = (event: KeyboardEvent) => {
+		if (cells.length === 0 && event.key === 'Enter') {
+			event.preventDefault();
+			return;
+		}
 		if (cells.length === 0) return;
 		const columns = 5;
 		if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {

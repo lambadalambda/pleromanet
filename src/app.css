@@ -3934,7 +3934,8 @@ body[data-theme='simoun'] .pill {
 	color: var(--muted);
 	cursor: pointer;
 }
-.thread-inline-reply-tool:hover { background: var(--panel); color: var(--accent-ink); }
+.thread-inline-reply-tool:hover,
+.thread-inline-reply-tool.active { background: var(--panel); color: var(--accent-ink); }
 .thread-inline-reply-tool:disabled { cursor: not-allowed; opacity: 0.45; }
 .thread-inline-reply-tool:disabled:hover { background: transparent; color: var(--muted); }
 .thread-inline-reply-cw {

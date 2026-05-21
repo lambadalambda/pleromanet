@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Avatar from './Avatar.svelte';
 	import ComposerMentionEditor, { type ComposerEmoji, type ComposerMentionAccount } from './ComposerMentionEditor.svelte';
+	import EmojiPicker from './EmojiPicker.svelte';
 	import Icon from './Icon.svelte';
 	import type { PleromaRequestErrorView } from '$lib/pleroma/ui';
 	import type { BannerVariant } from './attachments';
@@ -60,6 +61,11 @@ export type InlineReplyUpload = {
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let dragActive = $state(false);
 	let dragCount = $state(0);
+	let emojiPickerOpen = $state(false);
+	let emojiPickerAnchor = $state<{ left?: number; top?: number; bottom?: number } | null>(null);
+	let emojiRecents = $state<Array<string | ComposerEmoji>>([]);
+	let insertRequest = $state<{ id: number; item: string | ComposerEmoji } | null>(null);
+	let insertRequestId = 0;
 	let formLabel = $derived(`Inline reply to ${targetHandle}`);
 	let avatarAlt = $derived(`${targetName || targetHandle} avatar`);
 	let targetAvatar = $derived({
@@ -107,6 +113,22 @@ export type InlineReplyUpload = {
 		event.preventDefault();
 		onFiles(files);
 	};
+	const emojiRecentKey = (item: string | ComposerEmoji) => typeof item === 'string' ? item : item.shortcode;
+	const toggleEmojiPicker = (event: MouseEvent) => {
+		if (submitting) return;
+		const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+		emojiPickerAnchor = { left: rect.left, top: rect.top, bottom: rect.bottom };
+		emojiPickerOpen = !emojiPickerOpen;
+	};
+	const insertEmoji = (item: string | ComposerEmoji) => {
+		emojiRecents = [item, ...emojiRecents.filter((recent) => emojiRecentKey(recent) !== emojiRecentKey(item))].slice(0, 12);
+		insertRequestId += 1;
+		insertRequest = { id: insertRequestId, item };
+	};
+
+	$effect(() => {
+		if (submitting) emojiPickerOpen = false;
+	});
 
 </script>
 
@@ -134,6 +156,7 @@ export type InlineReplyUpload = {
 			autoFocus
 			{accounts}
 			{emojis}
+			{insertRequest}
 			{onMentionQuery}
 			onSubmit={onSubmit}
 		/>
@@ -165,7 +188,7 @@ export type InlineReplyUpload = {
 		{/if}
 		<div class="thread-inline-reply-row">
 			<button type="button" class="thread-inline-reply-tool" title="Image" aria-label="Image" disabled={!mediaEnabled || submitting} onclick={pickFiles}><Icon name="image" width={16} height={16} /></button>
-			<button type="button" class="thread-inline-reply-tool" title="Emoji" aria-label="Emoji"><Icon name="smile" width={16} height={16} /></button>
+			<button type="button" class="thread-inline-reply-tool" class:active={emojiPickerOpen} title="Emoji" aria-label="Emoji" aria-haspopup="dialog" aria-expanded={emojiPickerOpen} aria-pressed={emojiPickerOpen} disabled={submitting} data-emoji-trigger onclick={toggleEmojiPicker}><Icon name="smile" width={16} height={16} /></button>
 			<button type="button" class="thread-inline-reply-tool" title="Poll" aria-label="Poll"><Icon name="poll" width={16} height={16} /></button>
 			<button type="button" class="thread-inline-reply-cw" aria-label="Content warning">CW</button>
 			<span class="thread-inline-reply-spacer"></span>
@@ -179,5 +202,6 @@ export type InlineReplyUpload = {
 				<span>{error.message}</span>
 			</div>
 		{/if}
+		<EmojiPicker open={emojiPickerOpen} emojis={emojis} recents={emojiRecents} anchor={emojiPickerAnchor} onClose={() => (emojiPickerOpen = false)} onPick={insertEmoji} />
 	</div>
 </form>
