@@ -159,6 +159,13 @@
 	const HEADER_SEARCH_DEBOUNCE_MS = 160;
 	const SEARCH_PAGE_DEBOUNCE_MS = 260;
 	const SEARCH_RECENTS_STORAGE_KEY = 'pn-search-recents';
+	const accountStatFormatter = new Intl.NumberFormat('en-US');
+	const themeOptions: { id: ThemeName; label: string; grad: string }[] = [
+		{ id: 'cream', label: 'Cream', grad: 'linear-gradient(135deg, #f5f1e8 50%, #a48bd9 50%)' },
+		{ id: 'dusk', label: 'Dusk', grad: 'linear-gradient(135deg, #2a1f4a 50%, #e7a8c9 50%)' },
+		{ id: 'drive', label: 'Drive', grad: 'linear-gradient(135deg, #0c0a28 50%, #7dc4be 50%)' },
+		{ id: 'simoun', label: 'Simoun', grad: 'linear-gradient(135deg, #18203f 50%, #e8763a 50%)' }
+	];
 	const defaultProfile: ProfileSettings = {
 		displayName: 'dreambyte',
 		username: 'dreambyte',
@@ -202,6 +209,8 @@
 	let mobileDrawerOpen = $state(false);
 	let mobileSheetOpen = $state(false);
 	let userMenuOpen = $state(false);
+	let userMenuTrigger = $state<HTMLButtonElement | null>(null);
+	let activeTheme = $state<ThemeName>('cream');
 	let notificationsMenuOpen = $state(false);
 	let headerSearchDraft = $state('');
 	let exploreSearchDraft = $state('');
@@ -290,6 +299,15 @@
 		const nextCache = upsertPleromaAccounts(accountCache, accounts, options);
 		if (nextCache !== accountCache) accountCache = nextCache;
 	};
+	const instanceHost = (instanceUrl: string | undefined) => {
+		if (!instanceUrl) return 'pleromanet.social';
+		try {
+			return new URL(instanceUrl).hostname;
+		} catch {
+			return instanceUrl.replace(/^https?:\/\//, '').replace(/\/$/, '') || 'pleromanet.social';
+		}
+	};
+	const accountStat = (value: number | null | undefined) => accountStatFormatter.format(Math.max(0, value ?? 0));
 	const clearInlineReply = (route?: StatusActionOrigin) => {
 		if (route && inlineReplyTarget?.route !== route) return;
 		inlineReplyRequestId += 1;
@@ -487,6 +505,11 @@
 	let headerAccountName = $derived(headerAccount?.displayName ?? 'Account');
 	let headerAccountAvatarUrl = $derived(headerAccount?.avatarUrl ?? null);
 	let headerAccountLabel = $derived(`${headerAccountName} account menu`);
+	let headerAccountHandle = $derived(headerAccount?.handle ?? '@account');
+	let headerAccountPosts = $derived(accountStat(currentSession?.account?.statuses_count));
+	let headerAccountFollowing = $derived(accountStat(currentSession?.account?.following_count));
+	let headerAccountFollowers = $derived(accountStat(currentSession?.account?.followers_count));
+	let headerInstanceDomain = $derived(instanceHost(currentSession?.instanceUrl));
 	let homeStatusActionErrors = $derived(statusActionErrors.filter((error) => error.route === 'home'));
 	let localStatusActionErrors = $derived(statusActionErrors.filter((error) => error.route === 'local'));
 	let federatedStatusActionErrors = $derived(statusActionErrors.filter((error) => error.route === 'federated'));
@@ -1358,10 +1381,24 @@
 		mobileSheetOpen = false;
 	};
 	const applyTheme = (theme: ThemeName) => {
+		activeTheme = theme;
 		document.documentElement.dataset.theme = theme;
 		document.body.dataset.theme = theme;
 		localStorage.setItem('pn-theme', theme);
+	};
+	const openUserProfile = () => {
+		const account = currentSession?.account;
 		userMenuOpen = false;
+		if (account) goto(profileHrefForAccount(account));
+	};
+	const openUserSettings = () => {
+		userMenuOpen = false;
+		goto('/app/settings');
+	};
+	const signOutFromUserMenu = () => {
+		userMenuOpen = false;
+		signOutPleroma(localStorage);
+		redirectToLanding();
 	};
 	const handleWindowKeydown = (event: KeyboardEvent) => {
 		if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
@@ -1371,11 +1408,13 @@
 			return;
 		}
 		if (event.key !== 'Escape') return;
+		const restoreUserMenuFocus = userMenuOpen;
 		userMenuOpen = false;
 		notificationsMenuOpen = false;
 		closeHeaderSearch();
 		mobileDrawerOpen = false;
 		mobileSheetOpen = false;
+		if (restoreUserMenuFocus) userMenuTrigger?.focus();
 	};
 	const redirectToLanding = () => {
 		invalidateHomeTimelineRequests();
@@ -1921,9 +1960,9 @@
 		activateHeaderSearchItem(item);
 	};
 	const handleWindowPointerdown = (event: PointerEvent) => {
-		if (!headerSearchOpen || !headerSearchForm) return;
 		const target = event.target;
-		if (target instanceof Node && !headerSearchForm.contains(target)) closeHeaderSearch();
+		if (userMenuOpen && target instanceof Element && !target.closest('.user-chip') && !target.closest('.user-menu')) userMenuOpen = false;
+		if (headerSearchOpen && headerSearchForm && target instanceof Node && !headerSearchForm.contains(target)) closeHeaderSearch();
 	};
 	const setSearchTab = (tab: SearchTab) => {
 		if (!searchQuery) return;
@@ -2795,7 +2834,7 @@
 
 	onMount(() => {
 		const storedTheme = localStorage.getItem('pn-theme');
-		if (storedTheme === 'dusk' || storedTheme === 'drive' || storedTheme === 'simoun') applyTheme(storedTheme);
+		if (storedTheme === 'cream' || storedTheme === 'dusk' || storedTheme === 'drive' || storedTheme === 'simoun') applyTheme(storedTheme);
 		searchRecents = readSearchRecents();
 		mounted = true;
 
@@ -3084,17 +3123,59 @@
 								</div>
 							{/if}
 						</div>
-						<button type="button" class="user-chip" aria-label={headerAccountLabel} onclick={() => { notificationsMenuOpen = false; userMenuOpen = !userMenuOpen; }}>
+						<button bind:this={userMenuTrigger} type="button" class="user-chip" aria-label={headerAccountLabel} aria-expanded={userMenuOpen} aria-controls={userMenuOpen ? 'header-user-menu' : undefined} onclick={() => { notificationsMenuOpen = false; userMenuOpen = !userMenuOpen; }}>
 							<Avatar variant="plain" element="span" className="user-chip-av" avatarUrl={headerAccountAvatarUrl} alt={`${headerAccountName} avatar`} />
 							<span><RichText text={headerAccountName} emojis={headerAccount?.emojis ?? []} /></span>
-							<Icon name="chevDown" width={14} height={14} />
+							<Icon name="chevDown" width={14} height={14} className={userMenuOpen ? 'chev open' : 'chev'} />
 						</button>
 						{#if userMenuOpen}
-							<div class="user-menu" data-testid="user-menu" role="menu">
-								<button type="button" onclick={() => applyTheme('cream')}>Cream</button>
-								<button type="button" onclick={() => applyTheme('dusk')}>Dusk</button>
-								<button type="button" onclick={() => applyTheme('drive')}>Drive</button>
-								<button type="button" onclick={() => applyTheme('simoun')}>Simoun</button>
+							<div id="header-user-menu" class="user-menu" data-testid="user-menu">
+								<div class="user-menu-head">
+									<Avatar variant="plain" element="span" className="user-menu-av" avatarUrl={headerAccountAvatarUrl} alt={`${headerAccountName} avatar`} />
+									<div class="user-menu-head-main">
+										<div class="user-menu-name"><RichText text={headerAccountName} emojis={headerAccount?.emojis ?? []} /></div>
+										<div class="user-menu-handle">{headerAccountHandle}</div>
+									</div>
+								</div>
+								<div class="user-menu-stats">
+									<div class="user-menu-stat"><div class="user-menu-stat-v">{headerAccountPosts}</div><div class="user-menu-stat-l">Posts</div></div>
+									<div class="user-menu-stat"><div class="user-menu-stat-v">{headerAccountFollowing}</div><div class="user-menu-stat-l">Following</div></div>
+									<div class="user-menu-stat"><div class="user-menu-stat-v">{headerAccountFollowers}</div><div class="user-menu-stat-l">Followers</div></div>
+								</div>
+								<div class="user-menu-sec">
+									<button type="button" class="user-menu-item" disabled={!currentSession?.account} onclick={openUserProfile}><Icon name="users" width={16} height={16} /><span>View profile</span><Icon name="arrowR" width={13} height={13} className="user-menu-arrow" /></button>
+									<button type="button" class="user-menu-item" disabled><Icon name="bookmark" width={16} height={16} /><span>Bookmarks</span></button>
+									<button type="button" class="user-menu-item" disabled><Icon name="star" width={16} height={16} /><span>Favorites</span></button>
+									<button type="button" class="user-menu-item" disabled><Icon name="list" width={16} height={16} /><span>Lists</span></button>
+									<button type="button" class="user-menu-item" disabled><Icon name="lock" width={16} height={16} /><span>Drafts &amp; scheduled</span><span class="user-menu-badge">2</span></button>
+								</div>
+								<div class="user-menu-sec">
+									<div class="user-menu-label">Appearance</div>
+									<div class="user-menu-themes">
+										{#each themeOptions as theme}
+											<button type="button" aria-pressed={activeTheme === theme.id} class="user-menu-theme" class:active={activeTheme === theme.id} title={theme.label} onclick={() => applyTheme(theme.id)}>
+												<span style={`background: ${theme.grad}`}></span>
+												<span>{theme.label}</span>
+											</button>
+										{/each}
+									</div>
+								</div>
+								<div class="user-menu-sec">
+									<button type="button" class="user-menu-item" onclick={openUserSettings}><Icon name="gear" width={16} height={16} /><span>Settings</span><span class="kbd user-menu-kbd">S</span></button>
+									<button type="button" class="user-menu-item" disabled><Icon name="info" width={16} height={16} /><span>Keyboard shortcuts</span><span class="kbd user-menu-kbd">?</span></button>
+									<button type="button" class="user-menu-item" disabled><Icon name="ext" width={16} height={16} /><span>About this instance</span></button>
+								</div>
+								<div class="user-menu-sec">
+									<button type="button" class="user-menu-item" disabled>
+										<svg viewBox="0 0 24 24" fill="none" width="16" height="16" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5M16 7l3 3-3 3M19 10h-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+										<span>Switch account</span>
+									</button>
+									<button type="button" class="user-menu-item user-menu-danger" onclick={signOutFromUserMenu}>
+										<svg viewBox="0 0 24 24" fill="none" width="16" height="16" aria-hidden="true"><path d="M14 4h4a1 1 0 011 1v14a1 1 0 01-1 1h-4M10 8l-4 4 4 4M6 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+										<span>Sign out</span>
+									</button>
+								</div>
+								<div class="user-menu-foot"><span>PleromaNet™</span><span class="user-menu-dot"></span><span>{headerInstanceDomain}</span></div>
 							</div>
 						{/if}
 					</div>

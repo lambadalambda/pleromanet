@@ -80,6 +80,7 @@ test('signed-out users are redirected away from authenticated app routes', async
 test('authenticated users are redirected from the landing page into the real app', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page);
+	await mockProfileRoute(page);
 	await setViewport(page, 'desktop');
 	await page.goto('/');
 
@@ -285,13 +286,87 @@ test('real app user menu switches themes and closes with escape', async ({ page 
 	await setViewport(page, 'desktop');
 	await page.goto('/app/home');
 
-	await page.getByRole('button', { name: 'quiet admin account menu' }).click();
-	await expect(page.getByTestId('user-menu')).toBeVisible();
+	const accountMenuButton = page.getByRole('button', { name: 'quiet admin account menu' });
+	await accountMenuButton.click();
+	const menu = page.getByTestId('user-menu');
+	await expect(menu).toBeVisible();
+	await expect(menu).toContainText('quiet admin');
+	await expect(menu).toContainText('@quietadmin@pleroma.example');
+	await expect(menu).toContainText('512');
+	await expect(menu).toContainText('Posts');
+	await expect(menu).toContainText('64');
+	await expect(menu).toContainText('Following');
+	await expect(menu).toContainText('128');
+	await expect(menu).toContainText('Followers');
+	for (const label of ['View profile', 'Bookmarks', 'Favorites', 'Lists', 'Drafts & scheduled', 'Appearance', 'Settings', 'Keyboard shortcuts', 'About this instance', 'Switch account', 'Sign out']) {
+		await expect(menu).toContainText(label);
+	}
+	await expect(menu.locator('.user-menu-badge')).toHaveText('2');
+	await expect(menu).toContainText('PleromaNet™');
 	await page.getByRole('button', { name: 'Simoun' }).click();
 	await expect(page.locator('html')).toHaveAttribute('data-theme', 'simoun');
+	await expect(menu).toBeVisible();
 
 	await page.keyboard.press('Escape');
 	await expect(page.getByTestId('user-menu')).toBeHidden();
+	await expect(accountMenuButton).toBeFocused();
+});
+
+test('real app user menu disables profile navigation until token-only sessions hydrate', async ({ page }) => {
+	let resolveCredentials = () => {};
+	const credentialsReady = new Promise<void>((resolve) => {
+		resolveCredentials = resolve;
+	});
+	await page.addInitScript((storedSession) => {
+		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
+	}, {
+		instanceUrl: session.instanceUrl,
+		accessToken: session.accessToken,
+		tokenType: session.tokenType,
+		scope: session.scope,
+		createdAt: session.createdAt
+	});
+	await mockRightRailApis(page);
+	await mockHomeTimeline(page);
+	await page.route('https://pleroma.example/api/v1/accounts/verify_credentials', async (route) => {
+		await credentialsReady;
+		await route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify(pleromaFixtures.account)
+		});
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	await page.getByRole('button', { name: 'Account account menu' }).click();
+	const viewProfile = page.getByTestId('user-menu').getByRole('button', { name: /View profile/ });
+	await expect(viewProfile).toBeDisabled();
+
+	resolveCredentials();
+	await expect(page.getByRole('button', { name: 'quiet admin account menu' })).toBeVisible();
+	await expect(viewProfile).toBeEnabled();
+});
+
+test('real app user menu opens profile, settings, and signs out', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page);
+	await mockProfileRoute(page);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	await page.getByRole('button', { name: 'quiet admin account menu' }).click();
+	await page.getByTestId('user-menu').getByRole('button', { name: /View profile/ }).click();
+	await expect(page).toHaveURL('/app/profiles/quietadmin%40pleroma.example');
+
+	await page.getByRole('button', { name: 'quiet admin account menu' }).click();
+	await page.getByTestId('user-menu').getByRole('button', { name: /Settings/ }).click();
+	await expect(page).toHaveURL('/app/settings');
+
+	await page.getByRole('button', { name: 'quiet admin account menu' }).click();
+	await page.getByTestId('user-menu').getByRole('button', { name: 'Sign out' }).click();
+	await expect(page).toHaveURL('/');
+	expect(await page.evaluate(() => window.localStorage.getItem('pleromanet.session'))).toBeNull();
 });
 
 test('mobile real app shell opens drawer and details sheet', async ({ page }) => {
