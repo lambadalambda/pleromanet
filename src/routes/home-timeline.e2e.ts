@@ -676,18 +676,9 @@ test('composer mention avatars fall back when remote avatar images fail', async 
 
 	await composer.click();
 	await expect(composer).toBeFocused();
-	await composer.evaluate((node) => {
-		const text = document.createTextNode('@so');
-		node.replaceChildren(text);
-		const range = document.createRange();
-		range.setStart(text, text.length);
-		range.setEnd(text, text.length);
-		const selection = window.getSelection();
-		selection?.removeAllRanges();
-		selection?.addRange(range);
-		node.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: '@so' }));
-	});
+	await composer.pressSequentially('@so', { delay: 20 });
 	await expect(page.getByRole('listbox', { name: 'Mention suggestions' })).toBeVisible();
+	await expect(page.getByRole('option', { name: /soft\.hertz/ })).toBeVisible();
 	const suggestionFallbackApplied = await page.evaluate(async () => {
 		const row = document.querySelector('.me-pop .me-row');
 		if (!row) throw new Error('mention suggestion row missing');
@@ -1739,13 +1730,24 @@ test('home timeline renders real media attachments from Pleroma statuses', async
 	await expect(photo).toHaveCSS('transform', 'none');
 	await expect(photoVisual).toHaveCSS('transform', /matrix\(1\.015/);
 	const videoPost = list.locator('[data-status-id="status-video-attachment"]');
-	const inlineVideo = videoPost.locator('video');
+	const inlineVideo = videoPost.locator('.pv-native');
 	await expect(inlineVideo).toHaveAttribute('src', 'https://cdn.example/media/clip.mp4');
 	await expect(inlineVideo).toHaveAttribute('poster', 'https://cdn.example/media/clip.jpg');
 	expect(await primeVideoMetadata(inlineVideo)).toBe(1);
 	expect(await inlineVideo.getAttribute('poster')).toBeNull();
+	const videoOverlay = videoPost.locator('.pv-duotone');
+	expect(await inlineVideo.evaluate((node) => getComputedStyle(node).filter)).toBe('none');
+	expect(await videoOverlay.evaluate((node) => {
+		const style = getComputedStyle(node);
+		return style.filter.includes('duotoneCream') && style.transitionProperty.includes('opacity') && style.transitionDuration === '0.6s';
+	})).toBe(true);
+	await expect(videoOverlay).toHaveCSS('opacity', '1');
+	await videoPost.locator('.post-video').hover();
+	await expect(videoOverlay).toHaveCSS('opacity', '0');
+	await page.mouse.move(0, 0);
+	await expect(videoOverlay).toHaveCSS('opacity', '1');
 	expect(await startPrimedVideo(inlineVideo)).toBe(0);
-	expect(await inlineVideo.evaluate((node) => getComputedStyle(node).filter)).toContain('duotoneCream');
+	await expect(videoOverlay).toHaveCSS('opacity', '0');
 	const audioPost = list.locator('[data-status-id="status-audio-attachment"]');
 	const audioSource = audioPost.locator('audio');
 	const audioWaveform = audioPost.getByRole('slider', { name: 'Seek audio' });
@@ -1800,11 +1802,20 @@ test('home timeline renders real media attachments from Pleroma statuses', async
 	expect(keyboardTime).toBeGreaterThan(5);
 	expect(keyboardTime).toBeLessThan(7);
 	const mixedPost = list.locator('[data-status-id="status-mixed-video-attachment"]');
-	const stripVideo = mixedPost.locator('.media-strip-tile video');
+	const stripVideo = mixedPost.locator('.media-strip-tile .media-strip-preview');
 	await expect(stripVideo).toHaveAttribute('src', 'https://cdn.example/media/second-clip.mp4');
 	await expect(stripVideo).toHaveAttribute('poster', 'https://cdn.example/media/blank-video-preview.jpg');
 	expect(await primeVideoMetadata(stripVideo)).toBe(1);
 	expect(await stripVideo.getAttribute('poster')).toBeNull();
+	const stripVideoOverlay = mixedPost.locator('.media-strip-tile.mst-video .media-strip-duotone');
+	expect(await stripVideo.evaluate((node) => getComputedStyle(node).filter)).toBe('none');
+	expect(await stripVideoOverlay.evaluate((node) => {
+		const style = getComputedStyle(node);
+		return style.filter.includes('duotoneCream') && style.transitionProperty.includes('opacity') && style.transitionDuration === '0.6s';
+	})).toBe(true);
+	await expect(stripVideoOverlay).toHaveCSS('opacity', '1');
+	await mixedPost.locator('.media-strip-tile.mst-video').hover();
+	await expect(stripVideoOverlay).toHaveCSS('opacity', '0');
 	await expect(list.locator('.post-media')).toHaveCount(0);
 	await expectNoHorizontalOverflow(page);
 });

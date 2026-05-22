@@ -20,8 +20,11 @@
 	{#if att.src}
 		<!-- svelte-ignore a11y_media_has_caption -->
 		<video class="media-strip-preview" src={att.src} poster={att.posterUrl} muted playsinline preload="metadata" aria-hidden="true" tabindex="-1" onloadedmetadata={onPreviewMetadata}></video>
+		<!-- svelte-ignore a11y_media_has_caption -->
+		<video class="media-strip-duotone" src={att.src} poster={att.posterUrl} muted playsinline preload="metadata" aria-hidden="true" tabindex="-1" onloadedmetadata={onPreviewMetadata}></video>
 	{:else if att.posterUrl}
 		<img src={att.posterUrl} alt="" />
+		<img class="media-strip-duotone" src={att.posterUrl} alt="" aria-hidden="true" />
 	{:else}
 		<div class="mst-video-bg"></div>
 	{/if}

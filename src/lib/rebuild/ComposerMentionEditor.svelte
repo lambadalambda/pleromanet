@@ -109,6 +109,23 @@
 	};
 
 	const appendText = (text: string) => editor?.appendChild(document.createTextNode(text));
+	const lastTextNode = (node: Node): Text | null => {
+		if (node.nodeType === Node.TEXT_NODE) return node as Text;
+		for (let i = node.childNodes.length - 1; i >= 0; i -= 1) {
+			const text = lastTextNode(node.childNodes[i]);
+			if (text) return text;
+		}
+		return null;
+	};
+	const rangeTextNode = (range: Range): { node: Text; offset: number } | null => {
+		const start = range.startContainer;
+		if (start.nodeType === Node.TEXT_NODE) return { node: start as Text, offset: range.startOffset };
+		if (!editor?.contains(start)) return null;
+
+		const child = start.childNodes[Math.max(0, range.startOffset - 1)];
+		const node = child ? lastTextNode(child) : null;
+		return node ? { node, offset: node.textContent?.length ?? 0 } : null;
+	};
 	const ensureEditorRange = () => {
 		if (!editor) return null;
 		const selection = window.getSelection();
@@ -197,10 +214,10 @@
 		if (!selection || selection.rangeCount === 0) return null;
 		const range = selection.getRangeAt(0);
 		if (!range.collapsed || !editor.contains(range.startContainer)) return null;
-		if (range.startContainer.nodeType !== Node.TEXT_NODE) return null;
+		const textPosition = rangeTextNode(range);
+		if (!textPosition) return null;
 
-		const node = range.startContainer;
-		const offset = range.startOffset;
+		const { node, offset } = textPosition;
 		const beforeCaret = (node.textContent ?? '').slice(0, offset);
 		const rect = range.getBoundingClientRect();
 		const editorRect = editor.getBoundingClientRect();

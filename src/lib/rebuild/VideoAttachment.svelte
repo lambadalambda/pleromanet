@@ -14,6 +14,7 @@
 	let progress = $state(0.18);
 	let seeded = $state(false);
 	let previewPrimed = $state(false);
+	let duotoneVideo = $state<HTMLVideoElement | null>(null);
 
 	let dur = $derived(video.duration ?? (video.src ? '' : '2:14'));
 	let total = $derived(dur ? parseDur(dur) : 0);
@@ -38,18 +39,40 @@
 		if (!(event.currentTarget instanceof HTMLVideoElement)) return;
 		previewPrimed = primeVideoPreviewFrame(event.currentTarget);
 	};
-
-	const onPreviewPlay = (event: Event) => {
+	const onOverlayMetadata = (event: Event) => {
 		if (!(event.currentTarget instanceof HTMLVideoElement)) return;
+		primeVideoPreviewFrame(event.currentTarget);
+	};
+	const syncDuotoneFrame = (source: HTMLVideoElement) => {
+		if (!duotoneVideo || !Number.isFinite(source.currentTime)) return;
+		try {
+			duotoneVideo.currentTime = source.currentTime;
+		} catch {
+			// Remote video can reject seeks until enough data is buffered.
+		}
+	};
+
+	const onNativePlay = (event: Event) => {
+		if (!(event.currentTarget instanceof HTMLVideoElement)) return;
+		playing = true;
 		previewPrimed = resetVideoPreviewOnPlay(event.currentTarget, previewPrimed);
+	};
+	const onNativeStop = (event: Event) => {
+		if (event.currentTarget instanceof HTMLVideoElement) syncDuotoneFrame(event.currentTarget);
+		playing = false;
+	};
+	const onNativeSeeked = (event: Event) => {
+		if (!playing && event.currentTarget instanceof HTMLVideoElement) syncDuotoneFrame(event.currentTarget);
 	};
 </script>
 
-<div class="post-video" data-post-ignore>
+<div class="post-video" class:playing data-post-ignore>
 	<div class="pv-frame">
 		{#if video.src}
 			<!-- svelte-ignore a11y_media_has_caption -->
-			<video class="pv-native" src={video.src} poster={video.posterUrl} controls preload="metadata" title={video.title ?? 'Video attachment'} onloadedmetadata={onPreviewMetadata} onplay={onPreviewPlay}></video>
+			<video class="pv-native" src={video.src} poster={video.posterUrl} controls preload="metadata" title={video.title ?? 'Video attachment'} onloadedmetadata={onPreviewMetadata} onplay={onNativePlay} onpause={onNativeStop} onended={onNativeStop} onseeked={onNativeSeeked}></video>
+			<!-- svelte-ignore a11y_media_has_caption -->
+			<video bind:this={duotoneVideo} class="pv-duotone" src={video.src} poster={video.posterUrl} muted playsinline preload="metadata" aria-hidden="true" tabindex="-1" onloadedmetadata={onOverlayMetadata}></video>
 		{:else}
 			<VaporBanner variant={video.poster || 'sunset'} />
 			<div class="pv-scrim {playing ? 'on' : ''}"></div>
