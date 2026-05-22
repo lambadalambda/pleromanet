@@ -427,6 +427,41 @@ test('home timeline composer can post attachments without text', async ({ page }
 	await expect(page.locator('[data-status-id="created-media-only-status"]')).toBeVisible();
 });
 
+test('home timeline composer only shows the drop zone while dragging files over it', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, []);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const composer = page.locator('form.composer');
+
+	await expect(composer).not.toContainText('Drag & drop');
+	await expect(page.getByTestId('composer-dropzone')).toHaveCount(0);
+
+	await composer.evaluate((node) => {
+		const file = new File(['hover'], 'hover.png', { type: 'image/png' });
+		const dataTransfer = new DataTransfer();
+		dataTransfer.items.add(file);
+		node.dispatchEvent(new DragEvent('dragenter', { dataTransfer, bubbles: true, cancelable: true }));
+		node.dispatchEvent(new DragEvent('dragover', { dataTransfer, bubbles: true, cancelable: true }));
+	});
+
+	await expect(composer).toHaveClass(/is-drag-over/);
+	await expect(page.getByTestId('composer-dropzone')).toBeVisible();
+	await expect(page.getByTestId('composer-dropzone')).toContainText('Drop to attach');
+	await expect(page.getByTestId('composer-dropzone')).toContainText('Max 8 files · 40 MB each');
+
+	await composer.evaluate((node) => {
+		node.dispatchEvent(new DragEvent('dragleave', { bubbles: true, cancelable: true }));
+	});
+
+	await expect(composer).not.toHaveClass(/is-drag-over/);
+	await expect(page.getByTestId('composer-dropzone')).toHaveCount(0);
+});
+
 test('home timeline composer blocks submit while uploads are pending and shows rejected files', async ({ page }) => {
 	await authenticate(page);
 	await mockInstance(page);

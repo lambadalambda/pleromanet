@@ -188,7 +188,7 @@
 	let composerFileInput = $state<HTMLInputElement | null>(null);
 	let composerUploads = $state<ComposerUpload[]>([]);
 	let composerDragActive = $state(false);
-	let composerDragCount = $state(0);
+	let composerDragDepth = $state(0);
 	let composerSpoilerActive = $state(false);
 	let composerSpoilerText = $state('');
 	let composerPoll = $state<ComposerPollDraft | null>(null);
@@ -321,6 +321,7 @@
 		clearInlineReply('home');
 		composerUploads = [];
 		composerDragActive = false;
+		composerDragDepth = 0;
 		clearStatusActionErrors('home');
 	};
 	const invalidateThreadRequests = () => {
@@ -1036,17 +1037,32 @@
 		if (input.files) queueComposerFiles(input.files);
 		input.value = '';
 	};
-	const handleComposerDragOver = (event: DragEvent) => {
-		if (!event.dataTransfer?.types.includes('Files')) return;
+	const hasFileDrag = (event: DragEvent) => Boolean(event.dataTransfer && Array.from(event.dataTransfer.types).includes('Files'));
+	const resetComposerDrag = () => {
+		composerDragActive = false;
+		composerDragDepth = 0;
+	};
+	const handleComposerDragEnter = (event: DragEvent) => {
+		if (!hasFileDrag(event)) return;
 		event.preventDefault();
+		composerDragDepth += 1;
 		composerDragActive = true;
-		composerDragCount = Math.max(1, event.dataTransfer.items.length || event.dataTransfer.files.length || 1);
+	};
+	const handleComposerDragOver = (event: DragEvent) => {
+		if (!hasFileDrag(event)) return;
+		event.preventDefault();
+		if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+		composerDragActive = true;
+	};
+	const handleComposerDragLeave = () => {
+		composerDragDepth = Math.max(0, composerDragDepth - 1);
+		if (composerDragDepth > 0) return;
+		resetComposerDrag();
 	};
 	const handleComposerDrop = (event: DragEvent) => {
 		if (!event.dataTransfer?.files.length) return;
 		event.preventDefault();
-		composerDragActive = false;
-		composerDragCount = 0;
+		resetComposerDrag();
 		queueComposerFiles(event.dataTransfer.files);
 	};
 	const handleComposerPaste = (event: ClipboardEvent) => {
@@ -2876,7 +2892,7 @@
 							<button type="button" class="tab-action" title="Filters"><Icon name="sliders" width={16} height={16} /></button>
 						</div>
 
-						<form class="composer" aria-label="Composer" onsubmit={(e) => { e.preventDefault(); submitHomePost(); }} ondragover={handleComposerDragOver} ondragleave={() => { composerDragActive = false; composerDragCount = 0; }} ondrop={handleComposerDrop} onpaste={handleComposerPaste}>
+						<form class="composer" class:is-drag-over={composerDragActive} aria-label="Composer" onsubmit={(e) => { e.preventDefault(); submitHomePost(); }} ondragenter={handleComposerDragEnter} ondragover={handleComposerDragOver} ondragleave={handleComposerDragLeave} ondrop={handleComposerDrop} onpaste={handleComposerPaste}>
 							<Avatar variant="plain" element="span" className="composer-av" avatarUrl={headerAccountAvatarUrl} alt={`${headerAccountName} avatar`} />
 							<div>
 								<ComposerMentionEditor
@@ -2907,12 +2923,6 @@
 											</div>
 										{/each}
 									</div>
-								{:else}
-									<button type="button" class="composer-drop-slot" class:active={composerDragActive} onclick={pickComposerFiles}>
-										<Icon name="upload" width={18} height={18} />
-										<span>{#if composerDragActive}<strong>Drop to add {composerDragCount} {composerDragCount === 1 ? 'file' : 'files'}</strong> <span class="drop-copy-muted">· photos · audio · video</span>{:else}<strong>Drag &amp; drop</strong> <span class="drop-copy-muted">files to attach</span> <em>· or browse</em>{/if}</span>
-										{#if !composerDragActive}<kbd>⌘V to paste</kbd>{/if}
-									</button>
 								{/if}
 								{#if composerSpoilerActive}
 									<ComposerCWPanel value={composerSpoilerText} onInput={(value) => (composerSpoilerText = value)} onRemove={clearComposerSpoiler} focusOnMount />
@@ -2938,6 +2948,16 @@
 									</div>
 								{/if}
 							</div>
+							{#if composerDragActive}
+								<div class="composer-dropzone" data-testid="composer-dropzone" aria-hidden="true">
+									<div class="composer-dropzone-card">
+										<Icon name="upload" width={22} height={22} />
+										<div class="composer-dropzone-h">Drop to attach</div>
+										<div class="composer-dropzone-s">photos · audio · video</div>
+										<div class="composer-dropzone-meta">Max 8 files · 40 MB each</div>
+									</div>
+								</div>
+							{/if}
 							<EmojiPicker open={composerEmojiPickerOpen} emojis={composerCustomEmojis} recents={composerEmojiRecents} anchor={composerEmojiPickerAnchor} onClose={() => (composerEmojiPickerOpen = false)} onPick={insertComposerEmoji} />
 						</form>
 						{#each homeStatusActionErrors as actionError (`${actionError.targetId}:${actionError.key}`)}
