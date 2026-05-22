@@ -293,7 +293,7 @@ test('profile navigation uses cached timeline account and refreshes existing pos
 	releaseNewerTimeline();
 	await page.evaluate(() => window.dispatchEvent(new CustomEvent('pleromanet:check-home-timeline')));
 	await expect(post).toContainText('cached.soft updated');
-	await expect(page.getByRole('button', { name: 'New posts available (1)' })).toBeVisible();
+	await expect(page.getByTestId('timeline-header-actions').getByRole('button', { name: '1 new posts' })).toBeVisible();
 	await post.getByRole('link', { name: '@cached.soft@kolektiva.social' }).click();
 
 	await expect(page).toHaveURL(/\/app\/profiles\/cached\.soft%40kolektiva\.social$/);

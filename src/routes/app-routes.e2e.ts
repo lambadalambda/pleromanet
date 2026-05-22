@@ -48,6 +48,16 @@ const mockHomeTimeline = async (page: Page) => {
 	});
 };
 
+const mockAppPublicTimeline = async (page: Page) => {
+	await page.route('https://pleroma.example/api/v1/timelines/public**', async (route: Route) => {
+		await route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify(pleromaFixtures.timelines.public)
+		});
+	});
+};
+
 const mockProfileRoute = async (page: Page) => {
 	await page.route('https://pleroma.example/api/v1/accounts/account-1/statuses**', async (route: Route) => {
 		const url = new URL(route.request().url());
@@ -216,13 +226,12 @@ test('app route guard revalidates when session disappears during client navigati
 
 test('timeline, thread, profile, notification, and placeholder routes deep link in the real shell', async ({ page }) => {
 	await authenticate(page);
+	await mockAppPublicTimeline(page);
 	await mockProfileRoute(page);
 	await setViewport(page, 'desktop');
 
 	const cases = [
 		['/app/public', 'Public timeline'],
-		['/app/local', 'Local timeline'],
-		['/app/federated', 'Federated timeline'],
 		['/app/thread/status-1', 'Thread'],
 		['/app/profiles/quietadmin@pleroma.example', 'quiet admin'],
 		['/app/notifications', 'Notifications']
@@ -232,6 +241,14 @@ test('timeline, thread, profile, notification, and placeholder routes deep link 
 		await page.goto(path);
 		await expect(page.getByTestId('app-header')).toBeVisible();
 		await expect(page.getByTestId('app-content').getByRole('heading', { name: heading })).toBeVisible();
+		await expectNoHorizontalOverflow(page);
+	}
+
+	for (const [path, activeTab, heading] of [['/app/local', 'Local', 'Local timeline'], ['/app/federated', 'Federated', 'Federated timeline']] as const) {
+		await page.goto(path);
+		await expect(page.getByTestId('app-header')).toBeVisible();
+		await expect(page.getByRole('tab', { name: activeTab })).toHaveAttribute('aria-selected', 'true');
+		await expect(page.getByTestId('app-content').getByRole('heading', { name: heading })).toHaveCount(0);
 		await expectNoHorizontalOverflow(page);
 	}
 });

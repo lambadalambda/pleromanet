@@ -2168,7 +2168,8 @@ test('home timeline opens a user stream and queues streamed posts behind the ind
 	})).toBe('wss://pleroma.example/api/v1/streaming/?stream=user&access_token=access-token');
 
 	await emitStreamUpdate(page, statusWithText('status-stream', 'fresh streamed post'));
-	const indicator = page.getByRole('button', { name: /New posts available/ });
+	const indicator = page.getByTestId('timeline-header-actions').getByRole('button', { name: '1 new posts' });
+	await expect(page.getByRole('tablist', { name: 'Timeline sections' }).getByRole('button', { name: '1 new posts' })).toHaveCount(0);
 	await expect(indicator).toBeVisible();
 	await expect(list).not.toContainText('fresh streamed post');
 	await indicator.click();
@@ -2208,11 +2209,11 @@ test('home timeline fallback backfills gaps behind streamed posts', async ({ pag
 	await expect(list).toContainText('stable existing post');
 
 	await emitStreamUpdate(page, statusWithText('status-3', 'streamed newest post'));
-	await expect(page.getByRole('button', { name: /New posts available/ })).toBeVisible();
+	await expect(page.getByRole('button', { name: '1 new posts' })).toBeVisible();
 	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
 	await expect.poll(() => requestedSinceIds).toEqual([null, 'status-1']);
 
-	await page.getByRole('button', { name: /New posts available/ }).click();
+	await page.getByRole('button', { name: /\d+ new posts/ }).click();
 	await expect(list).toContainText('streamed newest post');
 	await expect(list).toContainText('missed gap post');
 	const renderedStatusIds = await page.locator('[data-status-id]').evaluateAll((nodes) => nodes.slice(0, 3).map((node) => node.getAttribute('data-status-id')));
@@ -2256,7 +2257,7 @@ test('home timeline stream errors run a fallback check without dropping loaded p
 	await emitStreamError(page);
 	await expect.poll(() => requestedSinceIds).toEqual([null, 'status-1']);
 	await expect(list).toContainText('stable existing post');
-	await page.getByRole('button', { name: /New posts available/ }).click();
+	await page.getByRole('button', { name: '1 new posts' }).click();
 	await expect(list).toContainText('fresh post after stream error');
 	expect(await page.evaluate(() => {
 		const testWindow = window as typeof window & { __pleromanetSockets?: Array<{ closeCalled: boolean }> };
@@ -2282,13 +2283,17 @@ test('home timeline ignores initial responses after leaving home while loading',
 	await expect(page.getByRole('status', { name: 'Request status' })).toContainText('Loading Pleroma data');
 	await page.getByRole('link', { name: 'Explore' }).first().click();
 	await expect(page.getByRole('heading', { name: 'Explore the network' })).toBeVisible();
+	const socketCountAfterNavigation = await page.evaluate(() => {
+		const testWindow = window as typeof window & { __pleromanetSockets?: unknown[] };
+		return testWindow.__pleromanetSockets?.length ?? 0;
+	});
 
 	releaseRequest();
 	await expect.poll(() => responseFulfilled).toBe(true);
 	expect(await page.evaluate(() => {
 		const testWindow = window as typeof window & { __pleromanetSockets?: unknown[] };
 		return testWindow.__pleromanetSockets?.length ?? 0;
-	})).toBe(0);
+	})).toBe(socketCountAfterNavigation);
 });
 
 test('home timeline empty-stream fallback refreshes without a stream-only cursor', async ({ page }) => {
@@ -2316,7 +2321,7 @@ test('home timeline empty-stream fallback refreshes without a stream-only cursor
 	await expect(page.getByText('No posts yet')).toBeVisible();
 
 	await emitStreamUpdate(page, statusWithText('status-3', 'streamed empty newest post'));
-	await page.getByRole('button', { name: /New posts available/ }).click();
+	await page.getByRole('button', { name: '1 new posts' }).click();
 	const list = page.getByTestId('home-timeline-list');
 	await expect(list).toContainText('streamed empty newest post');
 
@@ -2354,7 +2359,7 @@ test('home timeline fallback trigger shows new-post indicator, prepends on activ
 	expect(scrollBefore).toBeGreaterThan(0);
 
 	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
-	const indicator = page.getByRole('button', { name: /New posts available/ });
+	const indicator = page.getByTestId('timeline-header-actions').getByRole('button', { name: '1 new posts' });
 	await expect(indicator).toBeVisible();
 	await expect(list).not.toContainText('fresh new post from fallback check');
 	await indicator.click();
@@ -2396,8 +2401,8 @@ test('home timeline new-post check errors keep the timeline usable and recover o
 	await expect(page.getByText('Pleroma server error')).toHaveCount(0);
 
 	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
-	await expect(page.getByRole('button', { name: /New posts available/ })).toBeVisible();
-	await page.getByRole('button', { name: /New posts available/ }).click();
+	await expect(page.getByRole('button', { name: '1 new posts' })).toBeVisible();
+	await page.getByRole('button', { name: '1 new posts' }).click();
 	await expect(list).toContainText('fresh post after retry');
 	expect(checkAttempts).toBe(2);
 });

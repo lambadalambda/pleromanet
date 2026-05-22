@@ -12,7 +12,7 @@
 {#if count > 0}
 	<div class="timeline-new-posts" aria-live="polite">
 		<Button variant="secondary" className="timeline-new-posts-button" onclick={onActivate}>
-			New posts available ({count})
+			{count} new posts
 		</Button>
 	</div>
 {/if}
