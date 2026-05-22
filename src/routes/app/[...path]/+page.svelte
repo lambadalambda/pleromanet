@@ -871,7 +871,7 @@
 	);
 	const searchAccounts = $derived(searchState.status === 'success' ? searchState.accounts : []);
 	const searchPosts = $derived(searchState.status === 'success' ? searchState.posts : []);
-	const visibleSearchAccounts = $derived(searchTab === 'posts' ? [] : searchAccounts);
+	const visibleSearchAccounts = $derived(searchTab === 'posts' ? [] : searchTab === 'all' ? searchAccounts.slice(0, 2) : searchAccounts);
 	const visibleSearchPosts = $derived(searchTab === 'people' ? [] : searchPosts);
 	const searchResultTotal = $derived(searchAccounts.length + searchPosts.length);
 	const visibleSearchResultTotal = $derived(visibleSearchAccounts.length + visibleSearchPosts.length);
@@ -1776,6 +1776,23 @@
 
 		activateHeaderSearchItem(item);
 	};
+	const headerSearchRefineText = (item: HeaderSearchSelectableItem) => {
+		if (item.kind === 'recent') return item.query;
+		if (item.kind === 'account') return item.account.handle;
+		return item.post.handle;
+	};
+	const refineHeaderSearchWithItem = (item: HeaderSearchSelectableItem) => {
+		const refined = item.kind === 'recent' ? item.query : `${headerSearchRefineText(item)} `;
+		headerSearchDraft = refined;
+		headerSearchOpen = true;
+		headerSearchSelectedIndex = -1;
+		if (currentSession && refined.trim()) scheduleHeaderSearch(currentSession, refined);
+		else headerSearchState = { status: 'idle' };
+		window.setTimeout(() => {
+			headerSearchInput?.focus();
+			headerSearchInput?.setSelectionRange(refined.length, refined.length);
+		});
+	};
 	const moveHeaderSearchSelection = (direction: 1 | -1) => {
 		const itemCount = headerSearchSelectableItems.length;
 		if (itemCount === 0) return;
@@ -1798,11 +1815,17 @@
 			return;
 		}
 
-		if (event.key !== 'Enter' || headerSearchSelectedIndex < 0) return;
+		if (event.key !== 'Enter' && event.key !== 'Tab') return;
+		if (headerSearchSelectedIndex < 0) return;
 		const item = headerSearchSelectableItems[headerSearchSelectedIndex];
 		if (!item) return;
 
 		event.preventDefault();
+		if (event.key === 'Tab') {
+			refineHeaderSearchWithItem(item);
+			return;
+		}
+
 		activateHeaderSearchItem(item);
 	};
 	const handleWindowPointerdown = (event: PointerEvent) => {
@@ -3035,6 +3058,7 @@
 								<div class="se-v2-cols">
 									<aside id="search-filter-sidebar" class="se-v2-side" data-testid="search-filter-sidebar">
 										<div class="se-v2-side-head"><span class="se-v2-side-h">Filters</span><button type="button" class="se-v2-side-close" title="Close filters" onclick={() => (searchSidebarOpen = false)}>◂</button></div>
+										<div class="se-v2-note">Filter controls are preview-only for now. Tabs and the search term are active.</div>
 										<div class="se-v2-group"><div class="se-v2-group-l">Source</div><div class="se-v2-opt on">Federated</div><div class="se-v2-opt">This instance</div><div class="se-v2-opt">People you follow</div></div>
 										<div class="se-v2-group"><div class="se-v2-group-l">Date</div><div class="se-v2-opt">Past 24 hours</div><div class="se-v2-opt on">Past week</div><div class="se-v2-opt">Past month</div><div class="se-v2-opt">All time</div></div>
 										<div class="se-v2-group"><label class="se-v2-group-l" for="search-filter-user">From user</label><input id="search-filter-user" class="se-v2-input" placeholder="@user@server" disabled /></div>

@@ -82,7 +82,7 @@ test('authenticated users are redirected from the landing page into the real app
 test('real app routes render shell, deep links, and browser history', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page);
-	await setViewport(page, 'desktop');
+	await page.setViewportSize({ width: 1360, height: 900 });
 	await page.goto('/app/home');
 
 	await expect(page.getByTestId('app-header')).toBeVisible();
@@ -184,7 +184,7 @@ test('real app hydrates profile data for existing token-only sessions', async ({
 test('real app right rail keeps timeline and explore card stacks', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page);
-	await setViewport(page, 'desktop');
+	await page.setViewportSize({ width: 1360, height: 900 });
 	await page.goto('/app/home');
 
 	const rail = page.getByTestId('right-rail');
@@ -239,16 +239,18 @@ test('timeline, thread, profile, notification, and placeholder routes deep link 
 test('real app shell stays responsive across desktop, medium, tablet, and mobile', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page);
+	await page.setViewportSize({ width: 1360, height: 900 });
+	await page.goto('/app/home');
+	await expect(page.getByTestId('left-sidebar')).toBeVisible();
+	await expect(page.getByTestId('right-rail')).toBeVisible();
+	await expectNoHorizontalOverflow(page);
 
 	for (const [name, viewport] of Object.entries(viewports)) {
 		await page.setViewportSize(viewport);
 		await page.goto('/app/home');
 
 		await expect(page.getByTestId('app-header')).toBeVisible();
-		if (name === 'desktop') {
-			await expect(page.getByTestId('left-sidebar')).toBeVisible();
-			await expect(page.getByTestId('right-rail')).toBeVisible();
-		} else if (name === 'medium') {
+		if (name === 'desktop' || name === 'medium') {
 			await expect(page.getByTestId('left-sidebar')).toBeVisible();
 			await expect(page.getByTestId('right-rail')).toBeHidden();
 		} else {

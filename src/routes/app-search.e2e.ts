@@ -214,6 +214,26 @@ test('header search dropdown supports arrow navigation and Enter activation', as
 	await expect(page).toHaveURL(/\/app\/profiles\/gridwave%40retro\.social$/);
 });
 
+test('header search dropdown Tab refines the query with the selected handle', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page);
+	await mockSearch(page);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const input = page.getByRole('combobox', { name: 'Search PleromaNet' });
+	await input.fill('slow web');
+	const accountRow = page.getByTestId('header-search-dropdown').getByRole('option', { name: /gridwave/ }).first();
+	await expect(accountRow).toBeVisible();
+	await page.keyboard.press('ArrowDown');
+	await expect(accountRow).toHaveClass(/sel/);
+	await page.keyboard.press('Tab');
+
+	await expect(page).toHaveURL(/\/app\/home$/);
+	await expect(input).toBeFocused();
+	await expect(input).toHaveValue('@gridwave@retro.social ');
+});
+
 test('header search dropdown closes when clicking outside', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page);
@@ -319,6 +339,32 @@ test('full search page filters people and posts without showing hashtags', async
 	await expect(page.getByTestId('search-filter-sidebar')).toContainText('From user');
 	await expect(page.getByTestId('search-filter-sidebar')).toContainText('Has media');
 	await expect(page.getByTestId('search-filter-sidebar')).toContainText('Sort');
+	await expect(page.getByTestId('search-filter-sidebar')).toContainText('Filter controls are preview-only for now');
+});
+
+test('full search all tab shows top people before posts without burying posts', async ({ page }) => {
+	const accounts = [
+		accountResult('account-alpha', 'alpha grid', 'alpha@retro.social'),
+		accountResult('account-beta', 'beta grid', 'beta@retro.social'),
+		accountResult('account-gamma', 'gamma grid', 'gamma@retro.social')
+	];
+	await authenticate(page);
+	await mockSearch(page, {
+		accounts,
+		statuses: [searchStatus],
+		hashtags: []
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/search?q=slow%20web');
+
+	const results = page.getByTestId('search-results');
+	await expect(results).toContainText('alpha grid');
+	await expect(results).toContainText('beta grid');
+	await expect(results).not.toContainText('gamma grid');
+	await expect(results).toContainText('the slow web is people taking their time');
+
+	await page.getByRole('tab', { name: /People/ }).click();
+	await expect(results).toContainText('gamma grid');
 });
 
 test('full search page keeps filters usable on mobile', async ({ page }) => {
