@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Avatar from './Avatar.svelte';
+	import RelativeTime from './RelativeTime.svelte';
 	import type { BoostAttribution } from './attachments';
 	import { profileHref } from './profile-links';
 
@@ -34,8 +35,8 @@
 					<span class="post-boost-handle">{boostedBy.handle}</span>
 				{/if}
 			{/if}
-			{#if boostedBy.time}
-				<span class="post-boost-time">{boostedBy.time}</span>
+			{#if boostedBy.createdAt || boostedBy.time}
+				<span class="post-boost-time"><RelativeTime createdAt={boostedBy.createdAt} fallback={boostedBy.time} /></span>
 			{/if}
 		</div>
 		<div class="post-boost-postcol">

@@ -173,6 +173,22 @@ test('authenticated home timeline loads and renders posts through adapters', asy
 	await expectNoHorizontalOverflow(page);
 });
 
+test('home timeline renders post timestamps as relative labels', async ({ page }) => {
+	await page.clock.install({ time: new Date('2026-05-22T12:00:00.000Z') });
+	await authenticate(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [{ ...statusWithText('status-relative-time', 'relative time should be readable.'), created_at: '2026-05-22T11:50:00.000Z' }]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const timestamp = page.locator('[data-status-id="status-relative-time"] .post-time');
+	await expect(timestamp).toHaveText('10 minutes ago');
+	await page.clock.fastForward(60_000);
+	await expect(timestamp).toHaveText('11 minutes ago');
+});
+
 test('home surfaces use avatar placeholders when remote avatar images fail', async ({ page }) => {
 	await authenticate(page);
 	await mockInstance(page);

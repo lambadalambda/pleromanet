@@ -20,6 +20,7 @@
 			nameEmojis?: CustomEmoji[];
 			handle?: string;
 			time?: string;
+			createdAt?: string;
 			avClass?: string;
 			avBanner?: BannerVariant;
 			body?: string;

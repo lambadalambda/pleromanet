@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Avatar from './Avatar.svelte';
+	import RelativeTime from './RelativeTime.svelte';
 	import { pickQuoteHero } from './attachments';
 	import type { Attachment, BannerVariant } from './attachments';
 	import type { CustomEmoji } from '$lib/social/types';
@@ -11,6 +12,7 @@
 		nameEmojis?: CustomEmoji[];
 		handle?: string;
 		time?: string;
+		createdAt?: string;
 		avClass?: string;
 		avBanner?: BannerVariant;
 		avatarUrl?: string | null;
@@ -38,7 +40,7 @@
 		<Avatar variant="post" size={28} avClass={quoted?.avClass} avBanner={quoted?.avBanner} avatarUrl={quoted?.avatarUrl} alt={`${quoted?.name ?? quoted?.handle ?? 'User'} avatar`} className="quoted-av-sm" />
 		<span class="quoted-name"><RichText text={quoted?.name} emojis={quoted?.nameEmojis} linkMentions={false} /></span>
 		<span class="quoted-handle">{quoted?.handle}</span>
-		<span class="quoted-time">{quoted?.time}</span>
+		<span class="quoted-time"><RelativeTime createdAt={quoted?.createdAt} fallback={quoted?.time} /></span>
 		<span class="quoted-ext">↗</span>
 	</div>
 	<div class="quoted-text">
@@ -81,7 +83,7 @@
 			<Avatar variant="post" size={22} avClass={quoted?.avClass} avBanner={quoted?.avBanner} avatarUrl={quoted?.avatarUrl} alt={`${quoted?.name ?? quoted?.handle ?? 'User'} avatar`} />
 			<span class="quoted-attr-name"><RichText text={quoted?.name} emojis={quoted?.nameEmojis} linkMentions={false} /></span>
 			<span class="quoted-handle">{quoted?.handle}</span>
-			<span class="quoted-time">· {quoted?.time}</span>
+			<span class="quoted-time"><RelativeTime createdAt={quoted?.createdAt} fallback={quoted?.time} prefix="· " /></span>
 		</div>
 	</div>
 {/snippet}

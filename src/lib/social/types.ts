@@ -104,6 +104,7 @@ export type QuotedPostView = {
 	nameEmojis?: CustomEmoji[];
 	handle: string;
 	time: string;
+	createdAt?: string;
 	body: string;
 	bodyEmojis?: CustomEmoji[];
 	avatar?: AvatarVariant;
@@ -120,6 +121,7 @@ export type BoostAttributionView = {
 	name: string;
 	handle: string;
 	time?: string;
+	createdAt?: string;
 	avatar?: AvatarVariant;
 	avatarUrl?: string | null;
 };
@@ -132,6 +134,7 @@ export type SocialPost = {
 	nameEmojis?: CustomEmoji[];
 	handle: string;
 	time: string;
+	createdAt?: string;
 	cw?: string;
 	body: string;
 	bodyEmojis?: CustomEmoji[];

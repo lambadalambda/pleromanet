@@ -88,6 +88,7 @@
 		nameEmojis?: SocialPost['nameEmojis'];
 		handle: string;
 		time: string;
+		createdAt?: string;
 		avClass?: string;
 		avBanner?: BannerVariant;
 		avatarUrl?: string | null;
@@ -488,6 +489,7 @@
 			nameEmojis: account?.emojis ?? post.nameEmojis,
 			handle: account?.handle ?? post.handle,
 			time: post.time,
+			createdAt: post.createdAt,
 			avClass: avatarClass(post.avatar),
 			avatarUrl: account?.avatarUrl ?? post.avatarUrl,
 			cw: post.cw,
@@ -500,6 +502,7 @@
 				name: booster?.displayName ?? post.boostedBy.name,
 				handle: booster?.handle ?? post.boostedBy.handle,
 				time: post.boostedBy.time,
+				createdAt: post.boostedBy.createdAt,
 				avClass: post.boostedBy.avatar ? avatarClass(post.boostedBy.avatar) : undefined,
 				avatarUrl: booster?.avatarUrl ?? post.boostedBy.avatarUrl
 			} : undefined,

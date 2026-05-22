@@ -20,6 +20,7 @@
 		name: string;
 		handle: string;
 		time: string;
+		createdAt?: string;
 		avClass?: string;
 		avBanner?: BannerVariant;
 		avatarUrl?: string | null;
@@ -51,6 +52,7 @@
 		name: post.name,
 		handle: post.handle,
 		time: post.time,
+		createdAt: post.createdAt,
 		avClass: avatarClass(post.avatar),
 		avatarUrl: post.avatarUrl,
 		body: post.body,
@@ -60,6 +62,7 @@
 			name: post.boostedBy.name,
 			handle: post.boostedBy.handle,
 			time: post.boostedBy.time,
+			createdAt: post.boostedBy.createdAt,
 			avClass: post.boostedBy.avatar ? avatarClass(post.boostedBy.avatar) : undefined,
 			avatarUrl: post.boostedBy.avatarUrl
 		} : undefined,

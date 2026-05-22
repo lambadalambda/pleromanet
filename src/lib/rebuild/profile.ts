@@ -10,6 +10,7 @@ export type ProfilePost = PostLike & {
 	nameEmojis?: CustomEmoji[];
 	handle: string;
 	time: string;
+	createdAt?: string;
 	avClass?: string;
 	avBanner?: BannerVariant;
 	avatarUrl?: string | null;

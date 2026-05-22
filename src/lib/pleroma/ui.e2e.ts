@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, normalizePleromaRequestError, statusCharacterLimit } from './ui';
+import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, formatRelativeStatusTime, htmlToPlainText, normalizePleromaRequestError, statusCharacterLimit } from './ui';
 import { pleromaFixtures } from './fixtures';
 import type { PleromaStatus } from './types';
 
@@ -11,7 +11,7 @@ const withStatus = (overrides: Partial<PleromaStatus>): PleromaStatus => ({
 });
 
 test('Pleroma status adapters preserve plain text content and UI action state', () => {
-	const post = adaptPleromaStatus(pleromaFixtures.status, { timelines: ['home', 'local'] });
+	const post = adaptPleromaStatus(pleromaFixtures.status, { timelines: ['home', 'local'], now: Date.parse('2026-05-01T12:05:00.000Z') });
 
 	expect(post).toMatchObject({
 		id: 'status-1',
@@ -37,9 +37,20 @@ test('Pleroma status adapters preserve plain text content and UI action state', 
 			plainText: 'quiet CSS can still carry the voice.'
 		}
 	});
-	expect(post.time).toBe('May 1');
+	expect(post.time).toBe('5 minutes ago');
 	expect(post.contentHtml).toBe('<p>quiet CSS can still carry the voice.</p>');
 	expect(post.mediaHidden).toBe(false);
+});
+
+test('Pleroma status timestamp formatter returns relative labels', () => {
+	const now = Date.parse('2026-05-22T12:00:00.000Z');
+
+	expect(formatRelativeStatusTime('2026-05-22T11:59:30.000Z', now)).toBe('just now');
+	expect(formatRelativeStatusTime('2026-05-22T11:55:00.000Z', now)).toBe('5 minutes ago');
+	expect(formatRelativeStatusTime('2026-05-22T10:00:00.000Z', now)).toBe('2 hours ago');
+	expect(formatRelativeStatusTime('2026-05-20T12:00:00.000Z', now)).toBe('2 days ago');
+	expect(formatRelativeStatusTime('2025-05-22T12:00:00.000Z', now)).toBe('1 year ago');
+	expect(formatRelativeStatusTime('not-a-date', now)).toBe('');
 });
 
 test('Pleroma status adapters expose custom emoji for display names and body text', () => {
@@ -414,7 +425,7 @@ test('Pleroma status adapters expose visible quote posts and strip inline quote 
 			quote_url: 'https://remote.example/objects/quoted-status',
 			quote_visible: true
 		}
-	}));
+	}), { now: Date.parse('2026-05-20T12:26:57.000Z') });
 
 	expect(post.body).toBe('Me and who?');
 	expect(post.contentText).toBe('Me and who?');
@@ -422,7 +433,7 @@ test('Pleroma status adapters expose visible quote posts and strip inline quote 
 		href: '/app/thread/quoted-status',
 		name: 'quoted source',
 		handle: '@quoted@remote.example',
-		time: 'May 20',
+		time: '1 hour ago',
 		body: 'quoted status body',
 		avatarUrl: 'https://remote.example/avatar.jpg',
 		replies: 1,

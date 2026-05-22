@@ -111,6 +111,7 @@ export type PleromaRequestState<Data> =
 
 export type AdaptPleromaStatusOptions = {
 	timelines?: TimelineView[];
+	now?: number;
 };
 
 const htmlEntities: Record<string, string> = {
@@ -243,6 +244,30 @@ const formatStatusDate = (createdAt: string) => {
 	if (Number.isNaN(date.getTime())) return '';
 
 	return new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(date);
+};
+
+const pluralUnit = (value: number, unit: string) => `${value} ${unit}${value === 1 ? '' : 's'} ago`;
+
+export const formatRelativeStatusTime = (createdAt: string, now = Date.now()) => {
+	const createdMs = Date.parse(createdAt);
+	if (!Number.isFinite(createdMs) || !Number.isFinite(now)) return '';
+
+	const elapsedSeconds = Math.max(0, Math.floor((now - createdMs) / 1000));
+	if (elapsedSeconds < 60) return 'just now';
+
+	const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+	if (elapsedMinutes < 60) return pluralUnit(elapsedMinutes, 'minute');
+
+	const elapsedHours = Math.floor(elapsedMinutes / 60);
+	if (elapsedHours < 24) return pluralUnit(elapsedHours, 'hour');
+
+	const elapsedDays = Math.floor(elapsedHours / 24);
+	if (elapsedDays < 30) return pluralUnit(elapsedDays, 'day');
+
+	const elapsedMonths = Math.floor(elapsedDays / 30);
+	if (elapsedDays < 365) return pluralUnit(elapsedMonths, 'month');
+
+	return pluralUnit(Math.floor(elapsedDays / 365), 'year');
 };
 
 const avatarUrl = (account: PleromaAccount) => account.avatar || account.avatar_static || null;
@@ -510,7 +535,7 @@ const visibleQuotedStatus = (status: PleromaStatus) => {
 
 const threadHref = (statusId: string) => `/app/thread/${encodeURIComponent(statusId)}`;
 
-const adaptQuotedPost = (status: PleromaStatus): QuotedPostView => {
+const adaptQuotedPost = (status: PleromaStatus, now?: number): QuotedPostView => {
 	const account = adaptPleromaAccount(status.account);
 	const { postAttachments } = adaptStatusAttachments(status);
 	const quoteAttachments = postAttachments.filter((attachment) => attachment.kind !== 'poll');
@@ -521,7 +546,8 @@ const adaptQuotedPost = (status: PleromaStatus): QuotedPostView => {
 		name: account.displayName,
 		nameEmojis: account.emojis,
 		handle: account.handle,
-		time: formatStatusDate(status.created_at),
+		time: formatRelativeStatusTime(status.created_at, now),
+		createdAt: status.created_at,
 		body: warning ? `Content warning: ${warning}` : plainTextContent(status),
 		bodyEmojis: adaptCustomEmojis(status.emojis),
 		avClass: account.avatarUrl ? undefined : 'av-grad-2',
@@ -644,13 +670,13 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		name: account.displayName,
 		nameEmojis: account.emojis,
 		handle: account.handle,
-		time: formatStatusDate(source.created_at),
+		time: formatRelativeStatusTime(source.created_at, options.now),
 		cw: warning || undefined,
 		body: body.body,
 		bodyEmojis: adaptCustomEmojis(source.emojis),
 		addressees: body.addressees,
 		copyJson: status,
-		quotedPost: quotedPost ? adaptQuotedPost(quotedPost) : undefined,
+		quotedPost: quotedPost ? adaptQuotedPost(quotedPost, options.now) : undefined,
 		avatar: avatarVariant(source.account),
 		avatarUrl: account.avatarUrl,
 		attachments: source.sensitive && !warning ? undefined : postAttachments,
@@ -658,7 +684,8 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		boostedBy: booster ? {
 			name: booster.displayName,
 			handle: booster.handle,
-			time: formatStatusDate(status.created_at),
+			time: formatRelativeStatusTime(status.created_at, options.now),
+			createdAt: status.created_at,
 			avatar: avatarVariant(status.account),
 			avatarUrl: booster.avatarUrl
 		} : undefined,
