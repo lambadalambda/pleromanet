@@ -3130,13 +3130,15 @@
 									{...inlineReplyComposerProps}
 								/>
 							{/if}
-							<div class="thread-reply-head">
-								<div class="thread-reply-count" data-testid="thread-reply-count">{threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}</div>
-								<div class="seg" role="group" aria-label="Reply sort">
-									<button type="button" aria-pressed={replySort === 'top'} class:active={replySort === 'top'} onclick={() => (replySort = 'top')}>Top</button>
-									<button type="button" aria-pressed={replySort === 'newest'} class:active={replySort === 'newest'} onclick={() => (replySort = 'newest')}>Newest</button>
+							{#if threadReplyCount > 0}
+								<div class="thread-reply-head">
+									<div class="thread-reply-count" data-testid="thread-reply-count">{threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}</div>
+									<div class="seg" role="group" aria-label="Reply sort">
+										<button type="button" aria-pressed={replySort === 'top'} class:active={replySort === 'top'} onclick={() => (replySort = 'top')}>Top</button>
+										<button type="button" aria-pressed={replySort === 'newest'} class:active={replySort === 'newest'} onclick={() => (replySort = 'newest')}>Newest</button>
+									</div>
 								</div>
-							</div>
+							{/if}
 							<div class="thread-replies">
 								{#each sortedThreadReplyPosts as reply, i (reply.id)}
 									<div data-testid="thread-reply">

@@ -328,9 +328,9 @@ test('real thread route handles an empty descendant context and accepts the firs
 	await page.goto('/app/thread/status-1');
 
 	await expect(page.getByTestId('focused-post')).toContainText('quiet CSS can still carry the voice.');
-	await expect(page.getByTestId('thread-reply-count')).toContainText('0 replies');
+	await expect(page.getByTestId('thread-reply-count')).toHaveCount(0);
 	await expect(page.getByTestId('thread-reply')).toHaveCount(0);
-	await expect(page.getByRole('group', { name: 'Reply sort' })).toBeVisible();
+	await expect(page.getByRole('group', { name: 'Reply sort' })).toHaveCount(0);
 
 	await page.getByTestId('focused-post').getByRole('button', { name: 'Reply 0' }).click();
 	const replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
@@ -339,6 +339,7 @@ test('real thread route handles an empty descendant context and accepts the firs
 
 	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
 	await expect(page.getByTestId('thread-reply-count')).toContainText('1 reply');
+	await expect(page.getByRole('group', { name: 'Reply sort' })).toBeVisible();
 	await expect(page.getByTestId('thread-reply')).toHaveCount(1);
 	await expect(page.getByText('the first reply lands in an empty thread')).toBeVisible();
 	const params = new URLSearchParams(createBody);
