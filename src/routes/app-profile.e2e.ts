@@ -553,7 +553,7 @@ test('post avatars, handles, body mentions, and reply pings navigate to profiles
 	await expect(page.getByTestId('profile-view').getByRole('heading', { name: 'quiet admin' })).toBeVisible();
 });
 
-test('profile route gates locked accounts without rendering their timeline', async ({ page }) => {
+test('profile route fetches public posts for locked accounts', async ({ page }) => {
 	const lockedAccount = { ...profileAccount, id: 'account-locked', acct: 'locked.user@kolektiva.social', display_name: 'locked user', locked: true, pleroma: { ...profileAccount.pleroma, relationship: undefined } };
 	let statusRequestCount = 0;
 	await authenticate(page);
@@ -561,7 +561,7 @@ test('profile route gates locked accounts without rendering their timeline', asy
 	await page.route('https://pleroma.example/api/v1/accounts/relationships**', async (route: Route) => fulfillJson(route, [relationshipFor(lockedAccount.id)]));
 	await page.route(`https://pleroma.example/api/v1/accounts/${lockedAccount.id}/statuses**`, async (route: Route) => {
 		statusRequestCount += 1;
-		await fulfillJson(route, postStatuses);
+		await fulfillJson(route, postStatuses.map((status) => ({ ...status, account: lockedAccount })));
 	});
 	await setViewport(page, 'desktop');
 
@@ -570,9 +570,9 @@ test('profile route gates locked accounts without rendering their timeline', asy
 	const profile = page.getByTestId('profile-view');
 	await expect(profile.getByRole('heading', { name: 'locked user' })).toBeVisible();
 	await expect(profile).toContainText('locked');
-	await expect(profile).toContainText('This account is locked');
-	await expect(profile).not.toContainText("rain recording from this morning's walk");
-	expect(statusRequestCount).toBe(0);
+	await expect(profile).not.toContainText('This account is locked');
+	await expect(profile.getByTestId('profile-posts')).toContainText("rain recording from this morning's walk");
+	expect(statusRequestCount).toBeGreaterThan(0);
 	await expectNoHorizontalOverflow(page);
 });
 

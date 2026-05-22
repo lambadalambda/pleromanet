@@ -541,8 +541,6 @@
 		.filter((post) => !post.mediaHidden && !post.hasContentWarning)
 		.flatMap((post) => post.mediaAttachments.map(profileMediaItem))
 		.filter((item): item is ProfileMediaItem => item !== null);
-	const profileLockedForViewer = (profile: { relations: { locked: boolean }; followState: string }) =>
-		profile.relations.locked && !['mutual', 'following', 'self'].includes(profile.followState);
 	const emptyProfileData = (profile: ProfileData['profile']): ProfileData => ({ profile, posts: [], replies: [], pinned: [], media: [] });
 	const threadRepliesForRebuild = (focusedStatusId: string, descendants: PleromaStatusView[]) => {
 		const posts: ThreadViewPost[] = descendants.map((post) => ({ ...threadPostForRebuild(post), nestedReplies: [] }));
@@ -2347,11 +2345,6 @@
 
 				upsertAccountCache([account], { relationship: 'replace' });
 				const profile = adaptPleromaProfile(account, { instanceUrl: session.instanceUrl, currentAccountId });
-				if (profileLockedForViewer(profile)) {
-					profileRouteState = { status: 'success', data: emptyProfileData(profile), timelineStatus: 'ready' };
-					return;
-				}
-
 				profileRouteState = { status: 'success', data: emptyProfileData(profile), timelineStatus: 'loading' };
 				[postsPage, repliesPage, mediaPage, pinnedStatuses] = await statusPages(account.id);
 			} else {
@@ -2375,10 +2368,6 @@
 
 			upsertAccountCache([account], { relationship: 'replace' });
 			const profile = adaptPleromaProfile(account, { instanceUrl: session.instanceUrl, currentAccountId });
-			if (profileLockedForViewer(profile)) {
-				profileRouteState = { status: 'success', data: emptyProfileData(profile), timelineStatus: 'ready' };
-				return;
-			}
 			upsertAccountCache(accountsFromPleromaStatuses([...postsPage.items, ...repliesPage.items, ...mediaPage.items, ...pinnedStatuses]));
 			const posts = adaptPleromaStatuses(postsPage.items).map(profilePostForRebuild);
 			const replies = adaptPleromaStatuses(repliesPage.items).map(profilePostForRebuild);

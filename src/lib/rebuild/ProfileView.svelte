@@ -25,7 +25,7 @@
 	let tab = $state<ProfileTab>('posts');
 	let pinnedExpanded = $state(false);
 	let locked = $derived(profile.relations.locked && !['mutual', 'following', 'self'].includes(profile.followState));
-	let empty = $derived(posts.length === 0 && replies.length === 0 && pinned.length === 0 && media.length === 0 && !locked && !timelineLoading);
+	let empty = $derived(posts.length === 0 && replies.length === 0 && pinned.length === 0 && media.length === 0 && !timelineLoading);
 	let visiblePinned = $derived(pinnedExpanded ? pinned : pinned.slice(0, 1));
 	let tabPosts = $derived(tab === 'replies' ? replies : posts);
 	let href = $derived(profileHref(profile.handle));
@@ -77,7 +77,7 @@
 	</div>
 
 	<div class="pp-feed pp-profile-body">
-		{#if !locked && pinned.length > 0}
+		{#if pinned.length > 0}
 			<div class="pp-pinned-strip">
 				<div class="pp-pinned-l">
 					<span>pinned</span>
@@ -94,26 +94,24 @@
 			</div>
 		{/if}
 
-		{#if !locked}
-			<div class="pp-tabs" role="tablist" aria-label="Profile timeline tabs">
-				<button type="button" role="tab" class="pp-tab" class:active={tab === 'posts'} aria-selected={tab === 'posts'} onclick={() => (tab = 'posts')}>Posts<span class="pp-tab-count">{profile.stats.posts}</span></button>
-				<button type="button" role="tab" class="pp-tab" class:active={tab === 'replies'} aria-selected={tab === 'replies'} onclick={() => (tab = 'replies')}>Posts &amp; Replies<span class="pp-tab-count">{replies.length}</span></button>
-				<button type="button" role="tab" class="pp-tab" class:active={tab === 'media'} aria-selected={tab === 'media'} onclick={() => (tab = 'media')}>Media<span class="pp-tab-count">{media.length}</span></button>
-				<span class="pp-tabs-spacer"></span>
-			</div>
-		{/if}
+		<div class="pp-tabs" role="tablist" aria-label="Profile timeline tabs">
+			<button type="button" role="tab" class="pp-tab" class:active={tab === 'posts'} aria-selected={tab === 'posts'} onclick={() => (tab = 'posts')}>Posts<span class="pp-tab-count">{profile.stats.posts}</span></button>
+			<button type="button" role="tab" class="pp-tab" class:active={tab === 'replies'} aria-selected={tab === 'replies'} onclick={() => (tab = 'replies')}>Posts &amp; Replies<span class="pp-tab-count">{replies.length}</span></button>
+			<button type="button" role="tab" class="pp-tab" class:active={tab === 'media'} aria-selected={tab === 'media'} onclick={() => (tab = 'media')}>Media<span class="pp-tab-count">{media.length}</span></button>
+			<span class="pp-tabs-spacer"></span>
+		</div>
 
-		{#if locked}
+		{#if timelineLoading}
+			<div class="pp-empty" role="status" aria-label="Profile timeline status">
+				<div class="pp-empty-h">Loading profile posts</div>
+				<div class="pp-empty-s">Fetching {profile.displayName}'s posts, replies, pinned posts, and media.</div>
+			</div>
+		{:else if empty && locked}
 			<div class="pp-locked">
 				<div class="pp-locked-icon"><Icon name="lock" width={16} height={16} /></div>
 				<div class="pp-locked-h">This account is locked</div>
 				<div class="pp-locked-s">{profile.displayName} approves followers manually. Follow requests will be wired with account actions.</div>
 				<button type="button" class="pp-follow-btn" disabled>Send follow request</button>
-			</div>
-		{:else if timelineLoading}
-			<div class="pp-empty" role="status" aria-label="Profile timeline status">
-				<div class="pp-empty-h">Loading profile posts</div>
-				<div class="pp-empty-s">Fetching {profile.displayName}'s posts, replies, pinned posts, and media.</div>
 			</div>
 		{:else if empty}
 			<div class="pp-empty">
