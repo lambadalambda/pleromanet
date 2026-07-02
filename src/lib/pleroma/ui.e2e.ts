@@ -162,7 +162,7 @@ test('Pleroma status adapters use mention metadata for leading recipient mention
 	}));
 
 	expect(post.body).toBe('Joseph was always on the side of the good guys.');
-	expect(post.addressees).toEqual(['@vriska']);
+	expect(post.addressees).toEqual(['@vriska@lizards.live']);
 });
 
 test('Pleroma status adapters synthesize reply addressees from metadata without visible mentions', () => {
@@ -691,4 +691,32 @@ test('media placeholder text summarizes media-only statuses', () => {
 		pleroma: {}
 	}]);
 	expect(empty.post).toBeUndefined();
+});
+
+test('reply addressees and body mentions canonicalize to full federated handles', () => {
+	const post = adaptPleromaStatus(withStatus({
+		content: '<p>@merc @lain finally upgraded.</p>',
+		in_reply_to_id: 'parent-1',
+		in_reply_to_account_id: 'account-merc',
+		mentions: [
+			{ id: 'account-merc', username: 'merc', acct: 'merc@stereophonic.space', url: 'https://stereophonic.space/users/merc' },
+			{ id: 'account-lain', username: 'lain', acct: 'lain@lain.com', url: 'https://lain.com/users/lain' }
+		],
+		pleroma: { content: { 'text/plain': '@merc @lain finally upgraded.' } }
+	}));
+
+	expect(post.addressees).toEqual(['@merc@stereophonic.space', '@lain@lain.com']);
+	expect(post.mentionAccts).toMatchObject({
+		'@merc': '@merc@stereophonic.space',
+		'@lain': '@lain@lain.com'
+	});
+
+	const local = adaptPleromaStatus(withStatus({
+		content: '<p>@quietadmin hello.</p>',
+		in_reply_to_id: 'parent-2',
+		in_reply_to_account_id: 'account-1',
+		mentions: [{ id: 'account-1', username: 'quietadmin', acct: 'quietadmin', url: 'https://pleroma.example/users/quietadmin' }],
+		pleroma: { content: { 'text/plain': '@quietadmin hello.' } }
+	}));
+	expect(local.addressees).toEqual(['@quietadmin']);
 });

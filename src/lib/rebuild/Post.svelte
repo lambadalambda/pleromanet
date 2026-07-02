@@ -29,6 +29,7 @@
 			bodyEmojis?: CustomEmoji[];
 			addressees?: string[];
 			quotedPost?: Record<string, unknown>;
+			mentionAccts?: Record<string, string>;
 			reactions?: PleromaReactionView[];
 			replies: number;
 			boosts: number;
@@ -61,7 +62,7 @@
 	<div style="min-width:0">
 		<PostHead post={post} />
 		<PostCW post={post}>
-			<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} />
+			<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} mentionAccts={post.mentionAccts} />
 			<QuotedPost quoted={post.quotedPost} />
 			<PostMedia post={post} onOpen={handleLightbox} />
 		</PostCW>

@@ -1115,3 +1115,33 @@ test('real thread route renders the focused post emoji reaction row and toggles 
 	await reactions.getByRole('button', { name: /❤️ · 4 reactions$/ }).click();
 	await expect(reactions.getByRole('button', { name: /❤️ · 5 reactions · you reacted/ })).toHaveAttribute('aria-pressed', 'true');
 });
+
+test('real thread route links reply chips and body mentions to full federated handles', async ({ page }) => {
+	await authenticate(page);
+	const remoteReply: PleromaStatus = {
+		...threadStatus,
+		content: '<p>@merc glad it landed. cc @lain</p>',
+		in_reply_to_id: 'ancestor-1',
+		in_reply_to_account_id: 'account-merc',
+		mentions: [
+			{ id: 'account-merc', username: 'merc', acct: 'merc@stereophonic.space', url: 'https://stereophonic.space/users/merc' },
+			{ id: 'account-lain', username: 'lain', acct: 'lain@lain.com', url: 'https://lain.com/users/lain' }
+		],
+		pleroma: {
+			...threadStatus.pleroma,
+			content: { 'text/plain': '@merc glad it landed. cc @lain' }
+		}
+	};
+	await mockThread(page, remoteReply);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	const focused = page.getByTestId('focused-post');
+	const parentChip = focused.locator('.post-pinged-chip-parent');
+	await expect(parentChip).toContainText('@merc');
+	await expect(parentChip).not.toContainText('@merc@stereophonic.space');
+	await expect(parentChip).toHaveAttribute('href', '/app/profiles/merc%40stereophonic.space');
+
+	const bodyMention = focused.locator('.focused-body a', { hasText: '@lain' });
+	await expect(bodyMention).toHaveAttribute('href', '/app/profiles/lain%40lain.com');
+});

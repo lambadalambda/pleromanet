@@ -203,6 +203,22 @@ const handleFromAcct = (acct: unknown) => {
 	return `@${acct.trim().replace(/^@/, '')}`;
 };
 
+// Post text usually carries bare @usernames; the mentions metadata has the
+// full user@domain acct needed to resolve remote profiles.
+const mentionAcctMap = (status: PleromaStatus): Record<string, string> => {
+	const map: Record<string, string> = {};
+	for (const mention of status.mentions) {
+		if (!mention || typeof mention !== 'object') continue;
+		const values = mention as Record<string, unknown>;
+		const full = handleFromAcct(values.acct);
+		if (!full) continue;
+		const username = typeof values.username === 'string' ? values.username.trim() : '';
+		if (username) map[`@${username.toLowerCase()}`] = full;
+		map[full.toLowerCase()] = full;
+	}
+	return map;
+};
+
 const directReplyAccountHandle = (status: PleromaStatus) => {
 	if (!status.in_reply_to_id) return null;
 	const pleromaAcct = handleFromAcct(status.pleroma.in_reply_to_account_acct);
@@ -223,6 +239,7 @@ const extractLeadingReplyAddressees = (text: string, status: PleromaStatus) => {
 	const knownMentionHandles = leadingMentionHandles(status);
 	if (!status.in_reply_to_id && knownMentionHandles.size === 0) return { body: text };
 
+	const acctMap = mentionAcctMap(status);
 	const addressees: string[] = [];
 	let rest = text.trimStart();
 	while (rest) {
@@ -230,7 +247,7 @@ const extractLeadingReplyAddressees = (text: string, status: PleromaStatus) => {
 		if (!match) break;
 		if (!status.in_reply_to_id && !knownMentionHandles.has(match[1].toLowerCase())) break;
 
-		addressees.push(match[1]);
+		addressees.push(acctMap[match[1].toLowerCase()] ?? match[1]);
 		rest = rest.slice(match[1].length);
 		const separator = /^\s+/.exec(rest);
 		if (!separator) break;
@@ -588,6 +605,7 @@ const adaptQuotedPost = (status: PleromaStatus, now?: number): QuotedPostView =>
 		createdAt: status.created_at,
 		body: warning ? `Content warning: ${warning}` : plainTextContent(status),
 		bodyEmojis: adaptCustomEmojis(status.emojis),
+		mentionAccts: mentionAcctMap(status),
 		avClass: account.avatarUrl ? undefined : 'av-grad-2',
 		avatarUrl: account.avatarUrl,
 		replies: status.replies_count,
@@ -783,6 +801,7 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		body: body.body,
 		bodyEmojis: adaptCustomEmojis(source.emojis),
 		addressees: body.addressees,
+		mentionAccts: mentionAcctMap(source),
 		copyJson: status,
 		quotedPost: quotedPost ? adaptQuotedPost(quotedPost, options.now) : undefined,
 		avatar: avatarVariant(source.account),

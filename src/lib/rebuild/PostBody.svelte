@@ -7,13 +7,14 @@
 		body?: string;
 		emojis?: CustomEmoji[];
 		addressees?: string[];
+		mentionAccts?: Record<string, string>;
 		className?: string;
 	};
 
-	let { body = '', emojis = [], addressees, className = '' }: Props = $props();
+	let { body = '', emojis = [], addressees, mentionAccts, className = '' }: Props = $props();
 </script>
 
 <div class="post-body {className}">
-	<RichText text={body} {emojis} mentionClass="post-mention-inline" linkUrls />
+	<RichText text={body} {emojis} {mentionAccts} mentionClass="post-mention-inline" linkUrls />
 </div>
 <PostPinged {addressees} />

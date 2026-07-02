@@ -25,6 +25,7 @@
 		avBanner?: BannerVariant;
 		avatarUrl?: string | null;
 		body: string;
+		mentionAccts?: Record<string, string>;
 		boostedBy?: PostLike['boostedBy'];
 		replies: number;
 		boosts: number;
@@ -56,6 +57,7 @@
 		avClass: avatarClass(post.avatar),
 		avatarUrl: post.avatarUrl,
 		body: post.body,
+		mentionAccts: post.mentionAccts,
 		media: post.media,
 		attachments: post.attachments,
 		boostedBy: post.boostedBy ? {

@@ -90,6 +90,7 @@
 		boosts: number;
 		favs: number;
 		addressees?: string[];
+		mentionAccts?: Record<string, string>;
 		boostedBy?: PostLike['boostedBy'];
 		copyJson?: unknown;
 		reactions?: PleromaReactionView[];
@@ -563,6 +564,7 @@
 			media: post.media,
 			attachments: post.attachments,
 			addressees: post.addressees,
+			mentionAccts: post.mentionAccts,
 			boostedBy: post.boostedBy ? {
 				name: booster?.displayName ?? post.boostedBy.name,
 				nameEmojis: booster?.emojis ?? post.boostedBy.nameEmojis,

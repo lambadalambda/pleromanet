@@ -9,10 +9,12 @@
 		mentionClass?: string;
 		linkMentions?: boolean;
 		linkUrls?: boolean;
+		mentionAccts?: Record<string, string>;
 	};
 
-	let { text = '', emojis = [], mentionClass = '', linkMentions = true, linkUrls = false }: Props = $props();
+	let { text = '', emojis = [], mentionClass = '', linkMentions = true, linkUrls = false, mentionAccts = {} }: Props = $props();
 	let parts = $derived(renderBodyText(text, emojis));
+	const mentionTarget = (mention: string) => mentionAccts[mention.toLowerCase()] ?? mention;
 </script>
 
 {#each parts as part, i (typeof part === 'string' ? `t${i}` : part.key)}
@@ -27,7 +29,7 @@
 			{part.text}
 		{/if}
 	{:else if linkMentions}
-		<a class={mentionClass} href={profileHref(part.text) ?? undefined}>{part.text}</a>
+		<a class={mentionClass} href={profileHref(mentionTarget(part.text)) ?? undefined} title={mentionTarget(part.text)}>{part.text}</a>
 	{:else}
 		<span class={mentionClass}>{part.text}</span>
 	{/if}

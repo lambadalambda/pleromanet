@@ -18,6 +18,7 @@
 		avatarUrl?: string | null;
 		body?: string;
 		bodyEmojis?: CustomEmoji[];
+		mentionAccts?: Record<string, string>;
 		attachments?: Attachment[];
 		replies?: number;
 		boosts?: number;
@@ -44,7 +45,7 @@
 		<span class="quoted-ext">↗</span>
 	</div>
 	<div class="quoted-text">
-		<RichText text={quoted?.body} emojis={quoted?.bodyEmojis} mentionClass="post-mention-inline" linkMentions={false} linkUrls />
+		<RichText text={quoted?.body} emojis={quoted?.bodyEmojis} mentionAccts={quoted?.mentionAccts} mentionClass="post-mention-inline" linkMentions={false} linkUrls />
 	</div>
 	<div class="quoted-foot">
 		{#if quoted?.replies != null}<span>↩ {quoted.replies}</span>{/if}
@@ -77,7 +78,7 @@
 	<div class="quoted-body">
 		<div class="quoted-kicker">QUOTE{domain ? ' · ' + domain : ''}</div>
 		<div class="quoted-text">
-			<RichText text={quoted?.body} emojis={quoted?.bodyEmojis} mentionClass="post-mention-inline" linkMentions={false} linkUrls />
+			<RichText text={quoted?.body} emojis={quoted?.bodyEmojis} mentionAccts={quoted?.mentionAccts} mentionClass="post-mention-inline" linkMentions={false} linkUrls />
 		</div>
 		<div class="quoted-attr">
 			<Avatar variant="post" size={22} avClass={quoted?.avClass} avBanner={quoted?.avBanner} avatarUrl={quoted?.avatarUrl} alt={`${quoted?.name ?? quoted?.handle ?? 'User'} avatar`} />

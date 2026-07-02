@@ -108,6 +108,7 @@ export type QuotedPostView = {
 	createdAt?: string;
 	body: string;
 	bodyEmojis?: CustomEmoji[];
+	mentionAccts?: Record<string, string>;
 	avatar?: AvatarVariant;
 	avClass?: string;
 	avatarUrl?: string | null;
@@ -148,6 +149,7 @@ export type SocialPost = {
 	boostedBy?: BoostAttributionView;
 	copyJson?: unknown;
 	quotedPost?: QuotedPostView;
+	mentionAccts?: Record<string, string>;
 	replies: number;
 	boosts: number;
 	favorites: number;
