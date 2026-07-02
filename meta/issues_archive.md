@@ -41,3 +41,5 @@
 - [x] [39 Design and wire emoji reaction row](issues/39-design-and-wire-emoji-reaction-row.md)
 - [x] [42 Port halftone media treatment](issues/42-port-halftone-media-treatment.md)
 - [x] [28 Retire mockup prototype](issues/28-retire-mockup-prototype.md)
+- [x] [46 Wire composer visibility selector](issues/46-wire-composer-visibility-selector.md)
+- [x] [44 Stabilize flaky composer mention avatar test](issues/44-stabilize-flaky-composer-mention-avatar-test.md)

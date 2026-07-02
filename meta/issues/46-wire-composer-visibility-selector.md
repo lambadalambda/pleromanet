@@ -24,3 +24,8 @@ The main composer's privacy control is a static "Public" button; every post is h
 
 - The handoff (`home.jsx`, `styles.css`) only designs the closed button (`composer-tool privacy`); the menu itself follows the app's user-menu pattern.
 - Requested by the user on 2026-07-02 after the handoff issues were completed.
+
+## Current Status
+
+- Done: the privacy button opens a menu with all four scopes (icon + label + description), menuitemradio semantics with aria-checked, Escape dismissal with focus restore, outside-click dismissal, and selection updating the button. `createStatus` submits the selected scope, sticky across posts; inline replies still inherit the parent's visibility.
+- Covered by the visibility-selector test in `src/routes/home-timeline.e2e.ts` asserting `visibility=private` on the wire for both a first and a subsequent post.
