@@ -2,6 +2,7 @@ import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { pleromaFixtures } from '../lib/pleroma/fixtures';
 
 export const viewports = {
+	wide: { width: 1440, height: 900 },
 	desktop: { width: 1280, height: 900 },
 	medium: { width: 1000, height: 800 },
 	tablet: { width: 880, height: 760 },

@@ -19,7 +19,7 @@ const authenticate = async (page: Page) => {
 
 test('real settings route keeps preview and tips in the shell rail and syncs edits', async ({ page }) => {
 	await authenticate(page);
-	await setViewport(page, 'desktop');
+	await setViewport(page, 'wide');
 	await page.goto('/app/settings');
 
 	await expect(page.getByRole('heading', { name: 'Profile settings' })).toBeVisible();

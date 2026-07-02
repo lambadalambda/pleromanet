@@ -41,7 +41,7 @@
 		if (e.key === 'Escape') onClose();
 	}}
 >
-	<div class="lightbox" role="dialog" aria-modal="true">
+	<div class="lightbox" role="dialog" aria-modal="true" aria-label="Attachment lightbox">
 		<div class="lightbox-head">
 			<div class="lightbox-attr">
 				{#if attribution}

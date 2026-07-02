@@ -268,7 +268,10 @@ test('real app shell stays responsive across desktop, medium, tablet, and mobile
 		await page.goto('/app/home');
 
 		await expect(page.getByTestId('app-header')).toBeVisible();
-		if (name === 'desktop' || name === 'medium') {
+		if (name === 'wide') {
+			await expect(page.getByTestId('left-sidebar')).toBeVisible();
+			await expect(page.getByTestId('right-rail')).toBeVisible();
+		} else if (name === 'desktop' || name === 'medium') {
 			await expect(page.getByTestId('left-sidebar')).toBeVisible();
 			await expect(page.getByTestId('right-rail')).toBeHidden();
 		} else {

@@ -200,7 +200,7 @@ test('opens the attachment lightbox from the design-system specimen', async ({ p
 	await page.goto('/design-system');
 
 	await page.locator('#attachments').getByRole('button', { name: 'Open lightbox →' }).click();
-	const dialog = page.getByRole('dialog');
+	const dialog = page.getByRole('dialog', { name: 'Attachment lightbox' });
 	await expect(dialog).toBeVisible();
 	await expect(page.getByText('1 of 5 · station platform at dusk')).toBeVisible();
 	await expect(dialog.locator('.lightbox-photo')).toHaveCSS('filter', 'none');
@@ -241,7 +241,7 @@ test('opens the attachment lightbox from the design-system specimen', async ({ p
 	});
 	expect(previousIsTopmost).toBe(true);
 	await dialog.getByRole('button', { name: 'Close', exact: true }).click();
-	await expect(page.getByRole('dialog')).toBeHidden();
+	await expect(page.getByRole('dialog', { name: 'Attachment lightbox' })).toBeHidden();
 });
 
 test('renders canonical audio attachment specimens', async ({ page }) => {
@@ -420,7 +420,7 @@ test('renders canonical boosted post specimens', async ({ page }) => {
 	await expect(boostedPhoto.locator('.ds-spec-note')).toHaveText('left edge runs full height regardless of content');
 	await expect(boostedPhoto.locator('.post-boost > .post-boost-attr')).toBeVisible();
 	await boostedPhoto.locator('.post-photos button').click();
-	const dialog = page.getByRole('dialog');
+	const dialog = page.getByRole('dialog', { name: 'Attachment lightbox' });
 	await expect(dialog).toBeVisible();
 	await expect(dialog.locator('.lightbox-photo')).toHaveAttribute('src', 'samples/falco.png');
 	await dialog.getByRole('button', { name: 'Close', exact: true }).click();

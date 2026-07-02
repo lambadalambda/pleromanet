@@ -54,11 +54,17 @@ test.describe('responsive regression coverage', () => {
 		await authenticate(page);
 		await mockHomeTimeline(page);
 
-		await setViewport(page, 'desktop');
+		await setViewport(page, 'wide');
 		await page.goto('/app/home');
 
 		await expect(page.getByTestId('left-sidebar')).toBeVisible();
 		await expect(page.getByTestId('right-rail')).toBeVisible();
+		await expect(page.getByRole('form', { name: 'Composer' })).toBeVisible();
+		await expectNoHorizontalOverflow(page);
+
+		await setViewport(page, 'desktop');
+		await expect(page.getByTestId('left-sidebar')).toBeVisible();
+		await expect(page.getByTestId('right-rail')).toBeHidden();
 		await expect(page.getByRole('form', { name: 'Composer' })).toBeVisible();
 		await expectNoHorizontalOverflow(page);
 
