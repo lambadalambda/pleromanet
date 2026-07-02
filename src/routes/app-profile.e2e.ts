@@ -614,3 +614,104 @@ test('profile route refreshes token-only own locked profiles after account hydra
 	await expect(profile.getByTestId('profile-posts')).toContainText('quiet CSS can still carry the voice.');
 	expect(statusRequestCount).toBeGreaterThan(0);
 });
+
+const mockRelationships = async (page: Page, accountId: string, overrides: Partial<PleromaRelationship> = {}) => {
+	await page.route('https://pleroma.example/api/v1/accounts/relationships**', async (route: Route) => {
+		await fulfillJson(route, [relationshipFor(accountId, overrides)]);
+	});
+};
+
+test('profile follow button follows a stranger optimistically and reconciles with the server', async ({ page }) => {
+	await authenticate(page);
+	await mockProfileApis(page, datagramAccount);
+	await mockRelationships(page, datagramAccount.id);
+
+	let releaseFollow = () => {};
+	const followGate = new Promise<void>((resolve) => (releaseFollow = resolve));
+	let followRequests = 0;
+	await page.route(`https://pleroma.example/api/v1/accounts/${datagramAccount.id}/follow`, async (route: Route) => {
+		followRequests += 1;
+		expect(route.request().method()).toBe('POST');
+		await followGate;
+		await fulfillJson(route, relationshipFor(datagramAccount.id, { following: true }));
+	});
+
+	await page.goto('/app/profiles/datagram@retro.social');
+	const view = page.getByTestId('profile-view');
+	const followButton = view.getByRole('button', { name: 'Follow', exact: true });
+	await expect(followButton).toBeEnabled();
+	await followButton.click();
+
+	await expect(view.getByRole('button', { name: 'Following', exact: true })).toBeVisible();
+	releaseFollow();
+	await expect(view.getByRole('button', { name: 'Following', exact: true })).toBeEnabled();
+	expect(followRequests).toBe(1);
+});
+
+test('profile follow button unfollows a followed account', async ({ page }) => {
+	const followedAccount = {
+		...datagramAccount,
+		pleroma: {
+			...datagramAccount.pleroma,
+			relationship: relationshipFor(datagramAccount.id, { following: true })
+		}
+	};
+	await authenticate(page);
+	await mockProfileApis(page, followedAccount);
+	await mockRelationships(page, followedAccount.id, { following: true });
+	await page.route(`https://pleroma.example/api/v1/accounts/${followedAccount.id}/unfollow`, async (route: Route) => {
+		await fulfillJson(route, relationshipFor(followedAccount.id, { following: false }));
+	});
+
+	await page.goto('/app/profiles/datagram@retro.social');
+	const view = page.getByTestId('profile-view');
+	await view.getByRole('button', { name: 'Following', exact: true }).click();
+	await expect(view.getByRole('button', { name: 'Follow', exact: true })).toBeEnabled();
+});
+
+test('profile follow of a locked account lands in the requested state', async ({ page }) => {
+	const lockedAccount = { ...datagramAccount, locked: true };
+	await authenticate(page);
+	await mockProfileApis(page, lockedAccount);
+	await mockRelationships(page, lockedAccount.id);
+	await page.route(`https://pleroma.example/api/v1/accounts/${lockedAccount.id}/follow`, async (route: Route) => {
+		await fulfillJson(route, relationshipFor(lockedAccount.id, { requested: true }));
+	});
+
+	await page.goto('/app/profiles/datagram@retro.social');
+	const view = page.getByTestId('profile-view');
+	await view.getByRole('button', { name: 'Follow', exact: true }).click();
+	await expect(view.getByRole('button', { name: 'Requested', exact: true })).toBeVisible();
+});
+
+test('profile follow failure rolls back and surfaces an error', async ({ page }) => {
+	await authenticate(page);
+	await mockProfileApis(page, datagramAccount);
+	await mockRelationships(page, datagramAccount.id);
+	await page.route(`https://pleroma.example/api/v1/accounts/${datagramAccount.id}/follow`, async (route: Route) => {
+		await fulfillJson(route, { error: 'Internal server error' }, 500);
+	});
+
+	await page.goto('/app/profiles/datagram@retro.social');
+	const view = page.getByTestId('profile-view');
+	await view.getByRole('button', { name: 'Follow', exact: true }).click();
+
+	await expect(page.getByTestId('profile-follow-error')).toBeVisible();
+	await expect(view.getByRole('button', { name: 'Follow', exact: true })).toBeEnabled();
+});
+
+test('profile follow signs out and redirects when unauthorized', async ({ page }) => {
+	await authenticate(page);
+	await mockProfileApis(page, datagramAccount);
+	await mockRelationships(page, datagramAccount.id);
+	await page.route(`https://pleroma.example/api/v1/accounts/${datagramAccount.id}/follow`, async (route: Route) => {
+		await fulfillJson(route, { error: 'The access token is invalid' }, 401);
+	});
+
+	await page.goto('/app/profiles/datagram@retro.social');
+	await page.getByTestId('profile-view').getByRole('button', { name: 'Follow', exact: true }).click();
+
+	await page.waitForURL('/');
+	const storedSession = await page.evaluate(() => window.localStorage.getItem('pleromanet.session'));
+	expect(storedSession).toBeNull();
+});

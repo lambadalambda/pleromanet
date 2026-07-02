@@ -175,6 +175,8 @@
 	let appPublicTimelineState = $state<AppPublicTimelineState>({ status: 'idle' });
 	let threadState = $state<ThreadState>({ status: 'idle' });
 	let profileRouteState = $state<ProfileState>({ status: 'idle' });
+	let profileFollowPending = $state(false);
+	let profileFollowError = $state<PleromaRequestErrorView | null>(null);
 	let notificationState = $state<NotificationState>({ status: 'idle' });
 	let searchState = $state<SearchState>({ status: 'idle' });
 	let headerSearchState = $state<SearchState>({ status: 'idle' });
@@ -2562,10 +2564,64 @@
 			}
 		};
 	};
+	const setProfileFollowState = (followState: PleromaProfileFollowState) => {
+		if (profileRouteState.status !== 'success') return;
+		profileRouteState = {
+			...profileRouteState,
+			data: { ...profileRouteState.data, profile: { ...profileRouteState.data.profile, followState } }
+		};
+	};
+	const toggleProfileFollow = async () => {
+		const session = currentSession;
+		if (!session || profileRouteState.status !== 'success' || profileFollowPending) return;
+
+		const targetProfile = profileRouteState.data.profile;
+		const previous = targetProfile.followState;
+		if (previous === 'self' || previous === 'blocked') return;
+
+		const unfollowing = previous === 'following' || previous === 'mutual' || previous === 'requested';
+		const optimistic: PleromaProfileFollowState = unfollowing ? 'stranger' : targetProfile.relations.locked ? 'requested' : 'following';
+		const requestSessionKey = sessionKey(session);
+		profileFollowPending = true;
+		profileFollowError = null;
+		setProfileFollowState(optimistic);
+
+		try {
+			const client = createPleromaClient({
+				instanceUrl: session.instanceUrl,
+				accessToken: session.accessToken,
+				fetch: window.fetch.bind(window)
+			});
+			const relationship = unfollowing
+				? await client.unfollowAccount(targetProfile.id)
+				: await client.followAccount(targetProfile.id);
+			if (!isCurrentSessionRequest(requestSessionKey)) return;
+
+			setProfileFollowState(followStateFromRelationship(relationship, targetProfile.id, session.account?.id));
+			const cached = getCachedPleromaAccount(accountCache, targetProfile.id);
+			if (cached) upsertAccountCache([{ ...cached, pleroma: { ...cached.pleroma, relationship } }], { relationship: 'replace' });
+		} catch (error) {
+			if (!isCurrentSessionRequest(requestSessionKey)) return;
+
+			const normalized = normalizePleromaRequestError(error);
+			if (normalized.reauthRequired) {
+				signOutPleroma(localStorage);
+				redirectToLanding();
+				return;
+			}
+
+			setProfileFollowState(previous);
+			profileFollowError = normalized;
+		} finally {
+			if (isCurrentSessionRequest(requestSessionKey)) profileFollowPending = false;
+		}
+	};
 	const loadProfileRoute = async (session: PleromaSession, handle: string) => {
 		const requestSessionKey = sessionKey(session);
 		const requestId = profileRouteRequestId + 1;
 		profileRouteRequestId = requestId;
+		profileFollowPending = false;
+		profileFollowError = null;
 
 		if (!handle && !session.account) {
 			profileRouteState = {
@@ -3609,9 +3665,12 @@
 								pinned={profileRouteState.data.pinned}
 								media={profileRouteState.data.media}
 								timelineLoading={profileRouteState.timelineStatus === 'loading'}
+								followPending={profileFollowPending}
+								followError={profileFollowError ? `${profileFollowError.title}: ${profileFollowError.message}` : null}
 								onPostOpen={(post) => openThread(post)}
 								onPostAction={handleProfilePostAction}
 								onEditProfile={() => goto('/app/settings')}
+								onFollowToggle={toggleProfileFollow}
 							/>
 						{/if}
 					</section>

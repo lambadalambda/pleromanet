@@ -16,12 +16,17 @@
 		pinned?: ProfilePost[];
 		media?: ProfileMediaItem[];
 		timelineLoading?: boolean;
+		followPending?: boolean;
+		followError?: string | null;
+		signedOut?: boolean;
 		onPostOpen?: (post: ProfilePost) => void;
 		onPostAction?: (post: ProfilePost, key: string) => void;
 		onEditProfile?: () => void;
+		onFollowToggle?: () => void;
+		onSignIn?: () => void;
 	};
 
-	let { profile, posts = [], replies = [], pinned = [], media = [], timelineLoading = false, onPostOpen, onPostAction, onEditProfile }: Props = $props();
+	let { profile, posts = [], replies = [], pinned = [], media = [], timelineLoading = false, followPending = false, followError = null, signedOut = false, onPostOpen, onPostAction, onEditProfile, onFollowToggle, onSignIn }: Props = $props();
 	let tab = $state<ProfileTab>('posts');
 	let pinnedExpanded = $state(false);
 	let locked = $derived(profile.relations.locked && !['mutual', 'following', 'self'].includes(profile.followState));
@@ -36,7 +41,31 @@
 		state === 'requested' ? 'Requested' :
 		state === 'blocked' ? 'Blocked' :
 		'Follow';
-	const followTitle = (state: PleromaProfileFollowState) => state === 'self' ? 'Edit profile settings' : 'Follow controls are not wired yet';
+	const followTitle = (state: PleromaProfileFollowState) =>
+		state === 'self' ? 'Edit profile settings' :
+		signedOut ? 'Sign in to follow' :
+		!onFollowToggle ? 'Follow controls are not wired yet' :
+		state === 'following' || state === 'mutual' ? `Unfollow ${profile.handle}` :
+		state === 'requested' ? 'Cancel follow request' :
+		state === 'blocked' ? 'You have blocked this account' :
+		`Follow ${profile.handle}`;
+	let followButtonLabel = $derived(signedOut && profile.followState !== 'self' ? 'Sign in to follow' : followLabel(profile.followState));
+	let followButtonDisabled = $derived(
+		profile.followState === 'self' ? false :
+		signedOut ? false :
+		profile.followState === 'blocked' || followPending || !onFollowToggle
+	);
+	const handleFollowClick = () => {
+		if (profile.followState === 'self') {
+			onEditProfile?.();
+			return;
+		}
+		if (signedOut) {
+			onSignIn?.();
+			return;
+		}
+		onFollowToggle?.();
+	};
 </script>
 
 <section class="pp-page" data-testid="profile-view" aria-labelledby="profile-heading">
@@ -50,8 +79,8 @@
 			<div class="pp-v1-id-top">
 				<Avatar avatarUrl={profile.avatarUrl} alt={`${profile.displayName} avatar`} profileHref={href} size={104} className="pp-v1-av" />
 				<div class="pp-v1-actions">
-					<button type="button" class="pp-follow-btn" class:is-following={profile.followState === 'following' || profile.followState === 'mutual' || profile.followState === 'self'} class:is-blocked={profile.followState === 'blocked'} title={followTitle(profile.followState)} disabled={profile.followState !== 'self'} onclick={() => onEditProfile?.()}>
-						<span class="pp-btn-l">{followLabel(profile.followState)}</span>
+					<button type="button" class="pp-follow-btn" class:is-following={profile.followState === 'following' || profile.followState === 'mutual' || profile.followState === 'self'} class:is-blocked={profile.followState === 'blocked'} title={followTitle(profile.followState)} disabled={followButtonDisabled} onclick={handleFollowClick}>
+						<span class="pp-btn-l">{followButtonLabel}</span>
 					</button>
 					{#if profile.followState !== 'self'}
 						<button type="button" class="pp-icon-btn" title="Notifications not wired yet" aria-label="Profile notifications" disabled><Icon name="bell" width={14} height={14} /></button>
@@ -59,6 +88,9 @@
 					<button type="button" class="pp-icon-btn" title="More profile actions not wired yet" aria-label="More profile actions" disabled><Icon name="more" width={14} height={14} /></button>
 				</div>
 			</div>
+			{#if followError}
+				<div class="pp-follow-error" role="alert" data-testid="profile-follow-error">{followError}</div>
+			{/if}
 			<h1 id="profile-heading" class="pp-v1-name">
 				<RichText text={profile.displayName} emojis={profile.displayNameEmojis} />
 				{#if profile.relations.locked}<span class="pp-relation-pill locked"><Icon name="lock" width={9} height={9} /> locked</span>{/if}
@@ -110,8 +142,12 @@
 			<div class="pp-locked">
 				<div class="pp-locked-icon"><Icon name="lock" width={16} height={16} /></div>
 				<div class="pp-locked-h">This account is locked</div>
-				<div class="pp-locked-s">{profile.displayName} approves followers manually. Follow requests will be wired with account actions.</div>
-				<button type="button" class="pp-follow-btn" disabled>Send follow request</button>
+				<div class="pp-locked-s">{profile.displayName} approves followers manually. Send a follow request to see their posts.</div>
+				{#if signedOut}
+					<button type="button" class="pp-follow-btn" onclick={() => onSignIn?.()}>Sign in to follow</button>
+				{:else}
+					<button type="button" class="pp-follow-btn" disabled={!onFollowToggle || followPending || profile.followState === 'blocked'} onclick={() => onFollowToggle?.()}>{profile.followState === 'requested' ? 'Requested' : 'Send follow request'}</button>
+				{/if}
 			</div>
 		{:else if empty}
 			<div class="pp-empty">

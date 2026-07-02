@@ -6210,6 +6210,15 @@ body[data-theme='simoun'] .pill {
 	font-family: var(--mono);
 	font-size: 12px;
 }
+.pp-follow-error {
+	margin: 8px 22px 0;
+	padding: 8px 12px;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	background: color-mix(in srgb, var(--bad) 12%, var(--panel));
+	color: var(--ink-2);
+	font-size: 12.5px;
+}
 .pp-v1-bio {
 	max-width: 60ch;
 	padding: 4px 22px 14px;
