@@ -1,3 +1,3 @@
 
 - [ ] [28 Retire mockup prototype](issues/28-retire-mockup-prototype.md)
-- [ ] [42 Port halftone media treatment](issues/42-port-halftone-media-treatment.md)
+- [ ] [44 Stabilize flaky composer mention avatar test](issues/44-stabilize-flaky-composer-mention-avatar-test.md)
