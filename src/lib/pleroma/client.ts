@@ -261,6 +261,13 @@ export const createPleromaClient = (config: ClientConfig) => {
 				auth: 'optional'
 			}),
 
+		lookupAccount: (acct: string) =>
+			http.request<PleromaAccount>({
+				path: '/api/v1/accounts/lookup',
+				query: { acct },
+				auth: 'optional'
+			}),
+
 		getCustomEmojis: () =>
 			http.request<PleromaCustomEmoji[]>({
 				path: '/api/v1/custom_emojis',

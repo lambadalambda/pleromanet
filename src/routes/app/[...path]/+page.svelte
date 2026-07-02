@@ -2652,6 +2652,12 @@
 		const matches = await client.searchAccounts({ q: handle, limit: 5, resolve: true });
 		const exactMatch = matches.find((account) => accountMatchesProfileHandle(account, handle));
 		if (exactMatch) return exactMatch;
+		try {
+			const lookedUp = await client.lookupAccount(handle);
+			if (accountMatchesProfileHandle(lookedUp, handle)) return lookedUp;
+		} catch {
+			// Lookup misses fall through to the direct account fetch.
+		}
 		const account = await client.getAccount(handle);
 		return account;
 	};

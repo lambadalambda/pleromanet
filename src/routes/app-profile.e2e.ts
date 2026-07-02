@@ -744,3 +744,24 @@ test('signed-out visitors can view a public profile with sign-in prompts', async
 	await view.getByRole('button', { name: 'Sign in to follow' }).click();
 	await page.waitForURL('/');
 });
+
+test('signed-out visitors resolve remote profiles through account lookup', async ({ page }) => {
+	await page.route('https://pleroma.social/api/v1/accounts/search**', async (route: Route) => {
+		await fulfillJson(route, [pleromaFixtures.account]);
+	});
+	await page.route('https://pleroma.social/api/v1/accounts/lookup**', async (route: Route) => {
+		const url = new URL(route.request().url());
+		expect(url.searchParams.get('acct')).toBe('datagram@retro.social');
+		expect(route.request().headers().authorization).toBeUndefined();
+		await fulfillJson(route, datagramAccount);
+	});
+	await page.route(`https://pleroma.social/api/v1/accounts/${datagramAccount.id}/statuses**`, async (route: Route) => {
+		const url = new URL(route.request().url());
+		await fulfillJson(route, url.searchParams.get('pinned') === 'true' ? [] : postStatuses.map((status) => ({ ...status, account: datagramAccount })));
+	});
+
+	await page.goto('/app/profiles/datagram@retro.social');
+	const view = page.getByTestId('profile-view');
+	await expect(view.getByRole('heading', { name: 'datagram' })).toBeVisible();
+	await expect(view.getByRole('button', { name: 'Sign in to follow' })).toBeVisible();
+});
