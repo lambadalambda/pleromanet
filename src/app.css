@@ -6600,6 +6600,29 @@ body[data-theme='simoun'] .pill {
 	line-height: 1.5;
 }
 
+/* ===== Halftone media treatment (progressive enhancement) ===== */
+.halftone-media {
+	position: relative;
+	overflow: hidden;
+	border-radius: var(--radius);
+}
+.halftone-media .halftone-original {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+.halftone-media .halftone-canvas {
+	position: absolute;
+	inset: 0;
+	display: block;
+	opacity: 0;
+	transition: opacity 240ms ease;
+	pointer-events: none;
+}
+.halftone-media .halftone-canvas.ready { opacity: 1; }
+.halftone-media:hover .halftone-canvas.ready { opacity: 0; }
+
 /* ===== Emoji reaction row (V3c letterpress stamps) ===== */
 .pm-reactions {
 	display: flex;

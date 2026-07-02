@@ -12,6 +12,7 @@
 	import Pill from '$lib/rebuild/Pill.svelte';
 	import Post from '$lib/rebuild/Post.svelte';
 	import ProfileSideRail from '$lib/rebuild/ProfileSideRail.svelte';
+	import HalftoneImage from '$lib/rebuild/HalftoneImage.svelte';
 	import ProfileView from '$lib/rebuild/ProfileView.svelte';
 	import ReplyPost from '$lib/rebuild/ReplyPost.svelte';
 	import CompactAudio from '$lib/rebuild/CompactAudio.svelte';
@@ -1181,6 +1182,38 @@
 						<div class="ds-spec-foot">
 							<span class="ds-spec-label">Try it</span>
 							<span class="ds-spec-note">click any photo above, or this button to open with the full sample set</span>
+						</div>
+					</div>
+
+					<div class="ds-sub-h">Media treatments</div>
+					<p class="ds-sub" style="margin-bottom:14px">Feed photos default to the theme duotone with hover-to-reveal. The halftone treatment is the print-feel enhancement from the handoff — classic hex grid, 9px cells, contrast 6, light grain — rendered through a shared WebGL canvas with the plain image kept as the fallback when WebGL is unavailable.</p>
+					<div class="ds-grid ds-grid-3" data-testid="media-treatments">
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<img src="samples/cat-bank.webp" alt="cat on a river bank" width="280" height="200" style="display:block;width:100%;height:200px;object-fit:cover;border-radius:6px" />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Original</span>
+								<span class="ds-spec-note">no treatment</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<img src="samples/cat-bank.webp" alt="cat on a river bank" width="280" height="200" style="display:block;width:100%;height:200px;object-fit:cover;border-radius:6px;filter:var(--photo-filter)" data-testid="treatment-duotone" />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Duotone · feed default</span>
+								<span class="ds-spec-note">SVG feColorMatrix per theme</span>
+							</div>
+						</div>
+						<div class="ds-spec">
+							<div class="ds-spec-stage">
+								<HalftoneImage src="samples/cat-bank.webp" alt="cat on a river bank" width={280} height={200} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Halftone · 9px hex classic</span>
+								<span class="ds-spec-note">WebGL shader · falls back to the original image</span>
+							</div>
 						</div>
 					</div>
 				</div>

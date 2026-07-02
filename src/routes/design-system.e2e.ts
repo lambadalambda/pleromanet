@@ -659,3 +659,39 @@ test('renders canonical emoji reaction row specimen', async ({ page }) => {
 
 	await expectNoHorizontalOverflow(page);
 });
+
+test('renders media treatment specimens with halftone enhancement', async ({ page }) => {
+	await setViewport(page, 'desktop');
+	await page.goto('/design-system');
+
+	const treatments = page.getByTestId('media-treatments');
+	await treatments.scrollIntoViewIfNeeded();
+	await expect(treatments.getByText('Original', { exact: true })).toBeVisible();
+	await expect(treatments.getByTestId('treatment-duotone')).toBeVisible();
+
+	const halftone = treatments.locator('.halftone-media');
+	await expect(halftone).toHaveAttribute('data-halftone-state', 'ready');
+	await expect(halftone.locator('img.halftone-original')).toHaveAttribute('alt', 'cat on a river bank');
+	await expect(halftone.locator('canvas.halftone-canvas.ready')).toBeVisible();
+});
+
+test('halftone media falls back to the original image without WebGL', async ({ page }) => {
+	await page.addInitScript(() => {
+		const original = HTMLCanvasElement.prototype.getContext;
+		Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+			configurable: true,
+			value: function (this: HTMLCanvasElement, contextId: string, ...args: unknown[]) {
+				if (contextId === 'webgl2' || contextId === 'webgl') return null;
+				return original.call(this, contextId as never, ...(args as never[]));
+			}
+		});
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/design-system');
+
+	const halftone = page.getByTestId('media-treatments').locator('.halftone-media');
+	await halftone.scrollIntoViewIfNeeded();
+	await expect(halftone).toHaveAttribute('data-halftone-state', 'fallback');
+	await expect(halftone.locator('img.halftone-original')).toBeVisible();
+	await expect(halftone.locator('canvas.halftone-canvas.ready')).toHaveCount(0);
+});
