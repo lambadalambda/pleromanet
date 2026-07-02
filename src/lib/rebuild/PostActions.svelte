@@ -7,18 +7,33 @@
 			boosts: number;
 			favs: number;
 			copyJson?: unknown;
+			bookmarked?: boolean;
+			own?: boolean;
+			authorHandle?: string;
+			statusUrl?: string;
 			actions: { reply: boolean; boost: boolean; fav: boolean };
 		};
 		disabledActions?: { reply?: boolean; boost?: boolean; fav?: boolean };
 		replyExpanded?: boolean;
 		replyControlsId?: string;
+		canManage?: boolean;
 		onAction?: (key: string) => void;
 		onReact?: (anchor: HTMLElement) => void;
 	};
 
-	let { post, disabledActions = {}, replyExpanded, replyControlsId, onAction, onReact }: Props = $props();
+	let { post, disabledActions = {}, replyExpanded, replyControlsId, canManage = false, onAction, onReact }: Props = $props();
 	let menuOpen = $state(false);
+	let confirmDelete = $state(false);
 	let copyStatus = $state('');
+
+	const closeMenu = () => {
+		menuOpen = false;
+		confirmDelete = false;
+	};
+	const runAction = (key: string) => {
+		closeMenu();
+		onAction?.(key);
+	};
 
 	const writeClipboard = async (text: string) => {
 		if (navigator.clipboard?.writeText) {
@@ -42,7 +57,7 @@
 		try {
 			await writeClipboard(JSON.stringify(post.copyJson ?? post, null, 2));
 			copyStatus = 'Copied post JSON';
-			menuOpen = false;
+			closeMenu();
 		} catch {
 			copyStatus = 'Copy failed';
 		}
@@ -98,13 +113,30 @@
 			aria-label="More post actions"
 			aria-haspopup="menu"
 			aria-expanded={menuOpen}
-			onclick={() => (menuOpen = !menuOpen)}
+			onclick={() => (menuOpen ? closeMenu() : (menuOpen = true))}
 		>
 			<Icon name="more" width={16} height={16} />
 		</button>
 		{#if menuOpen}
 			<div class="post-action-menu" role="menu">
+				{#if canManage && post.bookmarked !== undefined}
+					<button type="button" role="menuitem" onclick={() => runAction('bookmark')}>{post.bookmarked ? 'Remove bookmark' : 'Bookmark'}</button>
+				{/if}
+				{#if post.statusUrl}
+					<button type="button" role="menuitem" onclick={() => runAction('copy-link')}>Copy link to post</button>
+				{/if}
 				<button type="button" role="menuitem" onclick={copyPostJson}>Copy post JSON</button>
+				{#if canManage && post.own}
+					{#if confirmDelete}
+						<button type="button" role="menuitem" class="menu-danger" onclick={() => runAction('delete')}>Confirm delete</button>
+						<button type="button" role="menuitem" onclick={() => (confirmDelete = false)}>Cancel</button>
+					{:else}
+						<button type="button" role="menuitem" class="menu-danger" onclick={() => (confirmDelete = true)}>Delete post</button>
+					{/if}
+				{:else if canManage && post.authorHandle}
+					<button type="button" role="menuitem" onclick={() => runAction('mute')}>Mute {post.authorHandle}</button>
+					<button type="button" role="menuitem" class="menu-danger" onclick={() => runAction('block')}>Block {post.authorHandle}</button>
+				{/if}
 			</div>
 		{/if}
 		{#if copyStatus}

@@ -31,6 +31,10 @@
 			quotedPost?: Record<string, unknown>;
 			mentionAccts?: Record<string, string>;
 			reactions?: PleromaReactionView[];
+			bookmarked?: boolean;
+			own?: boolean;
+			authorHandle?: string;
+			statusUrl?: string;
 			replies: number;
 			boosts: number;
 			favs: number;
@@ -38,12 +42,13 @@
 		};
 		replyExpanded?: boolean;
 		replyControlsId?: string;
+		canManage?: boolean;
 		onAction?: (key: string) => void;
 		onReact?: (anchor: HTMLElement) => void;
 		onOpen?: () => void;
 	};
 
-	let { post, replyExpanded, replyControlsId, onAction, onReact, onOpen }: Props = $props();
+	let { post, replyExpanded, replyControlsId, canManage = false, onAction, onReact, onOpen }: Props = $props();
 
 	const handleLightbox = (idx: number) => {
 		const attachments = normalizeRenderableAttachments(post);
@@ -68,7 +73,7 @@
 			<PostMedia post={post} onOpen={handleLightbox} />
 		</PostCW>
 		<PostReactions reactions={post.reactions} onToggle={onAction ? (reaction) => onAction(`reaction:${reaction.name}`) : undefined} onAdd={onReact} />
-		<PostActions post={post} replyExpanded={replyExpanded} replyControlsId={replyControlsId} onAction={onAction} onReact={onReact} />
+		<PostActions post={post} replyExpanded={replyExpanded} replyControlsId={replyControlsId} canManage={canManage} onAction={onAction} onReact={onReact} />
 	</div>
 {/snippet}
 

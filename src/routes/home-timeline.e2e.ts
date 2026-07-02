@@ -2859,3 +2859,111 @@ test('home timeline add-reaction picker submits a unicode reaction from the stam
 	await expect(reactions.getByRole('button', { name: /🐱 · 1 reaction · you reacted/ })).toBeVisible();
 	expect(decodeURIComponent(reactionPath)).toContain('/reactions/🐱');
 });
+
+test('home timeline bookmark button toggles and reconciles with the API', async ({ page }) => {
+	await authenticate(page);
+	const base = statusWithText('status-bookmark', 'save me for later');
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [base]);
+	});
+	const calls: string[] = [];
+	await page.route('https://pleroma.example/api/v1/statuses/status-bookmark/bookmark', async (route) => {
+		calls.push(route.request().method());
+		await fulfillHome(route, { ...base, bookmarked: true });
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-bookmark/unbookmark', async (route) => {
+		calls.push('UNBOOKMARK');
+		await fulfillHome(route, { ...base, bookmarked: false });
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('.post').filter({ hasText: 'save me for later' }).first();
+	await post.getByRole('button', { name: 'More post actions' }).click();
+	await post.getByRole('menuitem', { name: 'Bookmark' }).click();
+	await post.getByRole('button', { name: 'More post actions' }).click();
+	await expect(post.getByRole('menuitem', { name: 'Remove bookmark' })).toBeVisible();
+	await post.getByRole('menuitem', { name: 'Remove bookmark' }).click();
+	await post.getByRole('button', { name: 'More post actions' }).click();
+	await expect(post.getByRole('menuitem', { name: 'Bookmark' })).toBeVisible();
+	expect(calls[0]).toBe('POST');
+	expect(calls[1]).toBe('UNBOOKMARK');
+});
+
+test('home timeline post menu copies the status link', async ({ page }) => {
+	await authenticate(page);
+	await page.addInitScript(() => {
+		Object.defineProperty(navigator, 'clipboard', {
+			configurable: true,
+			value: { writeText: async (text: string) => { window.localStorage.setItem('pleromanet.copied-link', text); } }
+		});
+	});
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [statusWithText('status-link', 'link me')]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('.post').filter({ hasText: 'link me' }).first();
+	await post.getByRole('button', { name: 'More post actions' }).click();
+	await post.getByRole('menuitem', { name: 'Copy link to post' }).click();
+
+	await expect(page.getByTestId('post-control-toast')).toContainText('Link copied');
+	const copied = await page.evaluate(() => window.localStorage.getItem('pleromanet.copied-link'));
+	expect(copied).toBe('https://pleroma.example/notice/status-link');
+});
+
+test('home timeline deletes an own post after confirmation', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [statusWithText('status-own', 'delete me please')]);
+	});
+	let deleteMethod = '';
+	await page.route('https://pleroma.example/api/v1/statuses/status-own', async (route) => {
+		deleteMethod = route.request().method();
+		await fulfillHome(route, statusWithText('status-own', 'delete me please'));
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('.post').filter({ hasText: 'delete me please' }).first();
+	await post.getByRole('button', { name: 'More post actions' }).click();
+	await expect(post.getByRole('menuitem', { name: 'Mute @quietadmin@pleroma.example' })).toHaveCount(0);
+	await post.getByRole('menuitem', { name: 'Delete post' }).click();
+	await post.getByRole('menuitem', { name: 'Confirm delete' }).click();
+
+	expect(deleteMethod).toBe('DELETE');
+	await expect(page.getByTestId('home-timeline-list')).not.toContainText('delete me please');
+	await expect(page.getByTestId('post-control-toast')).toContainText('Post deleted');
+});
+
+test('home timeline mutes another author and removes their posts', async ({ page }) => {
+	await authenticate(page);
+	const foreign = {
+		...statusWithText('status-foreign', 'noise from elsewhere'),
+		account: { ...pleromaFixtures.account, id: 'account-noise', username: 'noise', acct: 'noise@static.zone', display_name: 'noise' }
+	};
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [foreign, statusWithText('status-mine', 'my own quiet post')]);
+	});
+	let muteCalled = false;
+	await page.route('https://pleroma.example/api/v1/accounts/account-noise/mute', async (route) => {
+		muteCalled = true;
+		await fulfillHome(route, { ...pleromaFixtures.relationship, id: 'account-noise', muting: true });
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('.post').filter({ hasText: 'noise from elsewhere' }).first();
+	await post.getByRole('button', { name: 'More post actions' }).click();
+	await post.getByRole('menuitem', { name: 'Mute @noise@static.zone' }).click();
+
+	expect(muteCalled).toBe(true);
+	await expect(page.getByTestId('home-timeline-list')).not.toContainText('noise from elsewhere');
+	await expect(page.getByTestId('home-timeline-list')).toContainText('my own quiet post');
+	await expect(page.getByTestId('post-control-toast')).toContainText('Muted @noise@static.zone');
+});

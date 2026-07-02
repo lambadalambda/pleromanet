@@ -24,6 +24,10 @@
 		body?: string;
 		bodyEmojis?: CustomEmoji[];
 		mentionAccts?: Record<string, string>;
+		bookmarked?: boolean;
+		own?: boolean;
+		authorHandle?: string;
+		statusUrl?: string;
 		addressees?: string[];
 		quotedPost?: Record<string, unknown>;
 		replies: number;
@@ -43,6 +47,7 @@
 		nestedReplies?: ThreadReply[];
 		onAction?: (id: string | number | undefined, key: string) => void;
 		onReact?: (id: string | number | undefined, anchor: HTMLElement) => void;
+		canManage?: boolean;
 		inlineReply?: InlineReplyBinding | null;
 		expandedReplyIds?: Record<string, boolean>;
 		onShowNested?: (id: string | number | undefined) => void;
@@ -54,6 +59,7 @@
 		nestedReplies = [],
 		onAction,
 		onReact,
+		canManage = false,
 		inlineReply = null,
 		expandedReplyIds = {},
 		onShowNested
@@ -89,7 +95,7 @@
 				<QuotedPost quoted={post.quotedPost} />
 				<PostMedia post={post} onOpen={(idx) => handleLightbox(post, idx)} />
 			</PostCW>
-			<PostActions post={post} replyExpanded={inlineReplyOpenFor(post)} replyControlsId={inlineReplyOpenFor(post) ? inlineReplyComposerId(post) : undefined} onAction={(key) => onAction?.(post.id, key)} onReact={onReact ? (anchor) => onReact(post.id, anchor) : undefined} />
+			<PostActions post={post} replyExpanded={inlineReplyOpenFor(post)} replyControlsId={inlineReplyOpenFor(post) ? inlineReplyComposerId(post) : undefined} onAction={(key) => onAction?.(post.id, key)} onReact={onReact ? (anchor) => onReact(post.id, anchor) : undefined} canManage={canManage} />
 			{#if nestedReplies.length > 0 && !nestedRepliesOpenFor(post)}
 				<button type="button" class="show-replies" onclick={() => onShowNested?.(post.id)}>
 					<span class="show-replies-line"></span>
@@ -115,6 +121,7 @@
 				nestedReplies={reply.nestedReplies}
 				onAction={onAction}
 				onReact={onReact}
+				canManage={canManage}
 				inlineReply={inlineReply}
 				expandedReplyIds={expandedReplyIds}
 				onShowNested={onShowNested}

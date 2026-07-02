@@ -22,12 +22,13 @@
 		onPostOpen?: (post: ProfilePost) => void;
 		onPostAction?: (post: ProfilePost, key: string) => void;
 		onPostReact?: (post: ProfilePost, anchor: HTMLElement) => void;
+		canManage?: boolean;
 		onEditProfile?: () => void;
 		onFollowToggle?: () => void;
 		onSignIn?: () => void;
 	};
 
-	let { profile, posts = [], replies = [], pinned = [], media = [], timelineLoading = false, followPending = false, followError = null, signedOut = false, onPostOpen, onPostAction, onPostReact, onEditProfile, onFollowToggle, onSignIn }: Props = $props();
+	let { profile, posts = [], replies = [], pinned = [], media = [], timelineLoading = false, followPending = false, followError = null, signedOut = false, onPostOpen, onPostAction, onPostReact, canManage = false, onEditProfile, onFollowToggle, onSignIn }: Props = $props();
 	let tab = $state<ProfileTab>('posts');
 	let pinnedExpanded = $state(false);
 	let locked = $derived(profile.relations.locked && !['mutual', 'following', 'self'].includes(profile.followState));
@@ -121,7 +122,7 @@
 				</div>
 				<div>
 					{#each visiblePinned as post (post.id)}
-						<Post {post} onOpen={() => onPostOpen?.(post)} onAction={(key) => onPostAction?.(post, key)} onReact={onPostReact ? (anchor) => onPostReact(post, anchor) : undefined} />
+						<Post {post} onOpen={() => onPostOpen?.(post)} onAction={(key) => onPostAction?.(post, key)} onReact={onPostReact ? (anchor) => onPostReact(post, anchor) : undefined} canManage={canManage} />
 					{/each}
 				</div>
 			</div>
@@ -178,7 +179,7 @@
 		{:else}
 			<div data-testid="profile-posts">
 				{#each tabPosts as post (post.id)}
-					<Post {post} onOpen={() => onPostOpen?.(post)} onAction={(key) => onPostAction?.(post, key)} onReact={onPostReact ? (anchor) => onPostReact(post, anchor) : undefined} />
+					<Post {post} onOpen={() => onPostOpen?.(post)} onAction={(key) => onPostAction?.(post, key)} onReact={onPostReact ? (anchor) => onPostReact(post, anchor) : undefined} canManage={canManage} />
 				{/each}
 			</div>
 		{/if}

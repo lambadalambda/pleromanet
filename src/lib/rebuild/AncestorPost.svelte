@@ -24,6 +24,10 @@
 		mentionAccts?: Record<string, string>;
 		addressees?: string[];
 		quotedPost?: Record<string, unknown>;
+		bookmarked?: boolean;
+		own?: boolean;
+		authorHandle?: string;
+		statusUrl?: string;
 		replies: number;
 		boosts: number;
 		favs: number;
@@ -36,9 +40,10 @@
 		replyControlsId?: string;
 		onAction?: (id: string | number | undefined, key: string) => void;
 		onReact?: (id: string | number | undefined, anchor: HTMLElement) => void;
+		canManage?: boolean;
 	};
 
-	let { post, replyExpanded, replyControlsId, onAction, onReact }: Props = $props();
+	let { post, replyExpanded, replyControlsId, onAction, onReact, canManage = false }: Props = $props();
 
 	const handleLightbox = (idx: number) => {
 		const attachments = normalizeRenderableAttachments(post);
@@ -65,7 +70,7 @@
 				<QuotedPost quoted={post.quotedPost} />
 				<PostMedia post={post} onOpen={handleLightbox} />
 			</PostCW>
-			<PostActions post={post} replyExpanded={replyExpanded} replyControlsId={replyControlsId} onAction={(key) => onAction?.(post.id, key)} onReact={onReact ? (anchor) => onReact(post.id, anchor) : undefined} />
+			<PostActions post={post} replyExpanded={replyExpanded} replyControlsId={replyControlsId} onAction={(key) => onAction?.(post.id, key)} onReact={onReact ? (anchor) => onReact(post.id, anchor) : undefined} canManage={canManage} />
 		</div>
 	</div>
 </PostBoost>

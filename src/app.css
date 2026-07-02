@@ -3021,6 +3021,22 @@ a.suggest-name:hover { color: var(--accent-ink); }
 	background: var(--accent-soft-2);
 	color: var(--accent-ink);
 }
+.post-action-menu button.menu-danger { color: var(--bad); }
+.post-action-menu button.menu-danger:hover { background: color-mix(in srgb, var(--bad) 14%, var(--panel)); color: var(--bad); }
+.post-control-toast {
+	position: fixed;
+	left: 50%;
+	bottom: 28px;
+	z-index: 120;
+	transform: translateX(-50%);
+	padding: 10px 16px;
+	border-radius: 999px;
+	background: var(--ink);
+	color: var(--panel);
+	font-size: 13px;
+	box-shadow: 0 10px 28px rgba(28, 32, 70, 0.28);
+	animation: userMenuIn 0.16s ease;
+}
 .post-copy-status {
 	position: absolute;
 	right: 0;

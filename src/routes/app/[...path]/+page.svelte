@@ -33,6 +33,7 @@
 		prependTimelineItems,
 		queueNewerTimelineItems,
 		type PaginatedTimelineBaseState,
+		type PaginatedTimelineState,
 		type PaginatedTimelineSuccess
 	} from '$lib/pleroma/timeline-state';
 	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, mediaPlaceholderText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit, type PleromaAccountView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaProfileSettingsView, type PleromaReactionView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
@@ -45,7 +46,7 @@
 	import { onMount, untrack } from 'svelte';
 	import { env } from '$env/dynamic/public';
 
-	type AppRoute = 'home' | 'local' | 'federated' | 'public' | 'thread' | 'profile' | 'notifications' | 'explore' | 'search' | 'settings';
+	type AppRoute = 'home' | 'local' | 'federated' | 'public' | 'thread' | 'profile' | 'notifications' | 'explore' | 'search' | 'settings' | 'bookmarks';
 	type NavItem = { route: AppRoute; label: string; icon: IconName; href: string; count?: number };
 	type ThemeName = 'cream' | 'dusk' | 'drive' | 'simoun';
 	type ExploreFeed = 'popular' | 'new' | 'active';
@@ -70,7 +71,7 @@
 		avatarUrl?: string | null;
 	};
 	type InlineReplyComposerData = Omit<InlineReplyComposerProps, 'id'>;
-	type AccountBackedPost = SocialPost & { visibility?: StatusVisibility; account?: PleromaAccountView; rebloggedBy?: PleromaAccountView; reactions?: PleromaReactionView[] };
+	type AccountBackedPost = SocialPost & { visibility?: StatusVisibility; account?: PleromaAccountView; rebloggedBy?: PleromaAccountView; reactions?: PleromaReactionView[]; bookmarked?: boolean; url?: string };
 	type RebuildPost = PostLike & {
 		id: string | number;
 		actionStatusId?: string;
@@ -94,6 +95,11 @@
 		boostedBy?: PostLike['boostedBy'];
 		copyJson?: unknown;
 		reactions?: PleromaReactionView[];
+		bookmarked?: boolean;
+		statusUrl?: string;
+		authorId?: string;
+		authorHandle?: string;
+		own?: boolean;
 		actions: { reply: boolean; boost: boolean; fav: boolean };
 	};
 	type ThreadViewPost = RebuildPost & {
@@ -241,6 +247,11 @@
 	let inlineReplySubmitError = $state<PleromaRequestErrorView | null>(null);
 	let statusActionErrors = $state<StatusActionErrorState[]>([]);
 	let statusActionPending = $state<Record<string, number>>({});
+	let postControlMessage = $state('');
+	let postControlMessageId = 0;
+	let bookmarksState = $state<PaginatedTimelineState<PleromaStatusView, PleromaRequestErrorView>>({ status: 'idle' });
+	let bookmarksRequestId = 0;
+	let loadedBookmarksKey = '';
 	let profileAccountLoadError = $state<PleromaRequestErrorView | null>(null);
 	let replySort = $state<ReplySort>('top');
 	let expandedThreadReplyIds = $state<Record<string, boolean>>({});
@@ -457,6 +468,11 @@
 		suggestionsState = { status: 'idle' };
 		suggestionFollowPending = {};
 	};
+	const invalidateBookmarksRequests = () => {
+		bookmarksRequestId += 1;
+		loadedBookmarksKey = '';
+		bookmarksState = { status: 'idle' };
+	};
 	const invalidateComposerAutocompleteRequests = () => {
 		composerMentionSearchRequestId += 1;
 		composerCustomEmojiRequestId += 1;
@@ -532,6 +548,7 @@
 		{ route: 'federated', label: 'Federated', icon: 'globe', href: '/app/federated' },
 		{ route: 'explore', label: 'Explore', icon: 'search', href: '/app/explore' },
 		{ route: 'notifications', label: 'Notifications', icon: 'bell', href: '/app/notifications', count: unreadNotificationCount || undefined },
+		{ route: 'bookmarks', label: 'Bookmarks', icon: 'bookmark', href: '/app/bookmarks' },
 		{ route: 'settings', label: 'Settings', icon: 'gear', href: '/app/settings' },
 	]);
 	let primaryNavItems = $derived(navItems.filter((item) => item.route === 'home' || item.route === 'local' || item.route === 'federated' || item.route === 'explore'));
@@ -586,6 +603,11 @@
 			copyJson: post.copyJson,
 			quotedPost: post.quotedPost,
 			reactions: post.reactions,
+			bookmarked: post.bookmarked,
+			statusUrl: post.url,
+			authorId: account?.id ?? post.account?.id,
+			authorHandle: account?.handle ?? post.account?.handle,
+			own: Boolean(currentSession?.account?.id && (account?.id ?? post.account?.id) === currentSession.account.id),
 			replies: post.replies,
 			boosts: post.boosts,
 			favs: post.favorites,
@@ -1019,6 +1041,198 @@
 		if (!name || !targetId) return;
 		mutateStatusReaction(targetId, name, postReactionByName(post, name)?.me === true, originRoute);
 	};
+	const flashPostControl = (message: string) => {
+		postControlMessage = message;
+		const id = ++postControlMessageId;
+		if (typeof window !== 'undefined') {
+			window.setTimeout(() => {
+				if (postControlMessageId === id) postControlMessage = '';
+			}, 2600);
+		}
+	};
+	const writeClipboardText = async (text: string) => {
+		if (navigator.clipboard?.writeText) {
+			await navigator.clipboard.writeText(text);
+			return;
+		}
+		const textarea = document.createElement('textarea');
+		textarea.value = text;
+		textarea.setAttribute('readonly', '');
+		textarea.style.position = 'fixed';
+		textarea.style.left = '-9999px';
+		document.body.appendChild(textarea);
+		textarea.select();
+		const copied = document.execCommand('copy');
+		textarea.remove();
+		if (!copied) throw new Error('copy failed');
+	};
+	const copyPostLink = async (post: { statusUrl?: string; copyJson?: unknown }) => {
+		const url = post.statusUrl || (isRecord(post.copyJson) && typeof post.copyJson.url === 'string' ? post.copyJson.url : '');
+		if (!url) return;
+		try {
+			await writeClipboardText(url);
+			flashPostControl('Link copied');
+		} catch {
+			flashPostControl('Copy failed');
+		}
+	};
+	const setBookmarkStateEverywhere = (targetId: string, bookmarked: boolean) => {
+		applyStatusActionUpdate('all', targetId, (post) => ({ ...post, bookmarked }), (post) => ({ ...post, bookmarked }));
+		if (bookmarksState.status === 'success' && !bookmarked) {
+			const data = bookmarksState.data.filter((post) => !matchesStatusActionTarget(post, targetId));
+			bookmarksState = data.length > 0 ? { ...bookmarksState, data } : { status: 'empty' };
+		}
+	};
+	const mutateBookmark = (targetId: string, previouslyBookmarked: boolean, originRoute: StatusActionOrigin) => {
+		const session = currentSession;
+		if (!session) return;
+		const actionKey = 'bookmark';
+		const pendingKey = statusActionPendingKey(targetId, actionKey);
+		if (statusActionPending[pendingKey]) return;
+
+		const requestSessionKey = sessionKey(session);
+		const origin = { route: originRoute, requestId: statusActionOriginRequestId(originRoute) };
+		const requestId = statusActionRequestId + 1;
+		statusActionRequestId = requestId;
+		statusActionPending = { ...statusActionPending, [pendingKey]: requestId };
+		removeStatusActionError(targetId, actionKey);
+		setBookmarkStateEverywhere(targetId, !previouslyBookmarked);
+
+		void (async () => {
+			try {
+				const client = createPleromaClient({ instanceUrl: session.instanceUrl, accessToken: session.accessToken, fetch: window.fetch.bind(window) });
+				const status = previouslyBookmarked ? await client.unbookmarkStatus(targetId) : await client.bookmarkStatus(targetId);
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+				if (statusActionPending[pendingKey] !== requestId) return;
+
+				setBookmarkStateEverywhere(targetId, adaptPleromaStatus(status).bookmarked);
+				clearStatusActionPending(pendingKey, requestId);
+			} catch (error) {
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+				if (statusActionPending[pendingKey] !== requestId) return;
+
+				const normalized = normalizePleromaRequestError(error);
+				if (normalized.reauthRequired) {
+					clearStatusActionPending(pendingKey, requestId);
+					signOutPleroma(localStorage);
+					redirectToLanding();
+					return;
+				}
+
+				clearStatusActionPending(pendingKey, requestId);
+				setBookmarkStateEverywhere(targetId, previouslyBookmarked);
+				if (statusActionOriginActive(origin)) addStatusActionError({ targetId, key: actionKey, route: origin.route, error: normalized });
+			}
+		})();
+	};
+	const keepThreadPosts = <PostType extends RebuildPost & { nestedReplies?: PostType[] }>(posts: PostType[], keep: (post: PostType) => boolean): PostType[] =>
+		posts.filter(keep).map((post) => post.nestedReplies ? { ...post, nestedReplies: keepThreadPosts(post.nestedReplies, keep) } : post);
+	const removeStatusesEverywhere = (keepView: (post: PleromaStatusView) => boolean, keepRebuild: (post: RebuildPost) => boolean) => {
+		localHomePosts = keepThreadPosts(localHomePosts, keepRebuild);
+		if (homeTimelineState.status === 'success') {
+			homeTimelineState = { ...homeTimelineState, data: homeTimelineState.data.filter(keepView), newerPosts: homeTimelineState.newerPosts.filter(keepView) };
+		}
+		if (appPublicTimelineState.status === 'success') {
+			appPublicTimelineState = { ...appPublicTimelineState, data: appPublicTimelineState.data.filter(keepView), newerPosts: appPublicTimelineState.newerPosts.filter(keepView) };
+		}
+		if (threadState.status === 'success') {
+			threadState = { ...threadState, ancestors: keepThreadPosts(threadState.ancestors, keepRebuild), replies: keepThreadPosts(threadState.replies, keepRebuild) };
+		}
+		if (profileRouteState.status === 'success') {
+			profileRouteState = {
+				...profileRouteState,
+				data: {
+					...profileRouteState.data,
+					posts: profileRouteState.data.posts.filter(keepRebuild),
+					replies: profileRouteState.data.replies.filter(keepRebuild),
+					pinned: profileRouteState.data.pinned.filter(keepRebuild)
+				}
+			};
+		}
+		if (bookmarksState.status === 'success') {
+			const data = bookmarksState.data.filter(keepView);
+			bookmarksState = data.length > 0 ? { ...bookmarksState, data } : { status: 'empty' };
+		}
+	};
+	const deleteStatusEverywhere = (targetId: string, originRoute: StatusActionOrigin) => {
+		const session = currentSession;
+		if (!session) return;
+		const requestSessionKey = sessionKey(session);
+		const focusedDeleted = originRoute === 'thread' && threadState.status === 'success' && matchesStatusActionTarget(threadState.focused, targetId);
+
+		void (async () => {
+			try {
+				const client = createPleromaClient({ instanceUrl: session.instanceUrl, accessToken: session.accessToken, fetch: window.fetch.bind(window) });
+				await client.deleteStatus(targetId);
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+
+				if (focusedDeleted) {
+					flashPostControl('Post deleted');
+					goto('/app/home');
+					return;
+				}
+				removeStatusesEverywhere((post) => !matchesStatusActionTarget(post, targetId), (post) => !matchesStatusActionTarget(post, targetId));
+				flashPostControl('Post deleted');
+			} catch (error) {
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+				const normalized = normalizePleromaRequestError(error);
+				if (normalized.reauthRequired) {
+					signOutPleroma(localStorage);
+					redirectToLanding();
+					return;
+				}
+				flashPostControl(`Delete failed: ${normalized.title}`);
+			}
+		})();
+	};
+	const mutateAuthorRelationship = (accountId: string, handle: string, action: 'mute' | 'block') => {
+		const session = currentSession;
+		if (!session || !accountId) return;
+		const requestSessionKey = sessionKey(session);
+
+		void (async () => {
+			try {
+				const client = createPleromaClient({ instanceUrl: session.instanceUrl, accessToken: session.accessToken, fetch: window.fetch.bind(window) });
+				const relationship = action === 'mute' ? await client.muteAccount(accountId) : await client.blockAccount(accountId);
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+
+				const cached = getCachedPleromaAccount(accountCache, accountId);
+				if (cached) upsertAccountCache([{ ...cached, pleroma: { ...cached.pleroma, relationship } }], { relationship: 'replace' });
+				removeStatusesEverywhere((post) => post.account.id !== accountId, (post) => post.authorId !== accountId);
+				flashPostControl(action === 'mute' ? `Muted ${handle}` : `Blocked ${handle}`);
+			} catch (error) {
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+				const normalized = normalizePleromaRequestError(error);
+				if (normalized.reauthRequired) {
+					signOutPleroma(localStorage);
+					redirectToLanding();
+					return;
+				}
+				flashPostControl(`${action === 'mute' ? 'Mute' : 'Block'} failed: ${normalized.title}`);
+			}
+		})();
+	};
+	const handleManageAction = (post: RebuildPost, key: string, originRoute: StatusActionOrigin): boolean => {
+		if (key === 'bookmark') {
+			const targetId = statusActionTargetId(post);
+			if (targetId) mutateBookmark(targetId, post.bookmarked === true, originRoute);
+			return true;
+		}
+		if (key === 'copy-link') {
+			void copyPostLink(post);
+			return true;
+		}
+		if (key === 'delete') {
+			const targetId = statusActionTargetId(post);
+			if (targetId && post.own) deleteStatusEverywhere(targetId, originRoute);
+			return true;
+		}
+		if (key === 'mute' || key === 'block') {
+			if (post.authorId && post.authorHandle) mutateAuthorRelationship(post.authorId, post.authorHandle, key);
+			return true;
+		}
+		return false;
+	};
 	const openThread = (post: { id: string | number; actionStatusId?: string; threadStatusId?: string }) => {
 		const statusId = post.threadStatusId ?? post.actionStatusId ?? String(post.id);
 		goto(`/app/thread/${encodeURIComponent(statusId)}`);
@@ -1033,12 +1247,14 @@
 		page.url.pathname.startsWith('/app/thread') ? 'thread' :
 		page.url.pathname.startsWith('/app/profiles') ? 'profile' :
 		page.url.pathname.startsWith('/app/notifications') ? 'notifications' :
+		page.url.pathname.startsWith('/app/bookmarks') ? 'bookmarks' :
 		'home'
 	);
 	const searchShell = $derived(route === 'search');
 	const appPublicTimelineRoute = $derived<AppPublicTimelineRoute | null>(route === 'local' || route === 'federated' ? route : null);
 	const appPublicTimelineEmptyHeading = $derived(route === 'local' ? 'No local posts yet' : 'No federated posts yet');
 	const appPublicTimelinePosts = $derived(appPublicTimelineState.status === 'success' ? appPublicTimelineState.data.map(postForRebuild) : []);
+	const bookmarksPosts = $derived(bookmarksState.status === 'success' ? bookmarksState.data.map(postForRebuild) : []);
 	const appPublicStatusActionErrors = $derived(route === 'local' ? localStatusActionErrors : route === 'federated' ? federatedStatusActionErrors : []);
 	const threadStatusId = $derived(route === 'thread' ? decodeURIComponent(page.url.pathname.split('/').filter(Boolean).slice(2).join('/') || '') : '');
 	const profileRouteHandle = $derived(route === 'profile' ? decodeURIComponent(page.url.pathname.split('/').filter(Boolean).slice(2).join('/') || '') : '');
@@ -1498,6 +1714,7 @@
 			handleReactionAction(clickedPost, key, 'home');
 			return;
 		}
+		if (handleManageAction(clickedPost, key, 'home')) return;
 		if (key !== 'reply' && key !== 'boost' && key !== 'fav') return;
 		if (key === 'reply') {
 			openInlineReply(clickedPost, 'home');
@@ -1514,6 +1731,7 @@
 			handleReactionAction(clickedPost, key, targetRoute);
 			return;
 		}
+		if (handleManageAction(clickedPost, key, targetRoute)) return;
 		if (key !== 'reply' && key !== 'boost' && key !== 'fav') return;
 		if (key === 'reply') {
 			openInlineReply(clickedPost, targetRoute);
@@ -1528,6 +1746,11 @@
 		if (key.startsWith('reaction:')) {
 			const post = findThreadPost(postId);
 			if (post) handleReactionAction(post, key, 'thread');
+			return;
+		}
+		if (key === 'bookmark' || key === 'copy-link' || key === 'delete' || key === 'mute' || key === 'block') {
+			const post = findThreadPost(postId);
+			if (post) handleManageAction(post, key, 'thread');
 			return;
 		}
 		if (key !== 'reply' && key !== 'boost' && key !== 'fav') return;
@@ -1545,6 +1768,7 @@
 			handleReactionAction(post, key, 'profile');
 			return;
 		}
+		if (handleManageAction(post, key, 'profile')) return;
 		if (key !== 'reply' && key !== 'boost' && key !== 'fav') return;
 		if (key === 'reply') {
 			openThread(post);
@@ -1609,6 +1833,7 @@
 		invalidateTrendsRequests();
 		invalidateInstanceConfigRequests();
 		invalidateSuggestionsRequests();
+		invalidateBookmarksRequests();
 		invalidateComposerAutocompleteRequests();
 		closeHomeTimelineStreaming();
 		localHomePosts = [];
@@ -1638,6 +1863,7 @@
 			invalidateTrendsRequests();
 			invalidateInstanceConfigRequests();
 		invalidateSuggestionsRequests();
+		invalidateBookmarksRequests();
 			invalidateComposerAutocompleteRequests();
 			closeHomeTimelineStreaming();
 			localHomePosts = [];
@@ -1784,6 +2010,67 @@
 
 		loadedSuggestionsKey = requestSessionKey;
 		void loadSuggestions(session);
+	};
+	const loadBookmarks = async (session: PleromaSession) => {
+		const requestSessionKey = sessionKey(session);
+		const requestId = bookmarksRequestId + 1;
+		bookmarksRequestId = requestId;
+		bookmarksState = { status: 'loading' };
+
+		try {
+			const client = createPleromaClient({ instanceUrl: session.instanceUrl, accessToken: session.accessToken, fetch: window.fetch.bind(window) });
+			const timelinePage = await client.getBookmarksPage({ limit: 20 });
+			if (requestId !== bookmarksRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			upsertAccountCache(accountsFromPleromaStatuses(timelinePage.items));
+			const posts = adaptPleromaStatuses(timelinePage.items);
+			bookmarksState = posts.length > 0
+				? { status: 'success', data: posts, nextCursor: timelinePage.cursors.next, loadMoreStatus: 'idle' }
+				: { status: 'empty' };
+		} catch (error) {
+			if (requestId !== bookmarksRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			const normalized = normalizePleromaRequestError(error);
+			if (normalized.reauthRequired) {
+				signOutPleroma(localStorage);
+				redirectToLanding();
+				return;
+			}
+			bookmarksState = { status: 'error', error: normalized };
+		}
+	};
+	const ensureBookmarks = (session: PleromaSession) => {
+		const requestSessionKey = sessionKey(session);
+		if (loadedBookmarksKey === requestSessionKey) return;
+
+		loadedBookmarksKey = requestSessionKey;
+		void loadBookmarks(session);
+	};
+	const loadMoreBookmarks = async () => {
+		const session = currentSession;
+		if (!session || bookmarksState.status !== 'success' || !bookmarksState.nextCursor || bookmarksState.loadMoreStatus === 'loading') return;
+
+		const requestSessionKey = sessionKey(session);
+		const nextCursor = bookmarksState.nextCursor;
+		bookmarksState = { ...bookmarksState, loadMoreStatus: 'loading', loadMoreError: undefined };
+
+		try {
+			const client = createPleromaClient({ instanceUrl: session.instanceUrl, accessToken: session.accessToken, fetch: window.fetch.bind(window) });
+			const timelinePage = await client.getBookmarksPage({ limit: 20, ...nextCursor });
+			if (!isCurrentSessionRequest(requestSessionKey) || bookmarksState.status !== 'success') return;
+
+			upsertAccountCache(accountsFromPleromaStatuses(timelinePage.items));
+			bookmarksState = {
+				...bookmarksState,
+				data: mergeTimelineItems(bookmarksState.data, adaptPleromaStatuses(timelinePage.items)),
+				nextCursor: timelinePage.cursors.next,
+				loadMoreStatus: 'idle',
+				loadMoreError: undefined
+			};
+		} catch (error) {
+			if (!isCurrentSessionRequest(requestSessionKey) || bookmarksState.status !== 'success') return;
+			bookmarksState = { ...bookmarksState, loadMoreStatus: 'error', loadMoreError: normalizePleromaRequestError(error) };
+		}
 	};
 	const toggleSuggestionFollow = async (item: { id: string }) => {
 		const session = currentSession;
@@ -3226,6 +3513,7 @@
 				ensureComposerCustomEmojis(session);
 			}
 			if (route === 'search') ensureSearch(session, searchQuery);
+			if (route === 'bookmarks') ensureBookmarks(session);
 			if (route === 'thread' || route === 'profile') ensureComposerCustomEmojis(session);
 		}
 		if (session && pathname.startsWith('/app/home')) {
@@ -3288,6 +3576,10 @@
 
 {#if reactionPicker}
 	<EmojiPicker open emojis={composerCustomEmojis} recents={composerEmojiRecents} anchor={reactionPicker.anchor} onClose={() => (reactionPicker = null)} onPick={pickPostReaction} />
+{/if}
+
+{#if postControlMessage}
+	<div class="post-control-toast" role="status" data-testid="post-control-toast">{postControlMessage}</div>
 {/if}
 
 {#snippet searchResultsBody()}
@@ -3715,7 +4007,7 @@
 						{:else if homeTimelineState.status === 'success'}
 							<div data-testid="home-timeline-list">
 								{#each timelinePosts as post (post.id)}
-									<Post {post} replyExpanded={inlineReplyOpenFor('home', post)} replyControlsId={inlineReplyOpenFor('home', post) ? inlineReplyComposerId('home', post) : undefined} onOpen={() => openThread(post)} onAction={(key) => handlePostAction(post, key)} onReact={(anchor) => openReactionPicker(post, 'home', anchor)} />
+									<Post {post} replyExpanded={inlineReplyOpenFor('home', post)} replyControlsId={inlineReplyOpenFor('home', post) ? inlineReplyComposerId('home', post) : undefined} onOpen={() => openThread(post)} onAction={(key) => handlePostAction(post, key)} onReact={(anchor) => openReactionPicker(post, 'home', anchor)} canManage={Boolean(currentSession)} />
 									{#if inlineReplyOpenFor('home', post) && inlineReplyComposerProps}
 										<InlineReplyComposer
 											id={inlineReplyComposerId('home', post)}
@@ -3774,7 +4066,7 @@
 						{:else if appPublicTimelineState.status === 'success' && appPublicTimelineRoute}
 							<div data-testid="app-public-timeline-list">
 								{#each appPublicTimelinePosts as post (post.id)}
-									<Post {post} replyExpanded={inlineReplyOpenFor(appPublicTimelineRoute, post)} replyControlsId={inlineReplyOpenFor(appPublicTimelineRoute, post) ? inlineReplyComposerId(appPublicTimelineRoute, post) : undefined} onOpen={() => openThread(post)} onAction={(key) => handleAppPublicPostAction(post, key)} onReact={(anchor) => appPublicTimelineRoute && openReactionPicker(post, appPublicTimelineRoute, anchor)} />
+									<Post {post} replyExpanded={inlineReplyOpenFor(appPublicTimelineRoute, post)} replyControlsId={inlineReplyOpenFor(appPublicTimelineRoute, post) ? inlineReplyComposerId(appPublicTimelineRoute, post) : undefined} onOpen={() => openThread(post)} onAction={(key) => handleAppPublicPostAction(post, key)} onReact={(anchor) => appPublicTimelineRoute && openReactionPicker(post, appPublicTimelineRoute, anchor)} canManage={Boolean(currentSession)} />
 									{#if inlineReplyOpenFor(appPublicTimelineRoute, post) && inlineReplyComposerProps}
 										<InlineReplyComposer
 											id={inlineReplyComposerId(appPublicTimelineRoute, post)}
@@ -3897,7 +4189,7 @@
 								<div class="thread-ancestors">
 									{#each threadState.ancestors as ancestor (ancestor.id)}
 										<div data-testid="thread-ancestor">
-											<AncestorPost post={ancestor} replyExpanded={inlineReplyOpenFor('thread', ancestor)} replyControlsId={inlineReplyOpenFor('thread', ancestor) ? inlineReplyComposerId('thread', ancestor) : undefined} onAction={handleThreadPostAction} onReact={handleThreadReact} />
+											<AncestorPost post={ancestor} replyExpanded={inlineReplyOpenFor('thread', ancestor)} replyControlsId={inlineReplyOpenFor('thread', ancestor) ? inlineReplyComposerId('thread', ancestor) : undefined} onAction={handleThreadPostAction} onReact={handleThreadReact} canManage={Boolean(currentSession)} />
 										</div>
 										{#if inlineReplyOpenFor('thread', ancestor) && inlineReplyComposerProps}
 											<InlineReplyComposer
@@ -3908,7 +4200,7 @@
 									{/each}
 								</div>
 							{/if}
-							<FocusedPost post={threadState.focused} continuesAbove={threadState.ancestors.length > 0} replyExpanded={inlineReplyOpenFor('thread', threadState.focused)} replyControlsId={inlineReplyOpenFor('thread', threadState.focused) ? inlineReplyComposerId('thread', threadState.focused) : undefined} onAction={handleThreadPostAction} onReact={handleThreadReact} />
+							<FocusedPost post={threadState.focused} continuesAbove={threadState.ancestors.length > 0} replyExpanded={inlineReplyOpenFor('thread', threadState.focused)} replyControlsId={inlineReplyOpenFor('thread', threadState.focused) ? inlineReplyComposerId('thread', threadState.focused) : undefined} onAction={handleThreadPostAction} onReact={handleThreadReact} canManage={Boolean(currentSession)} />
 							{#if inlineReplyOpenFor('thread', threadState.focused) && inlineReplyComposerProps}
 								<InlineReplyComposer
 									id={inlineReplyComposerId('thread', threadState.focused)}
@@ -3933,6 +4225,7 @@
 											nestedReplies={reply.nestedReplies}
 											onAction={handleThreadPostAction}
 											onReact={handleThreadReact}
+											canManage={Boolean(currentSession)}
 											inlineReply={threadInlineReplyBinding}
 											expandedReplyIds={expandedThreadReplyIds}
 											onShowNested={showThreadReplyNested}
@@ -3973,8 +4266,44 @@
 								onPostOpen={(post) => openThread(post)}
 								onPostAction={handleProfilePostAction}
 								onPostReact={(post, anchor) => openReactionPicker(post, 'profile', anchor)}
+								canManage={Boolean(currentSession)}
 								onEditProfile={() => goto('/app/settings')}
 								onFollowToggle={toggleProfileFollow}
+							/>
+						{/if}
+					</section>
+				{:else if route === 'bookmarks'}
+					<section class="card app-panel" data-testid="bookmarks-panel">
+						<div class="app-page-kicker">Bookmarks</div>
+						<h1>Bookmarks</h1>
+						<p>Posts you have saved for later.</p>
+
+						{#if bookmarksState.status === 'loading' || bookmarksState.status === 'idle'}
+							<div class="request-state" role="status" aria-label="Request status">Loading bookmarks</div>
+						{:else if bookmarksState.status === 'empty'}
+							<div class="request-state request-empty">
+								<h2>No bookmarks yet</h2>
+								<p>Save a post from its actions menu and it will appear here.</p>
+							</div>
+						{:else if bookmarksState.status === 'error'}
+							<div class="request-state request-error">
+								<h2>{bookmarksState.error.title}</h2>
+								<p>{bookmarksState.error.message}</p>
+								{#if bookmarksState.error.retryable && currentSession}
+									<Button variant="secondary" onclick={() => currentSession && loadBookmarks(currentSession)}>Retry request</Button>
+								{/if}
+							</div>
+						{:else if bookmarksState.status === 'success'}
+							<div data-testid="bookmarks-list">
+								{#each bookmarksPosts as post (post.id)}
+									<Post {post} onOpen={() => openThread(post)} onAction={(key) => handlePostAction(post, key)} onReact={(anchor) => openReactionPicker(post, 'home', anchor)} canManage={Boolean(currentSession)} />
+								{/each}
+							</div>
+							<TimelineLoadMore
+								nextCursor={bookmarksState.nextCursor}
+								loadMoreStatus={bookmarksState.loadMoreStatus}
+								loadMoreError={bookmarksState.loadMoreError}
+								onLoadMore={loadMoreBookmarks}
 							/>
 						{/if}
 					</section>

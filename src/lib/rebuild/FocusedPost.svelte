@@ -27,6 +27,10 @@
 		quotedPost?: Record<string, unknown>;
 		mentionAccts?: Record<string, string>;
 		reactions?: PleromaReactionView[];
+		bookmarked?: boolean;
+		own?: boolean;
+		authorHandle?: string;
+		statusUrl?: string;
 		replies: number;
 		boosts: number;
 		favs: number;
@@ -44,10 +48,15 @@
 		replyControlsId?: string;
 		onAction?: (id: string | number | undefined, key: string) => void;
 		onReact?: (id: string | number | undefined, anchor: HTMLElement) => void;
+		canManage?: boolean;
 	};
 
-	let { post, continuesAbove = false, replyExpanded, replyControlsId, onAction, onReact }: Props = $props();
+	let { post, continuesAbove = false, replyExpanded, replyControlsId, onAction, onReact, canManage = false }: Props = $props();
 	let href = $derived(profileHref(post.handle));
+	let menuOpen = $state(false);
+	let confirmDelete = $state(false);
+	const closeMenu = () => { menuOpen = false; confirmDelete = false; };
+	const runMenuAction = (key: string) => { closeMenu(); onAction?.(post.id, key); };
 
 	const handleLightbox = (idx: number) => {
 		const attachments = normalizeRenderableAttachments(post);
@@ -76,7 +85,27 @@
 				<div class="focused-handle">{post.handle}</div>
 			{/if}
 		</div>
-		<button type="button" class="post-more" aria-label="More"><Icon name="more" width={16} height={16} /></button>
+		<div class="post-more-wrap" data-post-ignore>
+			<button type="button" class="post-more" aria-label="More post actions" aria-haspopup="menu" aria-expanded={menuOpen} onclick={() => (menuOpen ? closeMenu() : (menuOpen = true))}><Icon name="more" width={16} height={16} /></button>
+			{#if menuOpen}
+				<div class="post-action-menu" role="menu">
+					{#if post.statusUrl}
+						<button type="button" role="menuitem" onclick={() => runMenuAction('copy-link')}>Copy link to post</button>
+					{/if}
+					{#if canManage && post.own}
+						{#if confirmDelete}
+							<button type="button" role="menuitem" class="menu-danger" onclick={() => runMenuAction('delete')}>Confirm delete</button>
+							<button type="button" role="menuitem" onclick={() => (confirmDelete = false)}>Cancel</button>
+						{:else}
+							<button type="button" role="menuitem" class="menu-danger" onclick={() => (confirmDelete = true)}>Delete post</button>
+						{/if}
+					{:else if canManage && post.authorHandle}
+						<button type="button" role="menuitem" onclick={() => runMenuAction('mute')}>Mute {post.authorHandle}</button>
+						<button type="button" role="menuitem" class="menu-danger" onclick={() => runMenuAction('block')}>Block {post.authorHandle}</button>
+					{/if}
+				</div>
+			{/if}
+		</div>
 	</div>
 
 	<PostCW post={post}>
@@ -126,12 +155,11 @@
 				<span>React</span>
 			</button>
 		{/if}
-		<button type="button" class="focused-action">
-			<Icon name="bookmark" />
-			<span>Save</span>
-			{#if (post.bookmarks || 0) > 0}<span class="focused-action-c">{post.bookmarks}</span>{/if}
+		<button type="button" class="focused-action {post.bookmarked ? 'on' : ''}" aria-pressed={post.bookmarked ? 'true' : 'false'} aria-label={post.bookmarked ? 'Remove bookmark' : 'Save'} disabled={!canManage} onclick={() => onAction?.(post.id, 'bookmark')}>
+			<Icon name="bookmark" fill={post.bookmarked ? 'currentColor' : 'none'} />
+			<span>{post.bookmarked ? 'Saved' : 'Save'}</span>
 		</button>
-		<button type="button" class="focused-action">
+		<button type="button" class="focused-action" aria-label="Copy link to post" disabled={!post.statusUrl} onclick={() => onAction?.(post.id, 'copy-link')}>
 			<Icon name="ext" />
 			<span>Share</span>
 		</button>
