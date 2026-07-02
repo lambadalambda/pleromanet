@@ -4,20 +4,19 @@ PleromaNet is a new frontend for Pleroma focused on a reduced, refined interface
 
 ## Status
 
-This repository contains a SvelteKit TypeScript SPA/static frontend without SSR. It is currently mostly design prototype work; real Pleroma-backed app flows have not landed yet.
+This repository contains a SvelteKit TypeScript SPA/static frontend without SSR, backed by the real Pleroma API.
 
 ### Real App Surface
 
-- `/` is a small coming-soon landing page that links to the mocked surfaces.
-- There is currently no real Pleroma API-backed app surface.
+- `/` is the signed-out landing with the OAuth sign-in and create-account flows.
+- `/app/...` is the authenticated app: home/local/federated timelines with streaming and pagination, thread detail with inline replies, profiles with follow/unfollow, search (header dropdown and full page), notifications with streaming and badge counts, and profile settings backed by `update_credentials`.
+- The composer supports media uploads (browse, drag-and-drop, paste), content warnings, polls, mention and custom emoji autocomplete, and the full emoji picker. Posts render emoji reaction rows with reaction toggling.
+- `/app/profiles/...` is also viewable signed out against `PUBLIC_PLEROMA_INSTANCE_URL`, with sign-in prompts on authenticated actions.
+- `/public` shows anonymous local/federated public timelines.
 
-### Prototype / Fake Surfaces
+### Design Reference Surfaces
 
-- `/mockup` is the signed-in design prototype with mocked profile, timeline, composer, thread, navigation, right rail, settings placeholder, and interaction state.
-- `/design-system` is a component/design showcase with mocked content.
-- Timeline posts, composer publishing, thread replies, follow buttons, trends, suggestions, settings, notifications, messages, bookmarks, lists, and instance status are mocked UI behavior.
-- No OAuth flow, token storage, authenticated account state, real posting, real follow actions, real thread fetching, or real profile/settings writes exist yet.
-- Dockerized/live Pleroma integration tests have not been added yet.
+- `/design-system` is the component/design showcase with mocked content, ported section by section from the canonical handoff in `meta/design/claude-handoff/`.
 
 ## Development Principles
 
@@ -68,8 +67,6 @@ mise run test
 mise run check
 mise run build
 ```
-
-Dockerized integration tests against an ephemeral Pleroma backend will be added later and kept behind explicit mise tasks.
 
 Dockerized integration tests are opt-in:
 
