@@ -51,3 +51,4 @@
 - [x] [51 Complete emoji reactions](issues/51-complete-emoji-reactions.md)
 - [x] [52 Bookmarks and share controls](issues/52-bookmarks-and-share-controls.md)
 - [x] [53 Post management menu: delete, mute, block](issues/53-post-management-menu.md)
+- [x] [54 Wire follow request actions](issues/54-wire-follow-request-actions.md)
