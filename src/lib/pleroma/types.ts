@@ -76,6 +76,15 @@ export type PleromaAccount = {
 	[key: string]: unknown;
 };
 
+export type PleromaEmojiReaction = {
+	name: string;
+	count: number;
+	me: boolean;
+	url?: string | null;
+	static_url?: string | null;
+	[key: string]: unknown;
+};
+
 export type PleromaStatus = {
 	id: string;
 	uri: string;
@@ -97,6 +106,7 @@ export type PleromaStatus = {
 	pleroma: {
 		content?: Record<string, string>;
 		conversation_id?: number;
+		emoji_reactions?: PleromaEmojiReaction[];
 		local?: boolean;
 		quote?: PleromaStatus | null;
 		quote_id?: string | null;

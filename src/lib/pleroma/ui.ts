@@ -62,6 +62,15 @@ export type PleromaMediaAttachmentView = {
 	duration: string | null;
 };
 
+export type PleromaReactionView = {
+	name: string;
+	glyph: string | null;
+	url: string | null;
+	staticUrl: string | null;
+	count: number;
+	me: boolean;
+};
+
 export type PleromaStatusView = TimelinePost & {
 	actionStatusId: string;
 	threadStatusId: string;
@@ -80,6 +89,7 @@ export type PleromaStatusView = TimelinePost & {
 	hasContentWarning: boolean;
 	mediaHidden: boolean;
 	mediaAttachments: PleromaMediaAttachmentView[];
+	reactions: PleromaReactionView[];
 	rebloggedBy?: PleromaAccountView;
 	pleroma: {
 		conversationId?: number;
@@ -696,6 +706,25 @@ export const profileUpdateFromSettings = (settings: PleromaProfileSettingsView, 
 	};
 };
 
+export const adaptStatusReactions = (status: PleromaStatus): PleromaReactionView[] => {
+	const reactions = status.pleroma?.emoji_reactions;
+	if (!Array.isArray(reactions)) return [];
+
+	return reactions
+		.filter((reaction) => reaction && typeof reaction.name === 'string' && reaction.name.length > 0 && typeof reaction.count === 'number' && reaction.count > 0)
+		.map((reaction) => {
+			const url = typeof reaction.url === 'string' && reaction.url ? reaction.url : null;
+			return {
+				name: reaction.name,
+				glyph: url ? null : reaction.name,
+				url,
+				staticUrl: typeof reaction.static_url === 'string' && reaction.static_url ? reaction.static_url : url,
+				count: reaction.count,
+				me: reaction.me === true
+			};
+		});
+};
+
 export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaStatusOptions = {}): PleromaStatusView => {
 	const source = status.reblog ?? status;
 	const account = adaptPleromaAccount(source.account);
@@ -753,6 +782,7 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		hasContentWarning: Boolean(warning),
 		mediaHidden,
 		mediaAttachments,
+		reactions: adaptStatusReactions(source),
 		rebloggedBy: booster,
 		pleroma: {
 			conversationId: source.pleroma.conversation_id,

@@ -630,3 +630,22 @@ test('profile settings adapters map accounts to editable settings and update pay
 	});
 	expect(cleared.fields).toEqual([{ name: 'home', value: 'small web' }]);
 });
+
+test('status reaction adapters normalize unicode and custom emoji reactions', () => {
+	const post = adaptPleromaStatus(withStatus({
+		pleroma: {
+			emoji_reactions: [
+				{ name: '❤️', count: 3, me: true },
+				{ name: 'blobcat', count: 2, me: false, url: 'https://cdn.example/emoji/blobcat.png', static_url: 'https://cdn.example/emoji/blobcat-static.png' },
+				{ name: 'ghost', count: 0, me: false },
+				{ name: '', count: 4, me: false }
+			]
+		}
+	}));
+
+	expect(post.reactions).toEqual([
+		{ name: '❤️', glyph: '❤️', url: null, staticUrl: null, count: 3, me: true },
+		{ name: 'blobcat', glyph: null, url: 'https://cdn.example/emoji/blobcat.png', staticUrl: 'https://cdn.example/emoji/blobcat-static.png', count: 2, me: false }
+	]);
+	expect(adaptPleromaStatus(pleromaFixtures.status).reactions).toEqual([]);
+});
