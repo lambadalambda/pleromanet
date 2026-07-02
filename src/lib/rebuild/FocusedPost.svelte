@@ -55,8 +55,38 @@
 	let href = $derived(profileHref(post.handle));
 	let menuOpen = $state(false);
 	let confirmDelete = $state(false);
+	let moreButton = $state<HTMLButtonElement | null>(null);
+	let menuStyle = $state('');
+	const openMenu = () => {
+		const rect = moreButton?.getBoundingClientRect();
+		if (rect) {
+			const viewHeight = typeof window === 'undefined' ? 800 : window.innerHeight;
+			const spaceBelow = viewHeight - rect.bottom;
+			const openUp = spaceBelow < 240 && rect.top > spaceBelow;
+			const left = Math.round(rect.right);
+			menuStyle = openUp
+				? `left:${left}px;top:${Math.round(rect.top - 6)}px;transform:translate(-100%, -100%)`
+				: `left:${left}px;top:${Math.round(rect.bottom + 6)}px;transform:translateX(-100%)`;
+		}
+		menuOpen = true;
+	};
 	const closeMenu = () => { menuOpen = false; confirmDelete = false; };
 	const runMenuAction = (key: string) => { closeMenu(); onAction?.(post.id, key); };
+	$effect(() => {
+		if (!menuOpen) return;
+		const onPointer = (event: MouseEvent) => {
+			if (!(event.target instanceof Element) || !event.target.closest('.post-more-wrap')) closeMenu();
+		};
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') closeMenu();
+		};
+		document.addEventListener('mousedown', onPointer);
+		document.addEventListener('keydown', onKey);
+		return () => {
+			document.removeEventListener('mousedown', onPointer);
+			document.removeEventListener('keydown', onKey);
+		};
+	});
 
 	const handleLightbox = (idx: number) => {
 		const attachments = normalizeRenderableAttachments(post);
@@ -86,9 +116,9 @@
 			{/if}
 		</div>
 		<div class="post-more-wrap" data-post-ignore>
-			<button type="button" class="post-more" aria-label="More post actions" aria-haspopup="menu" aria-expanded={menuOpen} onclick={() => (menuOpen ? closeMenu() : (menuOpen = true))}><Icon name="more" width={16} height={16} /></button>
+			<button bind:this={moreButton} type="button" class="post-more" aria-label="More post actions" aria-haspopup="menu" aria-expanded={menuOpen} onclick={() => (menuOpen ? closeMenu() : openMenu())}><Icon name="more" width={16} height={16} /></button>
 			{#if menuOpen}
-				<div class="post-action-menu" role="menu">
+				<div class="post-action-menu" role="menu" style={menuStyle}>
 					{#if post.statusUrl}
 						<button type="button" role="menuitem" onclick={() => runMenuAction('copy-link')}>Copy link to post</button>
 					{/if}

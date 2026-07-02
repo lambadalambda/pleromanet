@@ -2967,3 +2967,24 @@ test('home timeline mutes another author and removes their posts', async ({ page
 	await expect(page.getByTestId('home-timeline-list')).toContainText('my own quiet post');
 	await expect(page.getByTestId('post-control-toast')).toContainText('Muted @noise@static.zone');
 });
+
+test('home timeline post menu closes on outside click and escape', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [statusWithText('status-menu-dismiss', 'dismiss my menu')]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('.post').filter({ hasText: 'dismiss my menu' }).first();
+	await post.getByRole('button', { name: 'More post actions' }).click();
+	await expect(post.getByRole('menuitem', { name: 'Copy link to post' })).toBeVisible();
+	await page.getByTestId('brand-tag').click();
+	await expect(post.getByRole('menuitem', { name: 'Copy link to post' })).toHaveCount(0);
+
+	await post.getByRole('button', { name: 'More post actions' }).click();
+	await expect(post.getByRole('menuitem', { name: 'Copy link to post' })).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(post.getByRole('menuitem', { name: 'Copy link to post' })).toHaveCount(0);
+});
