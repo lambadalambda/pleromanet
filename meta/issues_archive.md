@@ -40,3 +40,4 @@
 - [x] [41 Wire composer mentions and custom emoji](issues/41-wire-composer-mentions-and-custom-emoji.md)
 - [x] [39 Design and wire emoji reaction row](issues/39-design-and-wire-emoji-reaction-row.md)
 - [x] [42 Port halftone media treatment](issues/42-port-halftone-media-treatment.md)
+- [x] [28 Retire mockup prototype](issues/28-retire-mockup-prototype.md)

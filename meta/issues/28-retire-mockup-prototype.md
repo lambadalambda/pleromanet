@@ -31,9 +31,9 @@ Remove the `/mockup` prototype once the corresponding real routes have determini
 
 ## Current Status
 
-- Partially done: there is no current `/mockup` route file.
-- Partially done: legacy mockup e2e files are skipped and point to real-route coverage replacements.
-- Still open: skipped legacy tests still contain `/mockup` references, profile/explore/settings real implementations are not fully wired, and some static mock state remains in app/design surfaces.
+- Done: the `/mockup` route was already removed; the five skipped legacy e2e files (`explore`, `settings`, `shell`, `thread`, `timeline`) are now deleted, and no `src/`, `docs/`, or README references to `/mockup` remain.
+- Done: real routes cover shell, timeline, thread, explore, settings, profile, search, and notification flows with deterministic mocked tests (`pnpm test`: 264 passed, 0 skipped) and `pnpm check` passes.
+- Done: the README status section now describes the real Pleroma-backed app surface; `/design-system` remains the long-term visual reference.
 
 ## Notes
 
