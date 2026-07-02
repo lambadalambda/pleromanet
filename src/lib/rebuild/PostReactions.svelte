@@ -4,9 +4,10 @@
 	type Props = {
 		reactions?: PleromaReactionView[];
 		onToggle?: (reaction: PleromaReactionView) => void;
+		onAdd?: (anchor: HTMLElement) => void;
 	};
 
-	let { reactions = [], onToggle }: Props = $props();
+	let { reactions = [], onToggle, onAdd }: Props = $props();
 
 	const ROT = [-1.6, 1.2, -0.7, 1.8, -1.3, 0.6];
 	const reactionTitle = (reaction: PleromaReactionView) => (reaction.url ? `:${reaction.name}:` : reaction.name);
@@ -41,7 +42,7 @@
 			</div>
 		{/each}
 		<div class="pm-v3c-cell">
-			<button type="button" class="pm-stamp pm-v3c-stamp pm-v3c-add" style="transform: rotate(-0.6deg)" title="Reaction picker is not wired yet" aria-label="Add reaction" disabled>
+			<button type="button" class="pm-stamp pm-v3c-stamp pm-v3c-add" style="transform: rotate(-0.6deg)" title={onAdd ? 'Add reaction' : 'Sign in to react'} aria-label="Add reaction" aria-haspopup={onAdd ? 'dialog' : undefined} disabled={!onAdd} data-emoji-trigger onclick={(event) => onAdd?.(event.currentTarget)}>
 				<span class="pm-stamp-art">
 					<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" width="11" height="11" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
 				</span>

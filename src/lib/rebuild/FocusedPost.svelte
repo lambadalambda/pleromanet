@@ -43,9 +43,10 @@
 		replyExpanded?: boolean;
 		replyControlsId?: string;
 		onAction?: (id: string | number | undefined, key: string) => void;
+		onReact?: (id: string | number | undefined, anchor: HTMLElement) => void;
 	};
 
-	let { post, continuesAbove = false, replyExpanded, replyControlsId, onAction }: Props = $props();
+	let { post, continuesAbove = false, replyExpanded, replyControlsId, onAction, onReact }: Props = $props();
 	let href = $derived(profileHref(post.handle));
 
 	const handleLightbox = (idx: number) => {
@@ -91,7 +92,7 @@
 		<PostMedia post={post} onOpen={handleLightbox} />
 	</PostCW>
 
-	<PostReactions reactions={post.reactions} onToggle={onAction ? (reaction) => onAction(post.id, `reaction:${reaction.name}`) : undefined} />
+	<PostReactions reactions={post.reactions} onToggle={onAction ? (reaction) => onAction(post.id, `reaction:${reaction.name}`) : undefined} onAdd={onReact ? (anchor) => onReact(post.id, anchor) : undefined} />
 
 	<div class="focused-meta">
 		<span>{post.fullTime || '4:18 PM · May 11, 2026'}</span>
@@ -119,6 +120,12 @@
 			<span>Favorite</span>
 			{#if post.favs + (post.actions.fav ? 1 : 0) > 0}<span class="focused-action-c">{post.favs + (post.actions.fav ? 1 : 0)}</span>{/if}
 		</button>
+		{#if onReact}
+			<button type="button" class="focused-action" aria-label="Add reaction" aria-haspopup="dialog" data-emoji-trigger onclick={(event) => onReact?.(post.id, event.currentTarget)}>
+				<Icon name="smile" />
+				<span>React</span>
+			</button>
+		{/if}
 		<button type="button" class="focused-action">
 			<Icon name="bookmark" />
 			<span>Save</span>

@@ -42,6 +42,7 @@
 		isLast?: boolean;
 		nestedReplies?: ThreadReply[];
 		onAction?: (id: string | number | undefined, key: string) => void;
+		onReact?: (id: string | number | undefined, anchor: HTMLElement) => void;
 		inlineReply?: InlineReplyBinding | null;
 		expandedReplyIds?: Record<string, boolean>;
 		onShowNested?: (id: string | number | undefined) => void;
@@ -52,6 +53,7 @@
 		isLast = false,
 		nestedReplies = [],
 		onAction,
+		onReact,
 		inlineReply = null,
 		expandedReplyIds = {},
 		onShowNested
@@ -87,7 +89,7 @@
 				<QuotedPost quoted={post.quotedPost} />
 				<PostMedia post={post} onOpen={(idx) => handleLightbox(post, idx)} />
 			</PostCW>
-			<PostActions post={post} replyExpanded={inlineReplyOpenFor(post)} replyControlsId={inlineReplyOpenFor(post) ? inlineReplyComposerId(post) : undefined} onAction={(key) => onAction?.(post.id, key)} />
+			<PostActions post={post} replyExpanded={inlineReplyOpenFor(post)} replyControlsId={inlineReplyOpenFor(post) ? inlineReplyComposerId(post) : undefined} onAction={(key) => onAction?.(post.id, key)} onReact={onReact ? (anchor) => onReact(post.id, anchor) : undefined} />
 			{#if nestedReplies.length > 0 && !nestedRepliesOpenFor(post)}
 				<button type="button" class="show-replies" onclick={() => onShowNested?.(post.id)}>
 					<span class="show-replies-line"></span>
@@ -112,6 +114,7 @@
 				isLast={i === nestedReplies.length - 1}
 				nestedReplies={reply.nestedReplies}
 				onAction={onAction}
+				onReact={onReact}
 				inlineReply={inlineReply}
 				expandedReplyIds={expandedReplyIds}
 				onShowNested={onShowNested}

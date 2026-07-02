@@ -39,10 +39,11 @@
 		replyExpanded?: boolean;
 		replyControlsId?: string;
 		onAction?: (key: string) => void;
+		onReact?: (anchor: HTMLElement) => void;
 		onOpen?: () => void;
 	};
 
-	let { post, replyExpanded, replyControlsId, onAction, onOpen }: Props = $props();
+	let { post, replyExpanded, replyControlsId, onAction, onReact, onOpen }: Props = $props();
 
 	const handleLightbox = (idx: number) => {
 		const attachments = normalizeRenderableAttachments(post);
@@ -66,8 +67,8 @@
 			<QuotedPost quoted={post.quotedPost} />
 			<PostMedia post={post} onOpen={handleLightbox} />
 		</PostCW>
-		<PostReactions reactions={post.reactions} onToggle={onAction ? (reaction) => onAction(`reaction:${reaction.name}`) : undefined} />
-		<PostActions post={post} replyExpanded={replyExpanded} replyControlsId={replyControlsId} onAction={onAction} />
+		<PostReactions reactions={post.reactions} onToggle={onAction ? (reaction) => onAction(`reaction:${reaction.name}`) : undefined} onAdd={onReact} />
+		<PostActions post={post} replyExpanded={replyExpanded} replyControlsId={replyControlsId} onAction={onAction} onReact={onReact} />
 	</div>
 {/snippet}
 

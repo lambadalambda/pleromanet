@@ -194,6 +194,7 @@
 	let composerEmojiRecents = $state<Array<string | ComposerEmoji>>([]);
 	let composerEmojiPickerOpen = $state(false);
 	let composerEmojiPickerAnchor = $state<{ left?: number; top?: number; bottom?: number } | null>(null);
+	let reactionPicker = $state<{ post: RebuildPost; route: StatusActionOrigin; anchor: { left: number; top: number; bottom: number } } | null>(null);
 	let composerInsertRequest = $state<{ id: number; item: string | ComposerEmoji } | null>(null);
 	let composerInsertRequestId = 0;
 	let composerFileInput = $state<HTMLInputElement | null>(null);
@@ -990,6 +991,28 @@
 		})();
 	};
 	const postReactionByName = (post: { reactions?: PleromaReactionView[] }, name: string) => post.reactions?.find((reaction) => reaction.name === name);
+	const openReactionPicker = (post: RebuildPost, originRoute: StatusActionOrigin, anchor: HTMLElement) => {
+		const session = currentSession;
+		if (!session) return;
+		ensureComposerCustomEmojis(session);
+		const rect = anchor.getBoundingClientRect();
+		reactionPicker = { post, route: originRoute, anchor: { left: rect.left, top: rect.top, bottom: rect.bottom } };
+	};
+	const handleThreadReact = (postId: string | number | undefined, anchor: HTMLElement) => {
+		if (postId == null) return;
+		const post = findThreadPost(postId);
+		if (post) openReactionPicker(post, 'thread', anchor);
+	};
+	const pickPostReaction = (item: string | ComposerEmoji) => {
+		const target = reactionPicker;
+		reactionPicker = null;
+		if (!target) return;
+		const name = typeof item === 'string' ? item : item.shortcode;
+		const targetId = statusActionTargetId(target.post);
+		if (!name || !targetId) return;
+		composerEmojiRecents = [item, ...composerEmojiRecents.filter((recent) => emojiRecentKey(recent) !== emojiRecentKey(item))].slice(0, 12);
+		mutateStatusReaction(targetId, name, postReactionByName(target.post, name)?.me === true, target.route);
+	};
 	const handleReactionAction = (post: RebuildPost, key: string, originRoute: StatusActionOrigin) => {
 		const name = key.slice('reaction:'.length);
 		const targetId = statusActionTargetId(post);
@@ -3203,6 +3226,7 @@
 				ensureComposerCustomEmojis(session);
 			}
 			if (route === 'search') ensureSearch(session, searchQuery);
+			if (route === 'thread' || route === 'profile') ensureComposerCustomEmojis(session);
 		}
 		if (session && pathname.startsWith('/app/home')) {
 			const loadKey = `${sessionKey(session)}\n${pathname}`;
@@ -3261,6 +3285,10 @@
 <svelte:window onkeydown={handleWindowKeydown} onpointerdown={handleWindowPointerdown} />
 
 <AttachmentLightboxHost />
+
+{#if reactionPicker}
+	<EmojiPicker open emojis={composerCustomEmojis} recents={composerEmojiRecents} anchor={reactionPicker.anchor} onClose={() => (reactionPicker = null)} onPick={pickPostReaction} />
+{/if}
 
 {#snippet searchResultsBody()}
 	{#if searchState.status === 'idle'}
@@ -3687,7 +3715,7 @@
 						{:else if homeTimelineState.status === 'success'}
 							<div data-testid="home-timeline-list">
 								{#each timelinePosts as post (post.id)}
-									<Post {post} replyExpanded={inlineReplyOpenFor('home', post)} replyControlsId={inlineReplyOpenFor('home', post) ? inlineReplyComposerId('home', post) : undefined} onOpen={() => openThread(post)} onAction={(key) => handlePostAction(post, key)} />
+									<Post {post} replyExpanded={inlineReplyOpenFor('home', post)} replyControlsId={inlineReplyOpenFor('home', post) ? inlineReplyComposerId('home', post) : undefined} onOpen={() => openThread(post)} onAction={(key) => handlePostAction(post, key)} onReact={(anchor) => openReactionPicker(post, 'home', anchor)} />
 									{#if inlineReplyOpenFor('home', post) && inlineReplyComposerProps}
 										<InlineReplyComposer
 											id={inlineReplyComposerId('home', post)}
@@ -3746,7 +3774,7 @@
 						{:else if appPublicTimelineState.status === 'success' && appPublicTimelineRoute}
 							<div data-testid="app-public-timeline-list">
 								{#each appPublicTimelinePosts as post (post.id)}
-									<Post {post} replyExpanded={inlineReplyOpenFor(appPublicTimelineRoute, post)} replyControlsId={inlineReplyOpenFor(appPublicTimelineRoute, post) ? inlineReplyComposerId(appPublicTimelineRoute, post) : undefined} onOpen={() => openThread(post)} onAction={(key) => handleAppPublicPostAction(post, key)} />
+									<Post {post} replyExpanded={inlineReplyOpenFor(appPublicTimelineRoute, post)} replyControlsId={inlineReplyOpenFor(appPublicTimelineRoute, post) ? inlineReplyComposerId(appPublicTimelineRoute, post) : undefined} onOpen={() => openThread(post)} onAction={(key) => handleAppPublicPostAction(post, key)} onReact={(anchor) => appPublicTimelineRoute && openReactionPicker(post, appPublicTimelineRoute, anchor)} />
 									{#if inlineReplyOpenFor(appPublicTimelineRoute, post) && inlineReplyComposerProps}
 										<InlineReplyComposer
 											id={inlineReplyComposerId(appPublicTimelineRoute, post)}
@@ -3869,7 +3897,7 @@
 								<div class="thread-ancestors">
 									{#each threadState.ancestors as ancestor (ancestor.id)}
 										<div data-testid="thread-ancestor">
-											<AncestorPost post={ancestor} replyExpanded={inlineReplyOpenFor('thread', ancestor)} replyControlsId={inlineReplyOpenFor('thread', ancestor) ? inlineReplyComposerId('thread', ancestor) : undefined} onAction={handleThreadPostAction} />
+											<AncestorPost post={ancestor} replyExpanded={inlineReplyOpenFor('thread', ancestor)} replyControlsId={inlineReplyOpenFor('thread', ancestor) ? inlineReplyComposerId('thread', ancestor) : undefined} onAction={handleThreadPostAction} onReact={handleThreadReact} />
 										</div>
 										{#if inlineReplyOpenFor('thread', ancestor) && inlineReplyComposerProps}
 											<InlineReplyComposer
@@ -3880,7 +3908,7 @@
 									{/each}
 								</div>
 							{/if}
-							<FocusedPost post={threadState.focused} continuesAbove={threadState.ancestors.length > 0} replyExpanded={inlineReplyOpenFor('thread', threadState.focused)} replyControlsId={inlineReplyOpenFor('thread', threadState.focused) ? inlineReplyComposerId('thread', threadState.focused) : undefined} onAction={handleThreadPostAction} />
+							<FocusedPost post={threadState.focused} continuesAbove={threadState.ancestors.length > 0} replyExpanded={inlineReplyOpenFor('thread', threadState.focused)} replyControlsId={inlineReplyOpenFor('thread', threadState.focused) ? inlineReplyComposerId('thread', threadState.focused) : undefined} onAction={handleThreadPostAction} onReact={handleThreadReact} />
 							{#if inlineReplyOpenFor('thread', threadState.focused) && inlineReplyComposerProps}
 								<InlineReplyComposer
 									id={inlineReplyComposerId('thread', threadState.focused)}
@@ -3904,6 +3932,7 @@
 											isLast={i === sortedThreadReplyPosts.length - 1}
 											nestedReplies={reply.nestedReplies}
 											onAction={handleThreadPostAction}
+											onReact={handleThreadReact}
 											inlineReply={threadInlineReplyBinding}
 											expandedReplyIds={expandedThreadReplyIds}
 											onShowNested={showThreadReplyNested}
@@ -3943,6 +3972,7 @@
 								followError={profileFollowError ? `${profileFollowError.title}: ${profileFollowError.message}` : null}
 								onPostOpen={(post) => openThread(post)}
 								onPostAction={handleProfilePostAction}
+								onPostReact={(post, anchor) => openReactionPicker(post, 'profile', anchor)}
 								onEditProfile={() => goto('/app/settings')}
 								onFollowToggle={toggleProfileFollow}
 							/>

@@ -737,6 +737,7 @@ test('signed-out visitors can view a public profile with sign-in prompts', async
 	await expect(view.getByRole('heading', { name: 'datagram' })).toBeVisible();
 	await expect(view.getByText("thinking about how the slow web isn't really slow — it's just the pace at which a person can actually pay attention.")).toBeVisible();
 	await expect(view.getByRole('button', { name: 'Sign in to follow' })).toBeVisible();
+	await expect(view.getByRole('button', { name: 'Add reaction' })).toHaveCount(0);
 	await expect(page.getByTestId('app-header')).toHaveCount(0);
 	await expect(page.getByTestId('public-profile-shell')).toBeVisible();
 	expect(relationshipRequests).toBe(0);

@@ -13,9 +13,10 @@
 		replyExpanded?: boolean;
 		replyControlsId?: string;
 		onAction?: (key: string) => void;
+		onReact?: (anchor: HTMLElement) => void;
 	};
 
-	let { post, disabledActions = {}, replyExpanded, replyControlsId, onAction }: Props = $props();
+	let { post, disabledActions = {}, replyExpanded, replyControlsId, onAction, onReact }: Props = $props();
 	let menuOpen = $state(false);
 	let copyStatus = $state('');
 
@@ -77,6 +78,19 @@
 	>
 		<Icon name="star" fill={post.actions.fav ? 'currentColor' : 'none'} /> {post.favs + (post.actions.fav ? 1 : 0)}
 	</button>
+	{#if onReact}
+		<button
+			type="button"
+			class="post-action react"
+			aria-label="Add reaction"
+			aria-haspopup="dialog"
+			title="Add reaction"
+			data-emoji-trigger
+			onclick={(event) => onReact?.(event.currentTarget)}
+		>
+			<Icon name="smile" width={15} height={15} />
+		</button>
+	{/if}
 	<div class="post-more-wrap" data-post-ignore>
 		<button
 			type="button"

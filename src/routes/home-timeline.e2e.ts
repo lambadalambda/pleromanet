@@ -2611,7 +2611,7 @@ test('home timeline renders emoji reaction rows and toggles reactions', async ({
 	await expect(reactions.getByText('3', { exact: true })).toBeVisible();
 	const customImage = reactions.locator('img[alt=":blobcat:"]');
 	await expect(customImage).toBeVisible();
-	await expect(reactions.getByRole('button', { name: 'Add reaction' })).toBeDisabled();
+	await expect(reactions.getByRole('button', { name: 'Add reaction' })).toBeEnabled();
 
 	await heartStamp.click();
 	const unreactedStamp = reactions.getByRole('button', { name: /❤️ · 2 reactions$/ });
@@ -2783,4 +2783,79 @@ test('home timeline boost attribution renders booster custom emoji', async ({ pa
 	await expect(attribution).toContainText('lumen');
 	await expect(attribution.locator('img[alt=":candle:"]')).toBeVisible();
 	await expect(attribution.locator('.post-boost-name')).not.toContainText(':candle:');
+});
+
+test('home timeline add-reaction picker submits a reaction from the post action row', async ({ page }) => {
+	await authenticate(page);
+	const base = statusWithText('status-add-react', 'react to me from the picker');
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [base]);
+	});
+	await page.route(customEmojisUrl, async (route) => {
+		await fulfillHome(route, pleromaFixtures.customEmojis);
+	});
+	const reactionCalls: Array<{ method: string; path: string }> = [];
+	await page.route(
+		(url) => url.href.startsWith('https://pleroma.example/api/v1/pleroma/statuses/status-add-react/reactions/'),
+		async (route) => {
+			reactionCalls.push({ method: route.request().method(), path: new URL(route.request().url()).pathname });
+			await fulfillHome(route, {
+				...base,
+				pleroma: { ...base.pleroma, emoji_reactions: [{ name: 'blobcat', count: 1, me: true, url: 'https://cdn.example/emoji/blobcat.png' }] }
+			});
+		}
+	);
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.getByTestId('home-timeline-list').locator('.post').first();
+	await post.getByRole('button', { name: 'Add reaction' }).click();
+	const picker = page.getByRole('dialog', { name: 'Emoji picker' });
+	await expect(picker).toBeVisible();
+	await page.getByRole('textbox', { name: 'Search emoji' }).fill('blobcat');
+	await picker.getByRole('button', { name: ':blobcat:' }).first().click();
+	await expect(picker).toBeHidden();
+
+	await expect(post.getByTestId('post-reactions').locator('img[alt=":blobcat:"]')).toBeVisible();
+	expect(reactionCalls[0]?.method).toBe('PUT');
+	expect(decodeURIComponent(reactionCalls[0]?.path ?? '')).toContain('/reactions/blobcat');
+});
+
+test('home timeline add-reaction picker submits a unicode reaction from the stamp', async ({ page }) => {
+	await authenticate(page);
+	const base = {
+		...statusWithText('status-stamp-react', 'already has reactions'),
+		pleroma: { ...statusWithText('status-stamp-react', 'x').pleroma, emoji_reactions: [{ name: '🔥', count: 2, me: false }] }
+	};
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [base]);
+	});
+	await page.route(customEmojisUrl, async (route) => {
+		await fulfillHome(route, pleromaFixtures.customEmojis);
+	});
+	let reactionPath = '';
+	await page.route(
+		(url) => url.href.startsWith('https://pleroma.example/api/v1/pleroma/statuses/status-stamp-react/reactions/'),
+		async (route) => {
+			reactionPath = new URL(route.request().url()).pathname;
+			await fulfillHome(route, {
+				...base,
+				pleroma: { ...base.pleroma, emoji_reactions: [{ name: '🔥', count: 2, me: false }, { name: '🐱', count: 1, me: true }] }
+			});
+		}
+	);
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const reactions = page.getByTestId('post-reactions');
+	await reactions.getByRole('button', { name: 'Add reaction' }).click();
+	const picker = page.getByRole('dialog', { name: 'Emoji picker' });
+	await expect(picker).toBeVisible();
+	await picker.getByRole('button', { name: 'Animals & nature' }).click();
+	await picker.getByRole('button', { name: '🐱', exact: true }).click();
+	await expect(picker).toBeHidden();
+	await expect(reactions.getByRole('button', { name: /🐱 · 1 reaction · you reacted/ })).toBeVisible();
+	expect(decodeURIComponent(reactionPath)).toContain('/reactions/🐱');
 });
