@@ -2707,3 +2707,52 @@ test('home timeline composer visibility selector scopes the created status', asy
 	await expect.poll(() => createBodies.length).toBe(2);
 	expect(new URLSearchParams(createBodies[1]).get('visibility')).toBe('private');
 });
+
+test('home timeline emoji picker scrolls long packs and offers canonical unicode groups', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, []);
+	});
+	const bigPack = Array.from({ length: 60 }, (_, index) => ({
+		shortcode: `blob${index + 1}`,
+		url: `https://cdn.example/emoji/blob${index + 1}.png`,
+		static_url: `https://cdn.example/emoji/blob${index + 1}.png`,
+		visible_in_picker: true,
+		tags: ['bigpack'],
+		category: 'bigpack'
+	}));
+	await page.route(customEmojisUrl, async (route) => {
+		await fulfillHome(route, bigPack);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await page.getByRole('button', { name: 'Emoji' }).click();
+	const picker = page.getByRole('dialog', { name: 'Emoji picker' });
+	await expect(picker).toBeVisible();
+
+	for (const label of ['Smileys & people', 'Animals & nature', 'Food & drink', 'Travel & places', 'Objects & tech']) {
+		await expect(picker.getByRole('button', { name: label })).toBeVisible();
+	}
+
+	await picker.getByRole('button', { name: 'bigpack' }).click();
+	await expect(picker.getByRole('button', { name: ':blob1:' })).toBeVisible();
+	const scrollable = await picker.locator('.ep-grid').evaluate((grid) => ({
+		scrollHeight: grid.scrollHeight,
+		clientHeight: grid.clientHeight,
+		scrollTop: grid.scrollTop
+	}));
+	expect(scrollable.scrollHeight).toBeGreaterThan(scrollable.clientHeight);
+	expect(scrollable.clientHeight).toBeGreaterThan(0);
+
+	const search = page.getByRole('textbox', { name: 'Search emoji' });
+	await search.press('End');
+	await expect(picker.getByRole('button', { name: ':blob60:' })).toHaveAttribute('aria-pressed', 'true');
+	await expect(picker.getByRole('button', { name: ':blob60:' })).toBeInViewport();
+
+	await picker.getByRole('button', { name: 'Animals & nature' }).click();
+	await picker.getByRole('button', { name: '🐱', exact: true }).click();
+	await expect(picker).toBeHidden();
+	await expect(page.getByRole('textbox', { name: 'Post text' })).toContainText('🐱');
+});

@@ -253,10 +253,6 @@
 	];
 	const DS_SHORTCODE_QUERY = 'bl';
 	const DS_SHORTCODE_EMOJI = DS_CUSTOM_EMOJI.filter((emoji) => emoji.shortcode.startsWith(DS_SHORTCODE_QUERY));
-	const DS_UNICODE_GROUPS = [
-		{ id: 'smileys', label: 'Smileys', items: ['☺', '☹', '☻', '♡', '☆', '☾'] },
-		{ id: 'symbols', label: 'Symbols', items: ['✦', '✧', '✶', '※', '◌', '◷'] }
-	];
 	const DS_UPLOADS = [
 		{ id: 'u1', name: 'rain-on-glass-take2.wav', kind: 'audio', pct: 100 },
 		{ id: 'u2', name: 'windowsill-dusk.jpg', kind: 'photo', pct: 62 },
@@ -1565,7 +1561,7 @@
 						</div>
 						<div class="ds-spec ds-spec-span-2">
 							<div class="ds-spec-stage padded">
-								<EmojiPicker static open emojis={DS_CUSTOM_EMOJI} unicodeGroups={DS_UNICODE_GROUPS} recents={[DS_CUSTOM_EMOJI[0], DS_CUSTOM_EMOJI[1], '☺', '✦', '☾']} onClose={() => undefined} onPick={() => undefined} />
+								<EmojiPicker static open emojis={DS_CUSTOM_EMOJI} recents={[DS_CUSTOM_EMOJI[0], DS_CUSTOM_EMOJI[1], '🔥', '❤️', '✨']} onClose={() => undefined} onPick={() => undefined} />
 							</div>
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Full emoji picker</span>

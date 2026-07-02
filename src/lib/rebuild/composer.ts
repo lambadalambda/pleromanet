@@ -45,6 +45,15 @@ export type ComposerPollPayload = {
 export const COMPOSER_MAX_UPLOADS = 8;
 export const COMPOSER_MAX_UPLOAD_BYTES = 40 * 1024 * 1024;
 
+// Pleroma tags packs as `pack:<name>` in tags/category on the custom emoji
+// manifest; untagged emoji fall back to a shared "custom" pack.
+export const customEmojiPack = (emoji: { tags?: unknown; category?: unknown }): string => {
+	const tags = Array.isArray(emoji.tags) ? emoji.tags.filter((tag): tag is string => typeof tag === 'string') : [];
+	const raw = tags[0] ?? (typeof emoji.category === 'string' ? emoji.category : '');
+	const cleaned = raw.replace(/^pack:/, '').trim();
+	return cleaned || 'custom';
+};
+
 const durationSeconds: Record<string, number> = {
 	'5m': 5 * 60,
 	'1h': 60 * 60,

@@ -16,9 +16,13 @@
 		static?: boolean;
 	};
 
+	// Canonical unicode groups from the handoff emoji-data.jsx.
 	const DEFAULT_UNICODE_GROUPS: UnicodeGroup[] = [
-		{ id: 'smileys', label: 'Smileys', items: ['☺', '☹', '☻', '♡', '☆', '☾'] },
-		{ id: 'symbols', label: 'Symbols', items: ['✦', '✧', '✶', '※', '◌', '◷'] }
+		{ id: 'smileys', label: 'Smileys & people', items: ['😀', '😁', '😂', '🤣', '😅', '😊', '😉', '😍', '😘', '😎', '🤔', '😴', '😭', '😡', '🥺', '🤗', '🙃', '😏', '😌', '😪', '🥹', '😢', '🥳', '🫡'] },
+		{ id: 'animals', label: 'Animals & nature', items: ['🐱', '🐶', '🦊', '🐰', '🐻', '🐼', '🦁', '🐯', '🐮', '🐷', '🐸', '🐵', '🦄', '🐝', '🦋', '🐢', '🐍', '🦖', '🦔', '🐧'] },
+		{ id: 'food', label: 'Food & drink', items: ['🍕', '🍔', '🍟', '🌭', '🍿', '🥯', '🍞', '🥐', '🥨', '🥞', '🧀', '🍳', '🥚', '🥓', '🍣', '🍙', '🍡', '🍩', '☕', '🍵'] },
+		{ id: 'travel', label: 'Travel & places', items: ['🚗', '🚙', '🚌', '🚎', '🏎', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🛵', '🏍', '🛺', '🚲', '🛴', '✈', '🚀'] },
+		{ id: 'objects', label: 'Objects & tech', items: ['⌚', '📱', '💻', '⌨', '🖥', '🖨', '🖱', '🖲', '🕹', '🗜', '💾', '💿', '📀', '📼', '📷', '📹', '🎥', '📽', '📺', '📡'] }
 	];
 
 	let {
@@ -55,7 +59,7 @@
 		}
 		if (tab === 'recent') {
 			const fallback = emojis.slice(0, 3);
-			return recents.length > 0 ? recents.map((recent) => typeof recent === 'string' && recent.length > 4 ? emojis.find((emoji) => emoji.shortcode === recent) ?? recent : recent) : [...fallback, '☺', '✦', '☾'];
+			return recents.length > 0 ? recents.map((recent) => typeof recent === 'string' && recent.length > 4 ? emojis.find((emoji) => emoji.shortcode === recent) ?? recent : recent) : [...fallback, '🔥', '❤️', '✨'];
 		}
 		if (tab.startsWith('custom:')) {
 			const pack = tab.slice(7);
@@ -89,13 +93,18 @@
 		if (cells.length === 0) selectedIndex = 0;
 		else if (selectedIndex >= cells.length) selectedIndex = cells.length - 1;
 	};
+	const gridColumns = () => {
+		const grid = picker?.querySelector('.ep-grid');
+		if (!grid) return 5;
+		return Math.max(1, getComputedStyle(grid).gridTemplateColumns.split(' ').length);
+	};
 	const handlePickerKeydown = (event: KeyboardEvent) => {
 		if (cells.length === 0 && event.key === 'Enter') {
 			event.preventDefault();
 			return;
 		}
 		if (cells.length === 0) return;
-		const columns = 5;
+		const columns = gridColumns();
 		if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
 			event.preventDefault();
 			selectedIndex = Math.min(cells.length - 1, selectedIndex + (event.key === 'ArrowDown' ? columns : 1));
@@ -156,6 +165,11 @@
 		cells;
 		clampSelectedIndex();
 	});
+
+	$effect(() => {
+		selectedIndex;
+		picker?.querySelector('.ep-cell.sel')?.scrollIntoView({ block: 'nearest' });
+	});
 </script>
 
 {#if open || isStatic}
@@ -167,7 +181,7 @@
 						{#if entry.kind === 'custom'}
 							<span class="ep-side-swatch">{#if emojis.find((emoji) => (emoji.pack ?? 'custom') === entry.pack)?.url}<img src={emojis.find((emoji) => (emoji.pack ?? 'custom') === entry.pack)?.url} alt="" />{/if}</span>
 						{:else}
-							<span class="ep-side-glyph">{entry.kind === 'recent' ? '◷' : '☺'}</span>
+							<span class="ep-side-glyph">{entry.kind === 'recent' ? '◷' : entry.group.items[0] ?? '☺'}</span>
 						{/if}
 					</span>
 					<span class="ep-side-t">{entry.label}</span>

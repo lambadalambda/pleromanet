@@ -11,6 +11,8 @@ export type PleromaCustomEmoji = {
 	url: string;
 	static_url?: string;
 	visible_in_picker?: boolean;
+	tags?: string[];
+	category?: string | null;
 	[key: string]: unknown;
 };
 

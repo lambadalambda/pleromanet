@@ -37,7 +37,7 @@
 	} from '$lib/pleroma/timeline-state';
 	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit, type PleromaAccountView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaProfileSettingsView, type PleromaReactionView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
-	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, composerUploadBadge, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
+	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, customEmojiPack, composerUploadBadge, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
 	import type { ProfileData, ProfileMediaItem, ProfilePost } from '$lib/rebuild/profile';
 	import type { PleromaAccount, PleromaInstance, PleromaNotification, PleromaRelationship, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
@@ -1745,12 +1745,14 @@
 				accessToken: session.accessToken,
 				fetch: window.fetch.bind(window)
 			});
-			const emojis = adaptCustomEmojis(await client.getCustomEmojis()).map((emoji) => ({
-				shortcode: emoji.shortcode,
-				url: emoji.url,
-				staticUrl: emoji.staticUrl,
-				pack: 'custom'
-			}));
+			const emojis = (await client.getCustomEmojis())
+				.filter((emoji) => emoji.shortcode && emoji.url && emoji.visible_in_picker !== false)
+				.map((emoji) => ({
+					shortcode: emoji.shortcode,
+					url: emoji.url,
+					staticUrl: emoji.static_url ?? undefined,
+					pack: customEmojiPack(emoji)
+				}));
 			if (requestId !== composerCustomEmojiRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			composerCustomEmojis = emojis;
