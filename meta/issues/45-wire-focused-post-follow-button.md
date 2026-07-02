@@ -6,16 +6,19 @@ The thread focused-post header renders a static Follow/Following button (`Focuse
 
 ## Requirements
 
-- Derive the focused post author's relationship state (self/following/requested/blocked) from fetched relationships or the account cache.
-- Hide the button for the viewer's own posts.
-- Either wire follow/unfollow with the optimistic pattern used on profile pages, or clearly disable the control until it is wired.
+- Per user decision on 2026-07-02: remove the button entirely — a follow control in the thread header duplicates the profile page's follow flow and reads as noise there.
+- Remove the now-unused `following` fields from the focused-post prop shapes.
 
 ## Acceptance Criteria
 
-- The viewer's own focused posts show no follow affordance.
-- For other authors the button reflects the real relationship state, and clicking it (if wired) round-trips the relationship mutation with rollback on failure.
-- Covered by mocked tests in `app-thread.e2e.ts`.
+- The thread focused post renders no follow affordance for any author.
+- Covered by a mocked assertion in `app-thread.e2e.ts`.
 
 ## Notes
 
 - Observed during live testing against fediffusion.art on 2026-07-02: sophia's own thread page showed an inert "Follow" button.
+- The canonical `thread.jsx` handoff does include this button; removing it is a deliberate deviation requested by the user. Following happens on profile pages (one click away via the focused post's name/handle).
+
+## Current Status
+
+- Done: the button and the dead `following` prop fields are removed from `FocusedPost.svelte`, the app thread view, and the design-system thread demo types; `app-thread.e2e.ts` asserts no Follow affordance renders on the focused post. The `Button variant="follow"` primitive itself remains in use by suggestion cards and the design-system Controls specimen.

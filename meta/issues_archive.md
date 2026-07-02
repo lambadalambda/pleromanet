@@ -44,3 +44,4 @@
 - [x] [46 Wire composer visibility selector](issues/46-wire-composer-visibility-selector.md)
 - [x] [44 Stabilize flaky composer mention avatar test](issues/44-stabilize-flaky-composer-mention-avatar-test.md)
 - [x] [47 Fix emoji picker scrolling and unicode sets](issues/47-fix-emoji-picker-scrolling-and-unicode-sets.md)
+- [x] [45 Wire focused post follow button](issues/45-wire-focused-post-follow-button.md)
