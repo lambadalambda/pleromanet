@@ -52,6 +52,7 @@
 		if (!attachments.length) return;
 		openLightbox(attachments, idx, {
 			name: post.name,
+			nameEmojis: post.nameEmojis,
 			handle: post.handle,
 			avClass: post.avClass,
 			avBanner: post.avBanner

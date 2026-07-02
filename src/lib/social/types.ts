@@ -12,6 +12,7 @@ export type SocialNotificationActor = {
 	handle?: string;
 	av: MediaVariant;
 	avatarUrl?: string | null;
+	emojis?: CustomEmoji[];
 };
 
 export type SocialNotificationPostRef = {
@@ -119,6 +120,7 @@ export type QuotedPostView = {
 
 export type BoostAttributionView = {
 	name: string;
+	nameEmojis?: CustomEmoji[];
 	handle: string;
 	time?: string;
 	createdAt?: string;

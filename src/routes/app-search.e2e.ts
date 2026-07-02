@@ -401,3 +401,22 @@ test('full search page shows no-results and API error states', async ({ page }) 
 	await expect(page.getByRole('heading', { name: 'Pleroma server error' })).toBeVisible();
 	await expect(page.getByText('search unavailable')).toBeVisible();
 });
+
+test('search result snippets fall back to media placeholders for media-only posts', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page);
+	const mediaOnlyStatus = {
+		...statusResult('status-media-only', ''),
+		content: '',
+		media_attachments: [
+			{ id: 'm1', type: 'image', url: 'https://cdn.example/one.png', description: null },
+			{ id: 'm2', type: 'image', url: 'https://cdn.example/two.png', description: null }
+		]
+	};
+	await mockSearch(page, { accounts: [], statuses: [mediaOnlyStatus], hashtags: [] });
+	await setViewport(page, 'desktop');
+	await page.goto('/app/search?q=media');
+
+	const snippet = page.locator('.se-row-snippet').first();
+	await expect(snippet).toContainText('[2 images]');
+});

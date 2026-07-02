@@ -2756,3 +2756,31 @@ test('home timeline emoji picker scrolls long packs and offers canonical unicode
 	await expect(picker).toBeHidden();
 	await expect(page.getByRole('textbox', { name: 'Post text' })).toContainText('🐱');
 });
+
+test('home timeline boost attribution renders booster custom emoji', async ({ page }) => {
+	await authenticate(page);
+	const booster = {
+		...pleromaFixtures.account,
+		id: 'account-booster',
+		username: 'lumen',
+		acct: 'lumen@candle.house',
+		display_name: 'lumen :candle:',
+		emojis: [{ shortcode: 'candle', url: 'https://cdn.example/emoji/candle.png', static_url: 'https://cdn.example/emoji/candle.png' }]
+	};
+	const boosted = statusWithText('status-boost-emoji', 'carried by a warm light.');
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [{
+			...statusWithText('status-boost-wrap', ''),
+			account: booster,
+			reblog: boosted
+		}]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const attribution = page.locator('.post-boost-attr');
+	await expect(attribution).toContainText('lumen');
+	await expect(attribution.locator('img[alt=":candle:"]')).toBeVisible();
+	await expect(attribution.locator('.post-boost-name')).not.toContainText(':candle:');
+});

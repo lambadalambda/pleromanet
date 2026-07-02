@@ -1,3 +1,5 @@
+import type { CustomEmoji } from '$lib/social/types';
+
 export type BannerVariant = 'sunset' | 'pixel-window' | 'city' | 'space';
 
 export const bannerVariants: BannerVariant[] = ['sunset', 'pixel-window', 'city', 'space'];
@@ -61,6 +63,7 @@ export type Attachment = RenderableAttachment | PollAttachment;
 
 export type BoostAttribution = {
 	name?: string;
+	nameEmojis?: CustomEmoji[];
 	handle?: string;
 	time?: string;
 	createdAt?: string;
@@ -155,6 +158,7 @@ export const fmtDur = (t: number): string => {
 
 export type LightboxAttribution = {
 	name?: string;
+	nameEmojis?: CustomEmoji[];
 	handle?: string;
 	avClass?: string;
 	avBanner?: BannerVariant;

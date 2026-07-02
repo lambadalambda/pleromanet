@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Avatar from './Avatar.svelte';
 	import NotifIcon from './NotifIcon.svelte';
+	import RichText from './RichText.svelte';
 	import { NOTIF_KINDS, type NotificationData } from './notifications';
 
 	type Props = {
@@ -60,7 +61,7 @@
 		<div class="notif-row-text">
 			<span class="notif-names">
 				{#each namedActors as actor, i}
-					<span><b>{actor.name}</b>{#if i === 0 && n.who.length > 1}, {' '}{/if}</span>
+					<span><b><RichText text={actor.name} emojis={actor.emojis} linkMentions={false} /></b>{#if i === 0 && n.who.length > 1}, {' '}{/if}</span>
 				{/each}
 				{#if otherCount > 0}
 					<span class="notif-others"> and {otherCount} other{otherCount > 1 ? 's' : ''}</span>

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, formatRelativeStatusTime, htmlToPlainText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit } from './ui';
+import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, formatRelativeStatusTime, htmlToPlainText, mediaPlaceholderText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit } from './ui';
 import { pleromaFixtures } from './fixtures';
 import type { PleromaStatus } from './types';
 
@@ -648,4 +648,47 @@ test('status reaction adapters normalize unicode and custom emoji reactions', ()
 		{ name: 'blobcat', glyph: null, url: 'https://cdn.example/emoji/blobcat.png', staticUrl: 'https://cdn.example/emoji/blobcat-static.png', count: 2, me: false }
 	]);
 	expect(adaptPleromaStatus(pleromaFixtures.status).reactions).toEqual([]);
+});
+
+test('media placeholder text summarizes media-only statuses', () => {
+	expect(mediaPlaceholderText(['image'])).toBe('[image]');
+	expect(mediaPlaceholderText(['image', 'image'])).toBe('[2 images]');
+	expect(mediaPlaceholderText(['gifv'])).toBe('[image]');
+	expect(mediaPlaceholderText(['video'])).toBe('[video]');
+	expect(mediaPlaceholderText(['audio'])).toBe('[audio clip]');
+	expect(mediaPlaceholderText(['audio', 'audio'])).toBe('[2 audio clips]');
+	expect(mediaPlaceholderText(['image', 'video'])).toBe('[2 attachments]');
+	expect(mediaPlaceholderText([], true)).toBe('[poll]');
+	expect(mediaPlaceholderText([])).toBe('');
+
+	const [imageOnly] = adaptPleromaNotifications([{
+		id: 'notif-media',
+		type: 'favourite',
+		created_at: '2026-05-18T12:00:00.000Z',
+		account: pleromaFixtures.account,
+		status: {
+			...pleromaFixtures.status,
+			content: '',
+			media_attachments: [{ id: 'm1', type: 'image', url: 'https://cdn.example/a.png' }],
+			pleroma: { ...pleromaFixtures.status.pleroma, content: { 'text/plain': '' } }
+		},
+		pleroma: {}
+	}]);
+	expect(imageOnly.post?.excerpt).toBe('[image]');
+	expect(imageOnly.who[0].emojis).toEqual([]);
+
+	const [empty] = adaptPleromaNotifications([{
+		id: 'notif-empty',
+		type: 'favourite',
+		created_at: '2026-05-18T12:00:00.000Z',
+		account: pleromaFixtures.account,
+		status: {
+			...pleromaFixtures.status,
+			content: '',
+			media_attachments: [],
+			pleroma: { ...pleromaFixtures.status.pleroma, content: { 'text/plain': '' } }
+		},
+		pleroma: {}
+	}]);
+	expect(empty.post).toBeUndefined();
 });

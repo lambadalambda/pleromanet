@@ -326,10 +326,38 @@ const notificationReadState = (notification: PleromaNotification, lastSeenAt: st
 	return remoteRead || locallyRead;
 };
 
+export const mediaPlaceholderText = (types: Array<string | undefined>, hasPoll = false) => {
+	const nouns: Record<string, [string, string]> = {
+		image: ['image', 'images'],
+		video: ['video', 'videos'],
+		audio: ['audio clip', 'audio clips'],
+		attachment: ['attachment', 'attachments']
+	};
+	const normalized = types.map((type) => {
+		const kind = (type ?? '').toLowerCase();
+		if (kind === 'image' || kind === 'photo' || kind === 'gifv') return 'image';
+		if (kind === 'video') return 'video';
+		if (kind === 'audio') return 'audio';
+		return 'attachment';
+	});
+	if (normalized.length === 0) return hasPoll ? '[poll]' : '';
+	const kind = new Set(normalized).size === 1 ? normalized[0] : 'attachment';
+	const [singular, plural] = nouns[kind];
+	return normalized.length === 1 ? `[${singular}]` : `[${normalized.length} ${plural}]`;
+};
+
+const statusMediaTypes = (status: PleromaStatus) =>
+	(Array.isArray(status.media_attachments) ? status.media_attachments : [])
+		.map((attachment) => (isRecord(attachment) && typeof attachment.type === 'string' ? attachment.type : ''));
+
 const notificationPostRef = (status: PleromaStatus | null | undefined): SocialNotificationData['post'] => {
 	if (!status) return undefined;
 	const warning = spoilerText(status);
-	const excerpt = warning ? `Content warning: ${warning}` : compactExcerpt(plainTextContent(status));
+	const text = compactExcerpt(plainTextContent(status));
+	const excerpt = warning
+		? `Content warning: ${warning}`
+		: text || mediaPlaceholderText(statusMediaTypes(status), Boolean(status.poll));
+	if (!excerpt) return undefined;
 
 	return { excerpt, tStamp: formatStatusDate(status.created_at) };
 };
@@ -763,6 +791,7 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		media: undefined,
 		boostedBy: booster ? {
 			name: booster.displayName,
+			nameEmojis: booster.emojis,
 			handle: booster.handle,
 			time: formatRelativeStatusTime(status.created_at, options.now),
 			createdAt: status.created_at,
@@ -814,7 +843,8 @@ export const adaptPleromaNotification = (
 			name: account.displayName,
 			handle: account.handle,
 			av: 'sunset',
-			avatarUrl: account.avatarUrl
+			avatarUrl: account.avatarUrl,
+			emojis: account.emojis
 		}],
 		post: notificationPostRef(notification.status),
 		bio: (kind === 'follow' || kind === 'follow_req') && bio ? compactExcerpt(bio) : undefined,

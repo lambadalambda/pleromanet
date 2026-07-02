@@ -1,22 +1,18 @@
 <script lang="ts">
-	import type { BannerVariant, RenderableAttachment } from './attachments';
+	import type { LightboxAttribution, RenderableAttachment } from './attachments';
 	import { attachmentTitle } from './attachments';
 	import Avatar from './Avatar.svelte';
 	import Icon from './Icon.svelte';
 	import MediaStripThumb from './MediaStripThumb.svelte';
 	import MediaStripKindBadge from './MediaStripKindBadge.svelte';
+	import RichText from './RichText.svelte';
 	import VideoAttachment from './VideoAttachment.svelte';
 	import AudioAttachment from './AudioAttachment.svelte';
 
 	type Props = {
 		attachments: RenderableAttachment[];
 		startIdx: number;
-		attribution?: {
-			name?: string;
-			handle?: string;
-			avClass?: string;
-			avBanner?: BannerVariant;
-		} | null;
+		attribution?: LightboxAttribution | null;
 		onClose: () => void;
 		onIdx: (i: number) => void;
 	};
@@ -47,7 +43,7 @@
 				{#if attribution}
 					<Avatar variant="post" avClass={attribution.avClass} avBanner={attribution.avBanner} size={36} />
 					<div>
-						<div class="lightbox-name">{attribution.name} <span>{attribution.handle}</span></div>
+						<div class="lightbox-name"><RichText text={attribution.name} emojis={attribution.nameEmojis} linkMentions={false} /> <span>{attribution.handle}</span></div>
 						<div class="lightbox-count">
 							{startIdx + 1} of {total} ·{' '}
 							{attachmentTitle(att)}

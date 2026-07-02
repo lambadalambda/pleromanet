@@ -35,7 +35,7 @@
 		type PaginatedTimelineBaseState,
 		type PaginatedTimelineSuccess
 	} from '$lib/pleroma/timeline-state';
-	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit, type PleromaAccountView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaProfileSettingsView, type PleromaReactionView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, mediaPlaceholderText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit, type PleromaAccountView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaProfileSettingsView, type PleromaReactionView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, customEmojiPack, composerUploadBadge, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
@@ -565,6 +565,7 @@
 			addressees: post.addressees,
 			boostedBy: post.boostedBy ? {
 				name: booster?.displayName ?? post.boostedBy.name,
+				nameEmojis: booster?.emojis ?? post.boostedBy.nameEmojis,
 				handle: booster?.handle ?? post.boostedBy.handle,
 				time: post.boostedBy.time,
 				createdAt: post.boostedBy.createdAt,
@@ -1776,6 +1777,8 @@
 		if (relationship.following) return 'following';
 		return 'stranger';
 	};
+	const searchPostSnippet = (post: PleromaStatusView) =>
+		post.body || mediaPlaceholderText(post.mediaAttachments.map((attachment) => attachment.type), (post.attachments ?? []).some((attachment) => attachment.kind === 'poll'));
 	const searchFollowLabel = (followState: PleromaProfileFollowState) => (
 		followState === 'self' ? 'You' :
 		followState === 'mutual' ? 'Mutuals' :
@@ -3238,7 +3241,7 @@
 							<span class="se-row-acct">{post.handle}</span>
 							<span class="se-row-time">{post.time}</span>
 						</span>
-						<span class="se-row-snippet"><RichText text={post.body} emojis={post.bodyEmojis} mentionClass="post-mention-inline" linkMentions={false} /></span>
+						<span class="se-row-snippet"><RichText text={searchPostSnippet(post)} emojis={post.bodyEmojis} mentionClass="post-mention-inline" linkMentions={false} /></span>
 						<span class="se-row-meta"><span>↩ {post.replies}</span><span>↻ {post.boosts}</span><span>★ {post.favorites}</span></span>
 					</span>
 				</button>
@@ -3353,7 +3356,7 @@
 												{#each headerSearchPosts as post, i (post.id)}
 													<button id={`header-search-option-${headerSearchAccounts.length + i}`} type="button" role="option" aria-selected={headerSearchSelectedIndex === headerSearchAccounts.length + i} class="se-dd-row" class:sel={headerSearchSelectedIndex === headerSearchAccounts.length + i} onpointerdown={(event) => activateHeaderSearchPointerItem(event, { kind: 'post', post })} onclick={(event) => activateHeaderSearchClickItem(event, { kind: 'post', post })}>
 														<Avatar variant="plain" element="span" className="se-dd-av" avatarUrl={post.avatarUrl} alt={`${post.name} avatar`} />
-														<span class="se-dd-snippet"><RichText text={post.body} emojis={post.bodyEmojis} mentionClass="post-mention-inline" linkMentions={false} /></span>
+														<span class="se-dd-snippet"><RichText text={searchPostSnippet(post)} emojis={post.bodyEmojis} mentionClass="post-mention-inline" linkMentions={false} /></span>
 														<span class="se-dd-snippet-meta">{post.time}</span>
 													</button>
 												{/each}

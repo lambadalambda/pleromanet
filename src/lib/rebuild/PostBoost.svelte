@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Avatar from './Avatar.svelte';
 	import RelativeTime from './RelativeTime.svelte';
+	import RichText from './RichText.svelte';
 	import type { BoostAttribution } from './attachments';
 	import { profileHref } from './profile-links';
 
@@ -24,9 +25,9 @@
 			</span>
 			<Avatar variant="post" size={18} avClass={boostedBy.avClass} avBanner={boostedBy.avBanner} avatarUrl={boostedBy.avatarUrl} alt={`${boostedBy.name ?? boostedBy.handle ?? 'Booster'} avatar`} profileHref={href} className="post-boost-av" />
 			{#if href}
-				<a class="post-boost-name" href={href}>{boostedBy.name ?? boostedBy.handle}</a>
+				<a class="post-boost-name" href={href}><RichText text={boostedBy.name ?? boostedBy.handle} emojis={boostedBy.nameEmojis} linkMentions={false} /></a>
 			{:else}
-				<span class="post-boost-name">{boostedBy.name ?? boostedBy.handle}</span>
+				<span class="post-boost-name"><RichText text={boostedBy.name ?? boostedBy.handle} emojis={boostedBy.nameEmojis} linkMentions={false} /></span>
 			{/if}
 			{#if boostedBy.handle}
 				{#if href}

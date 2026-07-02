@@ -60,6 +60,7 @@
 		attachments: post.attachments,
 		boostedBy: post.boostedBy ? {
 			name: post.boostedBy.name,
+			nameEmojis: post.boostedBy.nameEmojis,
 			handle: post.boostedBy.handle,
 			time: post.boostedBy.time,
 			createdAt: post.boostedBy.createdAt,

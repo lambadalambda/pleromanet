@@ -432,3 +432,40 @@ test('notification polling pauses after the session is removed', async ({ page }
 	expect(requests()).toBe(beforeSignOutPoll);
 	await expect(notificationBadge(page)).toHaveCount(0);
 });
+
+test('notification rows render name custom emoji and media-only excerpts', async ({ page }) => {
+	await authenticate(page);
+	const emojiActor: PleromaAccount = {
+		...accountWithName('account-tux', 'James Randson :tux:', 'james@linux.example'),
+		emojis: [{ shortcode: 'tux', url: 'https://cdn.example/emoji/tux.png', static_url: 'https://cdn.example/emoji/tux.png' }]
+	};
+	const imageOnlyStatus: PleromaStatus = {
+		...statusWithText('status-image-only', ''),
+		content: '',
+		media_attachments: [
+			{ id: 'media-1', type: 'image', url: 'https://cdn.example/only.png', preview_url: 'https://cdn.example/only-thumb.png', description: null },
+			{ id: 'media-2', type: 'image', url: 'https://cdn.example/only-2.png', preview_url: 'https://cdn.example/only-2-thumb.png', description: null }
+		]
+	};
+	const videoOnlyStatus: PleromaStatus = {
+		...statusWithText('status-video-only', ''),
+		content: '',
+		media_attachments: [{ id: 'media-3', type: 'video', url: 'https://cdn.example/clip.mp4', description: null }]
+	};
+	await mockNotifications(page, () => [
+		notification('notif-emoji-fav', 'favourite', emojiActor, '2026-05-18T12:03:00.000Z', imageOnlyStatus),
+		notification('notif-video-boost', 'reblog', boostActor, '2026-05-18T12:02:00.000Z', videoOnlyStatus)
+	]);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/notifications');
+
+	const list = page.getByTestId('notifications-list');
+	await expect(list).toContainText('James Randson');
+	await expect(list.locator('.notif-names img[alt=":tux:"]').first()).toBeVisible();
+	await expect(list.locator('.notif-names').first()).not.toContainText(':tux:');
+
+	const favRow = list.locator('.notif-row').filter({ hasText: 'favorited your post' });
+	await expect(favRow.locator('.notif-row-quote')).toContainText('[2 images]');
+	const boostRow = list.locator('.notif-row').filter({ hasText: 'boosted your post' });
+	await expect(boostRow.locator('.notif-row-quote')).toContainText('[video]');
+});
