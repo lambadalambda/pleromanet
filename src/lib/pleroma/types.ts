@@ -98,6 +98,7 @@ export type PleromaStatus = {
 	emojis: PleromaCustomEmoji[];
 	favourited: boolean;
 	favourites_count: number;
+	bookmarked?: boolean;
 	in_reply_to_account_id: string | null;
 	in_reply_to_id: string | null;
 	language: string | null;

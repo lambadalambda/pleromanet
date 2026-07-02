@@ -352,6 +352,64 @@ export const createPleromaClient = (config: ClientConfig) => {
 				auth: 'required'
 			}),
 
+		bookmarkStatus: (id: string) =>
+			http.request<PleromaStatus>({
+				method: 'POST',
+				path: `/api/v1/statuses/${encodePathSegment(id)}/bookmark`,
+				auth: 'required'
+			}),
+
+		unbookmarkStatus: (id: string) =>
+			http.request<PleromaStatus>({
+				method: 'POST',
+				path: `/api/v1/statuses/${encodePathSegment(id)}/unbookmark`,
+				auth: 'required'
+			}),
+
+		getBookmarksPage: async (query?: TimelineQuery) => {
+			const response = await http.requestWithHeaders<PleromaStatus[]>({
+				path: '/api/v1/bookmarks',
+				query: timelineQuery(query),
+				auth: 'required'
+			});
+			return timelinePage(response.body, response.headers);
+		},
+
+		deleteStatus: (id: string) =>
+			http.request<PleromaStatus>({
+				method: 'DELETE',
+				path: `/api/v1/statuses/${encodePathSegment(id)}`,
+				auth: 'required'
+			}),
+
+		muteAccount: (id: string) =>
+			http.request<PleromaRelationship>({
+				method: 'POST',
+				path: `/api/v1/accounts/${encodePathSegment(id)}/mute`,
+				auth: 'required'
+			}),
+
+		unmuteAccount: (id: string) =>
+			http.request<PleromaRelationship>({
+				method: 'POST',
+				path: `/api/v1/accounts/${encodePathSegment(id)}/unmute`,
+				auth: 'required'
+			}),
+
+		blockAccount: (id: string) =>
+			http.request<PleromaRelationship>({
+				method: 'POST',
+				path: `/api/v1/accounts/${encodePathSegment(id)}/block`,
+				auth: 'required'
+			}),
+
+		unblockAccount: (id: string) =>
+			http.request<PleromaRelationship>({
+				method: 'POST',
+				path: `/api/v1/accounts/${encodePathSegment(id)}/unblock`,
+				auth: 'required'
+			}),
+
 		getNotifications: (query?: NotificationQuery, control: RequestControl = {}) =>
 			http.request<PleromaNotification[]>({
 				path: '/api/v1/notifications',

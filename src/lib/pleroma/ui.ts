@@ -90,6 +90,7 @@ export type PleromaStatusView = TimelinePost & {
 	mediaHidden: boolean;
 	mediaAttachments: PleromaMediaAttachmentView[];
 	reactions: PleromaReactionView[];
+	bookmarked: boolean;
 	rebloggedBy?: PleromaAccountView;
 	pleroma: {
 		conversationId?: number;
@@ -832,6 +833,7 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		mediaHidden,
 		mediaAttachments,
 		reactions: adaptStatusReactions(source),
+		bookmarked: source.bookmarked === true,
 		rebloggedBy: booster,
 		pleroma: {
 			conversationId: source.pleroma.conversation_id,

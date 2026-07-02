@@ -385,6 +385,13 @@ test('Pleroma client covers mutations, unauthenticated state, and API errors', a
 	await client.unfavoriteStatus('status-1');
 	await client.boostStatus('status-1');
 	await client.unboostStatus('status-1');
+	await client.bookmarkStatus('status-1');
+	await client.unbookmarkStatus('status-1');
+	await client.deleteStatus('status-1');
+	await client.muteAccount('account-1');
+	await client.unmuteAccount('account-1');
+	await client.blockAccount('account-1');
+	await client.unblockAccount('account-1');
 	const createdStatus = await client.createStatus({
 		status: 'new post from client',
 		visibility: 'unlisted',
@@ -408,12 +415,19 @@ test('Pleroma client covers mutations, unauthenticated state, and API errors', a
 		'POST /api/v1/statuses/status-1/unfavourite',
 		'POST /api/v1/statuses/status-1/reblog',
 		'POST /api/v1/statuses/status-1/unreblog',
+		'POST /api/v1/statuses/status-1/bookmark',
+		'POST /api/v1/statuses/status-1/unbookmark',
+		'DELETE /api/v1/statuses/status-1',
+		'POST /api/v1/accounts/account-1/mute',
+		'POST /api/v1/accounts/account-1/unmute',
+		'POST /api/v1/accounts/account-1/block',
+		'POST /api/v1/accounts/account-1/unblock',
 		'POST /api/v1/statuses',
 		'POST /api/v1/accounts/account-1/follow',
 		'POST /api/v1/accounts/account-1/unfollow',
 		'PATCH /api/v1/accounts/update_credentials'
 	]);
-	const createBody = new URLSearchParams(requests[4].body);
+	const createBody = new URLSearchParams(requests[11].body);
 	expect(createBody.get('status')).toBe('new post from client');
 	expect(createBody.get('visibility')).toBe('unlisted');
 	expect(createBody.get('spoiler_text')).toBe('quiet spoiler');
@@ -422,8 +436,8 @@ test('Pleroma client covers mutations, unauthenticated state, and API errors', a
 	expect(createBody.get('poll[expires_in]')).toBe('3600');
 	expect(createBody.get('poll[multiple]')).toBe('true');
 	expect(createBody.get('poll[hide_totals]')).toBe('false');
-	expect(requests[7].body).toContain('display_name');
-	expect(requests[7].body).toContain('quiet admin');
+	expect(requests[14].body).toContain('display_name');
+	expect(requests[14].body).toContain('quiet admin');
 
 	await expect(client.favoriteStatus('bad')).rejects.toMatchObject({
 		kind: 'http',
