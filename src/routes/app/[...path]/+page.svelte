@@ -202,6 +202,9 @@
 	let composerSpoilerActive = $state(false);
 	let composerSpoilerText = $state('');
 	let composerPoll = $state<ComposerPollDraft | null>(null);
+	let composerVisibility = $state<StatusVisibility>('public');
+	let composerPrivacyOpen = $state(false);
+	let composerPrivacyTrigger = $state<HTMLButtonElement | null>(null);
 	let mobileDrawerOpen = $state(false);
 	let mobileSheetOpen = $state(false);
 	let userMenuOpen = $state(false);
@@ -1012,6 +1015,18 @@
 		page.url.searchParams.get('tab') === 'posts' ? 'posts' :
 		'all'
 	);
+	const COMPOSER_VISIBILITIES: Array<{ value: StatusVisibility; label: string; icon: IconName; description: string }> = [
+		{ value: 'public', label: 'Public', icon: 'globe', description: 'Visible to everyone, shown on public timelines.' },
+		{ value: 'unlisted', label: 'Unlisted', icon: 'planet', description: 'Visible to everyone, kept off public timelines.' },
+		{ value: 'private', label: 'Followers', icon: 'users', description: 'Only your followers can see this post.' },
+		{ value: 'direct', label: 'Direct', icon: 'msg', description: 'Only people mentioned in the post can see it.' }
+	];
+	const composerVisibilityOption = $derived(COMPOSER_VISIBILITIES.find((option) => option.value === composerVisibility) ?? COMPOSER_VISIBILITIES[0]);
+	const selectComposerVisibility = (value: StatusVisibility) => {
+		composerVisibility = value;
+		composerPrivacyOpen = false;
+		composerPrivacyTrigger?.focus();
+	};
 	const composerRemaining = $derived(composerCharacterLimit - composerText.length);
 	const inlineReplyRemaining = $derived(composerCharacterLimit - inlineReplyDraft.length);
 	const preparedComposerPoll = $derived(composerPoll ? composerPollPayload(composerPoll) : undefined);
@@ -1304,7 +1319,7 @@
 				accessToken: session.accessToken,
 				fetch: window.fetch.bind(window)
 			});
-			const status = await client.createStatus({ status: body, visibility: 'public', spoilerText: spoilerText || undefined, poll, mediaIds: composerUploadedMediaIds });
+			const status = await client.createStatus({ status: body, visibility: composerVisibility, spoilerText: spoilerText || undefined, poll, mediaIds: composerUploadedMediaIds });
 			if (requestId !== homePostSubmitRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			upsertAccountCache(accountsFromPleromaStatus(status));
@@ -1553,12 +1568,15 @@
 		}
 		if (event.key !== 'Escape') return;
 		const restoreUserMenuFocus = userMenuOpen;
+		const restorePrivacyFocus = composerPrivacyOpen;
 		userMenuOpen = false;
 		notificationsMenuOpen = false;
+		composerPrivacyOpen = false;
 		closeHeaderSearch();
 		mobileDrawerOpen = false;
 		mobileSheetOpen = false;
 		if (restoreUserMenuFocus) userMenuTrigger?.focus();
+		if (restorePrivacyFocus) composerPrivacyTrigger?.focus();
 	};
 	const redirectToLanding = () => {
 		invalidateHomeTimelineRequests();
@@ -2106,6 +2124,7 @@
 	const handleWindowPointerdown = (event: PointerEvent) => {
 		const target = event.target;
 		if (userMenuOpen && target instanceof Element && !target.closest('.user-chip') && !target.closest('.user-menu')) userMenuOpen = false;
+		if (composerPrivacyOpen && target instanceof Element && !target.closest('.composer-privacy-wrap')) composerPrivacyOpen = false;
 		if (headerSearchOpen && headerSearchForm && target instanceof Node && !headerSearchForm.contains(target)) closeHeaderSearch();
 	};
 	const setSearchTab = (tab: SearchTab) => {
@@ -3511,7 +3530,24 @@
 									<button type="button" class="composer-tool" class:active={Boolean(composerPoll)} title="Poll" aria-label="Poll" aria-pressed={Boolean(composerPoll)} onclick={toggleComposerPoll}><Icon name="poll" width={18} height={18} /></button>
 									<button type="button" class="composer-tool" class:active={composerEmojiPickerOpen} title="Emoji" aria-label="Emoji" aria-pressed={composerEmojiPickerOpen} data-emoji-trigger onclick={toggleComposerEmojiPicker}><Icon name="smile" width={18} height={18} /></button>
 									<button type="button" class="composer-tool cw" class:active={composerSpoilerActive} aria-label="Content warning" aria-pressed={composerSpoilerActive} onclick={toggleComposerSpoiler}>CW</button>
-									<button type="button" class="composer-tool privacy" aria-label="Privacy Public"><Icon name="globe" width={13} height={13} /><span>Public</span><Icon name="chevDown" width={12} height={12} /></button>
+									<span class="composer-privacy-wrap">
+										<button bind:this={composerPrivacyTrigger} type="button" class="composer-tool privacy" aria-label={`Privacy: ${composerVisibilityOption.label}`} aria-haspopup="menu" aria-expanded={composerPrivacyOpen} onclick={() => (composerPrivacyOpen = !composerPrivacyOpen)}>
+											<Icon name={composerVisibilityOption.icon} width={13} height={13} /><span>{composerVisibilityOption.label}</span><Icon name="chevDown" width={12} height={12} className={composerPrivacyOpen ? 'chev open' : 'chev'} />
+										</button>
+										{#if composerPrivacyOpen}
+											<div class="composer-privacy-menu" role="menu" aria-label="Post visibility" data-testid="composer-privacy-menu">
+												{#each COMPOSER_VISIBILITIES as option (option.value)}
+													<button type="button" role="menuitemradio" aria-checked={composerVisibility === option.value} class="composer-privacy-item" class:selected={composerVisibility === option.value} onclick={() => selectComposerVisibility(option.value)}>
+														<Icon name={option.icon} width={14} height={14} />
+														<span class="composer-privacy-item-main">
+															<span class="composer-privacy-item-label">{option.label}</span>
+															<span class="composer-privacy-item-desc">{option.description}</span>
+														</span>
+													</button>
+												{/each}
+											</div>
+										{/if}
+									</span>
 									<span class="composer-spacer"></span>
 									<span class="composer-count" class:over-limit={composerRemaining < 0}>{composerRemaining}</span>
 									<Button variant="primary" disabled={!canSubmitHomePost} onclick={submitHomePost}>{homePostSubmitState === 'submitting' ? 'Posting...' : 'Post'}</Button>
