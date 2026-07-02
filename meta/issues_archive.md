@@ -38,3 +38,4 @@
 - [x] [25 Wire explore search](issues/25-wire-explore-search.md)
 - [x] [40 Wire composer media upload and dropzone](issues/40-wire-composer-media-upload-and-dropzone.md)
 - [x] [41 Wire composer mentions and custom emoji](issues/41-wire-composer-mentions-and-custom-emoji.md)
+- [x] [39 Design and wire emoji reaction row](issues/39-design-and-wire-emoji-reaction-row.md)
