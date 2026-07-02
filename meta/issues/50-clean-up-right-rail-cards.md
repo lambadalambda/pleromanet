@@ -22,3 +22,10 @@ Per user direction: remove the Shortcuts card (its controls and keyboard hints d
 ## Notes
 
 - Requested by the user on 2026-07-02.
+
+## Current Status
+
+- Done: Shortcuts and Instance status cards are gone from the timeline rail; the mobile details sheet now shows trends and (when present) suggestions instead of dead shortcuts. The instance fetch remains solely for the composer character limit.
+- Done: `client.getSuggestions` hits `GET /api/v2/suggestions` (verified live: Pleroma serves it, `[]` when unconfigured). The Who to follow card renders only on a non-empty response, with profile links, name emoji, and follow buttons using the same relationship reconciliation as search cards; loading/empty/error keep the card hidden.
+- Done: `/design-system` keeps the static SurfaceCard specimens as design reference; `mockRightRailApis` now mocks suggestions so default tests stay hermetic.
+- Covered by rewritten `app-trends.e2e.ts` (hidden on empty/error/pending, visible+followable with data) and updated `app-routes.e2e.ts` (275 tests green).

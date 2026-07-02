@@ -47,3 +47,4 @@
 - [x] [45 Wire focused post follow button](issues/45-wire-focused-post-follow-button.md)
 - [x] [48 Render name emoji and media excerpts in secondary surfaces](issues/48-render-name-emoji-and-media-excerpts-in-secondary-surfaces.md)
 - [x] [49 Link mentions to full federated handles](issues/49-link-mentions-to-full-federated-handles.md)
+- [x] [50 Clean up right rail cards](issues/50-clean-up-right-rail-cards.md)
