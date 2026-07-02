@@ -25,3 +25,7 @@ Add media upload support to the composer, including the drag-and-drop and upload
 
 - Source of truth: `meta/design/claude-handoff/project/composer-dropzone.jsx`, `composer-dropzone.css`, `home.jsx`, `styles.css`, and the Composer slab in `design-system.jsx`.
 - Status text creation itself is already covered by completed issue 19.
+
+## Current Status
+
+- Done: `client.uploadMedia`, browse/drag-and-drop/paste attach paths on both the main composer and the inline reply composer, per-file progress rows with remove controls and failure messages, type/size/count validation (image/audio/video, 8 files, 40 MB), and `media_ids[]` submission with status creation. Covered by `home-timeline.e2e.ts` and `app-thread.e2e.ts` upload tests.

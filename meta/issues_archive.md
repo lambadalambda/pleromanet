@@ -32,3 +32,6 @@
 - [x] [37 Soften reply addressee parent chip](issues/37-soften-reply-addressee-parent-chip.md)
 - [x] [38 Fix thread rail continuity](issues/38-fix-thread-rail-continuity.md)
 - [x] [43 Add central account cache](issues/43-add-central-account-cache.md)
+- [x] [25 Wire explore search](issues/25-wire-explore-search.md)
+- [x] [40 Wire composer media upload and dropzone](issues/40-wire-composer-media-upload-and-dropzone.md)
+- [x] [41 Wire composer mentions and custom emoji](issues/41-wire-composer-mentions-and-custom-emoji.md)

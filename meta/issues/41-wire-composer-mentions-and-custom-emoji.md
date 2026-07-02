@@ -27,3 +27,7 @@ Replace the composer text area with the handoff mention editor and wire account 
 
 - Source of truth: `meta/design/claude-handoff/project/mention-editor.jsx`, `emoji-picker.jsx`, `emoji-data.jsx`, `mention-prototype.jsx`, `mention-variants.jsx`, `emoji-variants.jsx`, and the Composer slab in `design-system.jsx`.
 - Emoji reaction rows remain tracked separately in issue 39.
+
+## Current Status
+
+- Done: `ComposerMentionEditor` contenteditable port with mention/emoji atoms, `@` account autocomplete through `client.searchAccounts`, `:shortcode:` custom emoji autocomplete through cached `client.getCustomEmojis`, full `EmojiPicker` with recents/packs/unicode categories/search/keyboard navigation/dismissal, plain-text serialization (`@user@server`, `:shortcode:`), and custom emoji rendering in post bodies via `renderBodyText`. Covered by `home-timeline.e2e.ts`, `mentions.e2e.ts`, and design-system specimens.

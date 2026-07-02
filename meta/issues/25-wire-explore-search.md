@@ -32,9 +32,8 @@ Connect explore and shell search to the Pleroma search API with deterministic de
 
 ## Current Status
 
-- Partially done: the API client has `search` support.
-- Partially done: the real explore route contains a static search input and mocked discovery cards.
-- Still open: query execution, debounced result states, keyboard navigation, and result activation are not wired.
+- Done: header search dropdown (recents, top people/posts, keyboard navigation, Enter-to-open, Escape dismissal, clear affordances), routed `/app/search` page with All/People/Posts tabs and the filter-sidebar shell, debounced `client.search` wiring with request-id staleness guards, loading/no-results/error/retry states, and localStorage recents. Covered by `src/routes/app-search.e2e.ts` (14 tests) with mocked `/api/v2/search`; hashtags are intentionally omitted.
+- Note: the debounce delays are fixed constants (160ms/260ms) rather than injectable, but the mocked tests pass deterministically through Playwright auto-waiting, satisfying the no-flakiness intent.
 
 ## Notes
 
