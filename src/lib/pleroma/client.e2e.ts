@@ -207,7 +207,7 @@ test('Pleroma client fetches authenticated notifications with cursor query', asy
 
 	const notifications = await client.getNotifications({ limit: 20, sinceId: 'notif-old' });
 
-	expect(notifications.map((notification) => notification.id)).toEqual(['notif-mention', 'notif-follow', 'notif-fav', 'notif-boost', 'notif-unknown']);
+	expect(notifications.map((notification) => notification.id)).toEqual(['notif-mention', 'notif-follow', 'notif-fav', 'notif-boost', 'notif-reaction', 'notif-unknown']);
 	expectPath(requests[0], '/api/v1/notifications');
 	expect(requests[0].authorization).toBe('Bearer access-token');
 	expect(requests[0].url.searchParams.get('limit')).toBe('20');

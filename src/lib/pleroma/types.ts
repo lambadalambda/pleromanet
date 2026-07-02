@@ -140,6 +140,8 @@ export type PleromaNotification = {
 	created_at: string;
 	account: PleromaAccount;
 	status?: PleromaStatus | null;
+	emoji?: string;
+	emoji_url?: string | null;
 	pleroma?: {
 		is_seen?: boolean;
 		[key: string]: unknown;

@@ -149,6 +149,7 @@ const mentionAccount = notificationAccount('account-mention', 'orbit', 'orbit@sp
 const followAccount = notificationAccount('account-follow', 'static.gif', 'staticgif@modem.zone');
 const favoriteAccount = notificationAccount('account-fav', 'kestrel', 'kestrel@audio.garden');
 const boostAccount = notificationAccount('account-boost', 'lumen', 'lumen@candle.house');
+const reactionAccount = notificationAccount('account-reaction', 'ember', 'ember@drift.fm');
 const unknownAccount = notificationAccount('account-unknown', 'relay bot', 'relay@pleroma.example');
 const notificationStatus = (id: string, text: string, statusAccount: PleromaAccount = account): PleromaStatus => ({
 	...status,
@@ -192,8 +193,17 @@ const notifications: PleromaNotification[] = [
 		pleroma: {}
 	},
 	{
-		id: 'notif-unknown',
+		id: 'notif-reaction',
 		type: 'pleroma:emoji_reaction',
+		emoji: '🔥',
+		created_at: '2026-05-18T11:58:30.000Z',
+		account: reactionAccount,
+		status: notificationStatus('status-reaction', 'reactions carry through notifications.'),
+		pleroma: {}
+	},
+	{
+		id: 'notif-unknown',
+		type: 'pleroma:chat_mention',
 		created_at: '2026-05-18T11:58:00.000Z',
 		account: unknownAccount,
 		status: notificationStatus('status-unknown', 'an unknown notification still renders.'),

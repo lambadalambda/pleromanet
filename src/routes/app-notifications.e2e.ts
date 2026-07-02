@@ -108,12 +108,14 @@ const unknownActor = accountWithName('account-unknown', 'relay bot', 'relay@pler
 const mentionStatus = statusWithText('status-mention', 'hey @quietadmin, this carries through notifications.', mentionActor);
 const favStatus = statusWithText('status-fav', 'a placeholder is more honest than a guess.');
 const boostStatus = statusWithText('status-boost', 'living in a soft world. quietly federating.');
+const reactionActor = accountWithName('account-reaction', 'ember', 'ember@drift.fm');
 const initialNotifications = [
 	notification('notif-mention', 'mention', mentionActor, '2026-05-18T12:02:00.000Z', mentionStatus),
 	notification('notif-follow', 'follow', followActor, '2026-05-18T12:01:00.000Z'),
 	notification('notif-fav', 'favourite', favActor, '2026-05-18T12:00:00.000Z', favStatus),
 	notification('notif-boost', 'reblog', boostActor, '2026-05-18T11:59:00.000Z', boostStatus),
-	notification('notif-unknown', 'pleroma:emoji_reaction', unknownActor, '2026-05-18T11:58:00.000Z', favStatus)
+	{ ...notification('notif-reaction', 'pleroma:emoji_reaction', reactionActor, '2026-05-18T11:58:30.000Z', favStatus), emoji: '🔥' },
+	notification('notif-unknown', 'pleroma:chat_mention', unknownActor, '2026-05-18T11:58:00.000Z', favStatus)
 ];
 
 const fulfillJson = async (route: Route, body: unknown, status = 200) => {
@@ -202,9 +204,10 @@ test('real notifications route renders mocked API notifications and navigates by
 	await expect(page.getByTestId('notifications-list')).toContainText('static.gif followed you');
 	await expect(page.getByTestId('notifications-list')).toContainText('kestrel favorited your post');
 	await expect(page.getByTestId('notifications-list')).toContainText('lumen boosted your post');
+	await expect(page.getByTestId('notifications-list')).toContainText('ember reacted with 🔥 to your post');
 	await expect(page.getByTestId('notifications-list')).toContainText('relay bot sent a notification');
 	await expect(page.getByTestId('notifications-list').getByRole('button', { name: /relay bot sent a notification/ })).toHaveCount(0);
-	await expect(notificationBadge(page)).toHaveText('5');
+	await expect(notificationBadge(page)).toHaveText('6');
 
 	await page.getByTestId('notifications-list').getByText('orbit mentioned you').click();
 	await expect(page).toHaveURL('/app/thread/status-mention');
@@ -219,6 +222,10 @@ test('real notifications route renders mocked API notifications and navigates by
 	await expect(page).toHaveURL('/app/profiles/staticgif%40modem.zone');
 
 	await page.goto('/app/notifications');
+	await page.getByTestId('notifications-list').getByText('ember reacted with').click();
+	await expect(page).toHaveURL('/app/thread/status-fav');
+
+	await page.goto('/app/notifications');
 	await page.getByTestId('notifications-list').getByText('relay bot sent a notification').click();
 	await expect(page).toHaveURL('/app/notifications');
 	await expectNoHorizontalOverflow(page);
@@ -231,16 +238,17 @@ test('header bell opens real notifications popover with filters and read actions
 	await setViewport(page, 'desktop');
 	await page.goto('/app/home');
 
-	await expect(headerBell(page).locator('.badge')).toHaveText('5');
+	await expect(headerBell(page).locator('.badge')).toHaveText('6');
 	await headerBell(page).click();
 	const popover = page.getByTestId('header-notifications-popover');
 	await expect(popover).toBeVisible();
 	await expect(popover).toContainText('orbit mentioned you');
 	await expect(popover).toContainText('static.gif followed you');
-	await expect(popover.locator('.notif-pop-count')).toHaveText('5 new');
+	await expect(popover.locator('.notif-pop-count')).toHaveText('6 new');
 
 	await popover.getByRole('button', { name: 'Favorites' }).click();
 	await expect(popover).toContainText('kestrel favorited your post');
+	await expect(popover).toContainText('ember reacted with');
 	await expect(popover).not.toContainText('orbit mentioned you');
 
 	await popover.getByRole('button', { name: 'Mark all read' }).click();
@@ -468,4 +476,21 @@ test('notification rows render name custom emoji and media-only excerpts', async
 	await expect(favRow.locator('.notif-row-quote')).toContainText('[2 images]');
 	const boostRow = list.locator('.notif-row').filter({ hasText: 'boosted your post' });
 	await expect(boostRow.locator('.notif-row-quote')).toContainText('[video]');
+});
+
+test('reaction notifications render custom emoji images with alt text', async ({ page }) => {
+	await authenticate(page);
+	const customReaction = {
+		...notification('notif-custom-reaction', 'pleroma:emoji_reaction', accountWithName('account-blob', 'blobfan', 'blobfan@blob.cat'), '2026-05-18T12:04:00.000Z', favStatus),
+		emoji: ':blobcat:',
+		emoji_url: 'https://cdn.example/emoji/blobcat.png'
+	};
+	await mockNotifications(page, () => [customReaction]);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/notifications');
+
+	const list = page.getByTestId('notifications-list');
+	await expect(list).toContainText('blobfan reacted with');
+	await expect(list.locator('img.notif-reaction-emoji[alt=":blobcat:"]')).toBeVisible();
+	await expect(list).toContainText('a placeholder is more honest than a guess.');
 });

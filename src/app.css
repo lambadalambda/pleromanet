@@ -6036,6 +6036,14 @@ a.suggest-name:hover { color: var(--accent-ink); }
 }
 .notif-on-l { font-style: italic; margin-right: 4px; }
 .notif-on-t { color: var(--ink-2); }
+.notif-reaction-emoji {
+	display: inline-block;
+	width: 15px;
+	height: 15px;
+	margin: 0 1px;
+	vertical-align: -3px;
+	object-fit: contain;
+}
 .notif-row-quote {
 	width: 100%;
 	margin-top: 6px;

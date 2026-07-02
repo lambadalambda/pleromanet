@@ -20,7 +20,7 @@
 	let isFollow = $derived(n.kind === 'follow' || n.kind === 'follow_req');
 	let actionable = $derived(Boolean(onOpen && (n.target?.route === 'thread' || n.target?.route === 'profile')));
 	let rowClass = $derived(`notif-row ${n.read ? '' : 'unread '}${dense ? 'dense ' : ''}${actionable ? 'actionable ' : ''}k-${n.kind}`);
-	let openLabel = $derived(`${namedActors.map((actor) => actor.name).join(', ')} ${kind.label}`.trim());
+	let openLabel = $derived(`${namedActors.map((actor) => actor.name).join(', ')} ${n.kind === 'reaction' && n.reactionEmoji ? `reacted with ${n.reactionEmoji.name} to your post` : kind.label}`.trim());
 
 	const openRow = (event: MouseEvent | KeyboardEvent) => {
 		if (!onOpen || !actionable) return;
@@ -67,7 +67,11 @@
 					<span class="notif-others"> and {otherCount} other{otherCount > 1 ? 's' : ''}</span>
 				{/if}
 			</span>
-			<span class="notif-action"> {kind.label}</span>
+			{#if n.kind === 'reaction' && n.reactionEmoji}
+				<span class="notif-action"> reacted with {#if n.reactionEmoji.url}<img class="notif-reaction-emoji" src={n.reactionEmoji.url} alt={n.reactionEmoji.name} title={n.reactionEmoji.name} loading="lazy" decoding="async" />{:else}<span class="notif-reaction-glyph">{n.reactionEmoji.name}</span>{/if} to your post</span>
+			{:else}
+				<span class="notif-action"> {kind.label}</span>
+			{/if}
 			<span class="notif-time">· {n.time}</span>
 		</div>
 		{#if n.on}

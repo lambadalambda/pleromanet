@@ -479,6 +479,7 @@ test('Pleroma notification adapters map known and unknown types with local last-
 		['notif-follow', 'follow', true],
 		['notif-fav', 'fav', true],
 		['notif-boost', 'boost', true],
+		['notif-reaction', 'reaction', true],
 		['notif-unknown', 'unknown', true]
 	]);
 	expect(notifications[0]).toMatchObject({
@@ -487,7 +488,12 @@ test('Pleroma notification adapters map known and unknown types with local last-
 		target: { route: 'thread', statusId: 'status-mention' }
 	});
 	expect(notifications[1].target).toEqual({ route: 'profile', accountHandle: 'staticgif@modem.zone', accountId: 'account-follow' });
-	expect(notifications[4].target).toEqual({ route: 'none' });
+	expect(notifications[4]).toMatchObject({
+		kind: 'reaction',
+		reactionEmoji: { name: '🔥' },
+		target: { route: 'thread', statusId: 'status-reaction' }
+	});
+	expect(notifications[5].target).toEqual({ route: 'none' });
 
 	const [cwNotification] = adaptPleromaNotifications([{
 		...pleromaFixtures.notifications[0],

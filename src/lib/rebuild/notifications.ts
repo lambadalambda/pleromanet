@@ -6,7 +6,7 @@ import type {
 } from '$lib/social/types';
 
 export type NotificationKind = SocialNotificationKind;
-export type NotificationGlyph = 'star' | 'repeat' | 'reply' | 'at' | 'userPlus' | 'chart';
+export type NotificationGlyph = 'star' | 'repeat' | 'reply' | 'at' | 'userPlus' | 'chart' | 'smile';
 export type NotificationActor = SocialNotificationActor;
 export type NotificationPostRef = SocialNotificationPostRef;
 export type NotificationData = SocialNotificationData;
@@ -27,6 +27,7 @@ export const NOTIF_KINDS: Record<NotificationKind, NotificationKindMeta> = {
 	follow: { label: 'followed you', icon: 'userPlus', tint: '#a48bd9' },
 	follow_req: { label: 'requested to follow you', icon: 'userPlus', tint: '#e0b97a' },
 	poll: { label: 'a poll you voted in has ended', icon: 'chart', tint: 'var(--muted)' },
+	reaction: { label: 'reacted to your post', icon: 'smile', tint: '#e0b97a' },
 	unknown: { label: 'sent a notification', icon: 'chart', tint: 'var(--muted)' },
 };
 
@@ -56,6 +57,7 @@ export const NOTIF_TABS: { id: NotificationTabId; label: string }[] = [
 export const filterNotifs = (list: NotificationData[], tab: NotificationTabId): NotificationData[] => {
 	if (tab === 'all') return list;
 	if (tab === 'follow') return list.filter((notification) => notification.kind === 'follow' || notification.kind === 'follow_req');
+	if (tab === 'fav') return list.filter((notification) => notification.kind === 'fav' || notification.kind === 'reaction');
 	return list.filter((notification) => notification.kind === tab);
 };
 

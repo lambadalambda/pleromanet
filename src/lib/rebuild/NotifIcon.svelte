@@ -31,6 +31,13 @@
 		<circle cx="9" cy="8" r="3.5" stroke="currentColor" stroke-width="2" />
 		<path d="M3 20c0-3 3-5 6-5s6 2 6 5M18 8v6M21 11h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
 	</svg>
+{:else if name === 'smile'}
+	<svg viewBox="0 0 24 24" fill="none" style={commonStyle} aria-hidden="true">
+		<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
+		<path d="M8.5 14c.8 1.3 2 2 3.5 2s2.7-.7 3.5-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+		<circle cx="9" cy="9.5" r="0.6" fill="currentColor" stroke="currentColor" />
+		<circle cx="15" cy="9.5" r="0.6" fill="currentColor" stroke="currentColor" />
+	</svg>
 {:else if name === 'chart'}
 	<svg viewBox="0 0 24 24" fill="none" style={commonStyle} aria-hidden="true">
 		<path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke="currentColor" stroke-width="2" stroke-linecap="round" />

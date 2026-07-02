@@ -318,13 +318,14 @@ const notificationKind = (type: string): SocialNotificationKind => {
 	if (normalized === 'favourite' || normalized === 'favorite') return 'fav';
 	if (normalized === 'reblog') return 'boost';
 	if (normalized === 'follow_request') return 'follow_req';
+	if (normalized === 'pleroma:emoji_reaction') return 'reaction';
 	if (normalized === 'mention' || normalized === 'reply' || normalized === 'follow' || normalized === 'poll') return normalized;
 	return 'unknown';
 };
 
 const notificationTarget = (kind: SocialNotificationKind, notification: PleromaNotification): SocialNotificationData['target'] => {
 	const statusId = notification.status?.id;
-	if ((kind === 'mention' || kind === 'reply' || kind === 'fav' || kind === 'boost' || kind === 'poll') && statusId) {
+	if ((kind === 'mention' || kind === 'reply' || kind === 'fav' || kind === 'boost' || kind === 'poll' || kind === 'reaction') && statusId) {
 		return { route: 'thread', statusId };
 	}
 	if (kind === 'follow' || kind === 'follow_req') {
@@ -866,6 +867,9 @@ export const adaptPleromaNotification = (
 			emojis: account.emojis
 		}],
 		post: notificationPostRef(notification.status),
+		reactionEmoji: kind === 'reaction' && typeof notification.emoji === 'string' && notification.emoji
+			? { name: notification.emoji, url: typeof notification.emoji_url === 'string' && notification.emoji_url ? notification.emoji_url : null }
+			: undefined,
 		bio: (kind === 'follow' || kind === 'follow_req') && bio ? compactExcerpt(bio) : undefined,
 		target,
 		createdAt: notification.created_at,

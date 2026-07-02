@@ -5,7 +5,7 @@ export type AvatarVariant = 'grad-1' | 'grad-2' | 'grad-3' | 'orb' | 'pc';
 export type MediaVariant = 'sunset' | 'city' | 'space';
 export type ActionState = Record<PostAction, boolean>;
 
-export type SocialNotificationKind = 'fav' | 'boost' | 'reply' | 'mention' | 'follow' | 'follow_req' | 'poll' | 'unknown';
+export type SocialNotificationKind = 'fav' | 'boost' | 'reply' | 'mention' | 'follow' | 'follow_req' | 'poll' | 'reaction' | 'unknown';
 
 export type SocialNotificationActor = {
 	name: string;
@@ -33,6 +33,7 @@ export type SocialNotificationData = {
 	t: number;
 	who: SocialNotificationActor[];
 	post?: SocialNotificationPostRef;
+	reactionEmoji?: { name: string; url?: string | null };
 	bio?: string;
 	on?: string;
 	target?: SocialNotificationTarget;
