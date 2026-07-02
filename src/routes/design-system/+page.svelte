@@ -104,7 +104,6 @@
 		source?: string;
 		views?: string;
 		bookmarks?: number;
-		following?: boolean;
 		nestedReplies?: DemoPostData[];
 	};
 	type NotificationPreviewSpec = {

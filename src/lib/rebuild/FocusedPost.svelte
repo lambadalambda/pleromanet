@@ -1,6 +1,5 @@
 <script lang="ts">
 	import Avatar from './Avatar.svelte';
-	import Button from './Button.svelte';
 	import Icon from './Icon.svelte';
 	import PostCW from './PostCW.svelte';
 	import PostMedia from './PostMedia.svelte';
@@ -34,7 +33,6 @@
 		fullTime?: string;
 		source?: string;
 		views?: string | null;
-		following?: boolean;
 		actions: { reply: boolean; boost: boolean; fav: boolean };
 	};
 
@@ -75,7 +73,6 @@
 				<div class="focused-handle">{post.handle}</div>
 			{/if}
 		</div>
-		<Button variant="follow" className={post.following ? 'following' : ''}>{post.following ? 'Following' : 'Follow'}</Button>
 		<button type="button" class="post-more" aria-label="More"><Icon name="more" width={16} height={16} /></button>
 	</div>
 

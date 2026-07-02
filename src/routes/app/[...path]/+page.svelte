@@ -100,7 +100,6 @@
 		fullTime?: string;
 		source?: string;
 		views?: string | null;
-		following?: boolean;
 		nestedReplies?: ThreadViewPost[];
 	};
 	type HomeTimelineSuccess = PaginatedTimelineSuccess<PleromaStatusView, PleromaRequestErrorView> & {

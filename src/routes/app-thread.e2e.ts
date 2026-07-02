@@ -392,6 +392,7 @@ test('real thread route renders focused reply addressee chips', async ({ page })
 
 	const focused = page.getByTestId('focused-post');
 	await expect(focused.locator('.focused-body')).toHaveText('quiet CSS can still carry the voice.');
+	await expect(focused.getByRole('button', { name: /^Follow/ })).toHaveCount(0);
 	await expect(focused.locator('.post-pinged-l')).toHaveText('Replying to');
 	await expect(focused.locator('.post-pinged-chip-parent')).toContainText('@gridwave');
 	await expect(focused.locator('.post-pinged-chip-parent svg')).toBeVisible();
