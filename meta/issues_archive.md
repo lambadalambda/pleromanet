@@ -49,3 +49,5 @@
 - [x] [49 Link mentions to full federated handles](issues/49-link-mentions-to-full-federated-handles.md)
 - [x] [50 Clean up right rail cards](issues/50-clean-up-right-rail-cards.md)
 - [x] [51 Complete emoji reactions](issues/51-complete-emoji-reactions.md)
+- [x] [52 Bookmarks and share controls](issues/52-bookmarks-and-share-controls.md)
+- [x] [53 Post management menu: delete, mute, block](issues/53-post-management-menu.md)
