@@ -45,3 +45,4 @@
 - [x] [44 Stabilize flaky composer mention avatar test](issues/44-stabilize-flaky-composer-mention-avatar-test.md)
 - [x] [47 Fix emoji picker scrolling and unicode sets](issues/47-fix-emoji-picker-scrolling-and-unicode-sets.md)
 - [x] [45 Wire focused post follow button](issues/45-wire-focused-post-follow-button.md)
+- [x] [48 Render name emoji and media excerpts in secondary surfaces](issues/48-render-name-emoji-and-media-excerpts-in-secondary-surfaces.md)
