@@ -18,6 +18,9 @@ const customEmojisUrl = 'https://pleroma.example/api/v1/custom_emojis';
 
 const authenticate = async (page: Page) => {
 	await mockRightRailApis(page);
+	await page.route('https://pleroma.example/api/v1/notifications**', async (route) => {
+		await fulfillHome(route, []);
+	});
 	await page.route(customEmojisUrl, async (route) => {
 		await fulfillHome(route, pleromaFixtures.customEmojis);
 	});
@@ -677,8 +680,10 @@ test('composer mention avatars fall back when remote avatar images fail', async 
 	await composer.click();
 	await expect(composer).toBeFocused();
 	await composer.pressSequentially('@so', { delay: 20 });
+	// Wait on the content-bearing option first: the listbox container is
+	// zero-height (treated as hidden) until the mocked search resolves.
+	await expect(page.getByRole('option', { name: /soft\.hertz/ })).toBeVisible({ timeout: 10000 });
 	await expect(page.getByRole('listbox', { name: 'Mention suggestions' })).toBeVisible();
-	await expect(page.getByRole('option', { name: /soft\.hertz/ })).toBeVisible();
 	const suggestionFallbackApplied = await page.evaluate(async () => {
 		const row = document.querySelector('.me-pop .me-row');
 		if (!row) throw new Error('mention suggestion row missing');
@@ -2648,4 +2653,57 @@ test('home timeline reaction failures roll back the optimistic toggle', async ({
 	await expect(page.locator('.status-action-error')).toBeVisible();
 	const rolledBack = reactions.getByRole('button', { name: /🔥 · 5 reactions$/ });
 	await expect(rolledBack).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('home timeline composer visibility selector scopes the created status', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [pleromaFixtures.status]);
+	});
+	const createBodies: string[] = [];
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createBodies.push(route.request().postData() ?? '');
+		await fulfillHome(route, statusWithText(`created-scoped-${createBodies.length}`, 'scoped post'));
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const privacyButton = page.getByRole('button', { name: 'Privacy: Public' });
+	await expect(privacyButton).toHaveAttribute('aria-expanded', 'false');
+
+	await privacyButton.click();
+	const menu = page.getByRole('menu', { name: 'Post visibility' });
+	await expect(menu).toBeVisible();
+	await expect(menu.getByRole('menuitemradio', { name: /Public/ })).toHaveAttribute('aria-checked', 'true');
+
+	await page.keyboard.press('Escape');
+	await expect(menu).toBeHidden();
+
+	await privacyButton.click();
+	await expect(menu).toBeVisible();
+	await page.getByTestId('brand-tag').click();
+	await expect(menu).toBeHidden();
+
+	await privacyButton.click();
+	await menu.getByRole('menuitemradio', { name: /Followers/ }).click();
+	await expect(menu).toBeHidden();
+	await expect(page.getByRole('button', { name: 'Privacy: Followers' })).toBeVisible();
+
+	const composer = page.getByRole('textbox', { name: 'Post text' });
+	await composer.click();
+	await composer.fill('a quieter post');
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+	await expect(page.getByTestId('home-timeline-list')).toContainText('scoped post');
+
+	expect(createBodies).toHaveLength(1);
+	const params = new URLSearchParams(createBodies[0]);
+	expect(params.get('visibility')).toBe('private');
+
+	await expect(page.getByRole('button', { name: 'Privacy: Followers' })).toBeVisible();
+	await composer.click();
+	await composer.fill('second scoped post');
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+	await expect.poll(() => createBodies.length).toBe(2);
+	expect(new URLSearchParams(createBodies[1]).get('visibility')).toBe('private');
 });

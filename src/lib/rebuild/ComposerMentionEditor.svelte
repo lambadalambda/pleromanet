@@ -389,7 +389,10 @@
 		oninput={commitValue}
 		onkeydown={handleKeydown}
 		onkeyup={handleKeyup}
-		onblur={() => setTimeout(() => (pop = null), 80)}
+		onfocus={() => updatePop()}
+		onblur={() => setTimeout(() => {
+			if (document.activeElement !== editor) pop = null;
+		}, 80)}
 	></div>
 	{#if pop?.type === 'mention'}
 		<div class="me-pop" style={`left:${pop.left}px;top:${pop.top}px`}>
