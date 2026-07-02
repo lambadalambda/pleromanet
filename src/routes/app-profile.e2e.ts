@@ -715,3 +715,32 @@ test('profile follow signs out and redirects when unauthorized', async ({ page }
 	const storedSession = await page.evaluate(() => window.localStorage.getItem('pleromanet.session'));
 	expect(storedSession).toBeNull();
 });
+
+test('signed-out visitors can view a public profile with sign-in prompts', async ({ page }) => {
+	let relationshipRequests = 0;
+	await page.route('https://pleroma.social/api/v1/accounts/relationships**', async (route: Route) => {
+		relationshipRequests += 1;
+		await fulfillJson(route, []);
+	});
+	await page.route('https://pleroma.social/api/v1/accounts/search**', async (route: Route) => {
+		expect(route.request().headers().authorization).toBeUndefined();
+		await fulfillJson(route, [datagramAccount]);
+	});
+	await page.route(`https://pleroma.social/api/v1/accounts/${datagramAccount.id}/statuses**`, async (route: Route) => {
+		const url = new URL(route.request().url());
+		await fulfillJson(route, url.searchParams.get('pinned') === 'true' ? [] : postStatuses.map((status) => ({ ...status, account: datagramAccount })));
+	});
+
+	await page.goto('/app/profiles/datagram@retro.social');
+	const view = page.getByTestId('profile-view');
+	await expect(view).toBeVisible();
+	await expect(view.getByRole('heading', { name: 'datagram' })).toBeVisible();
+	await expect(view.getByText("thinking about how the slow web isn't really slow — it's just the pace at which a person can actually pay attention.")).toBeVisible();
+	await expect(view.getByRole('button', { name: 'Sign in to follow' })).toBeVisible();
+	await expect(page.getByTestId('app-header')).toHaveCount(0);
+	await expect(page.getByTestId('public-profile-shell')).toBeVisible();
+	expect(relationshipRequests).toBe(0);
+
+	await view.getByRole('button', { name: 'Sign in to follow' }).click();
+	await page.waitForURL('/');
+});

@@ -43,6 +43,7 @@
 	import type { PleromaAccount, PleromaInstance, PleromaNotification, PleromaRelationship, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
 	import type { SocialNotificationData, SocialPost } from '$lib/social/types';
 	import { onMount, untrack } from 'svelte';
+	import { env } from '$env/dynamic/public';
 
 	type AppRoute = 'home' | 'local' | 'federated' | 'public' | 'thread' | 'profile' | 'notifications' | 'explore' | 'search' | 'settings';
 	type NavItem = { route: AppRoute; label: string; icon: IconName; href: string; count?: number };
@@ -166,6 +167,8 @@
 		discoverable: true,
 		showFollowers: true
 	};
+
+	const publicInstanceUrl = env.PUBLIC_PLEROMA_INSTANCE_URL ?? 'https://pleroma.social';
 
 	let sessionReady = $state(false);
 	let mounted = $state(false);
@@ -1477,9 +1480,9 @@
 		sessionReady = false;
 		goto('/');
 	};
-	const readSessionOrRedirect = () => {
+	const readSessionOrRedirect = (options: { optional?: boolean } = {}) => {
 		const session = readPleromaSession(localStorage);
-		if (!session) {
+		if (!session && !options.optional) {
 			redirectToLanding();
 			return null;
 		}
@@ -1499,7 +1502,7 @@
 			closeHomeTimelineStreaming();
 			localHomePosts = [];
 			resetAccountCache();
-			if (session.account) accountCache = upsertPleromaAccounts(createPleromaAccountCache(), [session.account]);
+			if (session?.account) accountCache = upsertPleromaAccounts(createPleromaAccountCache(), [session.account]);
 			loadedHomeTimelineKey = '';
 			homeTimelineFallbackSinceId = null;
 			currentSession = session;
@@ -2541,8 +2544,8 @@
 			|| normalized === acct
 			|| (!acct.includes('@') && normalized === username);
 	};
-	const resolveProfileAccount = async (client: ReturnType<typeof createPleromaClient>, session: PleromaSession, handle: string) => {
-		if (session.account && (!handle || accountMatchesProfileHandle(session.account, handle))) return session.account;
+	const resolveProfileAccount = async (client: ReturnType<typeof createPleromaClient>, session: PleromaSession | null, handle: string) => {
+		if (session?.account && (!handle || accountMatchesProfileHandle(session.account, handle))) return session.account;
 		const cached = getCachedPleromaAccount(accountCache, handle);
 		if (cached && accountMatchesProfileHandle(cached, handle)) return cached;
 		const matches = await client.searchAccounts({ q: handle, limit: 5, resolve: true });
@@ -2616,14 +2619,14 @@
 			if (isCurrentSessionRequest(requestSessionKey)) profileFollowPending = false;
 		}
 	};
-	const loadProfileRoute = async (session: PleromaSession, handle: string) => {
+	const loadProfileRoute = async (session: PleromaSession | null, handle: string) => {
 		const requestSessionKey = sessionKey(session);
 		const requestId = profileRouteRequestId + 1;
 		profileRouteRequestId = requestId;
 		profileFollowPending = false;
 		profileFollowError = null;
 
-		if (!handle && !session.account) {
+		if (!handle && !session?.account) {
 			profileRouteState = {
 				status: 'error',
 				error: {
@@ -2639,18 +2642,19 @@
 
 		profileRouteState = { status: 'loading' };
 
+		const profileInstanceUrl = session?.instanceUrl ?? publicInstanceUrl;
 		try {
 			const client = createPleromaClient({
-				instanceUrl: session.instanceUrl,
-				accessToken: session.accessToken,
+				instanceUrl: profileInstanceUrl,
+				accessToken: session?.accessToken,
 				fetch: window.fetch.bind(window)
 			});
 			const resolvedAccount = await resolveProfileAccount(client, session, handle);
-			const currentAccountId = currentSession?.account?.id ?? session.account?.id;
+			const currentAccountId = currentSession?.account?.id ?? session?.account?.id;
 			if (route !== 'profile' || requestId !== profileRouteRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			upsertAccountCache([resolvedAccount]);
-			const provisionalProfile = adaptPleromaProfile(resolvedAccount, { instanceUrl: session.instanceUrl, currentAccountId });
+			const provisionalProfile = adaptPleromaProfile(resolvedAccount, { instanceUrl: profileInstanceUrl, currentAccountId });
 			profileRouteState = { status: 'success', data: emptyProfileData(provisionalProfile), timelineStatus: 'loading' };
 
 			const statusPages = (accountId: string) => Promise.all([
@@ -2666,21 +2670,21 @@
 			let pinnedStatuses: PleromaStatus[];
 
 			if (resolvedAccount.locked) {
-				account = await accountWithFetchedRelationship(client, resolvedAccount, currentAccountId);
+				account = session ? await accountWithFetchedRelationship(client, resolvedAccount, currentAccountId) : resolvedAccount;
 				if (route !== 'profile' || requestId !== profileRouteRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 				upsertAccountCache([account], { relationship: 'replace' });
-				const profile = adaptPleromaProfile(account, { instanceUrl: session.instanceUrl, currentAccountId });
+				const profile = adaptPleromaProfile(account, { instanceUrl: profileInstanceUrl, currentAccountId });
 				profileRouteState = { status: 'success', data: emptyProfileData(profile), timelineStatus: 'loading' };
 				[postsPage, repliesPage, mediaPage, pinnedStatuses] = await statusPages(account.id);
 			} else {
-				const relationshipPromise = accountWithFetchedRelationship(client, resolvedAccount, currentAccountId);
+				const relationshipPromise = session ? accountWithFetchedRelationship(client, resolvedAccount, currentAccountId) : Promise.resolve(resolvedAccount);
 				const statusesPromise = statusPages(resolvedAccount.id);
 				account = await relationshipPromise;
 				if (route !== 'profile' || requestId !== profileRouteRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 				upsertAccountCache([account], { relationship: 'replace' });
-				const profile = adaptPleromaProfile(account, { instanceUrl: session.instanceUrl, currentAccountId });
+				const profile = adaptPleromaProfile(account, { instanceUrl: profileInstanceUrl, currentAccountId });
 				profileRouteState = {
 					status: 'success',
 					data: profileRouteState.status === 'success'
@@ -2693,7 +2697,7 @@
 			if (route !== 'profile' || requestId !== profileRouteRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			upsertAccountCache([account], { relationship: 'replace' });
-			const profile = adaptPleromaProfile(account, { instanceUrl: session.instanceUrl, currentAccountId });
+			const profile = adaptPleromaProfile(account, { instanceUrl: profileInstanceUrl, currentAccountId });
 			upsertAccountCache(accountsFromPleromaStatuses([...postsPage.items, ...repliesPage.items, ...mediaPage.items, ...pinnedStatuses]));
 			const posts = adaptPleromaStatuses(postsPage.items).map(profilePostForRebuild);
 			const replies = adaptPleromaStatuses(repliesPage.items).map(profilePostForRebuild);
@@ -2714,7 +2718,7 @@
 			if (requestId !== profileRouteRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			const normalized = normalizePleromaRequestError(error);
-			if (normalized.reauthRequired) {
+			if (normalized.reauthRequired && session) {
 				signOutPleroma(localStorage);
 				redirectToLanding();
 				return;
@@ -2891,7 +2895,7 @@
 		if (currentSession) void loadThread(currentSession, threadStatusId);
 	};
 	const retryProfileRoute = () => {
-		if (currentSession) void loadProfileRoute(currentSession, profileRouteHandle);
+		void loadProfileRoute(currentSession, profileRouteHandle);
 	};
 	const openNotificationsRoute = () => {
 		notificationsMenuOpen = false;
@@ -2966,22 +2970,24 @@
 			clearSearchPageDebounce();
 		}
 
-		const session = readSessionOrRedirect();
-		if (!session) return;
-		ensureProfileAccount(session);
-		if (session.account) {
-			if (route === 'notifications') ensureForegroundNotifications(session);
-			else ensureNotifications(session);
-			connectNotificationStreaming(session);
+		const session = readSessionOrRedirect({ optional: route === 'profile' });
+		if (!session && route !== 'profile') return;
+		if (session) {
+			ensureProfileAccount(session);
+			if (session.account) {
+				if (route === 'notifications') ensureForegroundNotifications(session);
+				else ensureNotifications(session);
+				connectNotificationStreaming(session);
+			}
+			else if (route === 'notifications' && profileAccountLoadError) notificationState = { status: 'error', error: profileAccountLoadError };
+			if (isTimelineRoute(route)) {
+				ensureInstanceConfig(session);
+				ensureTrends(session);
+				ensureComposerCustomEmojis(session);
+			}
+			if (route === 'search') ensureSearch(session, searchQuery);
 		}
-		else if (route === 'notifications' && profileAccountLoadError) notificationState = { status: 'error', error: profileAccountLoadError };
-		if (isTimelineRoute(route)) {
-			ensureInstanceConfig(session);
-			ensureTrends(session);
-			ensureComposerCustomEmojis(session);
-		}
-		if (route === 'search') ensureSearch(session, searchQuery);
-		if (pathname.startsWith('/app/home')) {
+		if (session && pathname.startsWith('/app/home')) {
 			const loadKey = `${sessionKey(session)}\n${pathname}`;
 			if (loadedHomeTimelineKey !== loadKey) {
 				loadedHomeTimelineKey = loadKey;
@@ -2990,7 +2996,7 @@
 		} else {
 			clearHomeRouteIfLoaded();
 		}
-		if (appPublicTimelineRoute) {
+		if (session && appPublicTimelineRoute) {
 			const loadKey = `${sessionKey(session)}\n${appPublicTimelineRoute}`;
 			if (loadedAppPublicTimelineKey !== loadKey) {
 				appPublicTimelineActionGenerationId += 1;
@@ -3005,7 +3011,7 @@
 		} else {
 			clearAppPublicTimelineRouteIfLoaded();
 		}
-		if (pathname.startsWith('/app/thread')) {
+		if (session && pathname.startsWith('/app/thread')) {
 			const loadKey = `${sessionKey(session)}\n${threadStatusId}`;
 			if (loadedThreadKey !== loadKey) {
 				clearInlineReply('thread');
@@ -3018,7 +3024,7 @@
 			clearThreadRouteIfLoaded();
 		}
 		if (pathname.startsWith('/app/profiles')) {
-			const viewerAccountId = currentSession?.account?.id ?? session.account?.id ?? '';
+			const viewerAccountId = currentSession?.account?.id ?? session?.account?.id ?? '';
 			const loadKey = `${sessionKey(session)}\n${viewerAccountId}\n${profileRouteHandle}`;
 			if (loadedProfileRouteKey !== loadKey) {
 				clearStatusActionErrors('profile');
@@ -3114,7 +3120,41 @@
 	{/if}
 {/snippet}
 
-{#if sessionReady}
+{#if sessionReady && !currentSession}
+	{#if route === 'profile'}
+		<main class="public-route-shell public-profile-shell" data-testid="public-profile-shell">
+			<div class="public-profile-wrap">
+				<div class="card public-signin-banner">
+					<span>You're viewing a public profile.</span>
+					<a href="/">Sign in to follow and interact →</a>
+				</div>
+				{#if profileRouteState.status === 'loading' || profileRouteState.status === 'idle'}
+					<div class="card request-state" role="status" aria-label="Request status">Loading profile</div>
+				{:else if profileRouteState.status === 'error'}
+					<div class="card request-state request-error">
+						<h2>{profileRouteState.error.title}</h2>
+						<p>{profileRouteState.error.message}</p>
+						{#if profileRouteState.error.retryable}
+							<Button variant="secondary" onclick={retryProfileRoute}>Retry profile</Button>
+						{/if}
+					</div>
+				{:else}
+					<ProfileView
+						profile={profileRouteState.data.profile}
+						posts={profileRouteState.data.posts}
+						replies={profileRouteState.data.replies}
+						pinned={profileRouteState.data.pinned}
+						media={profileRouteState.data.media}
+						timelineLoading={profileRouteState.timelineStatus === 'loading'}
+						signedOut
+						onSignIn={() => goto('/')}
+					/>
+				{/if}
+				<a class="public-home-link" href="/"><Icon name="arrowL" width={14} height={14} />Back to sign in</a>
+			</div>
+		</main>
+	{/if}
+{:else if sessionReady}
 	<div class="app-route-shell">
 		<header class="app-header" data-testid="app-header">
 			<div class="app-header-shell">

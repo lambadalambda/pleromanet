@@ -258,7 +258,7 @@ export const createPleromaClient = (config: ClientConfig) => {
 			http.request<PleromaAccount[]>({
 				path: '/api/v1/accounts/search',
 				query: accountSearchQuery(query),
-				auth: 'required'
+				auth: 'optional'
 			}),
 
 		getCustomEmojis: () =>
