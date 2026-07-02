@@ -7042,4 +7042,10 @@ body[data-theme='simoun'] .composer { background: linear-gradient(180deg, #1c254
 	.compact-audio { grid-template-columns: 32px minmax(0, 1fr) auto; gap: 10px; }
 	.cap-wave { display: none; }
 	.composer-row { flex-wrap: wrap; }
+	.pp-v1-id-top { flex-wrap: wrap; }
+	.pp-v1-actions {
+		width: 100%;
+		justify-content: flex-end;
+		margin-top: 0;
+	}
 }

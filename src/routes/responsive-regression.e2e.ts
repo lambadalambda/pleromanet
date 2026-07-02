@@ -96,4 +96,30 @@ test.describe('responsive regression coverage', () => {
 		await expect(page.getByTestId('mobile-sheet')).toBeHidden();
 		await expectNoHorizontalOverflow(page);
 	});
+
+	test('signed-out public profile has no horizontal overflow across breakpoints', async ({ page }) => {
+		await page.route('https://pleroma.social/api/v1/accounts/search**', async (route: Route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify([{ ...pleromaFixtures.account, acct: 'quietadmin@pleroma.social', url: 'https://pleroma.social/users/quietadmin' }])
+			});
+		});
+		await page.route('https://pleroma.social/api/v1/accounts/account-1/statuses**', async (route: Route) => {
+			const url = new URL(route.request().url());
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify(url.searchParams.get('pinned') === 'true' ? [] : [pleromaFixtures.status])
+			});
+		});
+
+		for (const viewportName of Object.keys(viewports) as Array<keyof typeof viewports>) {
+			await setViewport(page, viewportName);
+			await page.goto('/app/profiles/quietadmin@pleroma.social');
+			await expect(page.getByTestId('public-profile-shell')).toBeVisible();
+			await expect(page.getByTestId('profile-view')).toBeVisible();
+			await expectNoHorizontalOverflow(page);
+		}
+	});
 });
