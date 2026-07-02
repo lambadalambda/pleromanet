@@ -257,6 +257,12 @@ export type ProfileUpdate = {
 	fields?: PleromaField[];
 };
 
+export type PleromaSuggestion = {
+	source?: string;
+	account: PleromaAccount;
+	[key: string]: unknown;
+};
+
 export type PleromaOAuthApp = {
 	id?: string;
 	name: string;

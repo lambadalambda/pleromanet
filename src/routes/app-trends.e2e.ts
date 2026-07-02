@@ -32,10 +32,11 @@ const mockNotifications = async (page: Page) => {
 	});
 };
 
-const mockRailApis = async (page: Page, options: { trends: PleromaTag[]; instance: PleromaInstance }) => {
+const mockRailApis = async (page: Page, options: { trends: PleromaTag[]; instance: PleromaInstance; suggestions?: unknown[] }) => {
 	let trendsAuthorization: string | undefined;
 	let trendsLimit: string | null = null;
 	let instanceAuthorization: string | undefined;
+	let suggestionsAuthorization: string | undefined;
 	await page.route('https://pleroma.example/api/v1/trends/tags**', async (route) => {
 		trendsAuthorization = route.request().headers().authorization;
 		trendsLimit = new URL(route.request().url()).searchParams.get('limit');
@@ -45,11 +46,16 @@ const mockRailApis = async (page: Page, options: { trends: PleromaTag[]; instanc
 		instanceAuthorization = route.request().headers().authorization;
 		await fulfillJson(route, options.instance);
 	});
+	await page.route('https://pleroma.example/api/v2/suggestions**', async (route) => {
+		suggestionsAuthorization = route.request().headers().authorization;
+		await fulfillJson(route, options.suggestions ?? []);
+	});
 
 	return {
 		trendsAuthorization: () => trendsAuthorization,
 		trendsLimit: () => trendsLimit,
-		instanceAuthorization: () => instanceAuthorization
+		instanceAuthorization: () => instanceAuthorization,
+		suggestionsAuthorization: () => suggestionsAuthorization
 	};
 };
 
@@ -71,11 +77,9 @@ test('right rail loads trends and instance metadata from Pleroma', async ({ page
 	await expect(rail.getByTestId('trends-card')).toContainText('#smallweb');
 	await expect(rail.getByTestId('trends-card')).toContainText('24 posts');
 	await expect(rail.getByTestId('trends-card')).toContainText('#fedidevs');
-	await expect(rail.getByTestId('instance-status-card')).toContainText('Pleroma Example');
-	await expect(rail.getByTestId('instance-status-card')).toContainText('pleroma.example');
-	await expect(rail.getByTestId('instance-status-card')).toContainText('128 active/mo');
-	await expect(rail.getByTestId('instance-status-card')).toContainText('5,000 chars');
-	await expect(rail.getByTestId('instance-status-card')).toContainText('3 features');
+	await expect(rail.getByTestId('instance-status-card')).toHaveCount(0);
+	await expect(rail).not.toContainText('Instance status');
+	await expect(rail).not.toContainText('Shortcuts');
 	expect(requests.trendsAuthorization()).toBe('Bearer access-token');
 	expect(requests.trendsLimit()).toBe('5');
 	expect(requests.instanceAuthorization()).toBe('Bearer access-token');
@@ -86,13 +90,14 @@ test('right rail shows loading states while trend and instance requests are pend
 	await mockNotifications(page);
 	await page.route('https://pleroma.example/api/v1/trends/tags**', async () => new Promise(() => undefined));
 	await page.route('https://pleroma.example/api/v2/instance', async () => new Promise(() => undefined));
+	await page.route('https://pleroma.example/api/v2/suggestions**', async () => new Promise(() => undefined));
 
 	await setViewport(page, 'desktop');
 	await page.goto('/app/local');
 
 	const rail = page.getByTestId('right-rail');
 	await expect(rail.getByTestId('trends-card')).toContainText('Loading trends');
-	await expect(rail.getByTestId('instance-status-card')).toContainText('Loading instance metadata');
+	await expect(rail).not.toContainText('Who to follow');
 });
 
 test('right rail handles empty trend and metadata responses', async ({ page }) => {
@@ -116,7 +121,7 @@ test('right rail handles empty trend and metadata responses', async ({ page }) =
 
 	const rail = page.getByTestId('right-rail');
 	await expect(rail.getByTestId('trends-card')).toContainText('No trends available');
-	await expect(rail.getByTestId('instance-status-card')).toContainText('No instance metadata');
+	await expect(rail).not.toContainText('Who to follow');
 });
 
 test('right rail degrades when trends or instance metadata are unavailable', async ({ page }) => {
@@ -128,13 +133,16 @@ test('right rail degrades when trends or instance metadata are unavailable', asy
 	await page.route('https://pleroma.example/api/v2/instance', async (route) => {
 		await fulfillJson(route, { error: 'instance metadata disabled' }, 404);
 	});
+	await page.route('https://pleroma.example/api/v2/suggestions**', async (route) => {
+		await fulfillJson(route, { error: 'suggestions disabled' }, 404);
+	});
 
 	await setViewport(page, 'desktop');
 	await page.goto('/app/local');
 
 	const rail = page.getByTestId('right-rail');
 	await expect(rail.getByTestId('trends-card')).toContainText('Trends unavailable');
-	await expect(rail.getByTestId('instance-status-card')).toContainText('Instance metadata unavailable');
+	await expect(rail).not.toContainText('Who to follow');
 });
 
 test('right rail renders trend and instance request errors', async ({ page }) => {
@@ -146,11 +154,55 @@ test('right rail renders trend and instance request errors', async ({ page }) =>
 	await page.route('https://pleroma.example/api/v2/instance', async (route) => {
 		await fulfillJson(route, { error: 'instance server exploded' }, 500);
 	});
+	await page.route('https://pleroma.example/api/v2/suggestions**', async (route) => {
+		await fulfillJson(route, { error: 'suggestion server exploded' }, 500);
+	});
 
 	await setViewport(page, 'desktop');
 	await page.goto('/app/local');
 
 	const rail = page.getByTestId('right-rail');
 	await expect(rail.getByTestId('trends-card')).toContainText('trend server exploded');
-	await expect(rail.getByTestId('instance-status-card')).toContainText('instance server exploded');
+	await expect(rail).not.toContainText('Who to follow');
+});
+
+test('right rail shows who to follow only when the backend returns suggestions', async ({ page }) => {
+	await authenticate(page);
+	await mockNotifications(page);
+	const suggestedAccount = {
+		...pleromaFixtures.account,
+		id: 'account-suggested',
+		username: 'nyan.binary',
+		acct: 'nyan@catgirl.cloud',
+		display_name: 'nyan.binary :sparkle:',
+		emojis: [{ shortcode: 'sparkle', url: 'https://cdn.example/emoji/sparkle.png', static_url: 'https://cdn.example/emoji/sparkle.png' }],
+		avatar: 'https://cdn.example/nyan.png',
+		avatar_static: 'https://cdn.example/nyan.png'
+	};
+	const requests = await mockRailApis(page, {
+		trends: pleromaFixtures.trends,
+		instance: pleromaFixtures.instance,
+		suggestions: [{ source: 'staff', account: suggestedAccount }]
+	});
+	let followRequests = 0;
+	await page.route('https://pleroma.example/api/v1/accounts/account-suggested/follow', async (route) => {
+		followRequests += 1;
+		await fulfillJson(route, { ...pleromaFixtures.relationship, id: 'account-suggested', following: true, followed_by: false });
+	});
+
+	await setViewport(page, 'wide');
+	await page.goto('/app/local');
+
+	const rail = page.getByTestId('right-rail');
+	const card = rail.getByTestId('who-to-follow-card');
+	await expect(card).toBeVisible();
+	await expect(card).toContainText('nyan.binary');
+	await expect(card).toContainText('@nyan@catgirl.cloud');
+	await expect(card.locator('img[alt=":sparkle:"]')).toBeVisible();
+	await expect(card).not.toContainText('View more suggestions');
+	expect(requests.suggestionsAuthorization()).toBe('Bearer access-token');
+
+	await card.getByRole('button', { name: 'Follow', exact: true }).click();
+	await expect(card.getByRole('button', { name: 'Following', exact: true })).toBeVisible();
+	expect(followRequests).toBe(1);
 });

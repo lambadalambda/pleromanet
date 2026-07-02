@@ -200,9 +200,9 @@ test('real app right rail keeps timeline and explore card stacks', async ({ page
 
 	const rail = page.getByTestId('right-rail');
 	await expect(rail).toContainText('Trends & Activity');
-	await expect(rail).toContainText('Who to follow');
-	await expect(rail).toContainText('Shortcuts');
-	await expect(rail).toContainText('Instance status');
+	await expect(rail).not.toContainText('Who to follow');
+	await expect(rail).not.toContainText('Shortcuts');
+	await expect(rail).not.toContainText('Instance status');
 
 	await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Explore' }).click();
 	await expect(page).toHaveURL('/app/explore');

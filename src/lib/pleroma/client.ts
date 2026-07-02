@@ -15,6 +15,7 @@ import type {
 	AccountSearchQuery,
 	MediaUploadRequest,
 	NotificationQuery,
+	PleromaSuggestion,
 	ProfileUpdate,
 	SearchQuery,
 	StatusCreateRequest,
@@ -259,6 +260,13 @@ export const createPleromaClient = (config: ClientConfig) => {
 				path: '/api/v1/accounts/search',
 				query: accountSearchQuery(query),
 				auth: 'optional'
+			}),
+
+		getSuggestions: (limit = 5) =>
+			http.request<PleromaSuggestion[]>({
+				path: '/api/v2/suggestions',
+				query: { limit },
+				auth: 'required'
 			}),
 
 		lookupAccount: (acct: string) =>

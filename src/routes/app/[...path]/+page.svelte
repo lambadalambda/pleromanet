@@ -41,7 +41,7 @@
 	import type { IconName } from '$lib/rebuild/icons';
 	import type { ProfileData, ProfileMediaItem, ProfilePost } from '$lib/rebuild/profile';
 	import type { PleromaAccount, PleromaInstance, PleromaNotification, PleromaRelationship, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
-	import type { SocialNotificationData, SocialPost } from '$lib/social/types';
+	import type { CustomEmoji, SocialNotificationData, SocialPost } from '$lib/social/types';
 	import { onMount, untrack } from 'svelte';
 	import { env } from '$env/dynamic/public';
 
@@ -141,7 +141,7 @@
 		| { kind: 'account'; account: SearchAccountView }
 		| { kind: 'post'; post: PleromaStatusView };
 	type TrendView = { rank: number; tag: string; count: string | null };
-	type InstanceStatusView = { title: string | null; domain: string | null; rows: { label: string; value: string }[] };
+	type SuggestionAccountView = { id: string; name: string; nameEmojis: CustomEmoji[]; handle: string; avatarUrl: string | null; followState: PleromaProfileFollowState };
 	type StatusActionErrorState = { targetId: string; key: string; route: StatusActionOrigin; error: PleromaRequestErrorView };
 	type NotificationPopoverStatus = 'ready' | 'loading' | 'empty' | 'error';
 	const HOME_TIMELINE_CHECK_EVENT = 'pleromanet:check-home-timeline';
@@ -185,7 +185,8 @@
 	let searchState = $state<SearchState>({ status: 'idle' });
 	let headerSearchState = $state<SearchState>({ status: 'idle' });
 	let trendsState = $state<PleromaRequestState<TrendView[]>>({ status: 'idle' });
-	let instanceStatusState = $state<PleromaRequestState<InstanceStatusView>>({ status: 'idle' });
+	let suggestionsState = $state<PleromaRequestState<SuggestionAccountView[]>>({ status: 'idle' });
+	let suggestionFollowPending = $state<Record<string, boolean>>({});
 	let localHomePosts = $state<RebuildPost[]>([]);
 	let composerText = $state('');
 	let composerMentionAccounts = $state<ComposerMentionAccount[]>([]);
@@ -257,6 +258,7 @@
 	let homePostSubmitRequestId = 0;
 	let profileAccountRequestId = 0;
 	let instanceConfigRequestId = 0;
+	let suggestionsRequestId = 0;
 	let composerMentionSearchRequestId = 0;
 	let composerCustomEmojiRequestId = 0;
 	let loadedHomeTimelineKey = '';
@@ -269,6 +271,7 @@
 	let loadedProfileAccountKey = '';
 	let loadedTrendsKey = '';
 	let loadedInstanceConfigKey = '';
+	let loadedSuggestionsKey = '';
 	let loadedComposerCustomEmojiKey = '';
 	let homeTimelineFallbackSinceId: string | null = null;
 	let homeTimelineStreamKey = '';
@@ -445,8 +448,13 @@
 	const invalidateInstanceConfigRequests = () => {
 		instanceConfigRequestId += 1;
 		loadedInstanceConfigKey = '';
-		instanceStatusState = { status: 'idle' };
 		composerCharacterLimit = DEFAULT_STATUS_CHARACTER_LIMIT;
+	};
+	const invalidateSuggestionsRequests = () => {
+		suggestionsRequestId += 1;
+		loadedSuggestionsKey = '';
+		suggestionsState = { status: 'idle' };
+		suggestionFollowPending = {};
 	};
 	const invalidateComposerAutocompleteRequests = () => {
 		composerMentionSearchRequestId += 1;
@@ -1126,20 +1134,6 @@
 
 		return Array.isArray(features) ? features.filter((feature) => typeof feature === 'string' && feature.trim()).length : 0;
 	};
-	const adaptInstanceStatus = (instance: PleromaInstance): InstanceStatusView | null => {
-		const title = compactString(instance.title);
-		const domain = compactString(instance.domain);
-		const activeUsers = nonNegativeInteger(instance.usage?.users?.active_month);
-		const characterLimit = explicitStatusCharacterLimit(instance);
-		const featureCount = instanceFeatures(instance);
-		const rows: InstanceStatusView['rows'] = [];
-
-		if (activeUsers !== null) rows.push({ label: 'Users', value: `${numberFormatter.format(activeUsers)} active/mo` });
-		if (characterLimit) rows.push({ label: 'Status limit', value: `${numberFormatter.format(characterLimit)} chars` });
-		if (featureCount > 0) rows.push({ label: 'Features', value: `${numberFormatter.format(featureCount)} ${featureCount === 1 ? 'feature' : 'features'}` });
-
-		return title || domain || rows.length > 0 ? { title, domain, rows } : null;
-	};
 	const updateProfile = <Key extends keyof ProfileSettings>(key: Key, value: ProfileSettings[Key]) => {
 		profile = { ...profile, [key]: value };
 		settingsSaveState = 'Unsaved changes';
@@ -1591,6 +1585,7 @@
 		invalidateProfileAccountRequests();
 		invalidateTrendsRequests();
 		invalidateInstanceConfigRequests();
+		invalidateSuggestionsRequests();
 		invalidateComposerAutocompleteRequests();
 		closeHomeTimelineStreaming();
 		localHomePosts = [];
@@ -1619,6 +1614,7 @@
 			invalidateProfileAccountRequests();
 			invalidateTrendsRequests();
 			invalidateInstanceConfigRequests();
+		invalidateSuggestionsRequests();
 			invalidateComposerAutocompleteRequests();
 			closeHomeTimelineStreaming();
 			localHomePosts = [];
@@ -1697,7 +1693,6 @@
 		const requestSessionKey = sessionKey(session);
 		const requestId = instanceConfigRequestId + 1;
 		instanceConfigRequestId = requestId;
-		instanceStatusState = { status: 'loading' };
 
 		try {
 			const client = createPleromaClient({
@@ -1709,13 +1704,8 @@
 			if (requestId !== instanceConfigRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			composerCharacterLimit = statusCharacterLimit(instance);
-			const status = adaptInstanceStatus(instance);
-			instanceStatusState = status ? { status: 'success', data: status } : { status: 'empty' };
-		} catch (error) {
-			if (requestId !== instanceConfigRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
-
+		} catch {
 			// Character limits are best-effort; keep the conservative default if instance metadata is unavailable.
-			instanceStatusState = { status: 'error', error: normalizePleromaRequestError(error) };
 		}
 	};
 	const ensureInstanceConfig = (session: PleromaSession) => {
@@ -1725,6 +1715,100 @@
 		loadedInstanceConfigKey = requestSessionKey;
 		void loadInstanceConfig(session);
 	};
+	const suggestionAccountView = (account: PleromaAccount, currentAccountId?: string): SuggestionAccountView => {
+		const view = adaptPleromaAccount(account);
+		return {
+			id: view.id,
+			name: view.displayName,
+			nameEmojis: view.emojis,
+			handle: view.handle,
+			avatarUrl: view.avatarUrl,
+			followState: followStateFromRelationship(account.pleroma?.relationship, account.id, currentAccountId)
+		};
+	};
+	const loadSuggestions = async (session: PleromaSession) => {
+		const requestSessionKey = sessionKey(session);
+		const requestId = suggestionsRequestId + 1;
+		suggestionsRequestId = requestId;
+		suggestionsState = { status: 'loading' };
+
+		try {
+			const client = createPleromaClient({
+				instanceUrl: session.instanceUrl,
+				accessToken: session.accessToken,
+				fetch: window.fetch.bind(window)
+			});
+			const entries = await client.getSuggestions();
+			if (requestId !== suggestionsRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			const currentAccountId = session.account?.id;
+			const accounts = entries
+				.map((entry) => entry?.account)
+				.filter((account): account is PleromaAccount => Boolean(account?.id) && account?.id !== currentAccountId)
+				.map((account) => suggestionAccountView(account, currentAccountId));
+			upsertAccountCache(entries.map((entry) => entry?.account).filter((account): account is PleromaAccount => Boolean(account?.id)));
+			suggestionsState = accounts.length > 0 ? { status: 'success', data: accounts } : { status: 'empty' };
+		} catch (error) {
+			if (requestId !== suggestionsRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			// Suggestions are optional; the card simply stays hidden when unavailable.
+			suggestionsState = { status: 'error', error: normalizePleromaRequestError(error) };
+		}
+	};
+	const ensureSuggestions = (session: PleromaSession) => {
+		const requestSessionKey = sessionKey(session);
+		if (loadedSuggestionsKey === requestSessionKey) return;
+
+		loadedSuggestionsKey = requestSessionKey;
+		void loadSuggestions(session);
+	};
+	const toggleSuggestionFollow = async (item: { id: string }) => {
+		const session = currentSession;
+		if (!session || suggestionsState.status !== 'success') return;
+		const target = suggestionsState.data.find((entry) => entry.id === item.id);
+		if (!target || target.followState === 'self' || target.followState === 'blocked' || suggestionFollowPending[target.id]) return;
+
+		const requestSessionKey = sessionKey(session);
+		suggestionFollowPending = { ...suggestionFollowPending, [target.id]: true };
+		try {
+			const client = createPleromaClient({
+				instanceUrl: session.instanceUrl,
+				accessToken: session.accessToken,
+				fetch: window.fetch.bind(window)
+			});
+			const relationship = searchFollowIsFollowing(target.followState)
+				? await client.unfollowAccount(target.id)
+				: await client.followAccount(target.id);
+			if (!isCurrentSessionRequest(requestSessionKey)) return;
+
+			const followState = followStateFromRelationship(relationship, target.id, session.account?.id);
+			if (suggestionsState.status === 'success') {
+				suggestionsState = { ...suggestionsState, data: suggestionsState.data.map((entry) => entry.id === target.id ? { ...entry, followState } : entry) };
+			}
+		} catch (error) {
+			if (!isCurrentSessionRequest(requestSessionKey)) return;
+			const normalized = normalizePleromaRequestError(error);
+			if (normalized.reauthRequired) {
+				signOutPleroma(localStorage);
+				redirectToLanding();
+			}
+		} finally {
+			if (isCurrentSessionRequest(requestSessionKey)) {
+				const { [target.id]: _cleared, ...rest } = suggestionFollowPending;
+				suggestionFollowPending = rest;
+			}
+		}
+	};
+	const railSuggestions = $derived(suggestionsState.status === 'success' ? suggestionsState.data.map((entry) => ({
+		id: entry.id,
+		name: entry.name,
+		nameEmojis: entry.nameEmojis,
+		handle: entry.handle,
+		avatarUrl: entry.avatarUrl,
+		followLabel: suggestionFollowPending[entry.id] ? 'Working...' : searchFollowLabel(entry.followState),
+		followActive: searchFollowIsFollowing(entry.followState),
+		followDisabled: entry.followState === 'self' || entry.followState === 'blocked' || Boolean(suggestionFollowPending[entry.id])
+	})) : []);
 	const composerMentionAccount = (account: PleromaStatus['account']): ComposerMentionAccount => {
 		const view = adaptPleromaAccount(account);
 		return {
@@ -3115,6 +3199,7 @@
 			if (isTimelineRoute(route)) {
 				ensureInstanceConfig(session);
 				ensureTrends(session);
+				ensureSuggestions(session);
 				ensureComposerCustomEmojis(session);
 			}
 			if (route === 'search') ensureSearch(session, searchQuery);
@@ -3952,9 +4037,9 @@
 				{#if isTimelineRoute(route)}
 					<div class="rail-title">Trends &amp; Activity</div>
 					<SurfaceCard kind="trends" trendsState={trendsState} />
-					<SurfaceCard kind="who-to-follow" />
-					<SurfaceCard kind="shortcuts" />
-					<SurfaceCard kind="instance-status" instanceState={instanceStatusState} />
+					{#if railSuggestions.length > 0}
+						<SurfaceCard kind="who-to-follow" suggestions={railSuggestions} onSuggestionFollow={toggleSuggestionFollow} />
+					{/if}
 				{:else if route === 'explore'}
 					<div class="rail-title">Discover</div>
 					<div aria-label="Quick search Explore"><SurfaceCard kind="quick-search" /></div>
@@ -4018,7 +4103,10 @@
 			<aside class="mobile-sheet open" data-testid="mobile-sheet">
 				<div class="sheet-grip"></div>
 				<div class="sheet-head"><span class="sheet-title">Details</span><button type="button" class="drawer-close" aria-label="Close details sheet" onclick={() => (mobileSheetOpen = false)}>×</button></div>
-				<SurfaceCard kind="shortcuts" />
+				<SurfaceCard kind="trends" trendsState={trendsState} />
+				{#if railSuggestions.length > 0}
+					<SurfaceCard kind="who-to-follow" suggestions={railSuggestions} onSuggestionFollow={toggleSuggestionFollow} />
+				{/if}
 			</aside>
 		{/if}
 	</div>

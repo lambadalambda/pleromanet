@@ -1,8 +1,12 @@
 <script lang="ts">
+	import Avatar from './Avatar.svelte';
 	import Button from './Button.svelte';
 	import Icon from './Icon.svelte';
 	import Pill from './Pill.svelte';
+	import RichText from './RichText.svelte';
 	import VaporBanner from './VaporBanner.svelte';
+	import { profileHref } from './profile-links';
+	import type { CustomEmoji } from '$lib/social/types';
 	import type { IconName } from './icons';
 
 	type RequestError = { title: string; message: string; status?: number };
@@ -15,10 +19,22 @@
 	type TrendStateItem = { rank: number; tag: string; count: string | null };
 	type InstanceStatusItem = { label: string; value: string };
 	type InstanceStatus = { title: string | null; domain: string | null; rows: InstanceStatusItem[] };
+	type SuggestionView = {
+		id: string;
+		name: string;
+		nameEmojis?: CustomEmoji[];
+		handle: string;
+		avatarUrl?: string | null;
+		followLabel: string;
+		followActive: boolean;
+		followDisabled: boolean;
+	};
 	type Props = {
 		kind: string;
 		trendsState?: RequestState<TrendStateItem[]>;
 		instanceState?: RequestState<InstanceStatus>;
+		suggestions?: SuggestionView[];
+		onSuggestionFollow?: (suggestion: SuggestionView) => void;
 	};
 	type Trend = { rank: number; tag: string; count: string };
 	type Suggestion = { id: string; name: string; handle: string; av: string };
@@ -27,7 +43,7 @@
 	type Tip = { icon: IconName; text: string };
 	type Stat = { label: string; value: string };
 
-	let { kind, trendsState, instanceState }: Props = $props();
+	let { kind, trendsState, instanceState, suggestions: liveSuggestions, onSuggestionFollow }: Props = $props();
 	let following = $state<Record<string, boolean>>({});
 
 	const trends: Trend[] = [
@@ -118,26 +134,43 @@
 		{/if}
 	</div>
 {:else if kind === 'who-to-follow'}
-	<div class="card surface-card">
+	<div class="card surface-card" data-testid="who-to-follow-card">
 		<div class="card-head">
 			<span class="card-title">Who to follow</span>
 			<Icon name="users" width={16} height={16} className="surface-head-icon" />
 		</div>
-		<div class="surface-card-list">
-			{#each suggestions as suggestion}
-				<div class="suggest">
-					<div class="suggest-av {suggestion.av}"></div>
-					<div>
-						<div class="suggest-name">{suggestion.name}</div>
-						<div class="suggest-handle">{suggestion.handle}</div>
+		{#if liveSuggestions}
+			<div class="surface-card-list">
+				{#each liveSuggestions as suggestion (suggestion.id)}
+					<div class="suggest">
+						<Avatar variant="plain" element="span" className="suggest-av" avatarUrl={suggestion.avatarUrl} alt={`${suggestion.name} avatar`} />
+						<div>
+							<a class="suggest-name" href={profileHref(suggestion.handle) ?? undefined}><RichText text={suggestion.name} emojis={suggestion.nameEmojis} linkMentions={false} /></a>
+							<div class="suggest-handle">{suggestion.handle}</div>
+						</div>
+						<Button variant="follow" className={suggestion.followActive ? 'following' : ''} disabled={suggestion.followDisabled} onclick={() => onSuggestionFollow?.(suggestion)}>
+							{suggestion.followLabel}
+						</Button>
 					</div>
-					<Button variant="follow" className={following[suggestion.id] ? 'following' : ''} onclick={() => toggleFollow(suggestion.id)}>
-						{following[suggestion.id] ? 'Following' : 'Follow'}
-					</Button>
-				</div>
-			{/each}
-		</div>
-		<button type="button" class="card-foot">View more suggestions →</button>
+				{/each}
+			</div>
+		{:else}
+			<div class="surface-card-list">
+				{#each suggestions as suggestion}
+					<div class="suggest">
+						<div class="suggest-av {suggestion.av}"></div>
+						<div>
+							<div class="suggest-name">{suggestion.name}</div>
+							<div class="suggest-handle">{suggestion.handle}</div>
+						</div>
+						<Button variant="follow" className={following[suggestion.id] ? 'following' : ''} onclick={() => toggleFollow(suggestion.id)}>
+							{following[suggestion.id] ? 'Following' : 'Follow'}
+						</Button>
+					</div>
+				{/each}
+			</div>
+			<button type="button" class="card-foot">View more suggestions →</button>
+		{/if}
 	</div>
 {:else if kind === 'shortcuts'}
 	<div class="card surface-card">
