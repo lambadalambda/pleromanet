@@ -35,30 +35,21 @@
 		type PaginatedTimelineBaseState,
 		type PaginatedTimelineSuccess
 	} from '$lib/pleroma/timeline-state';
-	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, normalizePleromaRequestError, statusCharacterLimit, type PleromaAccountView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit, type PleromaAccountView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaProfileSettingsView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, composerUploadBadge, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
 	import type { ProfileData, ProfileMediaItem, ProfilePost } from '$lib/rebuild/profile';
 	import type { PleromaAccount, PleromaInstance, PleromaNotification, PleromaRelationship, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
 	import type { SocialNotificationData, SocialPost } from '$lib/social/types';
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 
 	type AppRoute = 'home' | 'local' | 'federated' | 'public' | 'thread' | 'profile' | 'notifications' | 'explore' | 'search' | 'settings';
 	type NavItem = { route: AppRoute; label: string; icon: IconName; href: string; count?: number };
 	type ThemeName = 'cream' | 'dusk' | 'drive' | 'simoun';
 	type ExploreFeed = 'popular' | 'new' | 'active';
 	type SearchTab = 'all' | 'people' | 'posts';
-	type ProfileSettings = {
-		displayName: string;
-		username: string;
-		website: string;
-		location: string;
-		bio: string;
-		discoverable: boolean;
-		indexable: boolean;
-		showFollowers: boolean;
-	};
+	type ProfileSettings = PleromaProfileSettingsView;
 	type ReplySort = 'top' | 'newest';
 	type StatusActionKey = 'boost' | 'fav';
 	type StatusActionOrigin = 'home' | 'local' | 'federated' | 'thread' | 'profile';
@@ -167,13 +158,12 @@
 		{ id: 'simoun', label: 'Simoun', grad: 'linear-gradient(135deg, #18203f 50%, #e8763a 50%)' }
 	];
 	const defaultProfile: ProfileSettings = {
-		displayName: 'dreambyte',
-		username: 'dreambyte',
-		website: 'https://dreambyte.dev',
-		location: 'somewhere on the internet',
-		bio: 'living in a soft world',
+		displayName: '',
+		username: '',
+		website: '',
+		location: '',
+		bio: '',
 		discoverable: true,
-		indexable: false,
 		showFollowers: true
 	};
 
@@ -224,6 +214,8 @@
 	let exploreFeed = $state<ExploreFeed>('popular');
 	let joinedCommunities = $state<Record<string, boolean>>({});
 	let settingsSaveState = $state('Saved');
+	let settingsSaveError = $state<PleromaRequestErrorView | null>(null);
+	let settingsSaveRequestId = 0;
 	let profile = $state<ProfileSettings>({ ...defaultProfile });
 	let savedProfile = $state<ProfileSettings>({ ...defaultProfile });
 	let homePostSubmitState = $state<'idle' | 'submitting'>('idle');
@@ -1048,14 +1040,60 @@
 		profile = { ...profile, [key]: value };
 		settingsSaveState = 'Unsaved changes';
 	};
-	const saveProfile = () => {
-		savedProfile = { ...profile };
-		settingsSaveState = 'Saved just now';
+	const populateSettingsFromAccount = (account: PleromaAccount) => {
+		const next = profileSettingsFromAccount(account);
+		const pristine = untrack(() => settingsSaveState === 'Saved' || settingsSaveState === 'Saved just now');
+		savedProfile = next;
+		if (pristine) profile = { ...next };
+	};
+	const saveProfile = async () => {
+		const session = currentSession;
+		if (!session || settingsSaveState === 'Saving…') return;
+
+		const requestSessionKey = sessionKey(session);
+		const requestId = ++settingsSaveRequestId;
+		settingsSaveState = 'Saving…';
+		settingsSaveError = null;
+
+		try {
+			const client = createPleromaClient({
+				instanceUrl: session.instanceUrl,
+				accessToken: session.accessToken,
+				fetch: window.fetch.bind(window)
+			});
+			const account = await client.updateAccountProfile(profileUpdateFromSettings(profile, session.account));
+			if (requestId !== settingsSaveRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			upsertAccountCache([account]);
+			const nextSession = { ...session, account };
+			currentSession = nextSession;
+			writePleromaSession(localStorage, nextSession);
+			savedProfile = profileSettingsFromAccount(account);
+			profile = { ...savedProfile };
+			settingsSaveState = 'Saved just now';
+		} catch (error) {
+			if (requestId !== settingsSaveRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			const normalized = normalizePleromaRequestError(error);
+			if (normalized.reauthRequired) {
+				signOutPleroma(localStorage);
+				redirectToLanding();
+				return;
+			}
+
+			settingsSaveError = normalized;
+			settingsSaveState = 'Unsaved changes';
+		}
 	};
 	const resetProfile = () => {
 		profile = { ...savedProfile };
 		settingsSaveState = 'Saved';
+		settingsSaveError = null;
 	};
+	$effect(() => {
+		const account = currentSession?.account;
+		if (account) populateSettingsFromAccount(account);
+	});
 	const queueUploadFiles = (files: FileList | File[], uploads: ComposerUpload[], updateUploads: (updater: (uploads: ComposerUpload[]) => ComposerUpload[]) => void, isStillCurrent: () => boolean = () => true) => {
 		const session = currentSession;
 		if (!session) return;
@@ -3616,7 +3654,7 @@
 						<div class="crumbs">Settings / Profile</div>
 						<h1>Profile settings</h1>
 						<p>Manage your profile information and how you appear to others.</p>
-						<div class="settings-save-row"><span data-testid="settings-save-state">{settingsSaveState}</span><span>{profileBioCount}</span></div>
+						<div class="settings-save-row"><span data-testid="settings-save-state">{settingsSaveState}</span></div>
 						<div class="upload-row" data-testid="avatar-upload-row"><button type="button" class="btn-secondary">Choose avatar</button><span>96×96px recommended</span></div>
 						<div class="upload-row" data-testid="banner-upload-row"><button type="button" class="btn-secondary">Choose banner</button><span>Wide image recommended</span></div>
 						<div class="field">
@@ -3625,7 +3663,13 @@
 						</div>
 						<div class="field">
 							<label class="field-label" for="username">Username</label>
-							<input id="username" class="input" value={profile.username} oninput={(event) => updateProfile('username', event.currentTarget.value)} />
+							<input id="username" class="input" value={profile.username} disabled />
+							<div class="field-help">Your unique handle on this server. Usernames can't be changed.</div>
+						</div>
+						<div class="field">
+							<label class="field-label" for="bio">Bio</label>
+							<textarea id="bio" class="input textarea" value={profile.bio} oninput={(event) => updateProfile('bio', event.currentTarget.value)}></textarea>
+							<div class="input-counter">{profileBioCount}</div>
 						</div>
 						<div class="field">
 							<label class="field-label" for="website">Website</label>
@@ -3637,13 +3681,15 @@
 						</div>
 						<div class="settings-toggles">
 							<button type="button" role="switch" aria-label="Discoverable profile" aria-checked={profile.discoverable ? 'true' : 'false'} onclick={() => updateProfile('discoverable', !profile.discoverable)}>Discoverable profile</button>
-							<button type="button" role="switch" aria-label="Allow search indexing" aria-checked={profile.indexable ? 'true' : 'false'} onclick={() => updateProfile('indexable', !profile.indexable)}>Allow search indexing</button>
 							<button type="button" role="switch" aria-label="Show follower count" aria-checked={profile.showFollowers ? 'true' : 'false'} onclick={() => updateProfile('showFollowers', !profile.showFollowers)}>Show follower count</button>
 						</div>
 						<div class="settings-actions">
-							<button type="button" class="btn-primary" onclick={saveProfile}>Save profile settings</button>
+							<button type="button" class="btn-primary" onclick={saveProfile} disabled={settingsSaveState === 'Saving…'}>Save profile settings</button>
 							<button type="button" class="btn-secondary" onclick={resetProfile}>Reset profile settings</button>
 						</div>
+						{#if settingsSaveError}
+							<div class="settings-save-error" data-testid="settings-save-error" role="alert">{settingsSaveError.title}: {settingsSaveError.message}</div>
+						{/if}
 					</section>
 				{:else}
 					<section class="card app-panel">
@@ -3677,7 +3723,7 @@
 						<div class="surface-profile-head"><div>Profile preview</div></div>
 						<div class="surface-preview-body">
 							<div class="surface-preview-name">{profile.displayName}</div>
-							<div class="surface-preview-handle">@{profile.username}@pleromanet.social</div>
+							<div class="surface-preview-handle">@{profile.username}@{headerInstanceDomain}</div>
 							<div class="surface-preview-bio">{profile.bio}</div>
 							<div class="surface-preview-note">This is how your profile appears to other users.</div>
 						</div>
