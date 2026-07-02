@@ -27,8 +27,9 @@ Connect follow and unfollow controls to Pleroma relationship mutations across pr
 
 ## Current Status
 
-- Partially done: the API client has `followAccount` and `unfollowAccount` methods.
-- Still open: real profile/discovery follow controls are not wired to those methods, and relationship states are not modeled in UI.
+- Done: profile follow buttons call `followAccount`/`unfollowAccount` with an optimistic state (requested for locked accounts), reconcile with the returned relationship, roll back with an inline error on failure, and sign out on 401/403. Search/discovery cards were already wired through `toggleSearchFollow` with server reconciliation.
+- Done: relationship states (stranger/following/mutual/requested/blocked/self) are modeled in `PleromaProfileFollowState` and rendered across profile and search surfaces; signed-out visitors see sign-in prompts instead of follow controls.
+- Covered by follow/unfollow/requested/rollback/401/signed-out tests in `src/routes/app-profile.e2e.ts`.
 
 ## Notes
 

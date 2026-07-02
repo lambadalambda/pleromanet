@@ -35,7 +35,7 @@ Add routed account profile display with public account details and account statu
 - Done: typed account lookup, account statuses, and relationship fetches (`client.ts` `getAccount`/`getAccountStatuses`/`getAccountRelationships`).
 - Done: routed `/app/profiles/...` with the integrated `ProfileView`/`ProfileSideRail` port, tabs (posts, posts and replies, media), pinned strip, locked/empty/remote/bot/self states, and badge rendering, covered by `src/routes/app-profile.e2e.ts`.
 - Done: account note markup is flattened through `htmlToPlainText` before rendering; covered by sanitization assertions.
-- Still open: signed-out visitors are redirected to the landing page by the app shell guard, so signed-out profile viewing with a sign-in prompt is not implemented yet. The `/public` route's `PUBLIC_PLEROMA_INSTANCE_URL` pattern is the likely instance source for that path.
+- Done: signed-out visitors now get a minimal public profile shell at `/app/profiles/...` with anonymous loading against `PUBLIC_PLEROMA_INSTANCE_URL`, sign-in prompts on follow controls, and no relationship fetches. Covered by the signed-out test in `src/routes/app-profile.e2e.ts`.
 
 ## Notes
 
