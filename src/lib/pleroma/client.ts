@@ -382,6 +382,26 @@ export const createPleromaClient = (config: ClientConfig) => {
 				auth: 'required'
 			}),
 
+		getFollowRequests: () =>
+			http.request<PleromaAccount[]>({
+				path: '/api/v1/follow_requests',
+				auth: 'required'
+			}),
+
+		authorizeFollowRequest: (accountId: string) =>
+			http.request<PleromaRelationship>({
+				method: 'POST',
+				path: `/api/v1/follow_requests/${encodePathSegment(accountId)}/authorize`,
+				auth: 'required'
+			}),
+
+		rejectFollowRequest: (accountId: string) =>
+			http.request<PleromaRelationship>({
+				method: 'POST',
+				path: `/api/v1/follow_requests/${encodePathSegment(accountId)}/reject`,
+				auth: 'required'
+			}),
+
 		muteAccount: (id: string) =>
 			http.request<PleromaRelationship>({
 				method: 'POST',

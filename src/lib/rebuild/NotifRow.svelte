@@ -8,9 +8,25 @@
 		n: NotificationData;
 		dense?: boolean;
 		onOpen?: (notification: NotificationData) => void;
+		onAccept?: (notification: NotificationData) => Promise<void> | void;
+		onReject?: (notification: NotificationData) => Promise<void> | void;
 	};
 
-	let { n, dense = false, onOpen }: Props = $props();
+	let { n, dense = false, onOpen, onAccept, onReject }: Props = $props();
+	let requestState = $state<'idle' | 'accepting' | 'rejecting' | 'accepted' | 'rejected'>('idle');
+	let requestBusy = $derived(requestState === 'accepting' || requestState === 'rejecting');
+
+	const resolveFollowRequest = async (action: 'accept' | 'reject') => {
+		const handler = action === 'accept' ? onAccept : onReject;
+		if (!handler || requestBusy || requestState === 'accepted' || requestState === 'rejected') return;
+		requestState = action === 'accept' ? 'accepting' : 'rejecting';
+		try {
+			await handler(n);
+			requestState = action === 'accept' ? 'accepted' : 'rejected';
+		} catch {
+			requestState = 'idle';
+		}
+	};
 
 	let kind = $derived(NOTIF_KINDS[n.kind]);
 	let visibleActors = $derived(n.who.slice(0, 4));
@@ -89,14 +105,20 @@
 		{#if n.bio}
 			<div class="notif-row-bio">{n.bio}</div>
 		{/if}
-		{#if isFollow && !actionable}
+		{#if n.kind === 'follow_req' && (onAccept || onReject)}
 			<div class="notif-row-actions">
-				{#if n.kind === 'follow_req'}
-					<button type="button" class="notif-btn primary">Accept</button>
-					<button type="button" class="notif-btn">Decline</button>
+				{#if requestState === 'accepted'}
+					<span class="notif-req-result">Accepted</span>
+				{:else if requestState === 'rejected'}
+					<span class="notif-req-result">Declined</span>
 				{:else}
-					<button type="button" class="notif-btn">Follow back</button>
+					{#if onAccept}<button type="button" class="notif-btn primary" disabled={requestBusy} onclick={() => resolveFollowRequest('accept')}>{requestState === 'accepting' ? 'Accepting…' : 'Accept'}</button>{/if}
+					{#if onReject}<button type="button" class="notif-btn" disabled={requestBusy} onclick={() => resolveFollowRequest('reject')}>{requestState === 'rejecting' ? 'Declining…' : 'Decline'}</button>{/if}
 				{/if}
+			</div>
+		{:else if isFollow && !actionable}
+			<div class="notif-row-actions">
+				<button type="button" class="notif-btn">Follow back</button>
 			</div>
 		{/if}
 	</div>

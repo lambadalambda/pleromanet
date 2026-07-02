@@ -6096,6 +6096,13 @@ a.suggest-name:hover { color: var(--accent-ink); }
 	color: var(--panel);
 	border-color: var(--ink);
 }
+.notif-btn:disabled { opacity: 0.6; cursor: default; }
+.notif-req-result {
+	font-family: var(--mono);
+	font-size: 11px;
+	letter-spacing: 0.06em;
+	color: var(--muted);
+}
 .notif-unread-dot {
 	position: absolute;
 	right: 12px;

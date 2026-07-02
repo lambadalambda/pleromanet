@@ -392,6 +392,9 @@ test('Pleroma client covers mutations, unauthenticated state, and API errors', a
 	await client.unmuteAccount('account-1');
 	await client.blockAccount('account-1');
 	await client.unblockAccount('account-1');
+	await client.getFollowRequests();
+	await client.authorizeFollowRequest('account-1');
+	await client.rejectFollowRequest('account-1');
 	const createdStatus = await client.createStatus({
 		status: 'new post from client',
 		visibility: 'unlisted',
@@ -422,12 +425,15 @@ test('Pleroma client covers mutations, unauthenticated state, and API errors', a
 		'POST /api/v1/accounts/account-1/unmute',
 		'POST /api/v1/accounts/account-1/block',
 		'POST /api/v1/accounts/account-1/unblock',
+		'GET /api/v1/follow_requests',
+		'POST /api/v1/follow_requests/account-1/authorize',
+		'POST /api/v1/follow_requests/account-1/reject',
 		'POST /api/v1/statuses',
 		'POST /api/v1/accounts/account-1/follow',
 		'POST /api/v1/accounts/account-1/unfollow',
 		'PATCH /api/v1/accounts/update_credentials'
 	]);
-	const createBody = new URLSearchParams(requests[11].body);
+	const createBody = new URLSearchParams(requests[14].body);
 	expect(createBody.get('status')).toBe('new post from client');
 	expect(createBody.get('visibility')).toBe('unlisted');
 	expect(createBody.get('spoiler_text')).toBe('quiet spoiler');
@@ -436,8 +442,8 @@ test('Pleroma client covers mutations, unauthenticated state, and API errors', a
 	expect(createBody.get('poll[expires_in]')).toBe('3600');
 	expect(createBody.get('poll[multiple]')).toBe('true');
 	expect(createBody.get('poll[hide_totals]')).toBe('false');
-	expect(requests[14].body).toContain('display_name');
-	expect(requests[14].body).toContain('quiet admin');
+	expect(requests[17].body).toContain('display_name');
+	expect(requests[17].body).toContain('quiet admin');
 
 	await expect(client.favoriteStatus('bad')).rejects.toMatchObject({
 		kind: 'http',

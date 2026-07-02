@@ -13,9 +13,11 @@
 		onSeeAll?: () => void;
 		onMarkAll?: () => void;
 		onOpen?: (notification: NotificationData) => void;
+		onAcceptFollowRequest?: (notification: NotificationData) => Promise<void> | void;
+		onRejectFollowRequest?: (notification: NotificationData) => Promise<void> | void;
 	};
 
-	let { notifications, status = 'ready', errorTitle = 'Notifications unavailable', errorMessage = 'Try again from the notifications page.', onClose, onSeeAll, onMarkAll, onOpen }: Props = $props();
+	let { notifications, status = 'ready', errorTitle = 'Notifications unavailable', errorMessage = 'Try again from the notifications page.', onClose, onSeeAll, onMarkAll, onOpen, onAcceptFollowRequest, onRejectFollowRequest }: Props = $props();
 	let popoverEl = $state<HTMLDivElement | undefined>();
 	let tab = $state<NotificationTabId>('all');
 	let sampleList = $state<NotificationData[]>(cloneNotifications());
@@ -102,7 +104,7 @@
 			</div>
 		{:else}
 			{#each visible as notification (notification.id)}
-				<NotifRow n={notification} dense onOpen={onOpen ? openNotification : undefined} />
+				<NotifRow n={notification} dense onOpen={onOpen ? openNotification : undefined} onAccept={onAcceptFollowRequest} onReject={onRejectFollowRequest} />
 			{/each}
 		{/if}
 	</div>

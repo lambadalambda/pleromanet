@@ -2050,7 +2050,7 @@
 						{#each NOTIFICATION_PREVIEW_SPECS as spec (spec.label)}
 							<div class="ds-spec">
 								<div class="ds-spec-stage">
-									<NotifRow n={spec.notification} />
+									<NotifRow n={spec.notification} onAccept={() => undefined} onReject={() => undefined} />
 								</div>
 								<div class="ds-spec-foot">
 									<span class="ds-spec-label">{spec.label}</span>
@@ -2064,7 +2064,7 @@
 					<div class="ds-spec">
 						<div class="ds-spec-stage ds-notif-pop-stage">
 							<div class="ds-notif-pop-wrap">
-								<NotifsPopover />
+								<NotifsPopover onAcceptFollowRequest={() => undefined} onRejectFollowRequest={() => undefined} />
 							</div>
 						</div>
 						<div class="ds-spec-foot">
