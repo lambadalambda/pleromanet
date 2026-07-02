@@ -46,3 +46,4 @@
 - [x] [47 Fix emoji picker scrolling and unicode sets](issues/47-fix-emoji-picker-scrolling-and-unicode-sets.md)
 - [x] [45 Wire focused post follow button](issues/45-wire-focused-post-follow-button.md)
 - [x] [48 Render name emoji and media excerpts in secondary surfaces](issues/48-render-name-emoji-and-media-excerpts-in-secondary-surfaces.md)
+- [x] [49 Link mentions to full federated handles](issues/49-link-mentions-to-full-federated-handles.md)
