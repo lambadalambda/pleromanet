@@ -113,6 +113,7 @@ const profileUpdateBody = (profile: ProfileUpdate) => ({
 	locked: profile.locked,
 	bot: profile.bot,
 	discoverable: profile.discoverable,
+	hide_followers_count: profile.hideFollowersCount,
 	fields_attributes: profile.fields
 });
 

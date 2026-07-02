@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, formatRelativeStatusTime, htmlToPlainText, normalizePleromaRequestError, statusCharacterLimit } from './ui';
+import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, formatRelativeStatusTime, htmlToPlainText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit } from './ui';
 import { pleromaFixtures } from './fixtures';
 import type { PleromaStatus } from './types';
 
@@ -575,4 +575,58 @@ test('Pleroma request error display distinguishes auth, rate limits, server, and
 		title: 'Network connection failed',
 		retryable: true
 	});
+});
+
+test('profile settings adapters map accounts to editable settings and update payloads', () => {
+	const settings = profileSettingsFromAccount(pleromaFixtures.account);
+	expect(settings).toEqual({
+		displayName: 'quiet admin',
+		username: 'quietadmin',
+		bio: 'keeping the lights low',
+		website: '',
+		location: '',
+		discoverable: true,
+		showFollowers: true
+	});
+
+	const withoutSource = profileSettingsFromAccount({
+		...pleromaFixtures.account,
+		source: undefined,
+		fields: [
+			{ name: 'Website', value: '<a href="https://quiet.example">quiet.example</a>', verified_at: null },
+			{ name: 'home', value: 'small web', verified_at: null }
+		],
+		pleroma: { ...pleromaFixtures.account.pleroma, hide_followers_count: true }
+	});
+	expect(withoutSource.bio).toBe('keeping the lights low');
+	expect(withoutSource.website).toBe('quiet.example');
+	expect(withoutSource.showFollowers).toBe(false);
+
+	const update = profileUpdateFromSettings(
+		{ ...settings, displayName: 'quiet mod', bio: 'new note', website: 'https://quiet.example', location: 'low orbit', showFollowers: false },
+		pleromaFixtures.account
+	);
+	expect(update).toEqual({
+		displayName: 'quiet mod',
+		note: 'new note',
+		discoverable: true,
+		hideFollowersCount: true,
+		fields: [
+			{ name: 'home', value: 'small web' },
+			{ name: 'Website', value: 'https://quiet.example' },
+			{ name: 'Location', value: 'low orbit' }
+		]
+	});
+
+	const cleared = profileUpdateFromSettings({ ...settings, website: '  ', location: '' }, {
+		...pleromaFixtures.account,
+		source: {
+			note: 'keeping the lights low',
+			fields: [
+				{ name: 'Website', value: 'https://quiet.example' },
+				{ name: 'home', value: 'small web' }
+			]
+		}
+	});
+	expect(cleared.fields).toEqual([{ name: 'home', value: 'small web' }]);
 });

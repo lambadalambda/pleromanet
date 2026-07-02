@@ -1,6 +1,6 @@
 import type { AvatarVariant, CustomEmoji, PostAttachment, QuotedPostView, SocialNotificationData, SocialNotificationKind, TimelinePost, TimelineView } from '$lib/social/types';
 import { isPleromaClientError } from './http';
-import type { PleromaAccount, PleromaCustomEmoji, PleromaInstance, PleromaNotification, PleromaStatus } from './types';
+import type { PleromaAccount, PleromaCustomEmoji, PleromaField, PleromaInstance, PleromaNotification, PleromaStatus, ProfileUpdate } from './types';
 
 export const DEFAULT_STATUS_CHARACTER_LIMIT = 500;
 
@@ -644,6 +644,57 @@ export const adaptPleromaProfile = (account: PleromaAccount, options: { instance
 	},
 	followState: profileFollowState(account, options.currentAccountId)
 });
+
+export type PleromaProfileSettingsView = {
+	displayName: string;
+	username: string;
+	bio: string;
+	website: string;
+	location: string;
+	discoverable: boolean;
+	showFollowers: boolean;
+};
+
+const RESERVED_PROFILE_FIELD_NAMES = ['website', 'location'];
+
+const isReservedProfileField = (name: string) => RESERVED_PROFILE_FIELD_NAMES.includes(name.trim().toLowerCase());
+
+const plainAccountFields = (account: PleromaAccount | null | undefined): PleromaField[] => {
+	if (!account) return [];
+	if (account.source?.fields) return account.source.fields.map((field) => ({ name: field.name, value: field.value }));
+	return (account.fields ?? []).map((field) => ({ name: field.name, value: htmlToPlainText(field.value ?? '') }));
+};
+
+const plainFieldValue = (fields: PleromaField[], name: string) =>
+	fields.find((field) => field.name.trim().toLowerCase() === name)?.value ?? '';
+
+export const profileSettingsFromAccount = (account: PleromaAccount): PleromaProfileSettingsView => {
+	const fields = plainAccountFields(account);
+
+	return {
+		displayName: account.display_name ?? '',
+		username: account.username ?? '',
+		bio: account.source?.note ?? htmlToPlainText(account.note ?? ''),
+		website: plainFieldValue(fields, 'website'),
+		location: plainFieldValue(fields, 'location'),
+		discoverable: account.discoverable ?? true,
+		showFollowers: account.pleroma?.hide_followers_count !== true
+	};
+};
+
+export const profileUpdateFromSettings = (settings: PleromaProfileSettingsView, account: PleromaAccount | null | undefined): ProfileUpdate => {
+	const fields = plainAccountFields(account).filter((field) => !isReservedProfileField(field.name));
+	if (settings.website.trim()) fields.push({ name: 'Website', value: settings.website.trim() });
+	if (settings.location.trim()) fields.push({ name: 'Location', value: settings.location.trim() });
+
+	return {
+		displayName: settings.displayName,
+		note: settings.bio,
+		discoverable: settings.discoverable,
+		hideFollowersCount: !settings.showFollowers,
+		fields
+	};
+};
 
 export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaStatusOptions = {}): PleromaStatusView => {
 	const source = status.reblog ?? status;

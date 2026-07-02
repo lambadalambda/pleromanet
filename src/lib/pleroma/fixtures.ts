@@ -30,6 +30,10 @@ const account: PleromaAccount = {
 	statuses_count: 512,
 	fields: [{ name: 'home', value: 'small web', verified_at: null }],
 	emojis: [],
+	source: {
+		note: 'keeping the lights low',
+		fields: [{ name: 'home', value: 'small web' }]
+	},
 	pleroma: {
 		ap_id: 'https://pleroma.example/users/quietadmin',
 		favicon: 'https://pleroma.example/favicon.png',

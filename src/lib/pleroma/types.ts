@@ -59,6 +59,11 @@ export type PleromaAccount = {
 	statuses_count: number;
 	fields: PleromaField[];
 	emojis?: PleromaCustomEmoji[];
+	source?: {
+		note?: string;
+		fields?: PleromaField[];
+		[key: string]: unknown;
+	};
 	pleroma: {
 		ap_id?: string;
 		favicon?: string;
@@ -236,6 +241,7 @@ export type ProfileUpdate = {
 	locked?: boolean;
 	bot?: boolean;
 	discoverable?: boolean;
+	hideFollowersCount?: boolean;
 	fields?: PleromaField[];
 };
 
