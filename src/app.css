@@ -6600,6 +6600,113 @@ body[data-theme='simoun'] .pill {
 	line-height: 1.5;
 }
 
+/* ===== Emoji reaction row (V3c letterpress stamps) ===== */
+.pm-reactions {
+	display: flex;
+	flex-wrap: wrap;
+	margin-top: 4px;
+}
+.pm-stamp {
+	--hole: 2px;
+	--period: 7px;
+	--edge: 5px;
+	position: relative;
+	display: grid;
+	place-items: center;
+	background: #f3ead4;
+	cursor: pointer;
+	transition: transform 0.18s ease, filter 0.18s ease, background 0.18s;
+	font-family: var(--mono);
+	border: none;
+	padding: 0;
+	-webkit-mask:
+		linear-gradient(#000, #000) 50% 50% / calc(100% - 2 * var(--edge)) calc(100% - 2 * var(--edge)) no-repeat,
+		radial-gradient(circle var(--hole) at center, transparent 98%, #000 100%) 0 0 / var(--period) var(--edge) repeat-x,
+		radial-gradient(circle var(--hole) at center, transparent 98%, #000 100%) 0 100% / var(--period) var(--edge) repeat-x,
+		radial-gradient(circle var(--hole) at center, transparent 98%, #000 100%) 0 0 / var(--edge) var(--period) repeat-y,
+		radial-gradient(circle var(--hole) at center, transparent 98%, #000 100%) 100% 0 / var(--edge) var(--period) repeat-y;
+	mask:
+		linear-gradient(#000, #000) 50% 50% / calc(100% - 2 * var(--edge)) calc(100% - 2 * var(--edge)) no-repeat,
+		radial-gradient(circle var(--hole) at center, transparent 98%, #000 100%) 0 0 / var(--period) var(--edge) repeat-x,
+		radial-gradient(circle var(--hole) at center, transparent 98%, #000 100%) 0 100% / var(--period) var(--edge) repeat-x,
+		radial-gradient(circle var(--hole) at center, transparent 98%, #000 100%) 0 0 / var(--edge) var(--period) repeat-y,
+		radial-gradient(circle var(--hole) at center, transparent 98%, #000 100%) 100% 0 / var(--edge) var(--period) repeat-y;
+}
+.pm-stamp::before {
+	content: '';
+	position: absolute;
+	inset: 6px;
+	border: 1px dashed rgba(122, 124, 149, 0.45);
+	border-radius: 1px;
+	pointer-events: none;
+}
+.pm-stamp:hover:not(:disabled) {
+	filter: brightness(1.04);
+	transform: scale(1.07) rotate(0deg) !important;
+	z-index: 2;
+}
+.pm-stamp.you { background: #e9dcc0; }
+.pm-stamp.you::before { border-color: var(--accent); border-style: solid; }
+.pm-stamp:disabled { cursor: default; }
+.pm-stamp-art {
+	display: grid;
+	place-items: center;
+	line-height: 1;
+	z-index: 1;
+}
+.pm-emoji {
+	font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+	line-height: 1;
+	display: inline-block;
+}
+.pm-v3c { gap: 4px 10px; padding: 6px 0 2px; }
+.pm-v3c-cell {
+	display: inline-flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 4px;
+}
+.pm-v3c-stamp {
+	width: 56px;
+	height: 56px;
+	background: linear-gradient(180deg, #f5ecd7 0%, #efe3c4 100%);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.pm-v3c-stamp .pm-emoji { font-size: 32px; }
+.pm-v3c-custom {
+	width: 34px;
+	height: 34px;
+	object-fit: contain;
+}
+.pm-v3c-stamp.you {
+	background: linear-gradient(180deg, #ecdef0 0%, #d8c5e0 100%);
+}
+body[data-theme='dusk'] .pm-v3c-stamp.you,
+body[data-theme='drive'] .pm-v3c-stamp.you,
+body[data-theme='simoun'] .pm-v3c-stamp.you {
+	background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 35%, #f5ecd7) 0%, color-mix(in srgb, var(--accent) 50%, #efe3c4) 100%);
+}
+.pm-v3c-count {
+	font-family: var(--mono);
+	font-size: 10.5px;
+	font-variant-numeric: tabular-nums;
+	color: var(--muted);
+	letter-spacing: 0.08em;
+	text-align: center;
+	min-width: 28px;
+}
+.pm-v3c-count.you {
+	color: var(--accent-ink);
+	font-weight: 600;
+}
+.pm-v3c-add { color: var(--muted); }
+.pm-v3c-add .pm-stamp-art svg { color: currentColor; }
+.pm-v3c-count-add {
+	text-transform: uppercase;
+	letter-spacing: 0.16em;
+	font-size: 9px;
+}
+
 /* ===== Post photo attachments (duotone by default) ===== */
 :root { --photo-filter: url(#duotoneCream); }
 body[data-theme='dusk']   { --photo-filter: url(#duotoneDusk); }

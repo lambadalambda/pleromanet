@@ -19,7 +19,7 @@ test('shows converted canonical design-system sections and switches themes', asy
 	await expect(page.getByRole('heading', { name: 'Surfaces' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Navigation' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Mobile' })).toBeVisible();
-	await expect(page.locator('.ds-nav-foot')).toContainText('18 shared primitives');
+	await expect(page.locator('.ds-nav-foot')).toContainText('19 shared primitives');
 
 	await expect(page.locator('#controls')).toContainText('Button · primary');
 	await expect(page.locator('#attachments')).toContainText('pickAttachmentLayout →');
@@ -638,5 +638,24 @@ test('keeps the design system usable on mobile', async ({ page }) => {
 	await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Radio · PN.fm' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Oekaki' })).toBeVisible();
+	await expectNoHorizontalOverflow(page);
+});
+
+test('renders canonical emoji reaction row specimen', async ({ page }) => {
+	await setViewport(page, 'desktop');
+	await page.goto('/design-system');
+
+	const specimen = page.locator('#posts .ds-spec').filter({ hasText: 'Reaction row · letterpress stamps' });
+	const reactions = specimen.getByTestId('post-reactions');
+	await expect(reactions).toBeVisible();
+
+	const heart = reactions.getByRole('button', { name: /❤️ · 24 reactions · you reacted/ });
+	await expect(heart).toHaveAttribute('aria-pressed', 'true');
+	await expect(reactions.getByText('24', { exact: true })).toBeVisible();
+	await expect(reactions.locator('img[alt=":pleromasummer:"]')).toBeVisible();
+	await expect(reactions.locator('img[alt=":blobcat:"]')).toBeVisible();
+	await expect(reactions.getByRole('button', { name: 'Add reaction' })).toBeDisabled();
+	await expect(reactions.getByText('add', { exact: true })).toBeVisible();
+
 	await expectNoHorizontalOverflow(page);
 });

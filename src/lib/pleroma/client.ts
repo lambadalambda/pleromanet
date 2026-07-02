@@ -295,6 +295,20 @@ export const createPleromaClient = (config: ClientConfig) => {
 				auth: 'required'
 			}),
 
+		reactToStatus: (id: string, emoji: string) =>
+			http.request<PleromaStatus>({
+				method: 'PUT',
+				path: `/api/v1/pleroma/statuses/${encodePathSegment(id)}/reactions/${encodePathSegment(emoji)}`,
+				auth: 'required'
+			}),
+
+		unreactToStatus: (id: string, emoji: string) =>
+			http.request<PleromaStatus>({
+				method: 'DELETE',
+				path: `/api/v1/pleroma/statuses/${encodePathSegment(id)}/reactions/${encodePathSegment(emoji)}`,
+				auth: 'required'
+			}),
+
 		favoriteStatus: (id: string) =>
 			http.request<PleromaStatus>({
 				method: 'POST',

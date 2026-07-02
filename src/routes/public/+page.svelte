@@ -67,6 +67,7 @@
 			avatarUrl: post.boostedBy.avatarUrl
 		} : undefined,
 		quotedPost: post.quotedPost,
+		reactions: post.reactions,
 		replies: post.replies,
 		boosts: post.boosts,
 		favs: post.favorites,

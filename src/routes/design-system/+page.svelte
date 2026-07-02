@@ -1881,6 +1881,34 @@
 							</div>
 						</div>
 					</div>
+
+					<div class="ds-sub-h">Emoji reactions · V3c letterpress</div>
+					<div class="ds-grid ds-grid-2">
+						<div class="ds-spec ds-spec-span-2">
+							<div class="ds-spec-stage">
+								<Post post={{
+									...SAMPLE_POST,
+									id: 'ds-reactions-1',
+									body: "the algorithm doesn't care about you. the timeline doesn't either. but the people in it do, and that's worth keeping.",
+									reactions: [
+										{ name: '❤️', glyph: '❤️', url: null, staticUrl: null, count: 24, me: true },
+										{ name: 'pleromasummer', glyph: null, url: 'samples/dragon.png', staticUrl: 'samples/dragon.png', count: 18, me: false },
+										{ name: '🔥', glyph: '🔥', url: null, staticUrl: null, count: 12, me: false },
+										{ name: 'blobcat', glyph: null, url: 'samples/dragon.png', staticUrl: 'samples/dragon.png', count: 9, me: false },
+										{ name: '😂', glyph: '😂', url: null, staticUrl: null, count: 6, me: false },
+										{ name: '🌆', glyph: '🌆', url: null, staticUrl: null, count: 3, me: false }
+									],
+									replies: 8,
+									boosts: 34,
+									favs: 142
+								}} onAction={() => {}} />
+							</div>
+							<div class="ds-spec-foot">
+								<span class="ds-spec-label">Reaction row · letterpress stamps</span>
+								<span class="ds-spec-note">warm-cream perforated stamps · count caption below · accent paper for "you" · add affordance</span>
+							</div>
+						</div>
+					</div>
 				</div>
 			</section>
 

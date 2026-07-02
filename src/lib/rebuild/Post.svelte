@@ -6,10 +6,12 @@
 	import PostBoost from './PostBoost.svelte';
 	import PostCW from './PostCW.svelte';
 	import PostActions from './PostActions.svelte';
+	import PostReactions from './PostReactions.svelte';
 	import QuotedPost from './QuotedPost.svelte';
 	import type { PostLike, BannerVariant } from './attachments';
 	import { normalizeRenderableAttachments, openLightbox } from './attachments';
 	import type { CustomEmoji } from '$lib/social/types';
+	import type { PleromaReactionView } from '$lib/pleroma/ui';
 
 	type Props = {
 		post: PostLike & {
@@ -27,6 +29,7 @@
 			bodyEmojis?: CustomEmoji[];
 			addressees?: string[];
 			quotedPost?: Record<string, unknown>;
+			reactions?: PleromaReactionView[];
 			replies: number;
 			boosts: number;
 			favs: number;
@@ -61,6 +64,7 @@
 			<QuotedPost quoted={post.quotedPost} />
 			<PostMedia post={post} onOpen={handleLightbox} />
 		</PostCW>
+		<PostReactions reactions={post.reactions} onToggle={onAction ? (reaction) => onAction(`reaction:${reaction.name}`) : undefined} />
 		<PostActions post={post} replyExpanded={replyExpanded} replyControlsId={replyControlsId} onAction={onAction} />
 	</div>
 {/snippet}

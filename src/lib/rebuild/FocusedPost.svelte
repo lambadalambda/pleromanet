@@ -5,6 +5,7 @@
 	import PostCW from './PostCW.svelte';
 	import PostMedia from './PostMedia.svelte';
 	import PostPinged from './PostPinged.svelte';
+	import PostReactions from './PostReactions.svelte';
 	import QuotedPost from './QuotedPost.svelte';
 	import RichText from './RichText.svelte';
 	import { profileHref } from './profile-links';
@@ -12,6 +13,7 @@
 	import type { CustomEmoji } from '$lib/social/types';
 	import { normalizeRenderableAttachments, openLightbox } from './attachments';
 	import type { BannerVariant, PostLike } from './attachments';
+	import type { PleromaReactionView } from '$lib/pleroma/ui';
 
 	type FocusedThreadPost = PostLike & {
 		id?: string | number;
@@ -24,6 +26,7 @@
 		bodyEmojis?: CustomEmoji[];
 		addressees?: string[];
 		quotedPost?: Record<string, unknown>;
+		reactions?: PleromaReactionView[];
 		replies: number;
 		boosts: number;
 		favs: number;
@@ -88,6 +91,8 @@
 		{/if}
 		<PostMedia post={post} onOpen={handleLightbox} />
 	</PostCW>
+
+	<PostReactions reactions={post.reactions} onToggle={onAction ? (reaction) => onAction(post.id, `reaction:${reaction.name}`) : undefined} />
 
 	<div class="focused-meta">
 		<span>{post.fullTime || '4:18 PM · May 11, 2026'}</span>

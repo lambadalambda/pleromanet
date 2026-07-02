@@ -2559,3 +2559,93 @@ test('home timeline stays responsive at desktop, tablet, and mobile', async ({ p
 	await expect(page.getByTestId('home-timeline-list')).toContainText('quiet CSS can still carry the voice.');
 	await expectNoHorizontalOverflow(page);
 });
+
+test('home timeline renders emoji reaction rows and toggles reactions', async ({ page }) => {
+	await authenticate(page);
+	const base = statusWithText('status-react', 'react to this post');
+	const reactedStatus = {
+		...base,
+		pleroma: {
+			...base.pleroma,
+			emoji_reactions: [
+				{ name: '❤️', count: 3, me: true },
+				{ name: 'blobcat', count: 2, me: false, url: 'https://cdn.example/emoji/blobcat.png', static_url: 'https://cdn.example/emoji/blobcat-static.png' }
+			]
+		}
+	};
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [reactedStatus]);
+	});
+
+	const reactionCalls: Array<{ method: string; path: string }> = [];
+	await page.route(
+		(url) => url.href.startsWith('https://pleroma.example/api/v1/pleroma/statuses/status-react/reactions/'),
+		async (route) => {
+			const method = route.request().method();
+			reactionCalls.push({ method, path: new URL(route.request().url()).pathname });
+			const heart = method === 'DELETE'
+				? { name: '❤️', count: 2, me: false }
+				: { name: '❤️', count: 3, me: true };
+			await fulfillHome(route, {
+				...reactedStatus,
+				pleroma: {
+					...reactedStatus.pleroma,
+					emoji_reactions: [heart, { name: 'blobcat', count: 2, me: false, url: 'https://cdn.example/emoji/blobcat.png' }]
+				}
+			});
+		}
+	);
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const reactions = page.getByTestId('post-reactions');
+	await expect(reactions).toBeVisible();
+	const heartStamp = reactions.getByRole('button', { name: /❤️ · 3 reactions · you reacted/ });
+	await expect(heartStamp).toHaveAttribute('aria-pressed', 'true');
+	await expect(reactions.getByText('3', { exact: true })).toBeVisible();
+	const customImage = reactions.locator('img[alt=":blobcat:"]');
+	await expect(customImage).toBeVisible();
+	await expect(reactions.getByRole('button', { name: 'Add reaction' })).toBeDisabled();
+
+	await heartStamp.click();
+	const unreactedStamp = reactions.getByRole('button', { name: /❤️ · 2 reactions$/ });
+	await expect(unreactedStamp).toHaveAttribute('aria-pressed', 'false');
+	expect(reactionCalls[0]?.method).toBe('DELETE');
+	expect(reactionCalls[0]?.path).toContain('/reactions/');
+
+	await unreactedStamp.click();
+	await expect(reactions.getByRole('button', { name: /❤️ · 3 reactions · you reacted/ })).toHaveAttribute('aria-pressed', 'true');
+	expect(reactionCalls[1]?.method).toBe('PUT');
+});
+
+test('home timeline reaction failures roll back the optimistic toggle', async ({ page }) => {
+	await authenticate(page);
+	const base = statusWithText('status-react-fail', 'reaction failure post');
+	const reactedStatus = {
+		...base,
+		pleroma: {
+			...base.pleroma,
+			emoji_reactions: [{ name: '🔥', count: 5, me: false }]
+		}
+	};
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [reactedStatus]);
+	});
+	await page.route(
+		(url) => url.href.startsWith('https://pleroma.example/api/v1/pleroma/statuses/status-react-fail/reactions/'),
+		async (route) => {
+			await fulfillHome(route, { error: 'Internal server error' }, 500);
+		}
+	);
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const reactions = page.getByTestId('post-reactions');
+	await reactions.getByRole('button', { name: /🔥 · 5 reactions$/ }).click();
+
+	await expect(page.locator('.status-action-error')).toBeVisible();
+	const rolledBack = reactions.getByRole('button', { name: /🔥 · 5 reactions$/ });
+	await expect(rolledBack).toHaveAttribute('aria-pressed', 'false');
+});

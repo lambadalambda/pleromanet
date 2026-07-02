@@ -1072,3 +1072,45 @@ test('real thread nested inline reply composer remains usable on mobile', async 
 	await expect(replyForm.getByRole('button', { name: 'Reply', exact: true })).toBeDisabled();
 	await expectNoHorizontalOverflow(page);
 });
+
+test('real thread route renders the focused post emoji reaction row and toggles reactions', async ({ page }) => {
+	await authenticate(page);
+	const reactedThreadStatus = {
+		...threadStatus,
+		pleroma: {
+			...threadStatus.pleroma,
+			emoji_reactions: [
+				{ name: '❤️', count: 4, me: false },
+				{ name: 'blobcat', count: 2, me: true, url: 'https://cdn.example/emoji/blobcat.png' }
+			]
+		}
+	};
+	await mockThread(page, reactedThreadStatus);
+	await page.route(
+		(url) => url.href.startsWith('https://pleroma.example/api/v1/pleroma/statuses/status-1/reactions/'),
+		async (route) => {
+			await fulfillJson(route, {
+				...reactedThreadStatus,
+				pleroma: {
+					...reactedThreadStatus.pleroma,
+					emoji_reactions: [
+						{ name: '❤️', count: 5, me: true },
+						{ name: 'blobcat', count: 2, me: true, url: 'https://cdn.example/emoji/blobcat.png' }
+					]
+				}
+			});
+		}
+	);
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	const focused = page.getByTestId('focused-post');
+	const reactions = focused.getByTestId('post-reactions');
+	await expect(reactions).toBeVisible();
+	await expect(reactions.locator('img[alt=":blobcat:"]')).toBeVisible();
+	await expect(reactions.getByRole('button', { name: /:blobcat: · 2 reactions · you reacted/ })).toHaveAttribute('aria-pressed', 'true');
+
+	await reactions.getByRole('button', { name: /❤️ · 4 reactions$/ }).click();
+	await expect(reactions.getByRole('button', { name: /❤️ · 5 reactions · you reacted/ })).toHaveAttribute('aria-pressed', 'true');
+});

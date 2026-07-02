@@ -35,7 +35,7 @@
 		type PaginatedTimelineBaseState,
 		type PaginatedTimelineSuccess
 	} from '$lib/pleroma/timeline-state';
-	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit, type PleromaAccountView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaProfileSettingsView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit, type PleromaAccountView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaProfileSettingsView, type PleromaReactionView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, composerUploadBadge, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
@@ -70,7 +70,7 @@
 		avatarUrl?: string | null;
 	};
 	type InlineReplyComposerData = Omit<InlineReplyComposerProps, 'id'>;
-	type AccountBackedPost = SocialPost & { visibility?: StatusVisibility; account?: PleromaAccountView; rebloggedBy?: PleromaAccountView };
+	type AccountBackedPost = SocialPost & { visibility?: StatusVisibility; account?: PleromaAccountView; rebloggedBy?: PleromaAccountView; reactions?: PleromaReactionView[] };
 	type RebuildPost = PostLike & {
 		id: string | number;
 		actionStatusId?: string;
@@ -92,6 +92,7 @@
 		addressees?: string[];
 		boostedBy?: PostLike['boostedBy'];
 		copyJson?: unknown;
+		reactions?: PleromaReactionView[];
 		actions: { reply: boolean; boost: boolean; fav: boolean };
 	};
 	type ThreadViewPost = RebuildPost & {
@@ -141,7 +142,7 @@
 		| { kind: 'post'; post: PleromaStatusView };
 	type TrendView = { rank: number; tag: string; count: string | null };
 	type InstanceStatusView = { title: string | null; domain: string | null; rows: { label: string; value: string }[] };
-	type StatusActionErrorState = { targetId: string; key: StatusActionKey; route: StatusActionOrigin; error: PleromaRequestErrorView };
+	type StatusActionErrorState = { targetId: string; key: string; route: StatusActionOrigin; error: PleromaRequestErrorView };
 	type NotificationPopoverStatus = 'ready' | 'loading' | 'empty' | 'error';
 	const HOME_TIMELINE_CHECK_EVENT = 'pleromanet:check-home-timeline';
 	const HOME_TIMELINE_FALLBACK_INTERVAL_MS = 60_000;
@@ -326,7 +327,7 @@
 		if (!statusActionErrors.some((error) => error.route === route)) return;
 		statusActionErrors = statusActionErrors.filter((error) => error.route !== route);
 	};
-	const removeStatusActionError = (targetId: string, key: StatusActionKey) => {
+	const removeStatusActionError = (targetId: string, key: string) => {
 		statusActionErrors = statusActionErrors.filter((error) => error.targetId !== targetId || error.key !== key);
 	};
 	const addStatusActionError = (nextError: StatusActionErrorState) => {
@@ -570,6 +571,7 @@
 			} : undefined,
 			copyJson: post.copyJson,
 			quotedPost: post.quotedPost,
+			reactions: post.reactions,
 			replies: post.replies,
 			boosts: post.boosts,
 			favs: post.favorites,
@@ -627,7 +629,7 @@
 	};
 	const threadPostCount = (posts: ThreadViewPost[]): number => posts.reduce((total, post) => total + 1 + threadPostCount(post.nestedReplies ?? []), 0);
 	const actionStateKey = (key: StatusActionKey) => key === 'fav' ? 'favorite' : 'boost';
-	const statusActionPendingKey = (targetId: string, key: StatusActionKey) => `${targetId}:${key}`;
+	const statusActionPendingKey = (targetId: string, key: string) => `${targetId}:${key}`;
 	const statusActionOriginRequestId = (originRoute: StatusActionOrigin) =>
 		originRoute === 'home' ? homeTimelineRequestId :
 		originRoute === 'local' || originRoute === 'federated' ? appPublicTimelineActionGenerationId :
@@ -900,6 +902,86 @@
 				addStatusActionError({ targetId, key, route: origin.route, error: normalized });
 			}
 		})();
+	};
+	const updatedPostReactions = (reactions: PleromaReactionView[] | undefined, name: string, active: boolean): PleromaReactionView[] => {
+		const current = reactions ?? [];
+		const existing = current.find((reaction) => reaction.name === name);
+		if (!existing) {
+			return active ? [...current, { name, glyph: name, url: null, staticUrl: null, count: 1, me: true }] : current;
+		}
+
+		return current
+			.map((reaction) => {
+				if (reaction.name !== name) return reaction;
+				const delta = reaction.me === active ? 0 : active ? 1 : -1;
+				return { ...reaction, me: active, count: Math.max(0, reaction.count + delta) };
+			})
+			.filter((reaction) => reaction.count > 0);
+	};
+	const mutateStatusReaction = (targetId: string, name: string, previouslyReacted: boolean, originRoute: StatusActionOrigin) => {
+		const session = currentSession;
+		if (!session) return;
+		const actionKey = `reaction:${name}`;
+		const pendingKey = statusActionPendingKey(targetId, actionKey);
+		if (statusActionPending[pendingKey]) return;
+
+		const requestSessionKey = sessionKey(session);
+		const origin = { route: originRoute, requestId: statusActionOriginRequestId(originRoute) };
+		const requestId = statusActionRequestId + 1;
+		statusActionRequestId = requestId;
+		statusActionPending = { ...statusActionPending, [pendingKey]: requestId };
+		removeStatusActionError(targetId, actionKey);
+		const applyReactionToggle = (scope: StatusActionScope, active: boolean) => applyStatusActionUpdate(
+			scope,
+			targetId,
+			(post) => ({ ...post, reactions: updatedPostReactions(post.reactions, name, active) }),
+			(post) => ({ ...post, reactions: updatedPostReactions(post.reactions, name, active) })
+		);
+		applyReactionToggle(originRoute, !previouslyReacted);
+
+		void (async () => {
+			try {
+				const client = createPleromaClient({
+					instanceUrl: session.instanceUrl,
+					accessToken: session.accessToken,
+					fetch: window.fetch.bind(window)
+				});
+				const status = previouslyReacted
+					? await client.unreactToStatus(targetId, name)
+					: await client.reactToStatus(targetId, name);
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+				if (statusActionPending[pendingKey] !== requestId) return;
+
+				upsertAccountCache(accountsFromPleromaStatus(status));
+				const serverReactions = adaptPleromaStatus(status).reactions;
+				applyStatusActionUpdate('all', targetId, (post) => ({ ...post, reactions: serverReactions }), (post) => ({ ...post, reactions: serverReactions }));
+				clearStatusActionPending(pendingKey, requestId);
+			} catch (error) {
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+				if (statusActionPending[pendingKey] !== requestId) return;
+
+				const normalized = normalizePleromaRequestError(error);
+				if (normalized.reauthRequired) {
+					clearStatusActionPending(pendingKey, requestId);
+					signOutPleroma(localStorage);
+					redirectToLanding();
+					return;
+				}
+
+				clearStatusActionPending(pendingKey, requestId);
+				if (!statusActionOriginActive(origin)) return;
+
+				applyReactionToggle(origin.route, previouslyReacted);
+				addStatusActionError({ targetId, key: actionKey, route: origin.route, error: normalized });
+			}
+		})();
+	};
+	const postReactionByName = (post: { reactions?: PleromaReactionView[] }, name: string) => post.reactions?.find((reaction) => reaction.name === name);
+	const handleReactionAction = (post: RebuildPost, key: string, originRoute: StatusActionOrigin) => {
+		const name = key.slice('reaction:'.length);
+		const targetId = statusActionTargetId(post);
+		if (!name || !targetId) return;
+		mutateStatusReaction(targetId, name, postReactionByName(post, name)?.me === true, originRoute);
 	};
 	const openThread = (post: { id: string | number; actionStatusId?: string; threadStatusId?: string }) => {
 		const statusId = post.threadStatusId ?? post.actionStatusId ?? String(post.id);
@@ -1378,6 +1460,10 @@
 		}
 	};
 	const handlePostAction = (clickedPost: RebuildPost, key: string) => {
+		if (key.startsWith('reaction:')) {
+			handleReactionAction(clickedPost, key, 'home');
+			return;
+		}
 		if (key !== 'reply' && key !== 'boost' && key !== 'fav') return;
 		if (key === 'reply') {
 			openInlineReply(clickedPost, 'home');
@@ -1389,7 +1475,12 @@
 	};
 	const handleAppPublicPostAction = (clickedPost: RebuildPost, key: string) => {
 		const targetRoute = appPublicTimelineRoute;
-		if (!targetRoute || (key !== 'reply' && key !== 'boost' && key !== 'fav')) return;
+		if (!targetRoute) return;
+		if (key.startsWith('reaction:')) {
+			handleReactionAction(clickedPost, key, targetRoute);
+			return;
+		}
+		if (key !== 'reply' && key !== 'boost' && key !== 'fav') return;
 		if (key === 'reply') {
 			openInlineReply(clickedPost, targetRoute);
 			return;
@@ -1399,7 +1490,13 @@
 		if (targetId) mutateStatusAction(targetId, key, rebuildPostActionValue(clickedPost, key), targetRoute);
 	};
 	const handleThreadPostAction = (postId: string | number | undefined, key: string) => {
-		if (postId == null || (key !== 'reply' && key !== 'boost' && key !== 'fav')) return;
+		if (postId == null) return;
+		if (key.startsWith('reaction:')) {
+			const post = findThreadPost(postId);
+			if (post) handleReactionAction(post, key, 'thread');
+			return;
+		}
+		if (key !== 'reply' && key !== 'boost' && key !== 'fav') return;
 		if (key === 'reply') {
 			const post = findThreadPost(postId);
 			if (post) openInlineReply(post, 'thread');
@@ -1410,6 +1507,10 @@
 		if (post && targetId) mutateStatusAction(targetId, key, rebuildPostActionValue(post, key), 'thread');
 	};
 	const handleProfilePostAction = (post: ProfilePost, key: string) => {
+		if (key.startsWith('reaction:')) {
+			handleReactionAction(post, key, 'profile');
+			return;
+		}
 		if (key !== 'reply' && key !== 'boost' && key !== 'fav') return;
 		if (key === 'reply') {
 			openThread(post);
