@@ -43,3 +43,4 @@
 - [x] [28 Retire mockup prototype](issues/28-retire-mockup-prototype.md)
 - [x] [46 Wire composer visibility selector](issues/46-wire-composer-visibility-selector.md)
 - [x] [44 Stabilize flaky composer mention avatar test](issues/44-stabilize-flaky-composer-mention-avatar-test.md)
+- [x] [47 Fix emoji picker scrolling and unicode sets](issues/47-fix-emoji-picker-scrolling-and-unicode-sets.md)
