@@ -494,3 +494,57 @@ test('reaction notifications render custom emoji images with alt text', async ({
 	await expect(list.locator('img.notif-reaction-emoji[alt=":blobcat:"]')).toBeVisible();
 	await expect(list).toContainText('a placeholder is more honest than a guess.');
 });
+
+test('follow request notifications accept and decline through the API', async ({ page }) => {
+	await authenticate(page);
+	const requester = accountWithName('account-requester', 'quiet.stranger', 'stranger@locked.zone');
+	const decliner = accountWithName('account-decliner', 'noisy.stranger', 'noisy@locked.zone');
+	await mockNotifications(page, () => [
+		notification('notif-req-accept', 'follow_request', requester, '2026-05-18T12:05:00.000Z'),
+		notification('notif-req-decline', 'follow_request', decliner, '2026-05-18T12:04:00.000Z')
+	]);
+	let authorizeMethod = '';
+	let rejectMethod = '';
+	await page.route('https://pleroma.example/api/v1/follow_requests/account-requester/authorize', async (route) => {
+		authorizeMethod = route.request().method();
+		await fulfillJson(route, { ...pleromaFixtures.relationship, id: 'account-requester', followed_by: true });
+	});
+	await page.route('https://pleroma.example/api/v1/follow_requests/account-decliner/reject', async (route) => {
+		rejectMethod = route.request().method();
+		await fulfillJson(route, { ...pleromaFixtures.relationship, id: 'account-decliner', followed_by: false });
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/notifications');
+
+	const list = page.getByTestId('notifications-list');
+	await expect(list).toContainText('quiet.stranger requested to follow you');
+
+	const acceptRow = list.locator('.notif-row').filter({ hasText: 'quiet.stranger requested to follow you' });
+	await acceptRow.getByRole('button', { name: 'Accept' }).click();
+	await expect(acceptRow.getByText('Accepted')).toBeVisible();
+	await expect(acceptRow.getByRole('button', { name: 'Accept' })).toHaveCount(0);
+	expect(authorizeMethod).toBe('POST');
+
+	const declineRow = list.locator('.notif-row').filter({ hasText: 'noisy.stranger requested to follow you' });
+	await declineRow.getByRole('button', { name: 'Decline' }).click();
+	await expect(declineRow.getByText('Declined')).toBeVisible();
+	expect(rejectMethod).toBe('POST');
+});
+
+test('follow request accept surfaces failures and keeps the buttons', async ({ page }) => {
+	await authenticate(page);
+	const requester = accountWithName('account-req-fail', 'flaky.peer', 'flaky@locked.zone');
+	await mockNotifications(page, () => [notification('notif-req-fail', 'follow_request', requester, '2026-05-18T12:06:00.000Z')]);
+	await page.route('https://pleroma.example/api/v1/follow_requests/account-req-fail/authorize', async (route) => {
+		await fulfillJson(route, { error: 'could not authorize' }, 500);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/notifications');
+
+	const row = page.getByTestId('notifications-list').locator('.notif-row').filter({ hasText: 'flaky.peer requested to follow you' });
+	await row.getByRole('button', { name: 'Accept' }).click();
+	await expect(page.getByTestId('post-control-toast')).toContainText('Accept failed');
+	await expect(row.getByRole('button', { name: 'Accept' })).toBeEnabled();
+});

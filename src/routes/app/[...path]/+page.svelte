@@ -2798,6 +2798,34 @@
 			goto(`/app/profiles/${encodeURIComponent(notification.target.accountHandle)}`);
 		}
 	};
+	const resolveFollowRequestNotification = async (notification: SocialNotificationData, action: 'accept' | 'reject') => {
+		const session = currentSession;
+		const accountId = notification.target?.route === 'profile' ? notification.target.accountId : undefined;
+		if (!session || !accountId) return;
+
+		const requestSessionKey = sessionKey(session);
+		try {
+			const client = createPleromaClient({ instanceUrl: session.instanceUrl, accessToken: session.accessToken, fetch: window.fetch.bind(window) });
+			const relationship = action === 'accept' ? await client.authorizeFollowRequest(accountId) : await client.rejectFollowRequest(accountId);
+			if (!isCurrentSessionRequest(requestSessionKey)) return;
+
+			const cached = getCachedPleromaAccount(accountCache, accountId);
+			if (cached) upsertAccountCache([{ ...cached, pleroma: { ...cached.pleroma, relationship } }], { relationship: 'replace' });
+			flashPostControl(action === 'accept' ? 'Follow request accepted' : 'Follow request declined');
+		} catch (error) {
+			if (!isCurrentSessionRequest(requestSessionKey)) return;
+			const normalized = normalizePleromaRequestError(error);
+			if (normalized.reauthRequired) {
+				signOutPleroma(localStorage);
+				redirectToLanding();
+				return;
+			}
+			flashPostControl(`${action === 'accept' ? 'Accept' : 'Decline'} failed: ${normalized.title}`);
+			throw error;
+		}
+	};
+	const acceptFollowRequestNotification = (notification: SocialNotificationData) => resolveFollowRequestNotification(notification, 'accept');
+	const rejectFollowRequestNotification = (notification: SocialNotificationData) => resolveFollowRequestNotification(notification, 'reject');
 	const queueStreamedHomeStatus = (requestSessionKey: string, status: PleromaStatus) => {
 		if (!isCurrentSessionRequest(requestSessionKey)) return;
 
@@ -3790,6 +3818,8 @@
 										onSeeAll={openNotificationsRoute}
 										onMarkAll={markNotificationsRead}
 										onOpen={openNotification}
+										onAcceptFollowRequest={acceptFollowRequestNotification}
+										onRejectFollowRequest={rejectFollowRequestNotification}
 									/>
 								</div>
 							{/if}
@@ -4336,7 +4366,7 @@
 						{:else if notificationState.status === 'success'}
 							<div class="notifications-list" data-testid="notifications-list">
 								{#each notificationState.data as notification (notification.id)}
-									<NotifRow n={notification} onOpen={openNotification} />
+									<NotifRow n={notification} onOpen={openNotification} onAccept={acceptFollowRequestNotification} onReject={rejectFollowRequestNotification} />
 								{/each}
 							</div>
 						{/if}
