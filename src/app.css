@@ -3428,26 +3428,6 @@ a.suggest-name:hover { color: var(--accent-ink); }
 }
 .ph:hover .ph-visual { transform: scale(1.015); }
 .ph:hover .ph-duotone { opacity: 0; }
-.ph-tag {
-	position: absolute;
-	left: 8px;
-	bottom: 8px;
-	font-family: var(--mono);
-	font-size: 9.5px;
-	letter-spacing: 0.14em;
-	text-transform: uppercase;
-	color: var(--ink);
-	background: var(--panel);
-	padding: 3px 7px;
-	border: 1px solid var(--border);
-	border-radius: 2px;
-	opacity: 0;
-	transform: translateY(2px);
-	transition: opacity 160ms ease, transform 160ms ease;
-	pointer-events: none;
-}
-.ph:hover .ph-tag { opacity: 0.95; transform: translateY(0); }
-.ph-tag em { font-style: normal; color: var(--accent-ink); }
 .ph.cw::after {
 	content: 'CONTENT WARNING · CLICK TO REVEAL';
 	position: absolute;
