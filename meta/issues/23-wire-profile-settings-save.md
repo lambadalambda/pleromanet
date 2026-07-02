@@ -29,9 +29,10 @@ Connect the profile settings form to the Pleroma account update API and reconcil
 
 ## Current Status
 
-- Partially done: settings UI exists with local dirty/reset/save state and visual avatar/header rows.
-- Partially done: the API client has `updateAccountProfile`, and token-only sessions hydrate the authenticated account for shell identity.
-- Still open: the settings save button does not call Pleroma, does not reconcile the returned account, and does not cover save failure or 401/403 behavior.
+- Done: the form populates from the session account through `profileSettingsFromAccount` (preferring raw `source` note/fields), saves through `updateAccountProfile` with `profileUpdateFromSettings`, and reconciles the returned account into the session, account cache, and shell identity.
+- Done: dirty/reset/loading/success states preserved; failures keep the draft and show an error banner; 401/403 saves sign out and redirect to the landing page.
+- Done: avatar/header rows remain visual-only placeholders; bio became editable; the username input is disabled (Pleroma cannot change usernames) and the unsupported search-indexing toggle was removed. Show-follower-count maps to Pleroma `hide_followers_count`.
+- Covered by `src/routes/app-settings.e2e.ts` (population, payload shape, reconciliation, failure, 401, mobile) and adapter unit tests in `src/lib/pleroma/ui.e2e.ts`.
 
 ## Notes
 
