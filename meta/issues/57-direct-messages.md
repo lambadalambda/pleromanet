@@ -35,3 +35,11 @@ The app has no direct messages. Pleroma's chats API (verified live against fedif
 
 - Approved by the user on 2026-07-02 as the feature after alt text and poll voting.
 - Streaming (`pleroma:chat_update`) is out of scope for the first cut; refresh on open is fine.
+
+## Current Status
+
+Done (2026-07-06, commit 2868f6a). Client gained `getChats` (v2), `getOrCreateChat`, `getChatMessages`, `sendChatMessage`, `markChatRead`, `deleteChatMessage`; ui.ts gained `adaptPleromaChat(s)`/`adaptPleromaChatMessage(s)` with own-message detection via the session account id. New components: `ChatRow` (list row with unread badge, last-message excerpt, relative time) and `ChatThread` (bubbles with custom emoji + attachments, Enter-to-send composer, per-own-message delete, auto-scroll). `/app/messages` lists chats, `/app/messages/:id` shows the conversation, opening marks read and reconciles the unread badge; a "Messages" nav item shows the summed unread count on desktop and mobile. Send failures surface inline and keep the draft; delete failures toast; 401/403 signs out. Tests: 8 route tests (list, empty, open+mark-read+alignment, send, send-failure, delete, API error, mobile overflow) plus client endpoint coverage. Live-tested the full loop against fediffusion.art via a chat-with-self (send from UI, delete from UI, server state verified; test messages cleaned up). Full suite 303 passing.
+
+Out of scope for this cut, as planned: streaming chat updates (`pleroma:chat_update`), media uploads in the chat composer, and a "Message" entry point on profiles (chats are currently entered from the list).
+
+Side fix: the Playwright preview port is now configurable via `PLAYWRIGHT_PORT` (an unrelated local process was squatting 4173), and the webServer command passes the port to `vite preview` correctly.

@@ -54,3 +54,4 @@
 - [x] [54 Wire follow request actions](issues/54-wire-follow-request-actions.md)
 - [x] [55 Wire poll voting](issues/55-wire-poll-voting.md)
 - [x] [56 Composer upload alt text](issues/56-composer-upload-alt-text.md)
+- [x] [57 Direct messages (Pleroma chats)](issues/57-direct-messages.md)
