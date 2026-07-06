@@ -539,6 +539,8 @@ const pollExpiration = (poll: Record<string, unknown>) => {
 	};
 };
 
+export const adaptPleromaPoll = (poll: unknown): PostAttachment | null => adaptPollAttachment(poll);
+
 const adaptPollAttachment = (poll: unknown): PostAttachment | null => {
 	if (!isRecord(poll)) return null;
 	const choices = pollChoices(poll);

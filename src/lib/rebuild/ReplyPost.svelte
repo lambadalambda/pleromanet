@@ -47,6 +47,7 @@
 		nestedReplies?: ThreadReply[];
 		onAction?: (id: string | number | undefined, key: string) => void;
 		onReact?: (id: string | number | undefined, anchor: HTMLElement) => void;
+		onVote?: (id: string | number | undefined, pollId: string | undefined, choice: string | string[]) => void;
 		canManage?: boolean;
 		inlineReply?: InlineReplyBinding | null;
 		expandedReplyIds?: Record<string, boolean>;
@@ -59,6 +60,7 @@
 		nestedReplies = [],
 		onAction,
 		onReact,
+		onVote,
 		canManage = false,
 		inlineReply = null,
 		expandedReplyIds = {},
@@ -93,7 +95,7 @@
 			<PostCW post={post}>
 				<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} mentionAccts={post.mentionAccts} />
 				<QuotedPost quoted={post.quotedPost} />
-				<PostMedia post={post} onOpen={(idx) => handleLightbox(post, idx)} />
+				<PostMedia post={post} onOpen={(idx) => handleLightbox(post, idx)} onVote={onVote ? (pollId, choice) => onVote(post.id, pollId, choice) : undefined} />
 			</PostCW>
 			<PostActions post={post} replyExpanded={inlineReplyOpenFor(post)} replyControlsId={inlineReplyOpenFor(post) ? inlineReplyComposerId(post) : undefined} onAction={(key) => onAction?.(post.id, key)} onReact={onReact ? (anchor) => onReact(post.id, anchor) : undefined} canManage={canManage} />
 			{#if nestedReplies.length > 0 && !nestedRepliesOpenFor(post)}
@@ -121,6 +123,7 @@
 				nestedReplies={reply.nestedReplies}
 				onAction={onAction}
 				onReact={onReact}
+				onVote={onVote}
 				canManage={canManage}
 				inlineReply={inlineReply}
 				expandedReplyIds={expandedReplyIds}

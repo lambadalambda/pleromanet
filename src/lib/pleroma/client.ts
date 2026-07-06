@@ -382,6 +382,31 @@ export const createPleromaClient = (config: ClientConfig) => {
 				auth: 'required'
 			}),
 
+		getPoll: (id: string) =>
+			http.request<Record<string, unknown>>({
+				path: `/api/v1/polls/${encodePathSegment(id)}`,
+				auth: 'optional'
+			}),
+
+		votePoll: (id: string, choices: Array<string | number>) => {
+			const form = new URLSearchParams();
+			for (const choice of choices) form.append('choices[]', String(choice));
+			return http.request<Record<string, unknown>>({
+				method: 'POST',
+				path: `/api/v1/polls/${encodePathSegment(id)}/votes`,
+				form,
+				auth: 'required'
+			});
+		},
+
+		updateMedia: (id: string, input: MediaUploadRequest) =>
+			http.request<PleromaMediaAttachment>({
+				method: 'PUT',
+				path: `/api/v1/media/${encodePathSegment(id)}`,
+				body: { description: input.description ?? '' },
+				auth: 'required'
+			}),
+
 		getFollowRequests: () =>
 			http.request<PleromaAccount[]>({
 				path: '/api/v1/follow_requests',

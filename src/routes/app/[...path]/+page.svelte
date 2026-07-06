@@ -36,13 +36,13 @@
 		type PaginatedTimelineState,
 		type PaginatedTimelineSuccess
 	} from '$lib/pleroma/timeline-state';
-	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, mediaPlaceholderText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit, type PleromaAccountView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaProfileSettingsView, type PleromaReactionView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaPoll, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, mediaPlaceholderText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit, type PleromaAccountView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaProfileSettingsView, type PleromaReactionView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, customEmojiPack, composerUploadBadge, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
 	import type { ProfileData, ProfileMediaItem, ProfilePost } from '$lib/rebuild/profile';
 	import type { PleromaAccount, PleromaInstance, PleromaNotification, PleromaRelationship, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
-	import type { CustomEmoji, SocialNotificationData, SocialPost } from '$lib/social/types';
+	import type { CustomEmoji, PostAttachment, SocialNotificationData, SocialPost } from '$lib/social/types';
 	import { onMount, untrack } from 'svelte';
 	import { env } from '$env/dynamic/public';
 
@@ -798,6 +798,12 @@
 				newerPosts: updateStatusViewsByActionTarget(homeTimelineState.newerPosts, targetId, statusUpdate)
 			};
 		}
+		if ((scope === 'home' || scope === 'all') && bookmarksState.status === 'success') {
+			bookmarksState = {
+				...bookmarksState,
+				data: updateStatusViewsByActionTarget(bookmarksState.data, targetId, statusUpdate)
+			};
+		}
 		if ((scope === 'local' || scope === 'federated' || scope === 'all') && appPublicTimelineState.status === 'success') {
 			appPublicTimelineState = {
 				...appPublicTimelineState,
@@ -1040,6 +1046,46 @@
 		const targetId = statusActionTargetId(post);
 		if (!name || !targetId) return;
 		mutateStatusReaction(targetId, name, postReactionByName(post, name)?.me === true, originRoute);
+	};
+	const replacePollInAttachments = (attachments: PostLike['attachments'], pollId: string, nextPoll: PostAttachment) =>
+		(attachments ?? []).map((attachment) => attachment.kind === 'poll' && attachment.id === pollId ? nextPoll : attachment);
+	const votePollForPost = (post: { id?: string | number; actionStatusId?: string }, pollId: string | undefined, choice: string | string[], originRoute: StatusActionOrigin) => {
+		const session = currentSession;
+		const targetId = statusActionTargetId(post);
+		if (!session || !pollId || !targetId) return;
+		const requestSessionKey = sessionKey(session);
+		const choices = Array.isArray(choice) ? choice : [choice];
+
+		void (async () => {
+			try {
+				const client = createPleromaClient({ instanceUrl: session.instanceUrl, accessToken: session.accessToken, fetch: window.fetch.bind(window) });
+				const poll = await client.votePoll(pollId, choices);
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+
+				const nextPoll = adaptPleromaPoll(poll);
+				if (!nextPoll) return;
+				applyStatusActionUpdate(
+					'all',
+					targetId,
+					(view) => ({ ...view, attachments: replacePollInAttachments(view.attachments, pollId, nextPoll) }),
+					(rebuild) => ({ ...rebuild, attachments: replacePollInAttachments(rebuild.attachments, pollId, nextPoll) })
+				);
+			} catch (error) {
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+				const normalized = normalizePleromaRequestError(error);
+				if (normalized.reauthRequired) {
+					signOutPleroma(localStorage);
+					redirectToLanding();
+					return;
+				}
+				flashPostControl(`Vote failed: ${normalized.title}`);
+			}
+		})();
+	};
+	const handleThreadVote = (postId: string | number | undefined, pollId: string | undefined, choice: string | string[]) => {
+		if (postId == null) return;
+		const post = findThreadPost(postId);
+		if (post) votePollForPost(post, pollId, choice, 'thread');
 	};
 	const flashPostControl = (message: string) => {
 		postControlMessage = message;
@@ -4037,7 +4083,7 @@
 						{:else if homeTimelineState.status === 'success'}
 							<div data-testid="home-timeline-list">
 								{#each timelinePosts as post (post.id)}
-									<Post {post} replyExpanded={inlineReplyOpenFor('home', post)} replyControlsId={inlineReplyOpenFor('home', post) ? inlineReplyComposerId('home', post) : undefined} onOpen={() => openThread(post)} onAction={(key) => handlePostAction(post, key)} onReact={(anchor) => openReactionPicker(post, 'home', anchor)} canManage={Boolean(currentSession)} />
+									<Post {post} replyExpanded={inlineReplyOpenFor('home', post)} replyControlsId={inlineReplyOpenFor('home', post) ? inlineReplyComposerId('home', post) : undefined} onOpen={() => openThread(post)} onAction={(key) => handlePostAction(post, key)} onReact={(anchor) => openReactionPicker(post, 'home', anchor)} onVote={(pollId, choice) => votePollForPost(post, pollId, choice, 'home')} canManage={Boolean(currentSession)} />
 									{#if inlineReplyOpenFor('home', post) && inlineReplyComposerProps}
 										<InlineReplyComposer
 											id={inlineReplyComposerId('home', post)}
@@ -4096,7 +4142,7 @@
 						{:else if appPublicTimelineState.status === 'success' && appPublicTimelineRoute}
 							<div data-testid="app-public-timeline-list">
 								{#each appPublicTimelinePosts as post (post.id)}
-									<Post {post} replyExpanded={inlineReplyOpenFor(appPublicTimelineRoute, post)} replyControlsId={inlineReplyOpenFor(appPublicTimelineRoute, post) ? inlineReplyComposerId(appPublicTimelineRoute, post) : undefined} onOpen={() => openThread(post)} onAction={(key) => handleAppPublicPostAction(post, key)} onReact={(anchor) => appPublicTimelineRoute && openReactionPicker(post, appPublicTimelineRoute, anchor)} canManage={Boolean(currentSession)} />
+									<Post {post} replyExpanded={inlineReplyOpenFor(appPublicTimelineRoute, post)} replyControlsId={inlineReplyOpenFor(appPublicTimelineRoute, post) ? inlineReplyComposerId(appPublicTimelineRoute, post) : undefined} onOpen={() => openThread(post)} onAction={(key) => handleAppPublicPostAction(post, key)} onReact={(anchor) => appPublicTimelineRoute && openReactionPicker(post, appPublicTimelineRoute, anchor)} onVote={(pollId, choice) => appPublicTimelineRoute && votePollForPost(post, pollId, choice, appPublicTimelineRoute)} canManage={Boolean(currentSession)} />
 									{#if inlineReplyOpenFor(appPublicTimelineRoute, post) && inlineReplyComposerProps}
 										<InlineReplyComposer
 											id={inlineReplyComposerId(appPublicTimelineRoute, post)}
@@ -4219,7 +4265,7 @@
 								<div class="thread-ancestors">
 									{#each threadState.ancestors as ancestor (ancestor.id)}
 										<div data-testid="thread-ancestor">
-											<AncestorPost post={ancestor} replyExpanded={inlineReplyOpenFor('thread', ancestor)} replyControlsId={inlineReplyOpenFor('thread', ancestor) ? inlineReplyComposerId('thread', ancestor) : undefined} onAction={handleThreadPostAction} onReact={handleThreadReact} canManage={Boolean(currentSession)} />
+											<AncestorPost post={ancestor} replyExpanded={inlineReplyOpenFor('thread', ancestor)} replyControlsId={inlineReplyOpenFor('thread', ancestor) ? inlineReplyComposerId('thread', ancestor) : undefined} onAction={handleThreadPostAction} onReact={handleThreadReact} onVote={handleThreadVote} canManage={Boolean(currentSession)} />
 										</div>
 										{#if inlineReplyOpenFor('thread', ancestor) && inlineReplyComposerProps}
 											<InlineReplyComposer
@@ -4230,7 +4276,7 @@
 									{/each}
 								</div>
 							{/if}
-							<FocusedPost post={threadState.focused} continuesAbove={threadState.ancestors.length > 0} replyExpanded={inlineReplyOpenFor('thread', threadState.focused)} replyControlsId={inlineReplyOpenFor('thread', threadState.focused) ? inlineReplyComposerId('thread', threadState.focused) : undefined} onAction={handleThreadPostAction} onReact={handleThreadReact} canManage={Boolean(currentSession)} />
+							<FocusedPost post={threadState.focused} continuesAbove={threadState.ancestors.length > 0} replyExpanded={inlineReplyOpenFor('thread', threadState.focused)} replyControlsId={inlineReplyOpenFor('thread', threadState.focused) ? inlineReplyComposerId('thread', threadState.focused) : undefined} onAction={handleThreadPostAction} onReact={handleThreadReact} onVote={handleThreadVote} canManage={Boolean(currentSession)} />
 							{#if inlineReplyOpenFor('thread', threadState.focused) && inlineReplyComposerProps}
 								<InlineReplyComposer
 									id={inlineReplyComposerId('thread', threadState.focused)}
@@ -4255,6 +4301,7 @@
 											nestedReplies={reply.nestedReplies}
 											onAction={handleThreadPostAction}
 											onReact={handleThreadReact}
+											onVote={handleThreadVote}
 											canManage={Boolean(currentSession)}
 											inlineReply={threadInlineReplyBinding}
 											expandedReplyIds={expandedThreadReplyIds}
@@ -4296,6 +4343,7 @@
 								onPostOpen={(post) => openThread(post)}
 								onPostAction={handleProfilePostAction}
 								onPostReact={(post, anchor) => openReactionPicker(post, 'profile', anchor)}
+								onPostVote={(post, pollId, choice) => votePollForPost(post, pollId, choice, 'profile')}
 								canManage={Boolean(currentSession)}
 								onEditProfile={() => goto('/app/settings')}
 								onFollowToggle={toggleProfileFollow}
@@ -4326,7 +4374,7 @@
 						{:else if bookmarksState.status === 'success'}
 							<div data-testid="bookmarks-list">
 								{#each bookmarksPosts as post (post.id)}
-									<Post {post} onOpen={() => openThread(post)} onAction={(key) => handlePostAction(post, key)} onReact={(anchor) => openReactionPicker(post, 'home', anchor)} canManage={Boolean(currentSession)} />
+									<Post {post} onOpen={() => openThread(post)} onAction={(key) => handlePostAction(post, key)} onReact={(anchor) => openReactionPicker(post, 'home', anchor)} onVote={(pollId, choice) => votePollForPost(post, pollId, choice, 'home')} canManage={Boolean(currentSession)} />
 								{/each}
 							</div>
 							<TimelineLoadMore

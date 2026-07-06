@@ -1868,7 +1868,7 @@ test('home timeline renders poll attachments below media without opening the thr
 
 	await post.locator('.post-poll-vote-row').filter({ hasText: 'warm cassette' }).click();
 	await expect(post.getByRole('radio', { name: 'warm cassette' })).toBeChecked();
-	await expect(post.getByRole('button', { name: 'Vote' })).toBeDisabled();
+	await expect(post.getByRole('button', { name: 'Vote' })).toBeEnabled();
 	await expect(post.locator('.post-poll-row')).toHaveCount(0);
 	await expect(post.locator('.post-poll')).not.toContainText('you voted');
 	await expect(page).toHaveURL('/app/home');
@@ -2987,4 +2987,89 @@ test('home timeline post menu closes on outside click and escape', async ({ page
 	await expect(post.getByRole('menuitem', { name: 'Copy link to post' })).toBeVisible();
 	await page.keyboard.press('Escape');
 	await expect(post.getByRole('menuitem', { name: 'Copy link to post' })).toHaveCount(0);
+});
+
+test('home timeline poll voting submits choices and renders results from the response', async ({ page }) => {
+	await authenticate(page);
+	const pollStatus = {
+		...pleromaFixtures.status,
+		id: 'status-votable',
+		content: '<p>pick a side</p>',
+		pleroma: { ...pleromaFixtures.status.pleroma, content: { 'text/plain': 'pick a side' } },
+		poll: {
+			id: 'poll-votable',
+			options: [
+				{ title: 'warm cassette', votes_count: 10 },
+				{ title: 'cold terminal', votes_count: 5 }
+			],
+			votes_count: 15,
+			multiple: false,
+			expired: false,
+			own_votes: []
+		}
+	};
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [pollStatus]);
+	});
+	let voteBody = '';
+	await page.route('https://pleroma.example/api/v1/polls/poll-votable/votes', async (route) => {
+		voteBody = route.request().postData() ?? '';
+		await fulfillHome(route, {
+			id: 'poll-votable',
+			options: [
+				{ title: 'warm cassette', votes_count: 11 },
+				{ title: 'cold terminal', votes_count: 5 }
+			],
+			votes_count: 16,
+			voted: true,
+			multiple: false,
+			expired: false,
+			own_votes: [0]
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('[data-status-id="status-votable"]');
+	await post.locator('.post-poll-vote-row').filter({ hasText: 'warm cassette' }).click();
+	await post.getByRole('button', { name: 'Vote', exact: true }).click();
+
+	await expect(post.locator('.post-poll')).toContainText('you voted');
+	await expect(post.locator('.post-poll-row').filter({ hasText: 'warm cassette' })).toContainText('You');
+	await expect(post.locator('.post-poll')).toContainText('16 votes');
+	expect(new URLSearchParams(voteBody).getAll('choices[]')).toEqual(['0']);
+});
+
+test('home timeline poll vote failure surfaces a toast and stays votable', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [{
+			...pleromaFixtures.status,
+			id: 'status-vote-fail',
+			content: '<p>doomed poll</p>',
+			pleroma: { ...pleromaFixtures.status.pleroma, content: { 'text/plain': 'doomed poll' } },
+			poll: {
+				id: 'poll-fail',
+				options: [{ title: 'only option', votes_count: 1 }],
+				votes_count: 1,
+				multiple: false,
+				expired: false,
+				own_votes: []
+			}
+		}]);
+	});
+	await page.route('https://pleroma.example/api/v1/polls/poll-fail/votes', async (route) => {
+		await fulfillHome(route, { error: 'poll vote exploded' }, 422);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('[data-status-id="status-vote-fail"]');
+	await post.locator('.post-poll-vote-row').filter({ hasText: 'only option' }).click();
+	await post.getByRole('button', { name: 'Vote', exact: true }).click();
+
+	await expect(page.getByTestId('post-control-toast')).toContainText('Vote failed');
+	await expect(post.getByRole('button', { name: 'Vote', exact: true })).toBeVisible();
 });

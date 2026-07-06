@@ -12,9 +12,10 @@
 	type Props = {
 		post: PostLike;
 		onOpen?: (i: number) => void;
+		onVote?: (pollId: string | undefined, choice: string | string[]) => void;
 	};
 
-	let { post, onOpen }: Props = $props();
+	let { post, onOpen, onVote }: Props = $props();
 	let attachments = $derived(normalizeAttachments(post));
 	let polls = $derived(attachments.filter((attachment): attachment is PollAttachmentData => attachment.kind === 'poll'));
 	let layout = $derived(pickAttachmentLayout(attachments));
@@ -52,5 +53,5 @@
 {/if}
 
 {#each polls as poll}
-	<PollAttachment {poll} />
+	<PollAttachment {poll} onVote={onVote} />
 {/each}

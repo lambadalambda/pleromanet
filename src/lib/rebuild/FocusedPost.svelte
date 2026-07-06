@@ -48,10 +48,11 @@
 		replyControlsId?: string;
 		onAction?: (id: string | number | undefined, key: string) => void;
 		onReact?: (id: string | number | undefined, anchor: HTMLElement) => void;
+		onVote?: (id: string | number | undefined, pollId: string | undefined, choice: string | string[]) => void;
 		canManage?: boolean;
 	};
 
-	let { post, continuesAbove = false, replyExpanded, replyControlsId, onAction, onReact, canManage = false }: Props = $props();
+	let { post, continuesAbove = false, replyExpanded, replyControlsId, onAction, onReact, onVote, canManage = false }: Props = $props();
 	let href = $derived(profileHref(post.handle));
 	let menuOpen = $state(false);
 	let confirmDelete = $state(false);
@@ -148,7 +149,7 @@
 				<VaporBanner variant={post.media} />
 			</div>
 		{/if}
-		<PostMedia post={post} onOpen={handleLightbox} />
+		<PostMedia post={post} onOpen={handleLightbox} onVote={onVote ? (pollId, choice) => onVote(post.id, pollId, choice) : undefined} />
 	</PostCW>
 
 	<PostReactions reactions={post.reactions} onToggle={onAction ? (reaction) => onAction(post.id, `reaction:${reaction.name}`) : undefined} onAdd={onReact ? (anchor) => onReact(post.id, anchor) : undefined} />

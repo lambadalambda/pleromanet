@@ -40,10 +40,11 @@
 		replyControlsId?: string;
 		onAction?: (id: string | number | undefined, key: string) => void;
 		onReact?: (id: string | number | undefined, anchor: HTMLElement) => void;
+		onVote?: (id: string | number | undefined, pollId: string | undefined, choice: string | string[]) => void;
 		canManage?: boolean;
 	};
 
-	let { post, replyExpanded, replyControlsId, onAction, onReact, canManage = false }: Props = $props();
+	let { post, replyExpanded, replyControlsId, onAction, onReact, onVote, canManage = false }: Props = $props();
 
 	const handleLightbox = (idx: number) => {
 		const attachments = normalizeRenderableAttachments(post);
@@ -68,7 +69,7 @@
 			<PostCW post={post}>
 				<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} mentionAccts={post.mentionAccts} />
 				<QuotedPost quoted={post.quotedPost} />
-				<PostMedia post={post} onOpen={handleLightbox} />
+				<PostMedia post={post} onOpen={handleLightbox} onVote={onVote ? (pollId, choice) => onVote(post.id, pollId, choice) : undefined} />
 			</PostCW>
 			<PostActions post={post} replyExpanded={replyExpanded} replyControlsId={replyControlsId} onAction={(key) => onAction?.(post.id, key)} onReact={onReact ? (anchor) => onReact(post.id, anchor) : undefined} canManage={canManage} />
 		</div>

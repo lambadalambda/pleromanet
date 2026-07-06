@@ -45,10 +45,11 @@
 		canManage?: boolean;
 		onAction?: (key: string) => void;
 		onReact?: (anchor: HTMLElement) => void;
+		onVote?: (pollId: string | undefined, choice: string | string[]) => void;
 		onOpen?: () => void;
 	};
 
-	let { post, replyExpanded, replyControlsId, canManage = false, onAction, onReact, onOpen }: Props = $props();
+	let { post, replyExpanded, replyControlsId, canManage = false, onAction, onReact, onVote, onOpen }: Props = $props();
 
 	const handleLightbox = (idx: number) => {
 		const attachments = normalizeRenderableAttachments(post);
@@ -70,7 +71,7 @@
 		<PostCW post={post}>
 			<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} mentionAccts={post.mentionAccts} />
 			<QuotedPost quoted={post.quotedPost} />
-			<PostMedia post={post} onOpen={handleLightbox} />
+			<PostMedia post={post} onOpen={handleLightbox} onVote={onVote} />
 		</PostCW>
 		<PostReactions reactions={post.reactions} onToggle={onAction ? (reaction) => onAction(`reaction:${reaction.name}`) : undefined} onAdd={onReact} />
 		<PostActions post={post} replyExpanded={replyExpanded} replyControlsId={replyControlsId} canManage={canManage} onAction={onAction} onReact={onReact} />
