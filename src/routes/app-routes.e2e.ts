@@ -98,20 +98,19 @@ test('real app routes render shell, deep links, and browser history', async ({ p
 
 	await expect(page.getByTestId('app-header')).toBeVisible();
 	const header = page.getByTestId('app-header');
-	const primaryNav = page.getByRole('navigation', { name: 'Primary' });
-	await expect(primaryNav).toBeVisible();
+	await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(0);
 	await expect(header.getByTestId('brand-tag')).toContainText('A federatedsocial web');
+	const sidebar = page.getByTestId('left-sidebar');
 	for (const label of ['Home', 'Local', 'Federated', 'Explore']) {
-		await expect(primaryNav.getByRole('link', { name: label })).toBeVisible();
+		await expect(sidebar.getByRole('link', { name: label })).toBeVisible();
 	}
-	await expect(primaryNav.getByRole('link', { name: 'Settings' })).toHaveCount(0);
 	await expect(header.getByPlaceholder('Search...')).toBeVisible();
 	await expect(header.getByText('⌘K')).toBeVisible();
 	await expect(page.getByTestId('left-sidebar')).toBeVisible();
 	await expect(page.getByTestId('right-rail')).toContainText('Trends & Activity');
 	await expect(page.getByTestId('app-content')).toContainText('quiet CSS can still carry the voice.');
 
-	await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Explore' }).click();
+	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Explore' }).click();
 	await expect(page).toHaveURL('/app/explore');
 	await expect(page.getByRole('heading', { name: 'Explore the network' })).toBeVisible();
 	await expect(page.getByTestId('right-rail')).toContainText('Discover');
@@ -204,7 +203,7 @@ test('real app right rail keeps timeline and explore card stacks', async ({ page
 	await expect(rail).not.toContainText('Shortcuts');
 	await expect(rail).not.toContainText('Instance status');
 
-	await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Explore' }).click();
+	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Explore' }).click();
 	await expect(page).toHaveURL('/app/explore');
 	await expect(page.getByLabel('Quick search Explore')).toBeVisible();
 	await expect(rail).toContainText('Known instances');
@@ -219,7 +218,7 @@ test('app route guard revalidates when session disappears during client navigati
 	await expect(page.getByTestId('app-header')).toBeVisible();
 
 	await page.evaluate(() => window.localStorage.removeItem('pleromanet.session'));
-	await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Explore' }).click();
+	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Explore' }).click();
 
 	await expect(page).toHaveURL('/');
 	await expect(page.getByRole('heading', { name: /quieter corner of the social web/i })).toBeVisible();

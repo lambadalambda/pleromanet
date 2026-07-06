@@ -575,7 +575,6 @@
 		{ route: 'bookmarks', label: 'Bookmarks', icon: 'bookmark', href: '/app/bookmarks' },
 		{ route: 'settings', label: 'Settings', icon: 'gear', href: '/app/settings' },
 	]);
-	let primaryNavItems = $derived(navItems.filter((item) => item.route === 'home' || item.route === 'local' || item.route === 'federated' || item.route === 'explore'));
 	const timelineRoutes: AppRoute[] = ['home', 'local', 'federated', 'public', 'thread'];
 	const settingsSubnav = ['Profile', 'Appearance', 'Notifications', 'Filters', 'Federation', 'Account', 'Import / Export', 'Development'];
 
@@ -3992,11 +3991,6 @@
 						</a>
 						<div class="brand-tag" data-testid="brand-tag">A federated<br />social web</div>
 					</div>
-					<nav class="app-primary-nav" aria-label="Primary">
-						{#each primaryNavItems as item}
-							<a href={item.href} class:active={isActive(item)}>{item.label}</a>
-						{/each}
-					</nav>
 					<div class="app-header-spacer"></div>
 					<div class="app-header-right">
 						<form bind:this={headerSearchForm} class="app-search" role="search" onsubmit={submitHeaderSearch} onfocusin={focusHeaderSearch}>
