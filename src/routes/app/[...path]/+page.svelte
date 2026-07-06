@@ -12,6 +12,8 @@
 	import FocusedPost from '$lib/rebuild/FocusedPost.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
 	import InlineReplyComposer, { type InlineReplyComposerProps } from '$lib/rebuild/InlineReplyComposer.svelte';
+	import ChatRow from '$lib/rebuild/ChatRow.svelte';
+	import ChatThread from '$lib/rebuild/ChatThread.svelte';
 	import NotifRow from '$lib/rebuild/NotifRow.svelte';
 	import NotifsPopover from '$lib/rebuild/NotifsPopover.svelte';
 	import Post from '$lib/rebuild/Post.svelte';
@@ -36,7 +38,7 @@
 		type PaginatedTimelineState,
 		type PaginatedTimelineSuccess
 	} from '$lib/pleroma/timeline-state';
-	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaPoll, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, mediaPlaceholderText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit, type PleromaAccountView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaProfileSettingsView, type PleromaReactionView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaChatMessage, adaptPleromaChatMessages, adaptPleromaChats, adaptPleromaPoll, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, mediaPlaceholderText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit, type PleromaAccountView, type PleromaChatMessageView, type PleromaChatView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaProfileSettingsView, type PleromaReactionView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, customEmojiPack, composerUploadBadge, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
@@ -46,7 +48,7 @@
 	import { onMount, untrack } from 'svelte';
 	import { env } from '$env/dynamic/public';
 
-	type AppRoute = 'home' | 'local' | 'federated' | 'public' | 'thread' | 'profile' | 'notifications' | 'explore' | 'search' | 'settings' | 'bookmarks';
+	type AppRoute = 'home' | 'local' | 'federated' | 'public' | 'thread' | 'profile' | 'notifications' | 'explore' | 'search' | 'settings' | 'bookmarks' | 'messages';
 	type NavItem = { route: AppRoute; label: string; icon: IconName; href: string; count?: number };
 	type ThemeName = 'cream' | 'dusk' | 'drive' | 'simoun';
 	type ExploreFeed = 'popular' | 'new' | 'active';
@@ -251,6 +253,15 @@
 	let postControlMessageId = 0;
 	let bookmarksState = $state<PaginatedTimelineState<PleromaStatusView, PleromaRequestErrorView>>({ status: 'idle' });
 	let bookmarksRequestId = 0;
+	let chatsState = $state<PleromaRequestState<PleromaChatView[]>>({ status: 'idle' });
+	let chatsRequestId = 0;
+	let loadedChatsKey = '';
+	let chatThreadState = $state<PleromaRequestState<PleromaChatMessageView[]>>({ status: 'idle' });
+	let chatThreadRequestId = 0;
+	let loadedChatThreadKey = '';
+	let chatDraft = $state('');
+	let chatSending = $state(false);
+	let chatSendError = $state<PleromaRequestErrorView | null>(null);
 	let loadedBookmarksKey = '';
 	let profileAccountLoadError = $state<PleromaRequestErrorView | null>(null);
 	let replySort = $state<ReplySort>('top');
@@ -473,6 +484,17 @@
 		loadedBookmarksKey = '';
 		bookmarksState = { status: 'idle' };
 	};
+	const invalidateChatsRequests = () => {
+		chatsRequestId += 1;
+		chatThreadRequestId += 1;
+		loadedChatsKey = '';
+		loadedChatThreadKey = '';
+		chatsState = { status: 'idle' };
+		chatThreadState = { status: 'idle' };
+		chatDraft = '';
+		chatSending = false;
+		chatSendError = null;
+	};
 	const invalidateComposerAutocompleteRequests = () => {
 		composerMentionSearchRequestId += 1;
 		composerCustomEmojiRequestId += 1;
@@ -542,12 +564,14 @@
 	let threadStatusActionErrors = $derived(statusActionErrors.filter((error) => error.route === 'thread'));
 	let profileStatusActionErrors = $derived(statusActionErrors.filter((error) => error.route === 'profile'));
 
+	const chatUnreadCount = $derived(chatsState.status === 'success' ? chatsState.data.reduce((sum, chat) => sum + chat.unread, 0) : 0);
 	let navItems = $derived<NavItem[]>([
 		{ route: 'home', label: 'Home', icon: 'home', href: '/app/home' },
 		{ route: 'local', label: 'Local', icon: 'users', href: '/app/local' },
 		{ route: 'federated', label: 'Federated', icon: 'globe', href: '/app/federated' },
 		{ route: 'explore', label: 'Explore', icon: 'search', href: '/app/explore' },
 		{ route: 'notifications', label: 'Notifications', icon: 'bell', href: '/app/notifications', count: unreadNotificationCount || undefined },
+		{ route: 'messages', label: 'Messages', icon: 'msg', href: '/app/messages', count: chatUnreadCount || undefined },
 		{ route: 'bookmarks', label: 'Bookmarks', icon: 'bookmark', href: '/app/bookmarks' },
 		{ route: 'settings', label: 'Settings', icon: 'gear', href: '/app/settings' },
 	]);
@@ -1294,10 +1318,13 @@
 		page.url.pathname.startsWith('/app/profiles') ? 'profile' :
 		page.url.pathname.startsWith('/app/notifications') ? 'notifications' :
 		page.url.pathname.startsWith('/app/bookmarks') ? 'bookmarks' :
+		page.url.pathname.startsWith('/app/messages') ? 'messages' :
 		'home'
 	);
 	const searchShell = $derived(route === 'search');
 	const appPublicTimelineRoute = $derived<AppPublicTimelineRoute | null>(route === 'local' || route === 'federated' ? route : null);
+	const messagesChatId = $derived(route === 'messages' ? page.url.pathname.split('/')[3] || null : null);
+	const activeChat = $derived(messagesChatId && chatsState.status === 'success' ? chatsState.data.find((chat) => chat.id === messagesChatId) ?? null : null);
 	const appPublicTimelineEmptyHeading = $derived(route === 'local' ? 'No local posts yet' : 'No federated posts yet');
 	const appPublicTimelinePosts = $derived(appPublicTimelineState.status === 'success' ? appPublicTimelineState.data.map(postForRebuild) : []);
 	const bookmarksPosts = $derived(bookmarksState.status === 'success' ? bookmarksState.data.map(postForRebuild) : []);
@@ -1906,6 +1933,7 @@
 		invalidateInstanceConfigRequests();
 		invalidateSuggestionsRequests();
 		invalidateBookmarksRequests();
+		invalidateChatsRequests();
 		invalidateComposerAutocompleteRequests();
 		closeHomeTimelineStreaming();
 		localHomePosts = [];
@@ -1936,6 +1964,7 @@
 			invalidateInstanceConfigRequests();
 		invalidateSuggestionsRequests();
 		invalidateBookmarksRequests();
+		invalidateChatsRequests();
 			invalidateComposerAutocompleteRequests();
 			closeHomeTimelineStreaming();
 			localHomePosts = [];
@@ -2082,6 +2111,157 @@
 
 		loadedSuggestionsKey = requestSessionKey;
 		void loadSuggestions(session);
+	};
+	const chatClient = (session: PleromaSession) =>
+		createPleromaClient({ instanceUrl: session.instanceUrl, accessToken: session.accessToken, fetch: window.fetch.bind(window) });
+	const chatExcerpt = (text: string) => (text.length > 160 ? `${text.slice(0, 157).trimEnd()}...` : text);
+	const loadChats = async (session: PleromaSession) => {
+		const requestSessionKey = sessionKey(session);
+		const requestId = chatsRequestId + 1;
+		chatsRequestId = requestId;
+		chatsState = { status: 'loading' };
+
+		try {
+			const chats = await chatClient(session).getChats({ limit: 40 });
+			if (requestId !== chatsRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			const views = adaptPleromaChats(chats, { currentAccountId: session.account?.id });
+			chatsState = views.length > 0 ? { status: 'success', data: views } : { status: 'empty' };
+		} catch (error) {
+			if (requestId !== chatsRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			const normalized = normalizePleromaRequestError(error);
+			if (normalized.reauthRequired) {
+				signOutPleroma(localStorage);
+				redirectToLanding();
+				return;
+			}
+			chatsState = { status: 'error', error: normalized };
+		}
+	};
+	const ensureChats = (session: PleromaSession) => {
+		const requestSessionKey = sessionKey(session);
+		if (loadedChatsKey === requestSessionKey) return;
+
+		loadedChatsKey = requestSessionKey;
+		void loadChats(session);
+	};
+	const markChatThreadRead = async (session: PleromaSession, chatId: string, lastReadId: string) => {
+		const requestSessionKey = sessionKey(session);
+		try {
+			const chat = await chatClient(session).markChatRead(chatId, lastReadId);
+			if (!isCurrentSessionRequest(requestSessionKey)) return;
+			if (chatsState.status === 'success') {
+				const unread = typeof chat.unread === 'number' ? chat.unread : 0;
+				chatsState = { ...chatsState, data: chatsState.data.map((row) => (row.id === chatId ? { ...row, unread } : row)) };
+			}
+		} catch {
+			// Read markers are non-critical; the unread badge self-corrects on the next chats load.
+		}
+	};
+	const loadChatThread = async (session: PleromaSession, chatId: string) => {
+		const requestSessionKey = sessionKey(session);
+		const requestId = chatThreadRequestId + 1;
+		chatThreadRequestId = requestId;
+		chatThreadState = { status: 'loading' };
+		chatSendError = null;
+
+		try {
+			const messages = await chatClient(session).getChatMessages(chatId, { limit: 40 });
+			if (requestId !== chatThreadRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			const views = adaptPleromaChatMessages(messages, { currentAccountId: session.account?.id }).reverse();
+			chatThreadState = { status: 'success', data: views };
+			const newest = views.at(-1);
+			const row = chatsState.status === 'success' ? chatsState.data.find((chat) => chat.id === chatId) : null;
+			if (newest && (!row || row.unread > 0)) void markChatThreadRead(session, chatId, newest.id);
+		} catch (error) {
+			if (requestId !== chatThreadRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			const normalized = normalizePleromaRequestError(error);
+			if (normalized.reauthRequired) {
+				signOutPleroma(localStorage);
+				redirectToLanding();
+				return;
+			}
+			chatThreadState = { status: 'error', error: normalized };
+		}
+	};
+	const ensureChatThread = (session: PleromaSession, chatId: string) => {
+		const loadKey = `${sessionKey(session)}\n${chatId}`;
+		if (loadedChatThreadKey === loadKey) return;
+
+		loadedChatThreadKey = loadKey;
+		chatDraft = '';
+		chatSending = false;
+		chatSendError = null;
+		void loadChatThread(session, chatId);
+	};
+	const sendChatDraft = () => {
+		const session = currentSession;
+		const chatId = messagesChatId;
+		const content = chatDraft.trim();
+		if (!session || !chatId || !content || chatSending) return;
+		const requestSessionKey = sessionKey(session);
+		chatSending = true;
+		chatSendError = null;
+
+		void (async () => {
+			try {
+				const message = await chatClient(session).sendChatMessage(chatId, { content });
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+
+				const view = adaptPleromaChatMessage(message, { currentAccountId: session.account?.id });
+				chatThreadState = chatThreadState.status === 'success'
+					? { status: 'success', data: [...chatThreadState.data, view] }
+					: { status: 'success', data: [view] };
+				chatDraft = '';
+				if (chatsState.status === 'success') {
+					chatsState = {
+						...chatsState,
+						data: chatsState.data.map((row) => (row.id === chatId ? { ...row, lastMessage: chatExcerpt(view.body), lastMessageOwn: true, time: view.time, updatedAt: view.createdAt } : row))
+					};
+				}
+			} catch (error) {
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+
+				const normalized = normalizePleromaRequestError(error);
+				if (normalized.reauthRequired) {
+					signOutPleroma(localStorage);
+					redirectToLanding();
+					return;
+				}
+				chatSendError = normalized;
+			} finally {
+				if (isCurrentSessionRequest(requestSessionKey)) chatSending = false;
+			}
+		})();
+	};
+	const deleteChatThreadMessage = (messageId: string) => {
+		const session = currentSession;
+		const chatId = messagesChatId;
+		if (!session || !chatId) return;
+		const requestSessionKey = sessionKey(session);
+
+		void (async () => {
+			try {
+				await chatClient(session).deleteChatMessage(chatId, messageId);
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+				if (chatThreadState.status === 'success') {
+					chatThreadState = { status: 'success', data: chatThreadState.data.filter((message) => message.id !== messageId) };
+				}
+			} catch (error) {
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+
+				const normalized = normalizePleromaRequestError(error);
+				if (normalized.reauthRequired) {
+					signOutPleroma(localStorage);
+					redirectToLanding();
+					return;
+				}
+				flashPostControl(`Delete failed: ${normalized.title}`);
+			}
+		})();
 	};
 	const loadBookmarks = async (session: PleromaSession) => {
 		const requestSessionKey = sessionKey(session);
@@ -3605,6 +3785,11 @@
 				if (route === 'notifications') ensureForegroundNotifications(session);
 				else ensureNotifications(session);
 				connectNotificationStreaming(session);
+				ensureChats(session);
+				if (route === 'messages') {
+					const chatId = pathname.split('/')[3] || null;
+					if (chatId) ensureChatThread(session, chatId);
+				}
 			}
 			else if (route === 'notifications' && profileAccountLoadError) notificationState = { status: 'error', error: profileAccountLoadError };
 			if (isTimelineRoute(route)) {
@@ -4378,6 +4563,65 @@
 								onEditProfile={() => goto('/app/settings')}
 								onFollowToggle={toggleProfileFollow}
 							/>
+						{/if}
+					</section>
+				{:else if route === 'messages'}
+					<section class="card app-panel" data-testid="messages-panel">
+						{#if messagesChatId}
+							{#if chatsState.status === 'loading' || chatsState.status === 'idle' || chatThreadState.status === 'loading' || chatThreadState.status === 'idle'}
+								<div class="request-state" role="status" aria-label="Request status">Loading conversation</div>
+							{:else if chatThreadState.status === 'error'}
+								<div class="request-state request-error">
+									<h2>{chatThreadState.error.title}</h2>
+									<p>{chatThreadState.error.message}</p>
+									{#if chatThreadState.error.retryable && currentSession}
+										<Button variant="secondary" onclick={() => currentSession && messagesChatId && loadChatThread(currentSession, messagesChatId)}>Retry request</Button>
+									{/if}
+								</div>
+							{:else if !activeChat}
+								<div class="request-state request-error">
+									<h2>Conversation not found</h2>
+									<p>This conversation does not exist or is not available for this account.</p>
+								</div>
+							{:else}
+								<ChatThread
+									partner={{ name: activeChat.account.displayName, nameEmojis: activeChat.account.emojis, handle: activeChat.account.handle, avatarUrl: activeChat.account.avatarUrl }}
+									messages={chatThreadState.status === 'success' ? chatThreadState.data : []}
+									draft={chatDraft}
+									sending={chatSending}
+									error={chatSendError}
+									onDraftInput={(value) => (chatDraft = value)}
+									onSend={sendChatDraft}
+									onDeleteMessage={deleteChatThreadMessage}
+								/>
+							{/if}
+						{:else}
+							<div class="app-page-kicker">Messages</div>
+							<h1>Messages</h1>
+							<p>Direct conversations, powered by Pleroma chats.</p>
+
+							{#if chatsState.status === 'loading' || chatsState.status === 'idle'}
+								<div class="request-state" role="status" aria-label="Request status">Loading conversations</div>
+							{:else if chatsState.status === 'empty'}
+								<div class="request-state request-empty">
+									<h2>No conversations yet</h2>
+									<p>Direct messages you send and receive will appear here.</p>
+								</div>
+							{:else if chatsState.status === 'error'}
+								<div class="request-state request-error">
+									<h2>{chatsState.error.title}</h2>
+									<p>{chatsState.error.message}</p>
+									{#if chatsState.error.retryable && currentSession}
+										<Button variant="secondary" onclick={() => currentSession && loadChats(currentSession)}>Retry request</Button>
+									{/if}
+								</div>
+							{:else if chatsState.status === 'success'}
+								<div class="chat-list" data-testid="chat-list">
+									{#each chatsState.data as chat (chat.id)}
+										<ChatRow {chat} href={`/app/messages/${chat.id}`} />
+									{/each}
+								</div>
+							{/if}
 						{/if}
 					</section>
 				{:else if route === 'bookmarks'}

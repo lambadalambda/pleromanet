@@ -1,6 +1,6 @@
 import type { AvatarVariant, CustomEmoji, PostAttachment, QuotedPostView, SocialNotificationData, SocialNotificationKind, TimelinePost, TimelineView } from '$lib/social/types';
 import { isPleromaClientError } from './http';
-import type { PleromaAccount, PleromaCustomEmoji, PleromaField, PleromaInstance, PleromaNotification, PleromaStatus, ProfileUpdate } from './types';
+import type { PleromaAccount, PleromaChat, PleromaChatMessage, PleromaCustomEmoji, PleromaField, PleromaInstance, PleromaNotification, PleromaStatus, ProfileUpdate } from './types';
 
 export const DEFAULT_STATUS_CHARACTER_LIMIT = 500;
 
@@ -885,6 +885,68 @@ export const adaptPleromaNotifications = (
 	notifications: PleromaNotification[],
 	options: { lastSeenAt?: string | null } = {}
 ) => notifications.map((notification) => adaptPleromaNotification(notification, options));
+
+export type PleromaChatMessageView = {
+	id: string;
+	chatId: string;
+	accountId: string;
+	own: boolean;
+	body: string;
+	bodyEmojis: CustomEmoji[];
+	attachment: PleromaMediaAttachmentView | null;
+	time: string;
+	fullTime: string;
+	createdAt: string;
+};
+
+export type ChatAdaptOptions = {
+	currentAccountId?: string;
+	now?: number;
+};
+
+export const adaptPleromaChatMessage = (message: PleromaChatMessage, options: ChatAdaptOptions = {}): PleromaChatMessageView => ({
+	id: message.id,
+	chatId: message.chat_id,
+	accountId: message.account_id,
+	own: Boolean(options.currentAccountId && message.account_id === options.currentAccountId),
+	body: typeof message.content === 'string' ? htmlToPlainText(message.content) : '',
+	bodyEmojis: adaptCustomEmojis(message.emojis),
+	attachment: message.attachment ? adaptMediaAttachment(message.attachment, 0) : null,
+	time: message.created_at ? formatRelativeStatusTime(message.created_at, options.now) : '',
+	fullTime: message.created_at ? formatStatusDate(message.created_at) : '',
+	createdAt: message.created_at ?? ''
+});
+
+export const adaptPleromaChatMessages = (messages: PleromaChatMessage[], options: ChatAdaptOptions = {}) =>
+	messages.map((message) => adaptPleromaChatMessage(message, options));
+
+export type PleromaChatView = {
+	id: string;
+	account: PleromaAccountView;
+	lastMessage: string | null;
+	lastMessageOwn: boolean;
+	unread: number;
+	time: string;
+	updatedAt: string;
+};
+
+export const adaptPleromaChat = (chat: PleromaChat, options: ChatAdaptOptions = {}): PleromaChatView => {
+	const last = chat.last_message ?? null;
+	const lastText = last && typeof last.content === 'string' && last.content ? compactExcerpt(htmlToPlainText(last.content)) : null;
+	const lastPlaceholder = last?.attachment ? mediaPlaceholderText([stringValue(last.attachment.type) ?? undefined]) : null;
+	return {
+		id: chat.id,
+		account: adaptPleromaAccount(chat.account),
+		lastMessage: lastText ?? lastPlaceholder,
+		lastMessageOwn: Boolean(last && options.currentAccountId && last.account_id === options.currentAccountId),
+		unread: chat.unread,
+		time: chat.updated_at ? formatRelativeStatusTime(chat.updated_at, options.now) : '',
+		updatedAt: chat.updated_at ?? ''
+	};
+};
+
+export const adaptPleromaChats = (chats: PleromaChat[], options: ChatAdaptOptions = {}) =>
+	chats.map((chat) => adaptPleromaChat(chat, options));
 
 export const normalizePleromaRequestError = (error: unknown): PleromaRequestErrorView => {
 	if (!isPleromaClientError(error)) {

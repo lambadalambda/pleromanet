@@ -398,6 +398,12 @@ test('Pleroma client covers mutations, unauthenticated state, and API errors', a
 	await client.getPoll('poll-1');
 	await client.votePoll('poll-1', [0, 2]);
 	await client.updateMedia('media-1', { description: 'quiet alt text' });
+	await client.getChats({ limit: 3 });
+	await client.getOrCreateChat('account-1');
+	await client.getChatMessages('chat-1', { maxId: 'msg-5' });
+	await client.sendChatMessage('chat-1', { content: 'hello there', mediaId: 'media-9' });
+	await client.markChatRead('chat-1', 'msg-9');
+	await client.deleteChatMessage('chat-1', 'msg-9');
 	const createdStatus = await client.createStatus({
 		status: 'new post from client',
 		visibility: 'unlisted',
@@ -434,6 +440,12 @@ test('Pleroma client covers mutations, unauthenticated state, and API errors', a
 		'GET /api/v1/polls/poll-1',
 		'POST /api/v1/polls/poll-1/votes',
 		'PUT /api/v1/media/media-1',
+		'GET /api/v2/pleroma/chats',
+		'POST /api/v1/pleroma/chats/by-account-id/account-1',
+		'GET /api/v1/pleroma/chats/chat-1/messages',
+		'POST /api/v1/pleroma/chats/chat-1/messages',
+		'POST /api/v1/pleroma/chats/chat-1/read',
+		'DELETE /api/v1/pleroma/chats/chat-1/messages/msg-9',
 		'POST /api/v1/statuses',
 		'POST /api/v1/accounts/account-1/follow',
 		'POST /api/v1/accounts/account-1/unfollow',
@@ -442,7 +454,11 @@ test('Pleroma client covers mutations, unauthenticated state, and API errors', a
 	const voteBody = new URLSearchParams(requests[15].body);
 	expect(voteBody.getAll('choices[]')).toEqual(['0', '2']);
 	expect(requests[16].body).toContain('quiet alt text');
-	const createBody = new URLSearchParams(requests[17].body);
+	expect(requests[17].url.searchParams.get('limit')).toBe('3');
+	expect(requests[19].url.searchParams.get('max_id')).toBe('msg-5');
+	expect(JSON.parse(requests[20].body ?? '{}')).toMatchObject({ content: 'hello there', media_id: 'media-9' });
+	expect(JSON.parse(requests[21].body ?? '{}')).toMatchObject({ last_read_id: 'msg-9' });
+	const createBody = new URLSearchParams(requests[23].body);
 	expect(createBody.get('status')).toBe('new post from client');
 	expect(createBody.get('visibility')).toBe('unlisted');
 	expect(createBody.get('spoiler_text')).toBe('quiet spoiler');
@@ -451,8 +467,8 @@ test('Pleroma client covers mutations, unauthenticated state, and API errors', a
 	expect(createBody.get('poll[expires_in]')).toBe('3600');
 	expect(createBody.get('poll[multiple]')).toBe('true');
 	expect(createBody.get('poll[hide_totals]')).toBe('false');
-	expect(requests[20].body).toContain('display_name');
-	expect(requests[20].body).toContain('quiet admin');
+	expect(requests[26].body).toContain('display_name');
+	expect(requests[26].body).toContain('quiet admin');
 
 	await expect(client.favoriteStatus('bad')).rejects.toMatchObject({
 		kind: 'http',

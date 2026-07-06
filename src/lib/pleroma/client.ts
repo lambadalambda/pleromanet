@@ -13,7 +13,10 @@ import type {
 	PleromaTag,
 	AccountStatusesQuery,
 	AccountSearchQuery,
+	ChatMessageCreateRequest,
 	MediaUploadRequest,
+	PleromaChat,
+	PleromaChatMessage,
 	NotificationQuery,
 	PleromaSuggestion,
 	ProfileUpdate,
@@ -404,6 +407,50 @@ export const createPleromaClient = (config: ClientConfig) => {
 				method: 'PUT',
 				path: `/api/v1/media/${encodePathSegment(id)}`,
 				body: { description: input.description ?? '' },
+				auth: 'required'
+			}),
+
+		getChats: (query?: TimelineQuery) =>
+			http.request<PleromaChat[]>({
+				path: '/api/v2/pleroma/chats',
+				query: timelineQuery(query),
+				auth: 'required'
+			}),
+
+		getOrCreateChat: (accountId: string) =>
+			http.request<PleromaChat>({
+				method: 'POST',
+				path: `/api/v1/pleroma/chats/by-account-id/${encodePathSegment(accountId)}`,
+				auth: 'required'
+			}),
+
+		getChatMessages: (chatId: string, query?: TimelineQuery) =>
+			http.request<PleromaChatMessage[]>({
+				path: `/api/v1/pleroma/chats/${encodePathSegment(chatId)}/messages`,
+				query: timelineQuery(query),
+				auth: 'required'
+			}),
+
+		sendChatMessage: (chatId: string, input: ChatMessageCreateRequest) =>
+			http.request<PleromaChatMessage>({
+				method: 'POST',
+				path: `/api/v1/pleroma/chats/${encodePathSegment(chatId)}/messages`,
+				body: { content: input.content, media_id: input.mediaId },
+				auth: 'required'
+			}),
+
+		markChatRead: (chatId: string, lastReadId: string) =>
+			http.request<PleromaChat>({
+				method: 'POST',
+				path: `/api/v1/pleroma/chats/${encodePathSegment(chatId)}/read`,
+				body: { last_read_id: lastReadId },
+				auth: 'required'
+			}),
+
+		deleteChatMessage: (chatId: string, messageId: string) =>
+			http.request<PleromaChatMessage>({
+				method: 'DELETE',
+				path: `/api/v1/pleroma/chats/${encodePathSegment(chatId)}/messages/${encodePathSegment(messageId)}`,
 				auth: 'required'
 			}),
 

@@ -260,6 +260,32 @@ export type ProfileUpdate = {
 	fields?: PleromaField[];
 };
 
+export type PleromaChatMessage = {
+	id: string;
+	content?: string | null;
+	chat_id: string;
+	account_id: string;
+	created_at?: string;
+	attachment?: PleromaMediaAttachment | null;
+	emojis?: PleromaCustomEmoji[];
+	unread?: boolean;
+	[key: string]: unknown;
+};
+
+export type PleromaChat = {
+	id: string;
+	account: PleromaAccount;
+	last_message?: PleromaChatMessage | null;
+	unread: number;
+	updated_at?: string;
+	[key: string]: unknown;
+};
+
+export type ChatMessageCreateRequest = {
+	content?: string;
+	mediaId?: string;
+};
+
 export type PleromaSuggestion = {
 	source?: string;
 	account: PleromaAccount;
