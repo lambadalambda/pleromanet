@@ -52,3 +52,4 @@
 - [x] [52 Bookmarks and share controls](issues/52-bookmarks-and-share-controls.md)
 - [x] [53 Post management menu: delete, mute, block](issues/53-post-management-menu.md)
 - [x] [54 Wire follow request actions](issues/54-wire-follow-request-actions.md)
+- [x] [55 Wire poll voting](issues/55-wire-poll-voting.md)
