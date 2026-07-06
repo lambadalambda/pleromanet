@@ -2053,6 +2053,9 @@ body[data-theme='simoun'] .pill {
 .composer-upload-bar > span { display: block; height: 100%; border-radius: 2px; background: var(--accent); transition: width 240ms ease; }
 .composer-upload-pct { min-width: 30px; color: var(--accent-ink); text-align: right; }
 .composer-upload-error { margin-top: 4px; color: var(--bad); font-family: var(--mono); font-size: 10px; }
+.composer-upload-alt { width: 100%; margin-top: 6px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 3px; background: var(--panel); color: var(--ink); font-size: 12px; }
+.composer-upload-alt::placeholder { color: var(--muted-2); }
+.composer-upload-alt:focus { border-color: var(--accent); outline: none; }
 .composer-upload-rm { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid transparent; border-radius: 3px; color: var(--muted-2); }
 .composer-upload-rm:hover { color: var(--bad); border-color: var(--border); background: var(--panel); }
 .composer-upload-rm:disabled { cursor: not-allowed; opacity: 0.5; }

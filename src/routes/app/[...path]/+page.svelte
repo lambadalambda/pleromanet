@@ -1537,6 +1537,32 @@
 	const removeInlineReplyUpload = (localId: string) => {
 		inlineReplyUploads = inlineReplyUploads.filter((upload) => upload.localId !== localId);
 	};
+	const saveUploadAltText = (getUploads: () => ComposerUpload[], updateUploads: (updater: (uploads: ComposerUpload[]) => ComposerUpload[]) => void, localId: string, description: string) => {
+		const session = currentSession;
+		const upload = getUploads().find((candidate) => candidate.localId === localId);
+		if (!session || !upload || upload.status !== 'uploaded' || !upload.media.id) return;
+		if ((upload.media.description ?? '') === description) return;
+		const requestSessionKey = sessionKey(session);
+		void (async () => {
+			try {
+				const client = createPleromaClient({ instanceUrl: session.instanceUrl, accessToken: session.accessToken, fetch: window.fetch.bind(window) });
+				const media = await client.updateMedia(String(upload.media.id), { description });
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+				updateUploads((current) => current.map((candidate) => candidate.localId === localId && candidate.status === 'uploaded' ? { ...candidate, media } : candidate));
+			} catch (error) {
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+				const normalized = normalizePleromaRequestError(error);
+				if (normalized.reauthRequired) {
+					signOutPleroma(localStorage);
+					redirectToLanding();
+					return;
+				}
+				flashPostControl(`Alt text failed: ${normalized.title}`);
+			}
+		})();
+	};
+	const saveComposerUploadAlt = (localId: string, description: string) => saveUploadAltText(() => composerUploads, updateComposerUploads, localId, description);
+	const saveInlineReplyUploadAlt = (localId: string, description: string) => saveUploadAltText(() => inlineReplyUploads, updateInlineReplyUploads, localId, description);
 	const pickComposerFiles = () => composerFileInput?.click();
 	const handleComposerFileChange = (event: Event) => {
 		const input = event.currentTarget as HTMLInputElement;
@@ -2639,6 +2665,7 @@
 		onMentionQuery: searchComposerMentionAccounts,
 		onFiles: queueInlineReplyFiles,
 		onRemoveUpload: removeInlineReplyUpload,
+		onAltText: saveInlineReplyUploadAlt,
 		onSpoilerToggle: toggleInlineReplySpoiler,
 		onSpoilerInput: (value: string) => (inlineReplySpoilerText = value),
 		onSpoilerRemove: clearInlineReplySpoiler,
@@ -3999,6 +4026,9 @@
 														<span class="composer-upload-pct">{upload.status === 'error' ? 'Error' : `${upload.progress}%`}</span>
 													</div>
 													{#if upload.error}<div class="composer-upload-error">{upload.error}</div>{/if}
+													{#if upload.status === 'uploaded'}
+														<input class="composer-upload-alt" type="text" placeholder="Alt text (describe for screen readers)" aria-label={`Alt text for ${upload.name}`} value={upload.media.description ?? ''} onchange={(event) => saveComposerUploadAlt(upload.localId, event.currentTarget.value)} />
+													{/if}
 												</div>
 												<button type="button" class="composer-upload-rm" aria-label={`Remove ${upload.name}`} onclick={() => removeComposerUpload(upload.localId)}>×</button>
 											</div>

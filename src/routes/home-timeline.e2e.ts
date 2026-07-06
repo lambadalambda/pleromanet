@@ -3073,3 +3073,119 @@ test('home timeline poll vote failure surfaces a toast and stays votable', async
 	await expect(page.getByTestId('post-control-toast')).toContainText('Vote failed');
 	await expect(post.getByRole('button', { name: 'Vote', exact: true })).toBeVisible();
 });
+
+test('home timeline composer saves upload alt text through the media API', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, []);
+	});
+	await page.route('https://pleroma.example/api/v1/media', async (route) => {
+		await fulfillHome(route, {
+			id: 'media-alt-1',
+			type: 'image',
+			url: 'https://cdn.example/uploads/cat.png',
+			preview_url: 'https://cdn.example/uploads/cat-thumb.png',
+			description: null
+		});
+	});
+	let altMethod: string | undefined;
+	let altBody = '';
+	await page.route('https://pleroma.example/api/v1/media/media-alt-1', async (route) => {
+		altMethod = route.request().method();
+		altBody = route.request().postData() ?? '';
+		await fulfillHome(route, {
+			id: 'media-alt-1',
+			type: 'image',
+			url: 'https://cdn.example/uploads/cat.png',
+			preview_url: 'https://cdn.example/uploads/cat-thumb.png',
+			description: 'a sleepy cat on a warm keyboard'
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await page.getByLabel('Attach media').setInputFiles({ name: 'cat.png', mimeType: 'image/png', buffer: Buffer.from('cat') });
+
+	const altInput = page.getByRole('textbox', { name: 'Alt text for cat.png' });
+	await altInput.fill('a sleepy cat on a warm keyboard');
+	await altInput.blur();
+
+	await expect(altInput).toHaveValue('a sleepy cat on a warm keyboard');
+	expect(altMethod).toBe('PUT');
+	expect(JSON.parse(altBody)).toMatchObject({ description: 'a sleepy cat on a warm keyboard' });
+});
+
+test('home timeline composer alt text failure surfaces a toast and keeps the draft', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, []);
+	});
+	await page.route('https://pleroma.example/api/v1/media', async (route) => {
+		await fulfillHome(route, {
+			id: 'media-alt-2',
+			type: 'image',
+			url: 'https://cdn.example/uploads/dog.png',
+			preview_url: 'https://cdn.example/uploads/dog-thumb.png',
+			description: null
+		});
+	});
+	await page.route('https://pleroma.example/api/v1/media/media-alt-2', async (route) => {
+		await fulfillHome(route, { error: 'description too long' }, 422);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const composer = page.getByRole('textbox', { name: 'Post text' });
+	await composer.fill('dog picture incoming');
+	await page.getByLabel('Attach media').setInputFiles({ name: 'dog.png', mimeType: 'image/png', buffer: Buffer.from('dog') });
+
+	const altInput = page.getByRole('textbox', { name: 'Alt text for dog.png' });
+	await altInput.fill('a very long description');
+	await altInput.blur();
+
+	await expect(page.getByTestId('post-control-toast')).toContainText('Alt text failed');
+	await expect(composer).toContainText('dog picture incoming');
+});
+
+test('home timeline inline reply composer saves upload alt text', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	const targetStatus = { ...statusWithText('status-inline-alt', 'inline alt target'), replies_count: 0 };
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [targetStatus]);
+	});
+	await page.route('https://pleroma.example/api/v1/media', async (route) => {
+		await fulfillHome(route, {
+			id: 'reply-media-alt',
+			type: 'image',
+			url: 'https://cdn.example/uploads/tape.png',
+			preview_url: 'https://cdn.example/uploads/tape-thumb.png',
+			description: null
+		});
+	});
+	let altBody = '';
+	await page.route('https://pleroma.example/api/v1/media/reply-media-alt', async (route) => {
+		altBody = route.request().postData() ?? '';
+		await fulfillHome(route, {
+			id: 'reply-media-alt',
+			type: 'image',
+			url: 'https://cdn.example/uploads/tape.png',
+			preview_url: 'https://cdn.example/uploads/tape-thumb.png',
+			description: 'a cassette tape'
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await page.locator('[data-status-id="status-inline-alt"]').getByRole('button', { name: /^Reply/ }).click();
+	await page.getByLabel('Attach reply media').setInputFiles({ name: 'tape.png', mimeType: 'image/png', buffer: Buffer.from('tape') });
+
+	const altInput = page.getByRole('textbox', { name: 'Alt text for tape.png' });
+	await altInput.fill('a cassette tape');
+	await altInput.blur();
+
+	await expect(altInput).toHaveValue('a cassette tape');
+	expect(JSON.parse(altBody)).toMatchObject({ description: 'a cassette tape' });
+});

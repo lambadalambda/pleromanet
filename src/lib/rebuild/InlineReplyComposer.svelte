@@ -30,6 +30,7 @@
 		onMentionQuery?: (query: string) => void;
 		onFiles?: (files: FileList | File[]) => void;
 		onRemoveUpload?: (localId: string) => void;
+		onAltText?: (localId: string, description: string) => void;
 		onSpoilerToggle?: () => void;
 		onSpoilerInput?: (value: string) => void;
 		onSpoilerRemove?: () => void;
@@ -62,6 +63,7 @@
 		onMentionQuery,
 		onFiles,
 		onRemoveUpload,
+		onAltText,
 		onSpoilerToggle,
 		onSpoilerInput,
 		onSpoilerRemove,
@@ -188,6 +190,9 @@
 								<span class="composer-upload-pct">{upload.status === 'error' ? 'Error' : `${upload.progress}%`}</span>
 							</div>
 							{#if upload.error}<div class="composer-upload-error">{upload.error}</div>{/if}
+							{#if upload.status === 'uploaded' && onAltText}
+								<input class="composer-upload-alt" type="text" placeholder="Alt text (describe for screen readers)" aria-label={`Alt text for ${upload.name}`} value={upload.media.description ?? ''} disabled={submitting} onchange={(event) => onAltText(upload.localId, event.currentTarget.value)} />
+							{/if}
 						</div>
 						<button type="button" class="composer-upload-rm" aria-label={`Remove ${upload.name}`} disabled={submitting} onclick={() => onRemoveUpload?.(upload.localId)}>×</button>
 					</div>
