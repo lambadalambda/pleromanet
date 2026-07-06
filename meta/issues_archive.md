@@ -55,3 +55,4 @@
 - [x] [55 Wire poll voting](issues/55-wire-poll-voting.md)
 - [x] [56 Composer upload alt text](issues/56-composer-upload-alt-text.md)
 - [x] [57 Direct messages (Pleroma chats)](issues/57-direct-messages.md)
+- [x] [58 Remove the header timeline strip](issues/58-remove-header-timeline-strip.md)

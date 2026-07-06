@@ -20,3 +20,7 @@ Timeline navigation is tripled on desktop: the header strip (HOME · LOCAL · FE
 
 - Decided with the user on 2026-07-06 after reviewing the three nav locations.
 - The user notes the Explore section is generally underbaked (some backend features for it don't exist); that's a separate future discussion, not part of this issue.
+
+## Current Status
+
+Done (2026-07-06, commit 07e2b69). Removed the `app-primary-nav` markup and `primaryNavItems` from the app shell, dropped the associated CSS (base rules plus the mobile hide), and tightened the header grid from four columns to three (brand · spacer · right controls). Tests that navigated via the header strip now use the sidebar, and the shell test asserts the strip is gone while covering sidebar links for Home/Local/Federated/Explore. Verified visually against fediffusion.art: brand left, search/bell/avatar right, sidebar and feed tabs unchanged. Full suite 303 passing.
