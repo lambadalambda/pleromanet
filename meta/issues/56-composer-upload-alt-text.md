@@ -20,3 +20,7 @@ Uploaded composer attachments have no way to set a description (alt text), even 
 ## Notes
 
 - Planned with the user on 2026-07-02.
+
+## Current Status
+
+Done (2026-07-06). `updateMedia` (`PUT /api/v1/media/:id`) added to the client; uploaded rows in the main composer and InlineReplyComposer render an accessible alt text input (only once the upload finishes) that saves on commit (blur/Enter) via `saveUploadAltText`, reconciles `upload.media` from the response, skips no-op saves, toasts on failure, and signs out on 401/403. Tests: PUT body asserted for both composers, failure toast keeps the draft, client endpoint coverage. Live-verified the PUT contract against fediffusion.art (description round-trips). Full suite 295 passing.
