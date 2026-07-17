@@ -16,6 +16,11 @@ export type ComposerEmoji = {
 	pack?: string;
 };
 
+export type ComposerReplyAccount = {
+	id: string;
+	acct: string;
+};
+
 type ComposerUploadBase = {
 	localId: string;
 	name: string;
@@ -94,6 +99,18 @@ export const getComposerUploadedMediaIds = (uploads: ComposerUpload[]) => upload
 );
 
 export const hasComposerUploadsPending = (uploads: ComposerUpload[]) => uploads.some((upload) => upload.status === 'uploading');
+
+export const composerReplyDraft = (participants: readonly ComposerReplyAccount[], currentAccountId?: string | null) => {
+	const seen = new Set<string>();
+	const mentions = participants.flatMap((participant) => {
+		if (!participant.id || participant.id === currentAccountId || seen.has(participant.id)) return [];
+		seen.add(participant.id);
+		const acct = participant.acct.trim().replace(/^@/, '');
+		return acct ? [`@${acct}`] : [];
+	});
+
+	return mentions.length > 0 ? `${mentions.join(' ')} ` : '';
+};
 
 export const composerPollPayload = (poll: ComposerPollDraft): ComposerPollPayload | null => {
 	const options = poll.choices.map((choice) => choice.trim()).filter(Boolean);

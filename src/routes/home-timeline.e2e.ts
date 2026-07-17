@@ -16,7 +16,7 @@ const instanceUrl = 'https://pleroma.example/api/v2/instance';
 const accountSearchUrl = 'https://pleroma.example/api/v1/accounts/search**';
 const customEmojisUrl = 'https://pleroma.example/api/v1/custom_emojis';
 
-const authenticate = async (page: Page) => {
+const authenticate = async (page: Page, storedSession: typeof session | Omit<typeof session, 'account'> = session) => {
 	await mockRightRailApis(page);
 	await page.route('https://pleroma.example/api/v1/notifications**', async (route) => {
 		await fulfillHome(route, []);
@@ -58,7 +58,7 @@ const authenticate = async (page: Page) => {
 		}
 
 		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
-	}, session);
+	}, storedSession);
 };
 
 const authenticateWithThrowingWebSocket = async (page: Page) => {
@@ -996,6 +996,162 @@ test('home timeline inline reply composer creates a reply for the selected post'
 	expect(params.get('visibility')).toBe('unlisted');
 });
 
+test('home timeline replies mention the author and every status participant', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	const targetStatus = {
+		...statusWithText('status-reply-participants', 'bring everyone into the reply'),
+		account: { ...pleromaFixtures.account, id: 'datagram', username: 'datagram', acct: 'datagram@retro.social', display_name: 'datagram' },
+		mentions: [
+			{ id: 'account-1', username: 'quietadmin', acct: 'quietadmin' },
+			{ id: 'datagram', username: 'datagram', acct: 'datagram@retro.social' },
+			{ id: 'soft-hertz', username: 'soft.hertz', acct: 'soft.hertz@kolektiva.social' }
+		],
+		replies_count: 0
+	};
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [targetStatus]);
+	});
+	let createBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createBody = route.request().postData() ?? '';
+		await fulfillHome(route, { ...statusWithText('created-participant-reply', 'reply body'), in_reply_to_id: targetStatus.id });
+	});
+
+	await page.goto('/app/home');
+	await page.locator('[data-status-id="status-reply-participants"]').getByRole('button', { name: 'Reply 0' }).click();
+	const form = page.getByRole('form', { name: 'Inline reply to @datagram' });
+	const editor = form.getByRole('textbox', { name: 'Reply text' });
+	const prefix = '@datagram@retro.social @soft.hertz@kolektiva.social ';
+	await expect(editor).toHaveText(prefix);
+	await editor.fill(`${prefix}reply body`);
+	await form.getByRole('button', { name: 'Reply', exact: true }).click();
+
+	const params = new URLSearchParams(createBody);
+	expect(params.get('status')).toBe(`${prefix}reply body`);
+	expect(params.get('in_reply_to_id')).toBe(targetStatus.id);
+});
+
+test('home timeline waits for token-only account hydration before excluding self from replies', async ({ page }) => {
+	const { account: _account, ...tokenOnlySession } = session;
+	await authenticate(page, tokenOnlySession);
+	await mockInstance(page);
+	const targetStatus = {
+		...statusWithText('status-token-only-participants', 'hydrate before replying'),
+		account: { ...pleromaFixtures.account, id: 'datagram', username: 'datagram', acct: 'datagram@retro.social', display_name: 'datagram' },
+		mentions: [
+			{ id: 'account-1', username: 'quietadmin', acct: 'quietadmin' },
+			{ id: 'soft-hertz', username: 'soft.hertz', acct: 'soft.hertz@kolektiva.social' }
+		],
+		replies_count: 0
+	};
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [targetStatus]);
+	});
+	let releaseAccount!: () => void;
+	const accountReleased = new Promise<void>((resolve) => {
+		releaseAccount = resolve;
+	});
+	await page.route('https://pleroma.example/api/v1/accounts/verify_credentials', async (route) => {
+		await accountReleased;
+		await fulfillHome(route, pleromaFixtures.account);
+	});
+
+	await page.goto('/app/home');
+	await page.locator('[data-status-id="status-token-only-participants"]').getByRole('button', { name: 'Reply 0' }).click();
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+	releaseAccount();
+	const editor = page.getByRole('form', { name: 'Inline reply to @datagram' }).getByRole('textbox', { name: 'Reply text' });
+	await expect(editor).toHaveText('@datagram@retro.social @soft.hertz@kolektiva.social ');
+	await expect(editor).not.toContainText('@quietadmin');
+});
+
+test('home timeline can cancel a token-only reply while account hydration is pending', async ({ page }) => {
+	const { account: _account, ...tokenOnlySession } = session;
+	await authenticate(page, tokenOnlySession);
+	await mockInstance(page);
+	const targetStatus = {
+		...statusWithText('status-pending-reply-cancel', 'cancel the pending reply'),
+		account: { ...pleromaFixtures.account, id: 'datagram', username: 'datagram', acct: 'datagram@retro.social', display_name: 'datagram' },
+		replies_count: 0
+	};
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [targetStatus]);
+	});
+	let releaseAccount!: () => void;
+	const accountReleased = new Promise<void>((resolve) => {
+		releaseAccount = resolve;
+	});
+	await page.route('https://pleroma.example/api/v1/accounts/verify_credentials', async (route) => {
+		await accountReleased;
+		await fulfillHome(route, pleromaFixtures.account);
+	});
+
+	await page.goto('/app/home');
+	const replyButton = page.locator('[data-status-id="status-pending-reply-cancel"]').getByRole('button', { name: 'Reply 0' });
+	await replyButton.click();
+	await replyButton.click();
+	releaseAccount();
+	await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('pleromanet.session') ?? 'null')?.account?.id ?? null)).toBe('account-1');
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+});
+
+test('home timeline discards pending token-only replies after route navigation', async ({ page }) => {
+	const { account: _account, ...tokenOnlySession } = session;
+	await authenticate(page, tokenOnlySession);
+	await mockInstance(page);
+	const targetStatus = {
+		...statusWithText('status-pending-reply-route', 'leave before hydration'),
+		account: { ...pleromaFixtures.account, id: 'datagram', username: 'datagram', acct: 'datagram@retro.social', display_name: 'datagram' },
+		replies_count: 0
+	};
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [targetStatus]);
+	});
+	let releaseAccount!: () => void;
+	const accountReleased = new Promise<void>((resolve) => {
+		releaseAccount = resolve;
+	});
+	await page.route('https://pleroma.example/api/v1/accounts/verify_credentials', async (route) => {
+		await accountReleased;
+		await fulfillHome(route, pleromaFixtures.account);
+	});
+
+	await page.goto('/app/home');
+	await page.locator('[data-status-id="status-pending-reply-route"]').getByRole('button', { name: 'Reply 0' }).click();
+	await page.getByRole('link', { name: 'Explore' }).click();
+	releaseAccount();
+	await expect(page).toHaveURL('/app/explore');
+	await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('pleromanet.session') ?? 'null')?.account?.id ?? null)).toBe('account-1');
+	await page.getByRole('link', { name: 'Home' }).click();
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+});
+
+test('home timeline replies to boosts mention original participants instead of the booster', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	const source = {
+		...statusWithText('boosted-reply-source', 'the original conversation'),
+		account: { ...pleromaFixtures.account, id: 'datagram', username: 'datagram', acct: 'datagram@retro.social', display_name: 'datagram' },
+		mentions: [{ id: 'soft-hertz', username: 'soft.hertz', acct: 'soft.hertz@kolektiva.social' }],
+		replies_count: 0
+	};
+	const boost = {
+		...statusWithText('boosted-reply-wrapper', ''),
+		account: { ...pleromaFixtures.account, id: 'booster', username: 'booster', acct: 'booster', display_name: 'booster' },
+		reblog: source
+	};
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [boost]);
+	});
+
+	await page.goto('/app/home');
+	await page.locator('[data-status-id="boosted-reply-wrapper"]').getByRole('button', { name: 'Reply 0' }).click();
+	const editor = page.getByRole('form', { name: 'Inline reply to @datagram' }).getByRole('textbox', { name: 'Reply text' });
+	await expect(editor).toHaveText('@datagram@retro.social @soft.hertz@kolektiva.social ');
+	await expect(editor).not.toContainText('@booster');
+});
+
 test('home timeline inline reply composer submits content warnings', async ({ page }) => {
 	await authenticate(page);
 	await mockInstance(page);
@@ -1269,7 +1425,7 @@ test('home timeline inline reply composer moves between targets and cancels', as
 	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(1);
 	const movedForm = page.getByRole('form', { name: 'Inline reply to @datagram' });
 	await expect(movedForm).toBeVisible();
-	await expect(movedForm.getByRole('textbox', { name: 'Reply text' })).toBeEmpty();
+	await expect(movedForm.getByRole('textbox', { name: 'Reply text' })).toHaveText('@datagram@retro.social ');
 	await movedForm.getByRole('button', { name: 'Cancel' }).click();
 	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
 });

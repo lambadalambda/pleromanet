@@ -347,6 +347,24 @@ test('real thread route handles an empty descendant context and accepts the firs
 	expect(params.get('in_reply_to_id')).toBe('status-1');
 });
 
+test('real thread replies prefill all focused-status participants', async ({ page }) => {
+	await authenticate(page);
+	const focusedStatus = statusWithText('status-1', 'thread participants', {
+		account: accountWithName('datagram', 'datagram', 'datagram@retro.social'),
+		mentions: [
+			{ id: 'account-1', username: 'quietadmin', acct: 'quietadmin' },
+			{ id: 'lumen', username: 'lumen', acct: 'lumen@example.social' }
+		],
+		replies_count: 0
+	});
+	await mockThread(page, focusedStatus, [], []);
+
+	await page.goto('/app/thread/status-1');
+	await page.getByTestId('focused-post').getByRole('button', { name: 'Reply 0' }).click();
+	const form = page.getByRole('form', { name: 'Inline reply to @datagram' });
+	await expect(form.getByRole('textbox', { name: 'Reply text' })).toHaveText('@datagram@retro.social @lumen@example.social ');
+});
+
 test('real thread route opens from the home timeline and returns to home', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page);
@@ -765,7 +783,7 @@ test('real thread route nested inline reply composer autocompletes mentions and 
 
 	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
 	const params = new URLSearchParams(createBody);
-	expect(params.get('status')).toBe('reply @soft.hertz@kolektiva.social :blobcat:');
+	expect(params.get('status')).toBe('@orbit@spacebear.net reply @soft.hertz@kolektiva.social :blobcat:');
 	expect(params.get('in_reply_to_id')).toBe('reply-1-child');
 });
 
@@ -1069,8 +1087,8 @@ test('real thread nested inline reply composer remains usable on mobile', async 
 	await cappedNested.getByRole('button', { name: 'Reply 0' }).click();
 	const replyForm = page.getByRole('form', { name: 'Inline reply to @wavelet' });
 	await expect(replyForm).toBeVisible();
-	await expect(replyForm.getByRole('textbox', { name: 'Reply text' })).toBeVisible();
-	await expect(replyForm.getByRole('button', { name: 'Reply', exact: true })).toBeDisabled();
+	await expect(replyForm.getByRole('textbox', { name: 'Reply text' })).toHaveText('@wavelet@tiny.social ');
+	await expect(replyForm.getByRole('button', { name: 'Reply', exact: true })).toBeEnabled();
 	await expectNoHorizontalOverflow(page);
 });
 

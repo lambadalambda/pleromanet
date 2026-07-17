@@ -72,6 +72,11 @@ export type PleromaReactionView = {
 	me: boolean;
 };
 
+export type PleromaReplyAccount = {
+	id: string;
+	acct: string;
+};
+
 export type PleromaStatusView = TimelinePost & {
 	actionStatusId: string;
 	threadStatusId: string;
@@ -91,6 +96,7 @@ export type PleromaStatusView = TimelinePost & {
 	mediaHidden: boolean;
 	mediaAttachments: PleromaMediaAttachmentView[];
 	reactions: PleromaReactionView[];
+	replyAccounts: PleromaReplyAccount[];
 	bookmarked: boolean;
 	rebloggedBy?: PleromaAccountView;
 	pleroma: {
@@ -219,6 +225,18 @@ const mentionAcctMap = (status: PleromaStatus): Record<string, string> => {
 		map[full.toLowerCase()] = full;
 	}
 	return map;
+};
+
+const statusReplyAccounts = (status: PleromaStatus): PleromaReplyAccount[] => {
+	const mentions = status.mentions.flatMap((mention) => {
+		if (!mention || typeof mention !== 'object') return [];
+		const values = mention as Record<string, unknown>;
+		const id = typeof values.id === 'string' || typeof values.id === 'number' ? String(values.id) : '';
+		const acct = typeof values.acct === 'string' ? values.acct.trim().replace(/^@/, '') : '';
+		return id && acct ? [{ id, acct }] : [];
+	});
+
+	return [{ id: String(status.account.id), acct: status.account.acct.trim().replace(/^@/, '') }, ...mentions];
 };
 
 const directReplyAccountHandle = (status: PleromaStatus) => {
@@ -836,6 +854,7 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		mediaHidden,
 		mediaAttachments,
 		reactions: adaptStatusReactions(source),
+		replyAccounts: statusReplyAccounts(source),
 		bookmarked: source.bookmarked === true,
 		rebloggedBy: booster,
 		pleroma: {

@@ -55,9 +55,9 @@
 		type PaginatedTimelineState,
 		type PaginatedTimelineSuccess
 	} from '$lib/pleroma/timeline-state';
-	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaChatMessage, adaptPleromaChatMessages, adaptPleromaChats, adaptPleromaPoll, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, mediaPlaceholderText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit, type PleromaAccountView, type PleromaChatMessageView, type PleromaChatView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaProfileSettingsView, type PleromaReactionView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaChatMessage, adaptPleromaChatMessages, adaptPleromaChats, adaptPleromaPoll, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, mediaPlaceholderText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit, type PleromaAccountView, type PleromaChatMessageView, type PleromaChatView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaProfileSettingsView, type PleromaReactionView, type PleromaReplyAccount, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
-	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, customEmojiPack, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
+	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, composerReplyDraft, customEmojiPack, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
 	import type { ProfileData, ProfileMediaItem, ProfilePost } from '$lib/rebuild/profile';
 	import type { PleromaAccount, PleromaInstance, PleromaNotification, PleromaRelationship, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
@@ -89,7 +89,7 @@
 		avatarUrl?: string | null;
 	};
 	type InlineReplyComposerData = Omit<InlineReplyComposerProps, 'id'>;
-	type AccountBackedPost = SocialPost & { visibility?: StatusVisibility; account?: PleromaAccountView; rebloggedBy?: PleromaAccountView; reactions?: PleromaReactionView[]; bookmarked?: boolean; url?: string };
+	type AccountBackedPost = SocialPost & { visibility?: StatusVisibility; account?: PleromaAccountView; rebloggedBy?: PleromaAccountView; reactions?: PleromaReactionView[]; replyAccounts?: PleromaReplyAccount[]; bookmarked?: boolean; url?: string };
 	type RebuildPost = PostLike & {
 		id: string | number;
 		actionStatusId?: string;
@@ -110,6 +110,7 @@
 		favs: number;
 		addressees?: string[];
 		mentionAccts?: Record<string, string>;
+		replyAccounts?: PleromaReplyAccount[];
 		boostedBy?: PostLike['boostedBy'];
 		copyJson?: unknown;
 		reactions?: PleromaReactionView[];
@@ -263,6 +264,7 @@
 	let homePostSubmitState = $state<'idle' | 'submitting'>('idle');
 	let homePostSubmitError = $state<PleromaRequestErrorView | null>(null);
 	let inlineReplyTarget = $state<InlineReplyTarget | null>(null);
+	let pendingInlineReplyOpen: Pick<InlineReplyTarget, 'route' | 'targetId' | 'renderId'> | null = null;
 	let inlineReplyDraft = $state('');
 	let inlineReplyUploads = $state<ComposerUpload[]>([]);
 	let inlineReplySpoilerActive = $state(false);
@@ -303,6 +305,7 @@
 	let inlineReplyRequestId = 0;
 	let homePostSubmitRequestId = 0;
 	let profileAccountRequestId = 0;
+	let profileAccountLoadPromise: { sessionKey: string; promise: Promise<PleromaAccount | null> } | null = null;
 	let instanceConfigRequestId = 0;
 	let suggestionsRequestId = 0;
 	let composerMentionSearchRequestId = 0;
@@ -359,8 +362,12 @@
 	};
 	const accountStat = (value: number | null | undefined) => accountStatFormatter.format(Math.max(0, value ?? 0));
 	const clearInlineReply = (route?: StatusActionOrigin) => {
-		if (route && inlineReplyTarget?.route !== route) return;
+		const pendingMatches = Boolean(pendingInlineReplyOpen && (!route || pendingInlineReplyOpen.route === route));
+		const targetMatches = Boolean(inlineReplyTarget && (!route || inlineReplyTarget.route === route));
+		if (route && !pendingMatches && !targetMatches) return;
 		inlineReplyRequestId += 1;
+		if (pendingMatches) pendingInlineReplyOpen = null;
+		if (!targetMatches) return;
 		inlineReplyTarget = null;
 		inlineReplyDraft = '';
 		inlineReplyUploads = [];
@@ -483,6 +490,7 @@
 	};
 	const invalidateProfileAccountRequests = () => {
 		profileAccountRequestId += 1;
+		profileAccountLoadPromise = null;
 		loadedProfileAccountKey = '';
 		profileAccountLoadError = null;
 	};
@@ -637,6 +645,7 @@
 			attachments: post.attachments,
 			addressees: post.addressees,
 			mentionAccts: post.mentionAccts,
+			replyAccounts: post.replyAccounts,
 			boostedBy: post.boostedBy ? {
 				name: booster?.displayName ?? post.boostedBy.name,
 				nameEmojis: booster?.emojis ?? post.boostedBy.nameEmojis,
@@ -1736,7 +1745,7 @@
 	const toggleComposerPoll = () => {
 		composerPoll = composerPoll ? null : createComposerPollDraft();
 	};
-	const openInlineReply = (post: RebuildPost, targetRoute: StatusActionOrigin) => {
+	const openInlineReply = async (post: RebuildPost, targetRoute: StatusActionOrigin) => {
 		if (inlineReplySubmitState === 'submitting') return;
 
 		const targetId = statusReplyTargetId(post);
@@ -1758,12 +1767,34 @@
 			clearInlineReply(targetRoute);
 			return;
 		}
+		const samePendingTarget = pendingInlineReplyOpen?.route === nextTarget.route && pendingInlineReplyOpen.targetId === nextTarget.targetId && pendingInlineReplyOpen.renderId === nextTarget.renderId;
+		if (samePendingTarget) {
+			inlineReplyRequestId += 1;
+			pendingInlineReplyOpen = null;
+			return;
+		}
 
 		inlineReplyRequestId += 1;
+		const requestId = inlineReplyRequestId;
+		pendingInlineReplyOpen = { route: nextTarget.route, targetId: nextTarget.targetId, renderId: nextTarget.renderId };
+		const session = currentSession;
+		if (!session) {
+			pendingInlineReplyOpen = null;
+			return;
+		}
+		const currentAccountId = session.account?.id ?? (await loadProfileAccount(session))?.id;
+		if (requestId !== inlineReplyRequestId || untrack(() => inlineReplySubmitState) === 'submitting') return;
+		pendingInlineReplyOpen = null;
+		if (!currentAccountId) {
+			flashPostControl('Reply unavailable: could not load your account.');
+			return;
+		}
+
 		inlineReplyTarget = nextTarget;
 		inlineReplySubmitState = 'idle';
 		inlineReplySubmitError = null;
-		inlineReplyDraft = '';
+		const replyAccounts = post.replyAccounts ?? (post.authorId && post.authorHandle ? [{ id: post.authorId, acct: post.authorHandle }] : []);
+		inlineReplyDraft = composerReplyDraft(replyAccounts, currentAccountId);
 		inlineReplyUploads = [];
 		inlineReplySpoilerActive = false;
 		inlineReplySpoilerText = '';
@@ -2022,29 +2053,39 @@
 		sessionReady = true;
 		return session;
 	};
-	const loadProfileAccount = async (session: PleromaSession) => {
+	const loadProfileAccount = (session: PleromaSession): Promise<PleromaAccount | null> => {
 		const requestSessionKey = sessionKey(session);
+		if (profileAccountLoadPromise?.sessionKey === requestSessionKey) return profileAccountLoadPromise.promise;
 		const requestId = profileAccountRequestId + 1;
 		profileAccountRequestId = requestId;
 
-		try {
-			const client = createPleromaClient({
-				instanceUrl: session.instanceUrl,
-				accessToken: session.accessToken,
-				fetch: window.fetch.bind(window)
-			});
-			const account = await client.getOwnAccount();
-			if (requestId !== profileAccountRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+		const promise = (async () => {
+			try {
+				const client = createPleromaClient({
+					instanceUrl: session.instanceUrl,
+					accessToken: session.accessToken,
+					fetch: window.fetch.bind(window)
+				});
+				const account = await client.getOwnAccount();
+				if (requestId !== profileAccountRequestId || !isCurrentSessionRequest(requestSessionKey)) return null;
 
-			upsertAccountCache([account]);
-			const nextSession = { ...session, account };
-			currentSession = nextSession;
-			profileAccountLoadError = null;
-			writePleromaSession(localStorage, nextSession);
-		} catch (error) {
-			profileAccountLoadError = normalizePleromaRequestError(error);
-			// Profile data is best-effort; authenticated routes can still load with the token.
-		}
+				upsertAccountCache([account]);
+				const nextSession = { ...session, account };
+				currentSession = nextSession;
+				profileAccountLoadError = null;
+				writePleromaSession(localStorage, nextSession);
+				return account;
+			} catch (error) {
+				if (requestId === profileAccountRequestId && isCurrentSessionRequest(requestSessionKey)) profileAccountLoadError = normalizePleromaRequestError(error);
+				// Profile data is best-effort; authenticated routes can still load with the token.
+				return null;
+			}
+		})();
+		profileAccountLoadPromise = { sessionKey: requestSessionKey, promise };
+		void promise.finally(() => {
+			if (profileAccountLoadPromise?.promise === promise) profileAccountLoadPromise = null;
+		});
+		return promise;
 	};
 	const ensureProfileAccount = (session: PleromaSession) => {
 		if (session.account) return;

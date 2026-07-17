@@ -63,3 +63,4 @@
 - [x] [63 Remove unrelated page placeholder](issues/63-remove-unrelated-page-placeholder.md)
 - [x] [64 Add custom theme editor and share codes](issues/64-add-custom-theme-editor-and-share-codes.md)
 - [x] [65 Improve composer attachment previews](issues/65-improve-composer-attachment-previews.md)
+- [x] [66 Prefill replies with all participants](issues/66-prefill-replies-with-all-participants.md)
