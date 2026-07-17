@@ -56,3 +56,4 @@
 - [x] [56 Composer upload alt text](issues/56-composer-upload-alt-text.md)
 - [x] [57 Direct messages (Pleroma chats)](issues/57-direct-messages.md)
 - [x] [58 Remove the header timeline strip](issues/58-remove-header-timeline-strip.md)
+- [x] [59 Deploy working client to GitHub Pages](issues/59-deploy-working-client-to-github-pages.md)
