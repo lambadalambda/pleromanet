@@ -1,1 +1,0 @@
-- [ ] [63 Remove unrelated page placeholder](issues/63-remove-unrelated-page-placeholder.md)
