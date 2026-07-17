@@ -1,1 +1,0 @@
-- [ ] [60 Add timeline auto-insert preference](issues/60-add-timeline-auto-insert-preference.md)
