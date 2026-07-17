@@ -26,6 +26,7 @@
 	import SurfaceCard from '$lib/rebuild/SurfaceCard.svelte';
 	import TimelineLoadMore from '$lib/rebuild/TimelineLoadMore.svelte';
 	import TimelineNewPostsIndicator from '$lib/rebuild/TimelineNewPostsIndicator.svelte';
+	import TimelineSettings from '$lib/rebuild/TimelineSettings.svelte';
 	import { accountsFromPleromaNotifications, accountsFromPleromaStatus, accountsFromPleromaStatuses, createPleromaAccountCache, getCachedPleromaAccount, upsertPleromaAccounts } from '$lib/pleroma/account-cache';
 	import { createPleromaClient } from '$lib/pleroma/client';
 	import { NOTIFICATION_POLL_EVENT, NOTIFICATION_POLL_INTERVAL_MS, readNotificationLastSeenAt, writeNotificationLastSeenAt } from '$lib/pleroma/notifications';
@@ -179,6 +180,8 @@
 	};
 
 	const publicInstanceUrl = env.PUBLIC_PLEROMA_INSTANCE_URL ?? 'https://pleroma.social';
+	const TIMELINE_AUTO_INSERT_KEY = 'pleromanet.timeline.auto-insert-at-top';
+	const TIMELINE_TOP_THRESHOLD = 8;
 
 	let sessionReady = $state(false);
 	let mounted = $state(false);
@@ -220,6 +223,8 @@
 	let mobileSheetOpen = $state(false);
 	let userMenuOpen = $state(false);
 	let userMenuTrigger = $state<HTMLButtonElement | null>(null);
+	let autoInsertTimelinePosts = $state(false);
+	let timelineAtTop = $state(true);
 	let activeTheme = $state<ThemeName>('cream');
 	let notificationsMenuOpen = $state(false);
 	let headerSearchDraft = $state('');
@@ -3093,6 +3098,7 @@
 				newerPosts: queueNewerTimelineItems(homeTimelineState.newerPosts, homeTimelineState.data, posts),
 				newPostsStatus: 'idle'
 			};
+			if (autoInsertTimelinePosts && timelineAtTop) showNewHomePosts(false);
 			return;
 		}
 
@@ -3105,6 +3111,7 @@
 				newerPosts: posts,
 				newPostsStatus: 'idle'
 			};
+			if (autoInsertTimelinePosts && timelineAtTop) showNewHomePosts(false);
 		}
 	};
 	const scheduleHomeTimelineStreamReconnect = (session: PleromaSession, requestSessionKey: string) => {
@@ -3164,6 +3171,7 @@
 				...appPublicTimelineState,
 				newerPosts: queueNewerTimelineItems(appPublicTimelineState.newerPosts, appPublicTimelineState.data, posts)
 			};
+			if (autoInsertTimelinePosts && timelineAtTop) showNewAppPublicPosts(false);
 			return;
 		}
 
@@ -3175,6 +3183,7 @@
 				loadMoreStatus: 'idle',
 				newerPosts: posts
 			};
+			if (autoInsertTimelinePosts && timelineAtTop) showNewAppPublicPosts(false);
 		}
 	};
 	const scheduleAppPublicTimelineStreamReconnect = (session: PleromaSession, timelineRoute: AppPublicTimelineRoute, requestSessionKey: string) => {
@@ -3659,6 +3668,7 @@
 				newerPosts: queueNewerTimelineItems(homeTimelineState.newerPosts, homeTimelineState.data, posts),
 				newPostsStatus: 'idle'
 			};
+			if (autoInsertTimelinePosts && timelineAtTop) showNewHomePosts(false);
 		} catch (error) {
 			if (requestId !== homeTimelineNewPostsRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
@@ -3673,7 +3683,7 @@
 			homeTimelineState = { ...homeTimelineState, newPostsStatus: 'idle' };
 		}
 	};
-	const showNewHomePosts = () => {
+	const showNewHomePosts = (scrollToTop = true) => {
 		if (homeTimelineState.status !== 'success' || homeTimelineState.newerPosts.length === 0) return;
 
 		homeTimelineState = {
@@ -3681,9 +3691,9 @@
 			data: prependTimelineItems(homeTimelineState.data, homeTimelineState.newerPosts),
 			newerPosts: []
 		};
-		window.scrollTo(window.scrollX, 0);
+		if (scrollToTop) window.scrollTo(window.scrollX, 0);
 	};
-	const showNewAppPublicPosts = () => {
+	const showNewAppPublicPosts = (scrollToTop = true) => {
 		if (appPublicTimelineState.status !== 'success' || appPublicTimelineState.newerPosts.length === 0) return;
 
 		appPublicTimelineState = {
@@ -3691,7 +3701,21 @@
 			data: prependTimelineItems(appPublicTimelineState.data, appPublicTimelineState.newerPosts),
 			newerPosts: []
 		};
-		window.scrollTo(window.scrollX, 0);
+		if (scrollToTop) window.scrollTo(window.scrollX, 0);
+	};
+	const flushNewTimelinePostsAtTop = () => {
+		if (!autoInsertTimelinePosts || !timelineAtTop) return;
+		if (route === 'home') showNewHomePosts(false);
+		else if (route === 'local' || route === 'federated') showNewAppPublicPosts(false);
+	};
+	const updateTimelineTop = () => {
+		timelineAtTop = window.scrollY <= TIMELINE_TOP_THRESHOLD;
+		flushNewTimelinePostsAtTop();
+	};
+	const setAutoInsertTimelinePosts = (value: boolean) => {
+		autoInsertTimelinePosts = value;
+		localStorage.setItem(TIMELINE_AUTO_INSERT_KEY, String(value));
+		flushNewTimelinePostsAtTop();
 	};
 	const retryHomeTimeline = () => {
 		if (currentSession) void loadHomeTimeline(currentSession);
@@ -3742,6 +3766,8 @@
 		const storedTheme = localStorage.getItem('pn-theme');
 		if (storedTheme === 'cream' || storedTheme === 'dusk' || storedTheme === 'drive' || storedTheme === 'simoun') applyTheme(storedTheme);
 		searchRecents = readSearchRecents();
+		autoInsertTimelinePosts = localStorage.getItem(TIMELINE_AUTO_INSERT_KEY) === 'true';
+		updateTimelineTop();
 		mounted = true;
 
 		const triggerHomeTimelineCheck = () => {
@@ -3749,6 +3775,7 @@
 		};
 		window.addEventListener(HOME_TIMELINE_CHECK_EVENT, triggerHomeTimelineCheck);
 		window.addEventListener(NOTIFICATION_POLL_EVENT, pollNotifications);
+		window.addEventListener('scroll', updateTimelineTop, { passive: true });
 		const checkInterval = window.setInterval(triggerHomeTimelineCheck, HOME_TIMELINE_FALLBACK_INTERVAL_MS);
 		const notificationInterval = window.setInterval(pollNotifications, NOTIFICATION_POLL_INTERVAL_MS);
 
@@ -3763,6 +3790,7 @@
 			closeHomeTimelineStreaming();
 			window.removeEventListener(HOME_TIMELINE_CHECK_EVENT, triggerHomeTimelineCheck);
 			window.removeEventListener(NOTIFICATION_POLL_EVENT, pollNotifications);
+			window.removeEventListener('scroll', updateTimelineTop);
 			window.clearInterval(checkInterval);
 			window.clearInterval(notificationInterval);
 		};
@@ -4177,7 +4205,7 @@
 								{#if homeTimelineState.status === 'success'}
 									<TimelineNewPostsIndicator count={homeTimelineState.newerPosts.length} onActivate={showNewHomePosts} />
 								{/if}
-								<button type="button" class="tab-action" title="Filters"><Icon name="sliders" width={16} height={16} /></button>
+								<TimelineSettings autoInsertAtTop={autoInsertTimelinePosts} onAutoInsertChange={setAutoInsertTimelinePosts} />
 							</div>
 						</div>
 
@@ -4324,7 +4352,7 @@
 								{#if appPublicTimelineState.status === 'success'}
 									<TimelineNewPostsIndicator count={appPublicTimelineState.newerPosts.length} onActivate={showNewAppPublicPosts} />
 								{/if}
-								<button type="button" class="tab-action" title="Filters"><Icon name="sliders" width={16} height={16} /></button>
+								<TimelineSettings autoInsertAtTop={autoInsertTimelinePosts} onAutoInsertChange={setAutoInsertTimelinePosts} />
 							</div>
 						</div>
 

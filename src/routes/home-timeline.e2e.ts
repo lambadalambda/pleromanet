@@ -2200,6 +2200,78 @@ test('home timeline opens a user stream and queues streamed posts behind the ind
 	})).toBe(true);
 });
 
+test('timeline settings auto-insert incoming posts only while scrolled to the top and persist', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, Array.from({ length: 18 }, (_, index) => statusWithText(`status-${index}`, `existing timeline post ${index}`)));
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const list = page.getByTestId('home-timeline-list');
+	await expect(list).toContainText('existing timeline post 0');
+
+	const settingsButton = page.getByRole('button', { name: 'Timeline settings' });
+	await settingsButton.focus();
+	await settingsButton.press('Enter');
+	const autoInsert = page.getByRole('switch', { name: 'Automatically add new posts at the top' });
+	await expect(autoInsert).toHaveAttribute('aria-checked', 'false');
+	await autoInsert.press('Space');
+	await expect(autoInsert).toHaveAttribute('aria-checked', 'true');
+	await page.keyboard.press('Escape');
+	await expect(settingsButton).toBeFocused();
+
+	await emitStreamUpdate(page, statusWithText('status-auto', 'automatically inserted post'));
+	await expect(list).toContainText('automatically inserted post');
+	await expect(page.getByRole('button', { name: '1 new posts' })).toHaveCount(0);
+
+	await page.reload();
+	await expect(list).toContainText('existing timeline post 0');
+	await settingsButton.click();
+	await expect(autoInsert).toHaveAttribute('aria-checked', 'true');
+	await page.keyboard.press('Escape');
+	await page.evaluate(() => {
+		window.scrollTo(0, document.body.scrollHeight);
+		window.dispatchEvent(new Event('scroll'));
+	});
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+	await emitStreamUpdate(page, statusWithText('status-queued', 'queued while reading post'));
+	await expect(list).not.toContainText('queued while reading post');
+	await expect(page.getByRole('button', { name: '1 new posts' })).toBeVisible();
+
+	await settingsButton.click();
+	await autoInsert.press('Space');
+	await expect(autoInsert).toHaveAttribute('aria-checked', 'false');
+	await page.reload();
+	await settingsButton.click();
+	await expect(autoInsert).toHaveAttribute('aria-checked', 'false');
+});
+
+test('timeline auto-insert applies to fallback checks while at the top', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page, async (route) => {
+		const sinceId = new URL(route.request().url()).searchParams.get('since_id');
+		await fulfillHome(route, [
+			sinceId
+				? statusWithText('status-fallback-auto', 'automatically inserted fallback post')
+				: statusWithText('status-fallback-base', 'fallback baseline post')
+		]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const list = page.getByTestId('home-timeline-list');
+	await expect(list).toContainText('fallback baseline post');
+	await page.getByRole('button', { name: 'Timeline settings' }).click();
+	await page.getByRole('switch', { name: 'Automatically add new posts at the top' }).click();
+	await page.keyboard.press('Escape');
+
+	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
+	await expect(list).toContainText('automatically inserted fallback post');
+	await expect(page.getByRole('button', { name: '1 new posts' })).toHaveCount(0);
+});
+
 test('home timeline fallback backfills gaps behind streamed posts', async ({ page }) => {
 	await authenticate(page);
 	const requestedSinceIds: Array<string | null> = [];

@@ -1632,6 +1632,36 @@ body[data-theme='simoun'] .pill {
 	border-radius: 4px;
 }
 .tab-action:hover { background: var(--bg); color: var(--ink); }
+.tab-action.active { background: var(--accent-soft-2); color: var(--accent-ink); }
+.timeline-settings { position: relative; }
+.timeline-settings-popover {
+	position: absolute;
+	top: calc(100% + 8px);
+	right: 0;
+	width: min(320px, calc(100vw - 32px));
+	padding: 14px;
+	background: var(--panel);
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	box-shadow: 0 14px 38px rgba(31, 30, 45, 0.14);
+	z-index: 20;
+}
+.timeline-settings-heading {
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--muted);
+	margin-bottom: 12px;
+}
+.timeline-settings-row {
+	display: flex;
+	align-items: center;
+	gap: 18px;
+}
+.timeline-settings-copy { flex: 1; min-width: 0; }
+.timeline-settings-label { font-size: 13px; font-weight: 600; color: var(--ink); }
+.timeline-settings-description { margin-top: 3px; font-size: 11px; line-height: 1.45; color: var(--muted); }
 
 /* ===== Buttons ===== */
 .btn-primary {

@@ -189,6 +189,39 @@ test('app public timelines use the home feed surface and stream newer posts', as
 	await expect(page.getByTestId('app-public-timeline-list')).toContainText('fresh federated stream post');
 });
 
+test('timeline auto-insert preference applies across local and federated streams', async ({ page }) => {
+	await authenticate(page);
+	await mockAppPublicTimeline(page, async (route, url) => {
+		const prefix = url.searchParams.get('local') === 'true' ? 'local' : 'federated';
+		await fulfillTimeline(route, Array.from({ length: 18 }, (_, index) => statusWithText(`${prefix}-${index}`, `${prefix} existing post ${index}`)));
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/local');
+	let list = page.getByTestId('app-public-timeline-list');
+	await expect(list).toContainText('local existing post 0');
+	await page.getByRole('button', { name: 'Timeline settings' }).click();
+	await page.getByRole('switch', { name: 'Automatically add new posts at the top' }).click();
+	await page.keyboard.press('Escape');
+
+	await emitStreamUpdate(page, 'public:local', statusWithText('local-auto', 'automatically inserted local post'));
+	await expect(list).toContainText('automatically inserted local post');
+	await page.getByRole('tab', { name: 'Federated' }).click();
+	list = page.getByTestId('app-public-timeline-list');
+	await expect(list).toContainText('federated existing post 0');
+	await emitStreamUpdate(page, 'public', statusWithText('federated-auto', 'automatically inserted federated post'));
+	await expect(list).toContainText('automatically inserted federated post');
+
+	await page.evaluate(() => {
+		window.scrollTo(0, document.body.scrollHeight);
+		window.dispatchEvent(new Event('scroll'));
+	});
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+	await emitStreamUpdate(page, 'public', statusWithText('federated-queued', 'queued federated post'));
+	await expect(list).not.toContainText('queued federated post');
+	await expect(page.getByRole('button', { name: '1 new posts' })).toBeVisible();
+});
+
 test('app public timeline reconnects streams after failures', async ({ page }) => {
 	await page.clock.install();
 	await authenticate(page);
