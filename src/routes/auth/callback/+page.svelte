@@ -8,6 +8,7 @@
 		storePleromaSession,
 		writePleromaSession
 	} from '$lib/pleroma';
+	import { appPath } from '$lib/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 
@@ -109,27 +110,27 @@
 		{:else if callbackState.status === 'success'}
 			<h1>Signed in to {callbackState.instanceHost}</h1>
 			<p>PleromaNet stored an OAuth token from your server.</p>
-			<a class="auth-callback-link" href="/app/home">Open PleromaNet</a>
+			<a class="auth-callback-link" href={appPath('/app/home')}>Open PleromaNet</a>
 		{:else if callbackState.status === 'cancelled'}
 			<h1>Authorization was cancelled</h1>
 			<p>{callbackState.description}</p>
-			<a href="/#oauth">Return to sign in</a>
+			<a href={`${appPath('/')}#oauth`}>Return to sign in</a>
 		{:else if callbackState.status === 'missing-pending'}
 			<h1>No pending Pleroma authorization</h1>
 			<p>Start sign-in again from the landing page.</p>
-			<a href="/#oauth">Return to sign in</a>
+			<a href={`${appPath('/')}#oauth`}>Return to sign in</a>
 		{:else if callbackState.status === 'missing-code'}
 			<h1>Authorization code was missing</h1>
 			<p>Your server returned without an OAuth code.</p>
-			<a href="/#oauth">Return to sign in</a>
+			<a href={`${appPath('/')}#oauth`}>Return to sign in</a>
 		{:else if callbackState.status === 'state-mismatch'}
 			<h1>Authorization state did not match</h1>
 			<p>The OAuth state did not match the pending sign-in request.</p>
-			<a href="/#oauth">Return to sign in</a>
+			<a href={`${appPath('/')}#oauth`}>Return to sign in</a>
 		{:else}
 			<h1>OAuth sign-in failed</h1>
 			<p>{callbackState.message}</p>
-			<a href="/#oauth">Return to sign in</a>
+			<a href={`${appPath('/')}#oauth`}>Return to sign in</a>
 		{/if}
 	</section>
 </main>

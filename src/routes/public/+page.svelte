@@ -1,5 +1,6 @@
 <script lang="ts">
 	import AttachmentLightboxHost from '$lib/rebuild/AttachmentLightboxHost.svelte';
+	import { appPath } from '$lib/navigation';
 	import Button from '$lib/rebuild/Button.svelte';
 	import Icon from '$lib/rebuild/Icon.svelte';
 	import Post from '$lib/rebuild/Post.svelte';
@@ -183,5 +184,5 @@
 			/>
 		{/if}
 	</section>
-	<a class="public-home-link" href="/"><Icon name="arrowL" width={14} height={14} />Back to sign in</a>
+	<a class="public-home-link" href={appPath('/')}><Icon name="arrowL" width={14} height={14} />Back to sign in</a>
 </main>

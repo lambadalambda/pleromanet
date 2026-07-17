@@ -1,4 +1,5 @@
 import type { AvatarVariant, CustomEmoji, PostAttachment, QuotedPostView, SocialNotificationData, SocialNotificationKind, TimelinePost, TimelineView } from '$lib/social/types';
+import { appPath } from '$lib/navigation';
 import { isPleromaClientError } from './http';
 import type { PleromaAccount, PleromaChat, PleromaChatMessage, PleromaCustomEmoji, PleromaField, PleromaInstance, PleromaNotification, PleromaStatus, ProfileUpdate } from './types';
 
@@ -592,7 +593,7 @@ const visibleQuotedStatus = (status: PleromaStatus) => {
 	return status.pleroma.quote ?? null;
 };
 
-const threadHref = (statusId: string) => `/app/thread/${encodeURIComponent(statusId)}`;
+const threadHref = (statusId: string) => appPath(`/app/thread/${encodeURIComponent(statusId)}`);
 
 const adaptQuotedPost = (status: PleromaStatus, now?: number): QuotedPostView => {
 	const account = adaptPleromaAccount(status.account);

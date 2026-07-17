@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { appPath } from '$lib/navigation';
 	import {
 		buildAuthorizationUrl,
 		createOAuthState,
@@ -70,14 +71,14 @@
 		authError = '';
 		authorizationUrl = '';
 
-		const redirectUri = `${window.location.origin}/auth/callback`;
+		const redirectUri = `${window.location.origin}${appPath('/auth/callback')}`;
 		try {
 			const app = await registerOAuthApp({
 				instanceUrl: selectedInstanceUrl,
 				clientName: 'PleromaNet',
 				redirectUri,
 				scopes,
-				website: window.location.origin,
+				website: `${window.location.origin}${appPath('/')}`,
 				fetch: window.fetch.bind(window)
 			});
 
@@ -110,7 +111,7 @@
 	};
 
 	onMount(() => {
-		if (readPleromaSession(localStorage)) goto('/app/home');
+		if (readPleromaSession(localStorage)) goto(appPath('/app/home'));
 	});
 </script>
 
@@ -121,16 +122,16 @@
 <div class="signedout">
 	<header class="so-header" aria-label="PleromaNet landing">
 		<div class="so-shell so-header-inner">
-			<a class="so-brand" href="/" aria-label="PleromaNet home">
+			<a class="so-brand" href={appPath('/')} aria-label="PleromaNet home">
 				<span class="brand-mark"><Icon name="sparkBig" /></span>
 				<span class="brand-name">PleromaNet<sup>TM</sup></span>
 			</a>
 			<nav class="so-nav" aria-label="Public links">
-				<a href="/public">Browse public</a>
-				<a href="/public">Federation log</a>
-				<a href="/design-system">Design system</a>
+				<a href={appPath('/public')}>Browse public</a>
+				<a href={appPath('/public')}>Federation log</a>
+				<a href={appPath('/design-system')}>Design system</a>
 			</nav>
-			<a class="so-mini-cta" href="/public">Open public timeline</a>
+			<a class="so-mini-cta" href={appPath('/public')}>Open public timeline</a>
 		</div>
 	</header>
 
@@ -228,7 +229,7 @@
 			<p class="so-eyebrow">A look inside</p>
 			<h2>The federated timeline, right now.</h2>
 		</div>
-		<a href="/public">View public timeline</a>
+		<a href={appPath('/public')}>View public timeline</a>
 	</section>
 
 	<section class="so-rules so-shell">

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { appPath, stripBasePath } from '$lib/navigation';
 	import AncestorPost from '$lib/rebuild/AncestorPost.svelte';
 	import AttachmentLightboxHost from '$lib/rebuild/AttachmentLightboxHost.svelte';
 	import Avatar from '$lib/rebuild/Avatar.svelte';
@@ -566,14 +567,14 @@
 
 	const chatUnreadCount = $derived(chatsState.status === 'success' ? chatsState.data.reduce((sum, chat) => sum + chat.unread, 0) : 0);
 	let navItems = $derived<NavItem[]>([
-		{ route: 'home', label: 'Home', icon: 'home', href: '/app/home' },
-		{ route: 'local', label: 'Local', icon: 'users', href: '/app/local' },
-		{ route: 'federated', label: 'Federated', icon: 'globe', href: '/app/federated' },
-		{ route: 'explore', label: 'Explore', icon: 'search', href: '/app/explore' },
-		{ route: 'notifications', label: 'Notifications', icon: 'bell', href: '/app/notifications', count: unreadNotificationCount || undefined },
-		{ route: 'messages', label: 'Messages', icon: 'msg', href: '/app/messages', count: chatUnreadCount || undefined },
-		{ route: 'bookmarks', label: 'Bookmarks', icon: 'bookmark', href: '/app/bookmarks' },
-		{ route: 'settings', label: 'Settings', icon: 'gear', href: '/app/settings' },
+		{ route: 'home', label: 'Home', icon: 'home', href: appPath('/app/home') },
+		{ route: 'local', label: 'Local', icon: 'users', href: appPath('/app/local') },
+		{ route: 'federated', label: 'Federated', icon: 'globe', href: appPath('/app/federated') },
+		{ route: 'explore', label: 'Explore', icon: 'search', href: appPath('/app/explore') },
+		{ route: 'notifications', label: 'Notifications', icon: 'bell', href: appPath('/app/notifications'), count: unreadNotificationCount || undefined },
+		{ route: 'messages', label: 'Messages', icon: 'msg', href: appPath('/app/messages'), count: chatUnreadCount || undefined },
+		{ route: 'bookmarks', label: 'Bookmarks', icon: 'bookmark', href: appPath('/app/bookmarks') },
+		{ route: 'settings', label: 'Settings', icon: 'gear', href: appPath('/app/settings') },
 	]);
 	const timelineRoutes: AppRoute[] = ['home', 'local', 'federated', 'public', 'thread'];
 	const settingsSubnav = ['Profile', 'Appearance', 'Notifications', 'Filters', 'Federation', 'Account', 'Import / Export', 'Development'];
@@ -754,14 +755,14 @@
 		posts.map((post) => matchesStatusReplyTarget(post, targetId) ? update(post) : post);
 	const updateProfilePostsByReplyTarget = (posts: ProfilePost[], targetId: string, update: (post: ProfilePost) => ProfilePost) =>
 		posts.map((post) => matchesStatusReplyTarget(post, targetId) ? update(post) : post);
-	const profileHrefForAccount = (account: { acct: string }) => `/app/profiles/${encodeURIComponent(account.acct)}`;
+	const profileHrefForAccount = (account: { acct: string }) => appPath(`/app/profiles/${encodeURIComponent(account.acct)}`);
 	const searchUrl = (query: string, tab: SearchTab = 'all') => {
 		const params = new URLSearchParams();
 		const trimmed = query.trim();
 		if (trimmed) params.set('q', trimmed);
 		if (tab !== 'all') params.set('tab', tab);
 		const queryString = params.toString();
-		return queryString ? `/app/search?${queryString}` : '/app/search';
+		return appPath(queryString ? `/app/search?${queryString}` : '/app/search');
 	};
 	const submitSearch = (query: string, tab: SearchTab = 'all') => {
 		const trimmed = query.trim();
@@ -1237,7 +1238,7 @@
 
 				if (focusedDeleted) {
 					flashPostControl('Post deleted');
-					goto('/app/home');
+					goto(appPath('/app/home'));
 					return;
 				}
 				removeStatusesEverywhere((post) => !matchesStatusActionTarget(post, targetId), (post) => !matchesStatusActionTarget(post, targetId));
@@ -1304,32 +1305,33 @@
 	};
 	const openThread = (post: { id: string | number; actionStatusId?: string; threadStatusId?: string }) => {
 		const statusId = post.threadStatusId ?? post.actionStatusId ?? String(post.id);
-		goto(`/app/thread/${encodeURIComponent(statusId)}`);
+		goto(appPath(`/app/thread/${encodeURIComponent(statusId)}`));
 	};
+	const routePathname = $derived(stripBasePath(page.url.pathname));
 	const route = $derived<AppRoute>(
-		page.url.pathname.startsWith('/app/search') ? 'search' :
-		page.url.pathname.startsWith('/app/explore') ? 'explore' :
-		page.url.pathname.startsWith('/app/settings') ? 'settings' :
-		page.url.pathname.startsWith('/app/local') ? 'local' :
-		page.url.pathname.startsWith('/app/federated') ? 'federated' :
-		page.url.pathname.startsWith('/app/public') ? 'public' :
-		page.url.pathname.startsWith('/app/thread') ? 'thread' :
-		page.url.pathname.startsWith('/app/profiles') ? 'profile' :
-		page.url.pathname.startsWith('/app/notifications') ? 'notifications' :
-		page.url.pathname.startsWith('/app/bookmarks') ? 'bookmarks' :
-		page.url.pathname.startsWith('/app/messages') ? 'messages' :
+		routePathname.startsWith('/app/search') ? 'search' :
+		routePathname.startsWith('/app/explore') ? 'explore' :
+		routePathname.startsWith('/app/settings') ? 'settings' :
+		routePathname.startsWith('/app/local') ? 'local' :
+		routePathname.startsWith('/app/federated') ? 'federated' :
+		routePathname.startsWith('/app/public') ? 'public' :
+		routePathname.startsWith('/app/thread') ? 'thread' :
+		routePathname.startsWith('/app/profiles') ? 'profile' :
+		routePathname.startsWith('/app/notifications') ? 'notifications' :
+		routePathname.startsWith('/app/bookmarks') ? 'bookmarks' :
+		routePathname.startsWith('/app/messages') ? 'messages' :
 		'home'
 	);
 	const searchShell = $derived(route === 'search');
 	const appPublicTimelineRoute = $derived<AppPublicTimelineRoute | null>(route === 'local' || route === 'federated' ? route : null);
-	const messagesChatId = $derived(route === 'messages' ? page.url.pathname.split('/')[3] || null : null);
+	const messagesChatId = $derived(route === 'messages' ? routePathname.split('/')[3] || null : null);
 	const activeChat = $derived(messagesChatId && chatsState.status === 'success' ? chatsState.data.find((chat) => chat.id === messagesChatId) ?? null : null);
 	const appPublicTimelineEmptyHeading = $derived(route === 'local' ? 'No local posts yet' : 'No federated posts yet');
 	const appPublicTimelinePosts = $derived(appPublicTimelineState.status === 'success' ? appPublicTimelineState.data.map(postForRebuild) : []);
 	const bookmarksPosts = $derived(bookmarksState.status === 'success' ? bookmarksState.data.map(postForRebuild) : []);
 	const appPublicStatusActionErrors = $derived(route === 'local' ? localStatusActionErrors : route === 'federated' ? federatedStatusActionErrors : []);
-	const threadStatusId = $derived(route === 'thread' ? decodeURIComponent(page.url.pathname.split('/').filter(Boolean).slice(2).join('/') || '') : '');
-	const profileRouteHandle = $derived(route === 'profile' ? decodeURIComponent(page.url.pathname.split('/').filter(Boolean).slice(2).join('/') || '') : '');
+	const threadStatusId = $derived(route === 'thread' ? decodeURIComponent(routePathname.split('/').filter(Boolean).slice(2).join('/') || '') : '');
+	const profileRouteHandle = $derived(route === 'profile' ? decodeURIComponent(routePathname.split('/').filter(Boolean).slice(2).join('/') || '') : '');
 	const searchQuery = $derived(route === 'search' ? (page.url.searchParams.get('q') ?? '').trim() : '');
 	const searchTab = $derived<SearchTab>(
 		page.url.searchParams.get('tab') === 'people' ? 'people' :
@@ -1893,7 +1895,7 @@
 	};
 	const openUserSettings = () => {
 		userMenuOpen = false;
-		goto('/app/settings');
+		goto(appPath('/app/settings'));
 	};
 	const signOutFromUserMenu = () => {
 		userMenuOpen = false;
@@ -1941,7 +1943,7 @@
 		homeTimelineFallbackSinceId = null;
 		currentSession = null;
 		sessionReady = false;
-		goto('/');
+		goto(appPath('/'));
 	};
 	const readSessionOrRedirect = (options: { optional?: boolean } = {}) => {
 		const session = readPleromaSession(localStorage);
@@ -2590,7 +2592,7 @@
 		searchPageDebounceTimer = window.setTimeout(() => {
 			searchPageDebounceTimer = null;
 			const q = searchPageDraft.trim();
-			goto(q ? searchUrl(q, searchTab) : '/app/search', { replaceState: true });
+			goto(q ? searchUrl(q, searchTab) : appPath('/app/search'), { replaceState: true });
 		}, SEARCH_PAGE_DEBOUNCE_MS);
 	};
 	const scheduleHeaderSearch = (session: PleromaSession, query: string) => {
@@ -3043,11 +3045,11 @@
 	const openNotification = (notification: SocialNotificationData) => {
 		notificationsMenuOpen = false;
 		if (notification.target?.route === 'thread') {
-			goto(`/app/thread/${encodeURIComponent(notification.target.statusId)}`);
+			goto(appPath(`/app/thread/${encodeURIComponent(notification.target.statusId)}`));
 			return;
 		}
 		if (notification.target?.route === 'profile') {
-			goto(`/app/profiles/${encodeURIComponent(notification.target.accountHandle)}`);
+			goto(appPath(`/app/profiles/${encodeURIComponent(notification.target.accountHandle)}`));
 		}
 	};
 	const resolveFollowRequestNotification = async (notification: SocialNotificationData, action: 'accept' | 'reject') => {
@@ -3705,7 +3707,7 @@
 	};
 	const openNotificationsRoute = () => {
 		notificationsMenuOpen = false;
-		goto('/app/notifications');
+		goto(appPath('/app/notifications'));
 	};
 	const toggleNotificationsPopover = () => {
 		userMenuOpen = false;
@@ -3767,7 +3769,7 @@
 	});
 
 	$effect(() => {
-		const pathname = page.url.pathname;
+		const pathname = stripBasePath(page.url.pathname);
 		if (!mounted) return;
 		if (route === 'search') {
 			headerSearchDraft = searchQuery;
@@ -3948,7 +3950,7 @@
 			<div class="public-profile-wrap">
 				<div class="card public-signin-banner">
 					<span>You're viewing a public profile.</span>
-					<a href="/">Sign in to follow and interact →</a>
+					<a href={appPath('/')}>Sign in to follow and interact →</a>
 				</div>
 				{#if profileRouteState.status === 'loading' || profileRouteState.status === 'idle'}
 					<div class="card request-state" role="status" aria-label="Request status">Loading profile</div>
@@ -3969,10 +3971,10 @@
 						media={profileRouteState.data.media}
 						timelineLoading={profileRouteState.timelineStatus === 'loading'}
 						signedOut
-						onSignIn={() => goto('/')}
+						onSignIn={() => goto(appPath('/'))}
 					/>
 				{/if}
-				<a class="public-home-link" href="/"><Icon name="arrowL" width={14} height={14} />Back to sign in</a>
+				<a class="public-home-link" href={appPath('/')}><Icon name="arrowL" width={14} height={14} />Back to sign in</a>
 			</div>
 		</main>
 	{/if}
@@ -3985,7 +3987,7 @@
 						<button type="button" class="menu-btn app-mobile-menu" aria-label="Open navigation menu" onclick={() => (mobileDrawerOpen = true)}>
 							<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
 						</button>
-						<a href="/app/home" class="brand-core" onclick={closeMobilePanels}>
+						<a href={appPath('/app/home')} class="brand-core" onclick={closeMobilePanels}>
 							<span class="brand-mark"><Icon name="sparkBig" /></span>
 							<span class="brand-name">PleromaNet<sup>™</sup></span>
 						</a>
@@ -4166,9 +4168,9 @@
 					<section class="card app-feed-card">
 						<div class="tabs timeline-tabs">
 							<div class="timeline-tab-list" role="tablist" aria-label="Timeline sections">
-								<a href="/app/home" role="tab" aria-selected="true" class="tab active">Home</a>
-								<a href="/app/local" role="tab" aria-selected="false" class="tab">Local</a>
-								<a href="/app/federated" role="tab" aria-selected="false" class="tab">Federated</a>
+								<a href={appPath('/app/home')} role="tab" aria-selected="true" class="tab active">Home</a>
+								<a href={appPath('/app/local')} role="tab" aria-selected="false" class="tab">Local</a>
+								<a href={appPath('/app/federated')} role="tab" aria-selected="false" class="tab">Federated</a>
 							</div>
 							<span class="tab-spacer"></span>
 							<div class="timeline-tab-actions" data-testid="timeline-header-actions">
@@ -4313,9 +4315,9 @@
 					<section class="card app-feed-card">
 						<div class="tabs timeline-tabs">
 							<div class="timeline-tab-list" role="tablist" aria-label="Timeline sections">
-								<a href="/app/home" role="tab" aria-selected="false" class="tab">Home</a>
-								<a href="/app/local" role="tab" aria-selected={route === 'local'} class="tab" class:active={route === 'local'}>Local</a>
-								<a href="/app/federated" role="tab" aria-selected={route === 'federated'} class="tab" class:active={route === 'federated'}>Federated</a>
+								<a href={appPath('/app/home')} role="tab" aria-selected="false" class="tab">Home</a>
+								<a href={appPath('/app/local')} role="tab" aria-selected={route === 'local'} class="tab" class:active={route === 'local'}>Local</a>
+								<a href={appPath('/app/federated')} role="tab" aria-selected={route === 'federated'} class="tab" class:active={route === 'federated'}>Federated</a>
 							</div>
 							<span class="tab-spacer"></span>
 							<div class="timeline-tab-actions" data-testid="timeline-header-actions">
@@ -4450,7 +4452,7 @@
 				{:else if route === 'thread'}
 					<section class="card thread-view" data-testid="thread-view">
 						<div class="thread-head-title">
-							<button type="button" class="thread-back" aria-label="Back to home timeline" onclick={() => goto('/app/home')}><Icon name="arrowL" width={15} height={15} /></button>
+							<button type="button" class="thread-back" aria-label="Back to home timeline" onclick={() => goto(appPath('/app/home'))}><Icon name="arrowL" width={15} height={15} /></button>
 							<h1>Thread</h1>
 						</div>
 						{#each threadStatusActionErrors as actionError (`${actionError.targetId}:${actionError.key}`)}
@@ -4554,7 +4556,7 @@
 								onPostReact={(post, anchor) => openReactionPicker(post, 'profile', anchor)}
 								onPostVote={(post, pollId, choice) => votePollForPost(post, pollId, choice, 'profile')}
 								canManage={Boolean(currentSession)}
-								onEditProfile={() => goto('/app/settings')}
+								onEditProfile={() => goto(appPath('/app/settings'))}
 								onFollowToggle={toggleProfileFollow}
 							/>
 						{/if}
@@ -4612,7 +4614,7 @@
 							{:else if chatsState.status === 'success'}
 								<div class="chat-list" data-testid="chat-list">
 									{#each chatsState.data as chat (chat.id)}
-										<ChatRow {chat} href={`/app/messages/${chat.id}`} />
+										<ChatRow {chat} href={appPath(`/app/messages/${chat.id}`)} />
 									{/each}
 								</div>
 							{/if}
@@ -4778,9 +4780,9 @@
 		</div>
 
 		<nav class="mobile-bottom" data-testid="mobile-bottom-nav" aria-label="Mobile app navigation">
-			<a href="/app/home" class:active={route === 'home'} class="mob-tab"><Icon name="home" /><span>Home</span></a>
-			<a href="/app/explore" class:active={route === 'explore'} class="mob-tab"><Icon name="search" /><span>Explore</span></a>
-			<a href="/app/settings" class:active={route === 'settings'} class="mob-tab"><Icon name="gear" /><span>Settings</span></a>
+			<a href={appPath('/app/home')} class:active={route === 'home'} class="mob-tab"><Icon name="home" /><span>Home</span></a>
+			<a href={appPath('/app/explore')} class:active={route === 'explore'} class="mob-tab"><Icon name="search" /><span>Explore</span></a>
+			<a href={appPath('/app/settings')} class:active={route === 'settings'} class="mob-tab"><Icon name="gear" /><span>Settings</span></a>
 			<button type="button" class="mob-tab" onclick={() => (mobileSheetOpen = true)}><Icon name="list" /><span>More</span></button>
 		</nav>
 

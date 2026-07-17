@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Avatar from './Avatar.svelte';
+	import { appPath } from '$lib/navigation';
 	import Icon from './Icon.svelte';
 	import RichText from './RichText.svelte';
 	import { profileHref } from './profile-links';
@@ -49,7 +50,7 @@
 
 <div class="chat-thread" data-testid="chat-thread">
 	<div class="chat-thread-head">
-		<a class="chat-thread-back" href="/app/messages" aria-label="Back to conversations"><Icon name="reply" width={14} height={14} /></a>
+		<a class="chat-thread-back" href={appPath('/app/messages')} aria-label="Back to conversations"><Icon name="reply" width={14} height={14} /></a>
 		<Avatar post={partnerAvatar} alt={`${partner.name} avatar`} size={32} className="chat-thread-av" />
 		<div class="chat-thread-id">
 			<div class="chat-thread-name"><RichText text={partner.name} emojis={partner.nameEmojis} linkMentions={false} /></div>

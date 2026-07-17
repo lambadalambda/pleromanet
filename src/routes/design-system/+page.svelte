@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { appPath } from '$lib/navigation';
 	import Avatar from '$lib/rebuild/Avatar.svelte';
 	import AncestorPost from '$lib/rebuild/AncestorPost.svelte';
 	import Button from '$lib/rebuild/Button.svelte';
@@ -541,7 +542,7 @@
 					</button>
 				{/each}
 			</div>
-			<a class="ds-app-link" href="PleromaNet.html">Open app →</a>
+			<a class="ds-app-link" href={appPath('/app/home')}>Open app →</a>
 		</div>
 	</header>
 
