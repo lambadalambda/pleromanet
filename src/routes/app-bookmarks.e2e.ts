@@ -38,10 +38,12 @@ test('bookmarks route lists saved posts from the API', async ({ page }) => {
 		await fulfillJson(route, [bookmarkStatus('bm-1', 'saved for later'), bookmarkStatus('bm-2', 'another keeper')]);
 	});
 
-	await setViewport(page, 'desktop');
+	await setViewport(page, 'wide');
 	await page.goto('/app/bookmarks');
 
 	await expect(page.getByRole('heading', { name: 'Bookmarks' })).toBeVisible();
+	await expect(page.getByTestId('right-rail')).toHaveCount(0);
+	await expect.poll(async () => (await page.getByTestId('app-content').boundingBox())?.width ?? 0).toBeGreaterThan(900);
 	const list = page.getByTestId('bookmarks-list');
 	await expect(list).toContainText('saved for later');
 	await expect(list).toContainText('another keeper');

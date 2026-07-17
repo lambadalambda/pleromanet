@@ -93,7 +93,7 @@ test('header search opens the full search page with people and post results', as
 	await authenticate(page);
 	await mockHomeTimeline(page);
 	const requests = await mockSearch(page);
-	await setViewport(page, 'desktop');
+	await setViewport(page, 'wide');
 	await page.goto('/app/home');
 
 	await page.getByRole('combobox', { name: 'Search PleromaNet' }).fill('slow web');
@@ -101,7 +101,7 @@ test('header search opens the full search page with people and post results', as
 
 	await expect(page).toHaveURL(/\/app\/search\?q=slow\+web$/);
 	await expect(page.getByRole('heading', { name: 'Search' })).toHaveCount(0);
-	await expect(page.getByTestId('right-rail')).not.toBeVisible();
+	await expect(page.getByTestId('right-rail')).toHaveCount(0);
 	await expect(page.getByText('Profile preview')).not.toBeVisible();
 	await expect.poll(async () => (await page.getByTestId('search-pageframe').boundingBox())?.width ?? 0).toBeGreaterThan(800);
 	await expect(page.getByTestId('search-pageframe').getByRole('button', { name: 'Search' })).toHaveCount(0);

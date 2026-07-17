@@ -484,11 +484,8 @@ a { color: inherit; text-decoration: none; }
 	margin: 0 auto;
 	padding: 20px 24px 60px;
 }
-.app-shell-grid.search-grid {
+.app-shell-grid.content-wide {
 	grid-template-columns: 240px minmax(0, 1fr);
-}
-.app-shell-grid.search-grid .app-right-rail {
-	display: none;
 }
 .app-left-sidebar,
 .app-content,
@@ -6810,6 +6807,9 @@ body[data-theme='simoun'] .composer { background: linear-gradient(180deg, #1c254
 	.app-shell-grid {
 		grid-template-columns: 220px minmax(0, 1fr);
 	}
+	.app-shell-grid.content-wide {
+		grid-template-columns: 220px minmax(0, 1fr);
+	}
 	.app-right-rail { display: none; }
 	.pp-inline-rail {
 		display: grid;
@@ -6822,12 +6822,15 @@ body[data-theme='simoun'] .composer { background: linear-gradient(180deg, #1c254
 	.app-shell-grid {
 		grid-template-columns: 200px minmax(0, 1fr);
 	}
+	.app-shell-grid.content-wide {
+		grid-template-columns: 200px minmax(0, 1fr);
+	}
 }
 
 @media (max-width: 880px) {
 	.app-route-shell { --app-header-sticky-offset: 57px; }
 	.app-header-shell { padding: 0 14px; }
-	.app-shell-grid.search-grid { grid-template-columns: minmax(0, 1fr); }
+	.app-shell-grid.content-wide { grid-template-columns: minmax(0, 1fr); }
 	.app-header-inner {
 		grid-template-columns: auto minmax(0, 1fr) auto;
 		gap: 12px;

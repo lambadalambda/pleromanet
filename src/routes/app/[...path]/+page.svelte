@@ -1327,7 +1327,7 @@
 		routePathname.startsWith('/app/messages') ? 'messages' :
 		'home'
 	);
-	const searchShell = $derived(route === 'search');
+	const hasRightRail = $derived(timelineRoutes.includes(route) || route === 'explore' || route === 'profile' || route === 'settings');
 	const appPublicTimelineRoute = $derived<AppPublicTimelineRoute | null>(route === 'local' || route === 'federated' ? route : null);
 	const messagesChatId = $derived(route === 'messages' ? routePathname.split('/')[3] || null : null);
 	const activeChat = $derived(messagesChatId && chatsState.status === 'success' ? chatsState.data.find((chat) => chat.id === messagesChatId) ?? null : null);
@@ -4166,7 +4166,7 @@
 			</div>
 		</header>
 
-		<div class="app-shell-grid" class:search-grid={searchShell}>
+		<div class="app-shell-grid" class:content-wide={!hasRightRail}>
 			<aside class="app-left-sidebar" data-testid="left-sidebar">
 				<ProfileMini account={currentSession?.account} instanceUrl={currentSession?.instanceUrl} />
 				<div class="card app-side-card">
@@ -4768,7 +4768,8 @@
 				{/if}
 			</main>
 
-			<aside class="app-right-rail" data-testid="right-rail">
+			{#if hasRightRail}
+				<aside class="app-right-rail" data-testid="right-rail">
 				{#if isTimelineRoute(route)}
 					<div class="rail-title">Trends &amp; Activity</div>
 					<SurfaceCard kind="trends" trendsState={trendsState} />
@@ -4800,11 +4801,9 @@
 						<div class="card-head surface-head-quiet"><span class="surface-tip-title"><Icon name="info" width={14} height={14} />Profile tips</span></div>
 						<div class="surface-tip-list"><div class="surface-tip"><Icon name="image" width={14} height={14} /><span>Your avatar will be shown at 96×96px.</span></div></div>
 					</div>
-				{:else if route !== 'search'}
-					<SurfaceCard kind="profile-preview" />
-					<SurfaceCard kind="profile-tips" />
 				{/if}
-			</aside>
+				</aside>
+			{/if}
 		</div>
 
 		<nav class="mobile-bottom" data-testid="mobile-bottom-nav" aria-label="Mobile app navigation">

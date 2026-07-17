@@ -79,10 +79,12 @@ test('messages route lists chats with unread badges and nav count', async ({ pag
 		await fulfillJson(route, [chatFixture()]);
 	});
 
-	await setViewport(page, 'desktop');
+	await setViewport(page, 'wide');
 	await page.goto('/app/messages');
 
 	await expect(page.getByRole('heading', { name: 'Messages' })).toBeVisible();
+	await expect(page.getByTestId('right-rail')).toHaveCount(0);
+	await expect.poll(async () => (await page.getByTestId('app-content').boundingBox())?.width ?? 0).toBeGreaterThan(900);
 	const list = page.getByTestId('chat-list');
 	await expect(list).toContainText('tape witch');
 	await expect(list).toContainText('did you find the cassette?');

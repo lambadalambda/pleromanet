@@ -196,10 +196,12 @@ test('real notifications route renders mocked API notifications and navigates by
 	await mockThread(page, mentionStatus);
 	await mockThread(page, favStatus);
 	await mockNotifications(page, () => initialNotifications);
-	await setViewport(page, 'desktop');
+	await setViewport(page, 'wide');
 	await page.goto('/app/notifications');
 
 	await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible();
+	await expect(page.getByTestId('right-rail')).toHaveCount(0);
+	await expect.poll(async () => (await page.getByTestId('app-content').boundingBox())?.width ?? 0).toBeGreaterThan(900);
 	await expect(page.getByTestId('notifications-list')).toContainText('orbit mentioned you');
 	await expect(page.getByTestId('notifications-list')).toContainText('static.gif followed you');
 	await expect(page.getByTestId('notifications-list')).toContainText('kestrel favorited your post');
