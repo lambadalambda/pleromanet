@@ -2121,23 +2121,37 @@ body[data-theme='simoun'] .pill {
 .composer-drop-slot em { color: var(--accent-ink); font-style: normal; }
 .composer-drop-slot kbd { margin-left: auto; color: var(--ink-2); font: inherit; }
 @keyframes composer-dz-slot-fade { from { opacity: 0.7; } to { opacity: 1; } }
-.composer-uploads { display: flex; flex-direction: column; gap: 6px; margin: 10px 0 0; }
-.composer-upload-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel-2); }
-.composer-upload-row.error { border-color: var(--bad); border-left: 2px solid var(--bad); background: rgba(214, 139, 139, 0.08); }
-.composer-upload-thumb { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 3px; background: linear-gradient(135deg, #6b4d8e, #d889a0); color: white; font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; }
-.composer-upload-thumb.audio { background: linear-gradient(135deg, #1a4a4a, #4a8a8a); }
-.composer-upload-thumb.video { background: linear-gradient(135deg, #4a2a4a, #8a4a8a); }
-.composer-upload-meta { min-width: 0; }
-.composer-upload-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-size: 12.5px; font-weight: 500; }
+.composer-uploads { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 10px; max-width: 730px; margin: 10px 0 0; }
+.composer-upload-row { width: 100%; max-width: 360px; min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 4px; background: var(--panel-2); }
+.composer-upload-row.error { border-color: var(--bad); border-left: 2px solid var(--bad); background: color-mix(in srgb, var(--bad) 8%, var(--panel-2)); }
+.composer-upload-preview { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 10; overflow: hidden; border-bottom: 1px solid var(--border); background: var(--bg); }
+.composer-upload-media { display: block; width: 100%; height: 100%; object-fit: contain; background: var(--bg); }
+.composer-upload-preview.video { background: #090a12; }
+.composer-upload-preview.video .composer-upload-media { background: #090a12; }
+.composer-upload-unavailable { position: relative; width: 100%; height: 100%; }
+.composer-upload-unavailable > span { position: absolute; right: 8px; bottom: 8px; padding: 4px 7px; border-radius: 2px; background: rgba(9,10,18,0.72); color: #fff; font-family: var(--mono); font-size: 9px; letter-spacing: 0.06em; }
+.composer-upload-audio-art { display: grid; width: 100%; height: 100%; place-content: center; gap: 14px; padding: 22px; background: linear-gradient(145deg, var(--panel-2), var(--accent-soft-2)); color: var(--muted); text-align: center; font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; }
+.composer-upload-wave { display: flex; align-items: center; justify-content: center; gap: 3px; height: 54px; }
+.composer-upload-wave span { width: 3px; min-height: 6px; border-radius: 1px; background: linear-gradient(180deg, var(--accent-ink), var(--accent)); opacity: 0.84; }
+.composer-upload-fallback { display: grid; place-items: center; gap: 8px; color: var(--muted); text-align: center; }
+.composer-upload-fallback strong { display: grid; place-items: center; width: 54px; height: 54px; border: 1px solid var(--border-strong); border-radius: 3px; background: var(--panel-2); color: var(--accent-ink); font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; }
+.composer-upload-fallback span { font-family: var(--mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
+.composer-upload-kind { position: absolute; top: 8px; left: 8px; padding: 3px 6px; border: 1px solid rgba(255,255,255,0.25); border-radius: 2px; background: rgba(9,10,18,0.68); color: #fff; font-family: var(--mono); font-size: 9px; line-height: 1; letter-spacing: 0.12em; }
+.composer-upload-meta { min-width: 0; padding: 10px; }
+.composer-upload-head { display: flex; align-items: center; gap: 8px; }
+.composer-upload-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-size: 12.5px; font-weight: 600; }
 .composer-upload-prog-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; color: var(--muted); font-family: var(--mono); font-size: 10px; }
 .composer-upload-bar { flex: 1; height: 3px; overflow: hidden; border-radius: 2px; background: var(--border); }
 .composer-upload-bar > span { display: block; height: 100%; border-radius: 2px; background: var(--accent); transition: width 240ms ease; }
 .composer-upload-pct { min-width: 30px; color: var(--accent-ink); text-align: right; }
 .composer-upload-error { margin-top: 4px; color: var(--bad); font-family: var(--mono); font-size: 10px; }
-.composer-upload-alt { width: 100%; margin-top: 6px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 3px; background: var(--panel); color: var(--ink); font-size: 12px; }
+.composer-upload-audio { display: block; width: 100%; height: 34px; margin-top: 8px; }
+.composer-upload-alt-wrap { display: grid; gap: 4px; margin-top: 8px; }
+.composer-upload-alt-wrap > span { color: var(--muted); font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; }
+.composer-upload-alt { width: 100%; min-height: 34px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 3px; background: var(--panel); color: var(--ink); font-size: 12px; }
 .composer-upload-alt::placeholder { color: var(--muted-2); }
 .composer-upload-alt:focus { border-color: var(--accent); outline: none; }
-.composer-upload-rm { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid transparent; border-radius: 3px; color: var(--muted-2); }
+.composer-upload-rm { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border: 1px solid transparent; border-radius: 3px; color: var(--muted-2); }
 .composer-upload-rm:hover { color: var(--bad); border-color: var(--border); background: var(--panel); }
 .composer-upload-rm:disabled { cursor: not-allowed; opacity: 0.5; }
 .composer-row {

@@ -4,6 +4,7 @@
 	import Avatar from '$lib/rebuild/Avatar.svelte';
 	import AncestorPost from '$lib/rebuild/AncestorPost.svelte';
 	import Button from '$lib/rebuild/Button.svelte';
+	import ComposerAttachmentPreview from '$lib/rebuild/ComposerAttachmentPreview.svelte';
 	import ComposerCWPanel from '$lib/rebuild/ComposerCWPanel.svelte';
 	import ComposerMentionEditor from '$lib/rebuild/ComposerMentionEditor.svelte';
 	import EmojiPicker from '$lib/rebuild/EmojiPicker.svelte';
@@ -20,7 +21,7 @@
 	import CompactAudio from '$lib/rebuild/CompactAudio.svelte';
 	import AttachmentLightboxHost from '$lib/rebuild/AttachmentLightboxHost.svelte';
 	import { openLightbox } from '$lib/rebuild/attachments';
-	import { createComposerPollDraft, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft } from '$lib/rebuild/composer';
+	import { createComposerPollDraft, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
 	import MediaStripThumb from '$lib/rebuild/MediaStripThumb.svelte';
 	import MediaStripKindBadge from '$lib/rebuild/MediaStripKindBadge.svelte';
 	import MobilePreview from '$lib/rebuild/MobilePreview.svelte';
@@ -251,12 +252,13 @@
 	];
 	const DS_SHORTCODE_QUERY = 'bl';
 	const DS_SHORTCODE_EMOJI = DS_CUSTOM_EMOJI.filter((emoji) => emoji.shortcode.startsWith(DS_SHORTCODE_QUERY));
-	const DS_UPLOADS = [
-		{ id: 'u1', name: 'rain-on-glass-take2.wav', kind: 'audio', pct: 100 },
-		{ id: 'u2', name: 'windowsill-dusk.jpg', kind: 'photo', pct: 62 },
-		{ id: 'u3', name: 'kettle-take1.jpg', kind: 'photo', pct: 14 }
+	const DS_UPLOADS: ComposerUpload[] = [
+		{ localId: 'u1', name: 'windowsill-dusk.jpg', kind: 'photo', progress: 100, status: 'uploaded', media: { id: 'ds-photo', type: 'image', url: 'samples/falco.png', preview_url: 'samples/falco.png', description: 'Station windows at dusk.' } },
+		{ localId: 'u2', name: 'rain-on-glass-take2.wav', kind: 'audio', progress: 62, status: 'uploading' },
+		{ localId: 'u3', name: 'kettle-take1.jpg', kind: 'photo', progress: 14, status: 'uploading' }
 	];
 	const DS_UPLOADS_SHORT = DS_UPLOADS.slice(0, 2);
+	const DS_UPLOAD_ERROR: ComposerUpload = { localId: 'u-error', name: 'raw-master-48bit.flac', kind: 'audio', progress: 0, status: 'error', error: "Couldn't attach · 40 MB limit per file." };
 
 	const SAMPLE_POST: DemoPostData = {
 		id: '1', name: 'emi', handle: '@emichan@kolektiva.social', time: '16m',
@@ -1381,17 +1383,7 @@
 										<div class="composer-draft-preview">rain on glass · 11 minutes, two takes</div>
 										<div class="composer-uploads">
 											{#each DS_UPLOADS as upload}
-												<div class="composer-upload-row">
-													<div class={`composer-upload-thumb ${upload.kind}`}>{upload.kind === 'audio' ? 'WAV' : upload.kind === 'video' ? 'MP4' : 'JPG'}</div>
-													<div class="composer-upload-meta">
-														<div class="composer-upload-name">{upload.name}</div>
-														<div class="composer-upload-prog-row">
-															<div class="composer-upload-bar"><span style={`width:${upload.pct}%`}></span></div>
-															<span class="composer-upload-pct">{upload.pct}%</span>
-														</div>
-													</div>
-													<button type="button" class="composer-upload-rm" aria-label={`Remove ${upload.name}`}>×</button>
-												</div>
+								<ComposerAttachmentPreview {upload} />
 											{/each}
 										</div>
 										<div class="composer-row">
@@ -1410,7 +1402,7 @@
 							</div>
 							<div class="ds-spec-foot">
 								<span class="ds-spec-label">Dropzone V1 · uploading</span>
-								<span class="ds-spec-note">.composer-upload-row · 36px thumb · progress bar · per-row ✕</span>
+								<span class="ds-spec-note">real media preview · progress · alt text · per-card ✕</span>
 							</div>
 						</div>
 					</div>
@@ -1465,17 +1457,9 @@
 										<div class="composer-draft-preview">rain on glass · 11 minutes, two takes</div>
 										<div class="composer-uploads">
 											{#each DS_UPLOADS_SHORT as upload}
-												<div class="composer-upload-row">
-													<div class={`composer-upload-thumb ${upload.kind}`}>{upload.kind === 'audio' ? 'WAV' : 'JPG'}</div>
-													<div class="composer-upload-meta"><div class="composer-upload-name">{upload.name}</div><div class="composer-upload-prog-row"><div class="composer-upload-bar"><span style={`width:${upload.pct}%`}></span></div><span class="composer-upload-pct">{upload.pct}%</span></div></div>
-													<button type="button" class="composer-upload-rm" aria-label={`Remove ${upload.name}`}>×</button>
-												</div>
+								<ComposerAttachmentPreview {upload} />
 											{/each}
-											<div class="composer-upload-row error" title="40 MB limit per file">
-												<div class="composer-upload-thumb audio">FLAC</div>
-												<div class="composer-upload-meta"><div class="composer-upload-name">raw-master-48bit.flac</div><div class="composer-upload-error">Couldn't attach · 40 MB limit per file.</div></div>
-												<button type="button" class="composer-upload-rm" aria-label="Remove raw-master-48bit.flac">×</button>
-											</div>
+											<ComposerAttachmentPreview upload={DS_UPLOAD_ERROR} />
 										</div>
 										<div class="composer-row"><button class="composer-tool" title="Add another"><Icon name="plus" width={14} height={14} /></button><span class="composer-spacer"></span><span class="composer-count">412</span><Button variant="primary">Post</Button></div>
 									</div>

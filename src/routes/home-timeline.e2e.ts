@@ -384,6 +384,8 @@ test('home timeline composer uploads media and submits media ids', async ({ page
 
 	await expect(page.getByText('cat.png')).toBeVisible();
 	await expect(page.getByText('100%')).toBeVisible();
+	const imageCard = page.getByTestId('composer-attachment').filter({ hasText: 'cat.png' });
+	await expect(imageCard.getByRole('img', { name: 'Preview of cat.png' })).toHaveAttribute('src', 'https://cdn.example/uploads/cat-thumb.png');
 	await page.getByRole('button', { name: 'Post', exact: true }).click();
 
 	expect(uploadMethod).toBe('POST');
@@ -393,6 +395,85 @@ test('home timeline composer uploads media and submits media ids', async ({ page
 	expect(params.getAll('media_ids[]')).toEqual(['media-1']);
 	await expect(page.locator('[data-status-id="created-media-status"]')).toContainText('image attached');
 	await expect(page.getByText('cat.png')).toHaveCount(0);
+});
+
+test('home timeline composer previews video and audio attachments responsively', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, []);
+	});
+	let uploadCount = 0;
+	await page.route('https://pleroma.example/api/v1/media', async (route) => {
+		uploadCount += 1;
+		await fulfillHome(route, uploadCount === 1 ? {
+			id: 'media-video',
+			type: 'gifv',
+			url: 'https://cdn.example/uploads/clip.mp4',
+			preview_url: 'https://cdn.example/uploads/clip-poster.jpg',
+			description: null
+		} : {
+			id: 'media-audio',
+			type: 'audio',
+			url: 'https://cdn.example/uploads/song.ogg',
+			preview_url: null,
+			description: null
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const input = page.getByLabel('Attach media');
+	await input.setInputFiles({ name: 'loop.gif', mimeType: 'image/gif', buffer: Buffer.from('video') });
+	await expect(page.getByText('loop.gif')).toBeVisible();
+	await input.setInputFiles({ name: 'song.ogg', mimeType: 'audio/ogg', buffer: Buffer.from('audio') });
+	await expect(page.getByText('song.ogg')).toBeVisible();
+
+	const videoCard = page.getByTestId('composer-attachment').filter({ hasText: 'loop.gif' });
+	await expect(videoCard.getByLabel('Preview video loop.gif')).toHaveAttribute('src', 'https://cdn.example/uploads/clip.mp4');
+	await expect(videoCard.getByLabel('Preview video loop.gif')).toHaveAttribute('poster', 'https://cdn.example/uploads/clip-poster.jpg');
+	await expect(videoCard.getByLabel('Preview video loop.gif')).toHaveAttribute('playsinline', '');
+	await expect(videoCard.getByLabel('Preview video loop.gif')).toHaveAttribute('controls', '');
+	const audioCard = page.getByTestId('composer-attachment').filter({ hasText: 'song.ogg' });
+	await expect(audioCard.getByLabel('Preview audio song.ogg')).toHaveAttribute('src', 'https://cdn.example/uploads/song.ogg');
+	await expect(audioCard.getByLabel('Preview audio song.ogg')).toHaveAttribute('controls', '');
+
+	await setViewport(page, 'mobile');
+	await expectNoHorizontalOverflow(page);
+	await expect(page.getByTestId('composer-attachment')).toHaveCount(2);
+});
+
+test('home timeline composer keeps a useful fallback when media has no preview URL', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, []);
+	});
+	let uploadCount = 0;
+	await page.route('https://pleroma.example/api/v1/media', async (route) => {
+		uploadCount += 1;
+		const responses = [
+			{ id: 'media-fallback', type: 'image', url: null, preview_url: null, description: null },
+			{ id: 'video-fallback', type: 'video', url: null, preview_url: 'https://cdn.example/uploads/poster-only.jpg', description: null },
+			{ id: 'audio-fallback', type: 'audio', url: null, preview_url: null, description: null }
+		];
+		await fulfillHome(route, responses[uploadCount - 1]);
+	});
+
+	await page.goto('/app/home');
+	const input = page.getByLabel('Attach media');
+	await input.setInputFiles({ name: 'mystery.png', mimeType: 'image/png', buffer: Buffer.from('image') });
+	await expect(page.getByText('mystery.png')).toBeVisible();
+	await input.setInputFiles({ name: 'poster-only.mp4', mimeType: 'video/mp4', buffer: Buffer.from('video') });
+	await expect(page.getByText('poster-only.mp4')).toBeVisible();
+	await input.setInputFiles({ name: 'silent.ogg', mimeType: 'audio/ogg', buffer: Buffer.from('audio') });
+	await expect(page.getByText('silent.ogg')).toBeVisible();
+
+	const card = page.getByTestId('composer-attachment').filter({ hasText: 'mystery.png' });
+	await expect(card.getByTestId('composer-attachment-fallback')).toContainText('IMG');
+	await expect(card.getByRole('textbox', { name: 'Alt text for mystery.png' })).toBeVisible();
+	await expect(page.getByTestId('composer-attachment').filter({ hasText: 'poster-only.mp4' })).toContainText('Video preview unavailable');
+	await expect(page.getByTestId('composer-attachment').filter({ hasText: 'silent.ogg' })).toContainText('Media preview unavailable');
 });
 
 test('home timeline composer can post attachments without text', async ({ page }) => {
@@ -3184,6 +3265,7 @@ test('home timeline composer saves upload alt text through the media API', async
 	await altInput.blur();
 
 	await expect(altInput).toHaveValue('a sleepy cat on a warm keyboard');
+	await expect(page.getByRole('img', { name: 'a sleepy cat on a warm keyboard' })).toBeVisible();
 	expect(altMethod).toBe('PUT');
 	expect(JSON.parse(altBody)).toMatchObject({ description: 'a sleepy cat on a warm keyboard' });
 });
@@ -3254,6 +3336,8 @@ test('home timeline inline reply composer saves upload alt text', async ({ page 
 	await page.locator('[data-status-id="status-inline-alt"]').getByRole('button', { name: /^Reply/ }).click();
 	await page.getByLabel('Attach reply media').setInputFiles({ name: 'tape.png', mimeType: 'image/png', buffer: Buffer.from('tape') });
 
+	const replyCard = page.getByTestId('composer-attachment').filter({ hasText: 'tape.png' });
+	await expect(replyCard.getByRole('img', { name: 'Preview of tape.png' })).toHaveAttribute('src', 'https://cdn.example/uploads/tape-thumb.png');
 	const altInput = page.getByRole('textbox', { name: 'Alt text for tape.png' });
 	await altInput.fill('a cassette tape');
 	await altInput.blur();

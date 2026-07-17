@@ -7,6 +7,7 @@
 	import Avatar from '$lib/rebuild/Avatar.svelte';
 	import Button from '$lib/rebuild/Button.svelte';
 	import ComposerCWPanel from '$lib/rebuild/ComposerCWPanel.svelte';
+	import ComposerAttachmentPreview from '$lib/rebuild/ComposerAttachmentPreview.svelte';
 	import ComposerMentionEditor from '$lib/rebuild/ComposerMentionEditor.svelte';
 	import EmojiPicker from '$lib/rebuild/EmojiPicker.svelte';
 	import ComposerPollPanel from '$lib/rebuild/ComposerPollPanel.svelte';
@@ -56,7 +57,7 @@
 	} from '$lib/pleroma/timeline-state';
 	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaChatMessage, adaptPleromaChatMessages, adaptPleromaChats, adaptPleromaPoll, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, mediaPlaceholderText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit, type PleromaAccountView, type PleromaChatMessageView, type PleromaChatView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaProfileSettingsView, type PleromaReactionView, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
-	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, customEmojiPack, composerUploadBadge, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
+	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, customEmojiPack, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
 	import type { ProfileData, ProfileMediaItem, ProfilePost } from '$lib/rebuild/profile';
 	import type { PleromaAccount, PleromaInstance, PleromaNotification, PleromaRelationship, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
@@ -4285,21 +4286,7 @@
 								{#if composerUploads.length > 0}
 									<div class="composer-uploads" aria-live="polite">
 										{#each composerUploads as upload (upload.localId)}
-											<div class="composer-upload-row" class:error={upload.status === 'error'} title={upload.error}>
-												<div class={`composer-upload-thumb ${upload.kind}`}>{composerUploadBadge(upload.kind)}</div>
-												<div class="composer-upload-meta">
-													<div class="composer-upload-name">{upload.name}</div>
-													<div class="composer-upload-prog-row">
-														<div class="composer-upload-bar" role="progressbar" aria-label={`Upload progress for ${upload.name}`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={upload.progress}><span style={`width:${upload.progress}%`}></span></div>
-														<span class="composer-upload-pct">{upload.status === 'error' ? 'Error' : `${upload.progress}%`}</span>
-													</div>
-													{#if upload.error}<div class="composer-upload-error">{upload.error}</div>{/if}
-													{#if upload.status === 'uploaded'}
-														<input class="composer-upload-alt" type="text" placeholder="Alt text (describe for screen readers)" aria-label={`Alt text for ${upload.name}`} value={upload.media.description ?? ''} onchange={(event) => saveComposerUploadAlt(upload.localId, event.currentTarget.value)} />
-													{/if}
-												</div>
-												<button type="button" class="composer-upload-rm" aria-label={`Remove ${upload.name}`} onclick={() => removeComposerUpload(upload.localId)}>×</button>
-											</div>
+											<ComposerAttachmentPreview {upload} onRemove={removeComposerUpload} onAltText={saveComposerUploadAlt} />
 										{/each}
 									</div>
 								{/if}
