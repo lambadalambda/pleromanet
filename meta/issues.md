@@ -1,1 +1,1 @@
-
+- [ ] [59 Deploy working client to GitHub Pages](issues/59-deploy-working-client-to-github-pages.md)
