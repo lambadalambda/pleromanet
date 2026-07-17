@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { appPath } from '$lib/navigation';
+	import { CUSTOM_THEME_STORAGE_KEY, THEME_STORAGE_KEY, applyThemeToDocument, readStoredThemePalette, type BuiltInThemeName, type ThemeName, type ThemePalette } from '$lib/theme';
 	import Avatar from '$lib/rebuild/Avatar.svelte';
 	import AncestorPost from '$lib/rebuild/AncestorPost.svelte';
 	import Button from '$lib/rebuild/Button.svelte';
@@ -51,9 +52,8 @@
 		{ variant: 'focused', size: 56, shape: 'rect', cls: 'focused-av', role: 'Focused thread post · 4px radius' },
 	];
 
-	type ThemeId = 'cream' | 'dusk' | 'drive' | 'simoun';
 	type Theme = {
-		id: ThemeId;
+		id: BuiltInThemeName;
 		label: string;
 		bg: string;
 		panel: string;
@@ -190,14 +190,12 @@
 	];
 	const SAMPLE_AUDIO_SRC = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=';
 
-	const isThemeId = (value: string | null): value is ThemeId => THEMES.some((themeOption) => themeOption.id === value);
+	const isThemeId = (value: string | null): value is BuiltInThemeName => THEMES.some((themeOption) => themeOption.id === value);
 
-	const applyTheme = (nextTheme: ThemeId) => {
-		document.body.dataset.theme = nextTheme;
-		document.documentElement.dataset.theme = nextTheme;
-	};
+	const applyTheme = (nextTheme: ThemeName) => applyThemeToDocument(document, nextTheme, nextTheme === 'custom' ? customPalette ?? undefined : undefined);
 
-	let theme = $state<ThemeId>('cream');
+	let theme = $state<ThemeName>('cream');
+	let customPalette = $state<ThemePalette | null>(null);
 	let section = $state('foundations');
 	let mounted = $state(false);
 	let toggleOn = $state(true);
@@ -490,8 +488,10 @@
 	];
 
 	onMount(() => {
-		const storedTheme = localStorage.getItem('pn-theme');
-		if (isThemeId(storedTheme)) theme = storedTheme;
+		const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+		customPalette = readStoredThemePalette(localStorage, CUSTOM_THEME_STORAGE_KEY);
+		if (storedTheme === 'custom' && customPalette) theme = 'custom';
+		else if (isThemeId(storedTheme)) theme = storedTheme;
 		mounted = true;
 		applyTheme(theme);
 	});
@@ -499,7 +499,7 @@
 	$effect(() => {
 		if (!mounted) return;
 		applyTheme(theme);
-		localStorage.setItem('pn-theme', theme);
+		localStorage.setItem(THEME_STORAGE_KEY, theme);
 	});
 </script>
 

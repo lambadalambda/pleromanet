@@ -40,6 +40,20 @@ test('shows converted canonical design-system sections and switches themes', asy
 	await expectNoHorizontalOverflow(page);
 });
 
+test('preserves a saved custom theme on the design system route', async ({ page }) => {
+	await page.addInitScript(() => {
+		window.localStorage.setItem('pn-theme', 'custom');
+		window.localStorage.setItem('pn-custom-theme', JSON.stringify({
+			bg: '#101522', panel: '#182034', ink: '#F0EBDD', muted: '#8A94AE', accent: '#D98152', good: '#8BC99A', warn: '#D9B56F', bad: '#D48383'
+		}));
+	});
+	await page.goto('/design-system');
+
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'custom');
+	await expect(page.locator('html')).toHaveCSS('--bg', '#101522');
+	expect(await page.evaluate(() => window.localStorage.getItem('pn-theme'))).toBe('custom');
+});
+
 test('renders canonical composer content-warning specimen', async ({ page }) => {
 	await setViewport(page, 'desktop');
 	await page.goto('/design-system');

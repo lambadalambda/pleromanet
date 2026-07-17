@@ -61,3 +61,4 @@
 - [x] [61 Fix Pleroma streaming connection](issues/61-fix-pleroma-streaming-connection.md)
 - [x] [62 Allow Pages streaming on pleroma.soykaf.com](issues/62-allow-pages-streaming-on-pleroma-soykaf-com.md)
 - [x] [63 Remove unrelated page placeholder](issues/63-remove-unrelated-page-placeholder.md)
+- [x] [64 Add custom theme editor and share codes](issues/64-add-custom-theme-editor-and-share-codes.md)

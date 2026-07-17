@@ -314,6 +314,25 @@ test('real app user menu switches themes and closes with escape', async ({ page 
 	await expect(accountMenuButton).toBeFocused();
 });
 
+test('saved custom theme drives the real composer and media treatment', async ({ page }) => {
+	await authenticate(page);
+	await page.addInitScript(() => {
+		window.localStorage.setItem('pn-theme', 'custom');
+		window.localStorage.setItem('pn-custom-theme', JSON.stringify({
+			bg: '#101522', panel: '#182034', ink: '#F0EBDD', muted: '#8A94AE', accent: '#D98152', good: '#8BC99A', warn: '#D9B56F', bad: '#D48383'
+		}));
+	});
+	await mockHomeTimeline(page);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'custom');
+	await expect(page.locator('html')).toHaveCSS('--photo-filter', 'url(#duotoneCustom)');
+	await expect(page.getByRole('form', { name: 'Composer' })).toHaveCSS('background-image', /linear-gradient/);
+	await page.getByRole('button', { name: 'quiet admin account menu' }).click();
+	await expect(page.getByRole('button', { name: 'Custom', exact: true })).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('real app user menu disables profile navigation until token-only sessions hydrate', async ({ page }) => {
 	let resolveCredentials = () => {};
 	const credentialsReady = new Promise<void>((resolve) => {

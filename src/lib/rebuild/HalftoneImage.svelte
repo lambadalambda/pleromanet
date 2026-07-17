@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { defaultHalftoneOptions, halftonePaletteForTheme, renderHalftone, type HalftoneOptions } from './halftone';
+	import { THEME_CHANGE_EVENT } from '$lib/theme';
 
 	type Props = {
 		src: string;
@@ -13,22 +14,33 @@
 
 	let canvas = $state<HTMLCanvasElement | null>(null);
 	let treatmentState = $state<'idle' | 'ready' | 'fallback'>('idle');
-	let theme = $state<string>('cream');
+	let palette = $state(halftonePaletteForTheme('cream'));
 	let renderId = 0;
 
 	$effect(() => {
-		theme = document.body.dataset.theme ?? 'cream';
-		const observer = new MutationObserver(() => {
-			theme = document.body.dataset.theme ?? 'cream';
-		});
+		const updatePalette = () => {
+			const theme = document.body.dataset.theme ?? 'cream';
+			if (theme === 'custom') {
+				const styles = getComputedStyle(document.documentElement);
+				palette = { fg: styles.getPropertyValue('--accent').trim(), bg: styles.getPropertyValue('--bg').trim() };
+				return;
+			}
+			palette = halftonePaletteForTheme(theme);
+		};
+		updatePalette();
+		const observer = new MutationObserver(updatePalette);
 		observer.observe(document.body, { attributes: true, attributeFilter: ['data-theme'] });
-		return () => observer.disconnect();
+		window.addEventListener(THEME_CHANGE_EVENT, updatePalette);
+		return () => {
+			observer.disconnect();
+			window.removeEventListener(THEME_CHANGE_EVENT, updatePalette);
+		};
 	});
 
 	$effect(() => {
 		const target = canvas;
 		const requestId = ++renderId;
-		const resolved: HalftoneOptions = { ...defaultHalftoneOptions(halftonePaletteForTheme(theme)), ...options };
+		const resolved: HalftoneOptions = { ...defaultHalftoneOptions(palette), ...options };
 		if (!target) return;
 
 		const dpr = Math.min(window.devicePixelRatio || 1, 2);

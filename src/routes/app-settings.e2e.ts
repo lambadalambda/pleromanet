@@ -69,6 +69,99 @@ test('real settings route populates the form from the session account', async ({
 	await expect(page.getByTestId('app-content').getByTestId('profile-preview-card')).toHaveCount(0);
 });
 
+test('custom theme editor previews, imports, saves, and restores a shared palette', async ({ page }) => {
+	await authenticate(page);
+	await setViewport(page, 'wide');
+	await page.goto('/app/settings/appearance');
+
+	await expect(page.getByRole('heading', { name: 'Custom theme' })).toBeVisible();
+	await page.getByLabel('Start from').selectOption('drive');
+	const pageBackground = page.getByRole('textbox', { name: 'Page background hex' });
+	await pageBackground.fill('');
+	await pageBackground.pressSequentially('#112233');
+	await expect(pageBackground).toHaveValue('#112233');
+	await expect(page.getByTestId('theme-preview')).toHaveCSS('--bg', '#112233');
+	await pageBackground.fill('#abc');
+	await expect(pageBackground).toHaveValue('#abc');
+	await expect(page.getByTestId('theme-preview')).toHaveCSS('--bg', '#AABBCC');
+	await pageBackground.fill('#112233');
+	await pageBackground.fill('not-a-color');
+	await expect(pageBackground).toHaveAttribute('aria-invalid', 'true');
+	await expect(page.getByRole('button', { name: 'Save as active theme' })).toBeDisabled();
+	await page.getByRole('textbox', { name: 'Panel background hex' }).fill('#223344');
+	await expect(pageBackground).toHaveValue('not-a-color');
+	await expect(pageBackground).toHaveAttribute('aria-invalid', 'true');
+	await expect(page.getByRole('button', { name: 'Save as active theme' })).toBeDisabled();
+
+	const shareCode = page.getByRole('textbox', { name: 'Theme share code' });
+	await expect(shareCode).toHaveValue(/^PN1:112233,/);
+	const imported = 'PN1:F4F0E8,FAF8F1,202442,747890,9B82D2,A2D0AD,DDB574,D28787';
+	await page.getByRole('textbox', { name: 'Import theme code' }).fill(imported);
+	await page.getByRole('textbox', { name: 'Import theme code' }).press('Control+Enter');
+	await expect(pageBackground).toHaveValue('#F4F0E8');
+	await expect(pageBackground).toHaveAttribute('aria-invalid', 'false');
+	await expect(page.getByRole('button', { name: 'Save as active theme' })).toBeEnabled();
+	await expect(shareCode).toHaveValue(imported);
+
+	await page.getByRole('textbox', { name: 'Import theme code' }).fill('PN1:bad');
+	await page.getByRole('button', { name: 'Import theme code' }).click();
+	await expect(page.getByRole('alert')).toContainText('8 hex colors');
+	await expect(pageBackground).toHaveValue('#F4F0E8');
+
+	await page.getByRole('button', { name: 'Save as active theme' }).click();
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'custom');
+	await expect(page.locator('html')).toHaveCSS('--bg', '#F4F0E8');
+	await expect(page.locator('#duotoneCustom feFuncR')).toHaveAttribute('tableValues', '0.125 0.608');
+	await page.reload();
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'custom');
+	await expect(pageBackground).toHaveValue('#F4F0E8');
+	await expect(shareCode).toHaveValue(imported);
+
+	await page.getByRole('button', { name: 'quiet admin account menu' }).click();
+	await expect(page.getByRole('button', { name: 'Custom', exact: true })).toHaveAttribute('aria-pressed', 'true');
+	await page.getByRole('button', { name: 'Cream' }).click();
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'cream');
+	expect(await page.locator('html').evaluate((element) => element.style.getPropertyValue('--bg'))).toBe('');
+	await page.getByRole('button', { name: 'Customize theme…' }).click();
+	await expect(page).toHaveURL('/app/settings/appearance');
+});
+
+test('custom theme editor restores the selected built-in palette and unsaved drafts', async ({ page }) => {
+	await authenticate(page);
+	await page.goto('/app/settings/appearance');
+
+	const themeSource = page.getByLabel('Start from');
+	await themeSource.focus();
+	await themeSource.selectOption('drive');
+	await expect(themeSource).toBeFocused();
+	await expect(themeSource).toHaveValue('drive');
+	const pageBackground = page.getByRole('textbox', { name: 'Page background hex' });
+	await expect(pageBackground).toHaveValue('#07091A');
+	await pageBackground.fill('#123456');
+	await page.reload();
+	await expect(themeSource).toHaveValue('drive');
+	await expect(pageBackground).toHaveValue('#123456');
+	await page.getByRole('button', { name: 'Discard changes' }).click();
+	await expect(pageBackground).toHaveValue('#07091A');
+});
+
+test('custom theme editor stays usable on mobile', async ({ page }) => {
+	await authenticate(page);
+	await setViewport(page, 'mobile');
+	await page.goto('/app/settings/appearance');
+
+	await expect(page.getByRole('heading', { name: 'Custom theme' })).toBeVisible();
+	await expect(page.getByTestId('theme-preview')).toBeVisible();
+	await expect(page.getByRole('textbox', { name: 'Page background hex' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Save as active theme' })).toBeVisible();
+	await expect(page.getByTestId('right-rail')).toBeHidden();
+
+	await page.getByRole('button', { name: 'quiet admin account menu' }).click();
+	const customizeTheme = page.getByRole('button', { name: 'Customize theme…' });
+	await expect(customizeTheme).toBeVisible();
+	expect((await customizeTheme.boundingBox())?.height).toBeGreaterThanOrEqual(40);
+});
+
 test('real settings route saves through the account update API and reconciles the session', async ({ page }) => {
 	await authenticate(page);
 	await setViewport(page, 'wide');

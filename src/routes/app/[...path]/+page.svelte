@@ -27,6 +27,20 @@
 	import TimelineLoadMore from '$lib/rebuild/TimelineLoadMore.svelte';
 	import TimelineNewPostsIndicator from '$lib/rebuild/TimelineNewPostsIndicator.svelte';
 	import TimelineSettings from '$lib/rebuild/TimelineSettings.svelte';
+	import ThemeEditor from '$lib/rebuild/ThemeEditor.svelte';
+	import {
+		BUILT_IN_THEME_PALETTES,
+		CUSTOM_THEME_DRAFT_STORAGE_KEY,
+		CUSTOM_THEME_SOURCE_STORAGE_KEY,
+		CUSTOM_THEME_STORAGE_KEY,
+		THEME_STORAGE_KEY,
+		applyThemeToDocument,
+		readStoredThemePalette,
+		writeStoredThemePalette,
+		type BuiltInThemeName,
+		type ThemeName,
+		type ThemePalette
+	} from '$lib/theme';
 	import { accountsFromPleromaNotifications, accountsFromPleromaStatus, accountsFromPleromaStatuses, createPleromaAccountCache, getCachedPleromaAccount, upsertPleromaAccounts } from '$lib/pleroma/account-cache';
 	import { createPleromaClient } from '$lib/pleroma/client';
 	import { NOTIFICATION_POLL_EVENT, NOTIFICATION_POLL_INTERVAL_MS, readNotificationLastSeenAt, writeNotificationLastSeenAt } from '$lib/pleroma/notifications';
@@ -52,7 +66,6 @@
 
 	type AppRoute = 'home' | 'local' | 'federated' | 'public' | 'thread' | 'profile' | 'notifications' | 'explore' | 'search' | 'settings' | 'bookmarks' | 'messages';
 	type NavItem = { route: AppRoute; label: string; icon: IconName; href: string; count?: number };
-	type ThemeName = 'cream' | 'dusk' | 'drive' | 'simoun';
 	type ExploreFeed = 'popular' | 'new' | 'active';
 	type SearchTab = 'all' | 'people' | 'posts';
 	type ProfileSettings = PleromaProfileSettingsView;
@@ -163,7 +176,7 @@
 	const SEARCH_PAGE_DEBOUNCE_MS = 260;
 	const SEARCH_RECENTS_STORAGE_KEY = 'pn-search-recents';
 	const accountStatFormatter = new Intl.NumberFormat('en-US');
-	const themeOptions: { id: ThemeName; label: string; grad: string }[] = [
+	const themeOptions: { id: BuiltInThemeName; label: string; grad: string }[] = [
 		{ id: 'cream', label: 'Cream', grad: 'linear-gradient(135deg, #f5f1e8 50%, #a48bd9 50%)' },
 		{ id: 'dusk', label: 'Dusk', grad: 'linear-gradient(135deg, #2a1f4a 50%, #e7a8c9 50%)' },
 		{ id: 'drive', label: 'Drive', grad: 'linear-gradient(135deg, #0c0a28 50%, #7dc4be 50%)' },
@@ -226,6 +239,9 @@
 	let autoInsertTimelinePosts = $state(false);
 	let timelineAtTop = $state(true);
 	let activeTheme = $state<ThemeName>('cream');
+	let customThemePalette = $state<ThemePalette | null>(null);
+	let customThemeDraft = $state<ThemePalette>({ ...BUILT_IN_THEME_PALETTES.cream });
+	let customThemeSource = $state<BuiltInThemeName>('cream');
 	let notificationsMenuOpen = $state(false);
 	let headerSearchDraft = $state('');
 	let exploreSearchDraft = $state('');
@@ -1327,7 +1343,8 @@
 		routePathname.startsWith('/app/messages') ? 'messages' :
 		'home'
 	);
-	const hasRightRail = $derived(timelineRoutes.includes(route) || route === 'explore' || route === 'profile' || route === 'settings');
+	const settingsSection = $derived(route === 'settings' && routePathname.startsWith('/app/settings/appearance') ? 'appearance' : 'profile');
+	const hasRightRail = $derived(timelineRoutes.includes(route) || route === 'explore' || route === 'profile' || (route === 'settings' && settingsSection === 'profile'));
 	const appPublicTimelineRoute = $derived<AppPublicTimelineRoute | null>(route === 'local' || route === 'federated' ? route : null);
 	const messagesChatId = $derived(route === 'messages' ? routePathname.split('/')[3] || null : null);
 	const activeChat = $derived(messagesChatId && chatsState.status === 'success' ? chatsState.data.find((chat) => chat.id === messagesChatId) ?? null : null);
@@ -1888,11 +1905,32 @@
 		mobileSheetOpen = false;
 	};
 	const applyTheme = (theme: ThemeName) => {
+		const palette = theme === 'custom' ? customThemePalette ?? customThemeDraft : undefined;
+		if (theme === 'custom' && !palette) return;
 		activeTheme = theme;
-		document.documentElement.dataset.theme = theme;
-		document.body.dataset.theme = theme;
-		localStorage.setItem('pn-theme', theme);
+		applyThemeToDocument(document, theme, palette);
+		localStorage.setItem(THEME_STORAGE_KEY, theme);
 	};
+	const openThemeSettings = () => {
+		userMenuOpen = false;
+		goto(appPath('/app/settings/appearance'));
+	};
+	const updateCustomThemeDraft = (palette: ThemePalette) => {
+		customThemeDraft = palette;
+		writeStoredThemePalette(localStorage, palette, CUSTOM_THEME_DRAFT_STORAGE_KEY);
+	};
+	const selectCustomThemeSource = (theme: BuiltInThemeName) => {
+		customThemeSource = theme;
+		localStorage.setItem(CUSTOM_THEME_SOURCE_STORAGE_KEY, theme);
+		updateCustomThemeDraft({ ...BUILT_IN_THEME_PALETTES[theme] });
+	};
+	const saveCustomTheme = () => {
+		customThemePalette = { ...customThemeDraft };
+		writeStoredThemePalette(localStorage, customThemePalette, CUSTOM_THEME_STORAGE_KEY);
+		writeStoredThemePalette(localStorage, customThemePalette, CUSTOM_THEME_DRAFT_STORAGE_KEY);
+		applyTheme('custom');
+	};
+	const discardCustomThemeChanges = () => updateCustomThemeDraft({ ...(customThemePalette ?? BUILT_IN_THEME_PALETTES[customThemeSource]) });
 	const openUserProfile = () => {
 		const account = currentSession?.account;
 		userMenuOpen = false;
@@ -3763,8 +3801,16 @@
 	};
 
 	onMount(() => {
-		const storedTheme = localStorage.getItem('pn-theme');
-		if (storedTheme === 'cream' || storedTheme === 'dusk' || storedTheme === 'drive' || storedTheme === 'simoun') applyTheme(storedTheme);
+		const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+		const storedBuiltInTheme = storedTheme === 'cream' || storedTheme === 'dusk' || storedTheme === 'drive' || storedTheme === 'simoun' ? storedTheme : 'cream';
+		const storedSource = localStorage.getItem(CUSTOM_THEME_SOURCE_STORAGE_KEY);
+		customThemeSource = storedSource === 'cream' || storedSource === 'dusk' || storedSource === 'drive' || storedSource === 'simoun' ? storedSource : storedBuiltInTheme;
+		customThemePalette = readStoredThemePalette(localStorage, CUSTOM_THEME_STORAGE_KEY);
+		customThemeDraft = readStoredThemePalette(localStorage, CUSTOM_THEME_DRAFT_STORAGE_KEY) ?? { ...(customThemePalette ?? BUILT_IN_THEME_PALETTES[customThemeSource]) };
+		if (storedTheme === 'custom' && customThemePalette) applyTheme('custom');
+		else if (storedTheme === 'cream' || storedTheme === 'dusk' || storedTheme === 'drive' || storedTheme === 'simoun') {
+			applyTheme(storedTheme);
+		} else applyTheme('cream');
 		searchRecents = readSearchRecents();
 		autoInsertTimelinePosts = localStorage.getItem(TIMELINE_AUTO_INSERT_KEY) === 'true';
 		updateTimelineTop();
@@ -4135,14 +4181,21 @@
 								<div class="user-menu-sec">
 									<div class="user-menu-label">Appearance</div>
 									<div class="user-menu-themes">
-										{#each themeOptions as theme}
-											<button type="button" aria-pressed={activeTheme === theme.id} class="user-menu-theme" class:active={activeTheme === theme.id} title={theme.label} onclick={() => applyTheme(theme.id)}>
+									{#each themeOptions as theme}
+										<button type="button" aria-pressed={activeTheme === theme.id} class="user-menu-theme" class:active={activeTheme === theme.id} title={theme.label} onclick={() => applyTheme(theme.id)}>
 												<span style={`background: ${theme.grad}`}></span>
 												<span>{theme.label}</span>
-											</button>
-										{/each}
-									</div>
+										</button>
+									{/each}
+									{#if customThemePalette}
+										<button type="button" aria-pressed={activeTheme === 'custom'} class="user-menu-theme" class:active={activeTheme === 'custom'} title="Custom" onclick={() => applyTheme('custom')}>
+											<span style={`background: linear-gradient(135deg, ${customThemePalette.bg} 50%, ${customThemePalette.accent} 50%)`}></span>
+											<span>Custom</span>
+										</button>
+									{/if}
 								</div>
+								<button type="button" class="user-menu-customize" onclick={openThemeSettings}>Customize theme…</button>
+							</div>
 								<div class="user-menu-sec">
 									<button type="button" class="user-menu-item" onclick={openUserSettings}><Icon name="gear" width={16} height={16} /><span>Settings</span><span class="kbd user-menu-kbd">S</span></button>
 									<button type="button" class="user-menu-item" disabled><Icon name="info" width={16} height={16} /><span>Keyboard shortcuts</span><span class="kbd user-menu-kbd">?</span></button>
@@ -4182,7 +4235,13 @@
 					{#if route === 'settings'}
 						<div class="side-sub" data-testid="settings-subnav">
 							{#each settingsSubnav as item, i}
-								<button type="button" class:active={i === 0} class="side-sub-item">{item}</button>
+								<button
+									type="button"
+									class:active={(i === 0 && settingsSection === 'profile') || (i === 1 && settingsSection === 'appearance')}
+									class="side-sub-item"
+									disabled={i > 1}
+									onclick={() => i === 0 ? goto(appPath('/app/settings')) : i === 1 ? goto(appPath('/app/settings/appearance')) : undefined}
+								>{item}</button>
 							{/each}
 						</div>
 					{:else}
@@ -4718,7 +4777,17 @@
 						{/if}
 					</section>
 				{:else if route === 'settings'}
-					<section class="card app-panel settings-panel">
+					{#if settingsSection === 'appearance'}
+						<ThemeEditor
+							palette={customThemeDraft}
+							sourceTheme={customThemeSource}
+							onPaletteChange={updateCustomThemeDraft}
+							onSourceChange={selectCustomThemeSource}
+							onSave={saveCustomTheme}
+							onDiscard={discardCustomThemeChanges}
+						/>
+					{:else}
+						<section class="card app-panel settings-panel">
 						<div class="crumbs">Settings / Profile</div>
 						<h1>Profile settings</h1>
 						<p>Manage your profile information and how you appear to others.</p>
@@ -4758,7 +4827,8 @@
 						{#if settingsSaveError}
 							<div class="settings-save-error" data-testid="settings-save-error" role="alert">{settingsSaveError.title}: {settingsSaveError.message}</div>
 						{/if}
-					</section>
+						</section>
+					{/if}
 				{:else}
 					<section class="card app-panel">
 						<div class="app-page-kicker">App route</div>
