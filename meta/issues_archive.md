@@ -58,3 +58,4 @@
 - [x] [58 Remove the header timeline strip](issues/58-remove-header-timeline-strip.md)
 - [x] [59 Deploy working client to GitHub Pages](issues/59-deploy-working-client-to-github-pages.md)
 - [x] [60 Add timeline auto-insert preference](issues/60-add-timeline-auto-insert-preference.md)
+- [x] [61 Fix Pleroma streaming connection](issues/61-fix-pleroma-streaming-connection.md)
