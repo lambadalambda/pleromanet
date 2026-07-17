@@ -1,1 +1,0 @@
-- [ ] [62 Allow Pages streaming on pleroma.soykaf.com](issues/62-allow-pages-streaming-on-pleroma-soykaf-com.md)
