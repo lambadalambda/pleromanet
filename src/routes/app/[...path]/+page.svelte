@@ -67,7 +67,6 @@
 
 	type AppRoute = 'home' | 'local' | 'federated' | 'public' | 'thread' | 'profile' | 'notifications' | 'explore' | 'search' | 'settings' | 'bookmarks' | 'messages';
 	type NavItem = { route: AppRoute; label: string; icon: IconName; href: string; count?: number };
-	type ExploreFeed = 'popular' | 'new' | 'active';
 	type SearchTab = 'all' | 'people' | 'posts';
 	type ProfileSettings = PleromaProfileSettingsView;
 	type ReplySort = 'top' | 'newest';
@@ -259,8 +258,6 @@
 	let searchSidebarOpen = $state(false);
 	let headerSearchInput = $state<HTMLInputElement | null>(null);
 	let headerSearchForm = $state<HTMLFormElement | null>(null);
-	let exploreFeed = $state<ExploreFeed>('popular');
-	let joinedCommunities = $state<Record<string, boolean>>({});
 	let settingsSaveState = $state('Saved');
 	let settingsSaveError = $state<PleromaRequestErrorView | null>(null);
 	let settingsSaveRequestId = 0;
@@ -1404,7 +1401,7 @@
 		'home'
 	);
 	const settingsSection = $derived(route === 'settings' && routePathname.startsWith('/app/settings/appearance') ? 'appearance' : 'profile');
-	const hasRightRail = $derived(timelineRoutes.includes(route) || route === 'explore' || route === 'profile' || (route === 'settings' && settingsSection === 'profile'));
+	const hasRightRail = $derived(timelineRoutes.includes(route) || route === 'profile' || (route === 'settings' && settingsSection === 'profile'));
 	const appPublicTimelineRoute = $derived<AppPublicTimelineRoute | null>(route === 'local' || route === 'federated' ? route : null);
 	const appPublicTimelineState = $derived<AppPublicTimelineState>(appPublicTimelineRoute ? appPublicTimelineStates[appPublicTimelineRoute] : { status: 'idle' });
 	const messagesChatId = $derived(route === 'messages' ? routePathname.split('/')[3] || null : null);
@@ -1451,11 +1448,6 @@
 	const threadReplyPosts = $derived(threadState.status === 'success' ? threadState.replies : []);
 	const threadReplyCount = $derived(threadState.status === 'success' ? threadPostCount(threadState.replies) : 0);
 	const sortedThreadReplyPosts = $derived(replySort === 'newest' ? [...threadReplyPosts].reverse() : threadReplyPosts);
-	const exploreFeedText = $derived(
-		exploreFeed === 'popular' ? 'Popular across friendly instances' :
-		exploreFeed === 'new' ? 'Fresh instance dispatches' :
-		'Most replied threads'
-	);
 	const searchAccounts = $derived(searchState.status === 'success' ? searchState.accounts : []);
 	const searchPosts = $derived(searchState.status === 'success' ? searchState.posts : []);
 	const visibleSearchAccounts = $derived(searchTab === 'posts' ? [] : searchTab === 'all' ? searchAccounts.slice(0, 2) : searchAccounts);
@@ -1715,9 +1707,6 @@
 		if (files.length === 0) return;
 		event.preventDefault();
 		queueComposerFiles(files);
-	};
-	const toggleCommunity = (community: string) => {
-		joinedCommunities = { ...joinedCommunities, [community]: !joinedCommunities[community] };
 	};
 	const submitHomePost = async () => {
 		const body = composerText.trim();
@@ -4232,7 +4221,7 @@
 					</div>
 					<div class="app-header-spacer"></div>
 					<div class="app-header-right">
-						<form bind:this={headerSearchForm} class="app-search" role="search" onsubmit={submitHeaderSearch} onfocusin={focusHeaderSearch}>
+						<form bind:this={headerSearchForm} class="app-search" role="search" aria-label="Global search" onsubmit={submitHeaderSearch} onfocusin={focusHeaderSearch}>
 							<Icon name="search" width={14} height={14} />
 							<input bind:this={headerSearchInput} value={headerSearchDraft} type="search" role="combobox" aria-label="Search PleromaNet" placeholder="Search..." aria-autocomplete="list" aria-expanded={headerSearchOpen} aria-controls={headerSearchOpen ? 'header-search-dropdown' : undefined} aria-activedescendant={headerSearchActiveDescendant} oninput={(event) => updateHeaderSearch(event.currentTarget.value)} onkeydown={handleHeaderSearchKeydown} />
 							<span class="search-kbd">⌘K</span>
@@ -4608,48 +4597,17 @@
 						{/if}
 					</section>
 				{:else if route === 'explore'}
-					<section class="card app-panel app-explore-panel">
-						<div class="app-page-kicker">Explore</div>
-						<h1>Explore the network</h1>
-						<p>Discover people, topics, and small communities across friendly Pleroma instances.</p>
-						<form class="hero-search" role="search" onsubmit={submitExploreSearch}>
-							<Icon name="search" width={16} height={16} />
-							<input bind:value={exploreSearchDraft} type="search" aria-label="Search topics, people, and posts" placeholder="Search topics, people, and posts" />
-							<Button variant="primary" type="submit">Search</Button>
-						</form>
-						<div class="hero-tags">
-							<button type="button" class="tag">#fediverse</button>
-							<button type="button" class="tag">#privacy</button>
-							<button type="button" class="tag">#music</button>
-						</div>
-						<div class="explore-artwork" data-testid="explore-artwork"><Icon name="planet" width={58} height={58} /></div>
-						<div class="explore-section-title">Suggested topics</div>
-						<div class="explore-card-grid">
-							{#each ['Small web', 'Pleroma admins', 'Cassette culture'] as topic}
-								<article class="explore-card" data-testid="explore-topic-card">
-									<strong>{topic}</strong>
-									<span>Posts and people from friendly instances.</span>
-								</article>
-							{/each}
-						</div>
-						<div class="explore-section-title">Communities</div>
-						<div class="explore-card-grid">
-							{#each ['Federated CSS Garden', 'Retro Social Club', 'Instance Gardeners'] as community}
-								<article class="explore-card explore-community" data-testid="explore-community-card">
-									<div><strong>{community}</strong><span>Open community · weekly posts</span></div>
-									<button type="button" aria-pressed={joinedCommunities[community] ? 'true' : 'false'} onclick={() => toggleCommunity(community)}>
-										{joinedCommunities[community] ? `Joined ${community}` : `Join ${community}`}
-									</button>
-								</article>
-							{/each}
-						</div>
-						<div class="explore-feed" data-testid="explore-feed">
-							<div class="seg" role="tablist" aria-label="Discover feed">
-								<button type="button" role="tab" aria-selected={exploreFeed === 'popular'} class:active={exploreFeed === 'popular'} onclick={() => (exploreFeed = 'popular')}>Popular</button>
-								<button type="button" role="tab" aria-selected={exploreFeed === 'new'} class:active={exploreFeed === 'new'} onclick={() => (exploreFeed = 'new')}>New</button>
-								<button type="button" role="tab" aria-selected={exploreFeed === 'active'} class:active={exploreFeed === 'active'} onclick={() => (exploreFeed = 'active')}>Active</button>
-							</div>
-							<p>{exploreFeedText}</p>
+					<section class="card app-explore-search">
+						<div class="explore-search-content">
+							<div class="app-page-kicker">Explore</div>
+							<h1>Search the network</h1>
+							<p>Find people and posts on this instance or across the wider federation.</p>
+							<form class="explore-search-form" role="search" aria-label="Explore search" onsubmit={submitExploreSearch}>
+								<Icon name="search" width={22} height={22} />
+								<input bind:value={exploreSearchDraft} type="search" aria-label="Search people and posts" aria-describedby="explore-search-hint" placeholder="Name, @handle, or words from a post" />
+								<Button variant="primary" type="submit">Search</Button>
+							</form>
+							<div id="explore-search-hint" class="explore-search-hint">Search by display name, full federated handle, or post text.</div>
 						</div>
 					</section>
 				{:else if route === 'search'}
@@ -4996,11 +4954,6 @@
 					{#if railSuggestions.length > 0}
 						<SurfaceCard kind="who-to-follow" suggestions={railSuggestions} onSuggestionFollow={toggleSuggestionFollow} />
 					{/if}
-				{:else if route === 'explore'}
-					<div class="rail-title">Discover</div>
-					<div aria-label="Quick search Explore"><SurfaceCard kind="quick-search" /></div>
-					<div class="card rail-card"><div class="card-head"><span class="card-title">Known instances</span></div><div class="card-body">pleroma.example · retro.social</div></div>
-					<div class="card rail-card"><div class="card-head"><span class="card-title">Discovery mode</span></div><div class="card-body">Popular across friendly instances</div></div>
 				{:else if route === 'profile'}
 					{#if profileRouteState.status === 'success'}
 						<ProfileSideRail profile={profileRouteState.data.profile} pinned={profileRouteState.data.pinned} />

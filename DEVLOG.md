@@ -20,6 +20,7 @@
 - Mobile timelines meet the sticky header without an empty gutter, and the redundant bottom navigation and details sheet are removed in favor of the header logo and focus-trapped side drawer.
 - Repository agents must review every completed task, address findings, then create a topical commit and push it without waiting for a separate request.
 - Incoming sensitive statuses without content warnings keep safe text visible while gating media behind an explicit reveal, and media composers can submit Pleroma's status-level `sensitive` flag with reset-safe NSFW controls.
+- Explore is reduced to one prominent, accessible search surface that opens full results, fits at 320px, and expands into the space formerly reserved for unfinished discovery content and a right rail.
 
 ## 2026-07-17
 

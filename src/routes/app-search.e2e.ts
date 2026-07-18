@@ -304,7 +304,7 @@ test('explore search box opens the full search page', async ({ page }) => {
 	await page.goto('/app/explore');
 	await expectNoMobileFocusZoom(page);
 
-	await page.getByRole('searchbox', { name: 'Search topics, people, and posts' }).fill('gridwave');
+	await page.getByRole('searchbox', { name: 'Search people and posts' }).fill('gridwave');
 	await page.getByTestId('app-content').getByRole('button', { name: 'Search', exact: true }).click();
 
 	await expect(page).toHaveURL(/\/app\/search\?q=gridwave$/);

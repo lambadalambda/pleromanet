@@ -80,3 +80,4 @@
 - [x] [80 Simplify the mobile app shell](issues/80-simplify-mobile-app-shell.md)
 - [x] [81 Require review commit and push](issues/81-require-review-commit-and-push.md)
 - [x] [82 Support sensitive posts and media](issues/82-support-sensitive-posts-and-media.md)
+- [x] [83 Make Explore search only](issues/83-make-explore-search-only.md)

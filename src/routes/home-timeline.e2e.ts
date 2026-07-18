@@ -2644,7 +2644,7 @@ test('home timeline opens a user stream and queues streamed posts behind the ind
 	expect(requestedSinceIds).toEqual([null]);
 
 	await page.getByRole('link', { name: 'Explore' }).first().click();
-	await expect(page.getByRole('heading', { name: 'Explore the network' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Search the network' })).toBeVisible();
 	expect(await page.evaluate(() => {
 		const testWindow = window as typeof window & { __pleromanetSockets?: Array<{ closeCalled: boolean }> };
 		return testWindow.__pleromanetSockets?.[0]?.closeCalled;
@@ -2821,7 +2821,7 @@ test('home timeline ignores initial responses after leaving home while loading',
 	await page.goto('/app/home');
 	await expect(page.getByRole('status', { name: 'Request status' })).toContainText('Loading Pleroma data');
 	await page.getByRole('link', { name: 'Explore' }).first().click();
-	await expect(page.getByRole('heading', { name: 'Explore the network' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Search the network' })).toBeVisible();
 	const socketCountAfterNavigation = await page.evaluate(() => {
 		const testWindow = window as typeof window & { __pleromanetSockets?: unknown[] };
 		return testWindow.__pleromanetSockets?.length ?? 0;
@@ -2978,7 +2978,7 @@ test('home timeline ignores auth errors from stale new-post checks after the ses
 		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
 	}, nextSession);
 	await page.getByRole('link', { name: 'Explore' }).first().click();
-	await expect(page.getByRole('heading', { name: 'Explore the network' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Search the network' })).toBeVisible();
 
 	releaseCheck();
 	await expect(page).toHaveURL('/app/explore');

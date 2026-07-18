@@ -112,8 +112,8 @@ test('real app routes render shell, deep links, and browser history', async ({ p
 
 	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Explore' }).click();
 	await expect(page).toHaveURL('/app/explore');
-	await expect(page.getByRole('heading', { name: 'Explore the network' })).toBeVisible();
-	await expect(page.getByTestId('right-rail')).toContainText('Discover');
+	await expect(page.getByRole('heading', { name: 'Search the network' })).toBeVisible();
+	await expect(page.getByTestId('right-rail')).toHaveCount(0);
 
 	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Settings' }).click();
 	await expect(page).toHaveURL('/app/settings');
@@ -191,7 +191,7 @@ test('real app hydrates profile data for existing token-only sessions', async ({
 	expect(await page.evaluate(() => JSON.parse(window.localStorage.getItem('pleromanet.session') ?? '{}').account?.display_name)).toBe('quiet admin');
 });
 
-test('real app right rail keeps timeline and explore card stacks', async ({ page }) => {
+test('real app right rail stays on timelines and is absent from Explore', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page);
 	await page.setViewportSize({ width: 1360, height: 900 });
@@ -205,9 +205,7 @@ test('real app right rail keeps timeline and explore card stacks', async ({ page
 
 	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Explore' }).click();
 	await expect(page).toHaveURL('/app/explore');
-	await expect(page.getByLabel('Quick search Explore')).toBeVisible();
-	await expect(rail).toContainText('Known instances');
-	await expect(rail).toContainText('Discovery mode');
+	await expect(page.getByTestId('right-rail')).toHaveCount(0);
 });
 
 test('app route guard revalidates when session disappears during client navigation', async ({ page }) => {
