@@ -1627,6 +1627,8 @@ test('home timeline status action failure after navigation does not clobber thre
 	await expect(focused.getByRole('button', { name: 'Favorite 14' })).toHaveAttribute('aria-pressed', 'true');
 	await expect(page).toHaveURL('/app/thread/status-action-navigation');
 	await expect(page.getByText('favorite failed after navigation')).toHaveCount(0);
+	await page.goBack();
+	await expect(page.locator('[data-status-id="status-action-navigation"]').getByRole('button', { name: 'Favorite 9' })).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('home timeline status action auth failures sign out and redirect', async ({ page }) => {
@@ -2361,6 +2363,62 @@ test('home timeline loads the next cursor page, deduplicates overlap, and keeps 
 	await expect.poll(() => favoriteActionPath).toBe('/api/v1/statuses/status-3/favourite');
 	await expect(page.getByText('No older posts')).toBeVisible();
 	expect(requestedMaxIds).toEqual([null, 'status-2']);
+});
+
+test('home timeline retains pagination and scroll when returning from a thread', async ({ page }) => {
+	await authenticate(page);
+	const firstPage = Array.from({ length: 12 }, (_, index) => statusWithText(`retained-home-${index + 1}`, `retained home post ${index + 1}`));
+	const olderPage = Array.from({ length: 12 }, (_, index) => statusWithText(`retained-home-${index + 13}`, `retained older home post ${index + 13}`));
+	const requestedMaxIds: Array<string | null> = [];
+	await mockHomeTimeline(page, async (route) => {
+		const maxId = new URL(route.request().url()).searchParams.get('max_id');
+		requestedMaxIds.push(maxId);
+		await fulfillHome(route, maxId === 'retained-home-12' ? olderPage : firstPage, 200, maxId
+			? { link: '<https://pleroma.example/api/v1/timelines/home?max_id=retained-home-24>; rel="next"' }
+			: { link: '<https://pleroma.example/api/v1/timelines/home?max_id=retained-home-12>; rel="next"' });
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/retained-home-18', async (route) => {
+		await fulfillHome(route, olderPage[5]);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/retained-home-18/context', async (route) => {
+		await fulfillHome(route, { ancestors: [], descendants: [] });
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await page.getByRole('button', { name: 'Load more' }).click();
+	const olderPost = page.locator('[data-status-id="retained-home-18"]');
+	await expect(olderPost).toContainText('retained older home post 18');
+	await olderPost.scrollIntoViewIfNeeded();
+	const scrollBefore = await page.evaluate(() => window.scrollY);
+	expect(scrollBefore).toBeGreaterThan(500);
+
+	await olderPost.locator('.post-body').click();
+	await expect(page).toHaveURL('/app/thread/retained-home-18');
+	await expect(page.getByTestId('focused-post')).toContainText('retained older home post 18');
+	await page.goBack();
+
+	await expect(page).toHaveURL('/app/home');
+	await expect(olderPost).toContainText('retained older home post 18');
+	await expect(page.getByRole('button', { name: 'Load more' })).toBeVisible();
+	await expect.poll(async () => Math.abs((await page.evaluate(() => window.scrollY)) - scrollBefore)).toBeLessThanOrEqual(12);
+	const replacementStreamClosed = await page.evaluate((staleStatus) => {
+		type MockSocket = {
+			url: string;
+			closeCalled: boolean;
+			onmessage: ((event: { data: string }) => void) | null;
+			onerror: ((event: Event) => void) | null;
+		};
+		const sockets = ((window as typeof window & { __pleromanetSockets?: MockSocket[] }).__pleromanetSockets ?? [])
+			.filter((socket) => new URL(socket.url).searchParams.get('stream') === 'user');
+		const staleSocket = sockets[0];
+		staleSocket?.onmessage?.({ data: JSON.stringify({ event: 'update', payload: JSON.stringify(staleStatus) }) });
+		staleSocket?.onerror?.(new Event('error'));
+		return sockets.at(-1)?.closeCalled ?? true;
+	}, statusWithText('stale-home-stream', 'stale closed home stream post'));
+	await expect(page.getByTestId('home-timeline-list')).not.toContainText('stale closed home stream post');
+	expect(replacementStreamClosed).toBe(false);
+	expect(requestedMaxIds).toEqual([null, 'retained-home-12']);
 });
 
 test('home timeline retries load-more errors with the same cursor', async ({ page }) => {

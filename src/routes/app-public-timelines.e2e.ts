@@ -304,6 +304,131 @@ test('app public timelines load older pages and deduplicate overlapping statuses
 	expect(requestedLocalParams).toEqual(['true', 'true']);
 });
 
+test('local and federated timelines retain independent pages and history scroll', async ({ page }) => {
+	await authenticate(page);
+	const requests: Array<{ local: string | null; maxId: string | null }> = [];
+	await mockAppPublicTimeline(page, async (route, url) => {
+		const local = url.searchParams.get('local');
+		const maxId = url.searchParams.get('max_id');
+		requests.push({ local, maxId });
+		if (local === 'true' && maxId === 'retained-local-12') {
+			await fulfillTimeline(route, Array.from({ length: 12 }, (_, index) => statusWithText(`retained-local-${index + 13}`, `retained older local post ${index + 13}`)), 200, {
+				link: `<${timelineUrl}?local=true&max_id=retained-local-24>; rel="next"`
+			});
+			return;
+		}
+		if (local === 'true') {
+			await fulfillTimeline(route, Array.from({ length: 12 }, (_, index) => statusWithText(`retained-local-${index + 1}`, `retained local post ${index + 1}`)), 200, {
+				link: `<${timelineUrl}?local=true&max_id=retained-local-12>; rel="next"`
+			});
+			return;
+		}
+		await fulfillTimeline(route, Array.from({ length: 12 }, (_, index) => statusWithText(`retained-federated-${index + 1}`, `retained federated post ${index + 1}`)));
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/local');
+	await page.getByRole('button', { name: 'Load more' }).click();
+	const olderLocalPost = page.locator('[data-status-id="retained-local-18"]');
+	await expect(olderLocalPost).toContainText('retained older local post 18');
+	await olderLocalPost.scrollIntoViewIfNeeded();
+	const localScroll = await page.evaluate(() => window.scrollY);
+	expect(localScroll).toBeGreaterThan(500);
+
+	await page.getByRole('tab', { name: 'Federated' }).click();
+	await expect(page.getByTestId('app-public-timeline-list')).toContainText('retained federated post 1');
+	await expect(page.getByTestId('app-public-timeline-list')).not.toContainText('retained local post 1');
+	await page.goBack();
+
+	await expect(page).toHaveURL('/app/local');
+	await expect(olderLocalPost).toContainText('retained older local post 18');
+	await expect(page.getByRole('button', { name: 'Load more' })).toBeVisible();
+	await expect.poll(async () => Math.abs((await page.evaluate(() => window.scrollY)) - localScroll)).toBeLessThanOrEqual(12);
+	const replacementStreamClosed = await page.evaluate((staleStatus) => {
+		type MockSocket = {
+			url: string;
+			closeCalled: boolean;
+			onmessage: ((event: { data: string }) => void) | null;
+			onerror: ((event: Event) => void) | null;
+		};
+		const sockets = ((window as typeof window & { __pleromanetSockets?: MockSocket[] }).__pleromanetSockets ?? [])
+			.filter((socket) => new URL(socket.url).searchParams.get('stream') === 'public:local');
+		const staleSocket = sockets[0];
+		staleSocket?.onmessage?.({ data: JSON.stringify({ event: 'update', payload: JSON.stringify(staleStatus) }) });
+		staleSocket?.onerror?.(new Event('error'));
+		return sockets.at(-1)?.closeCalled ?? true;
+	}, statusWithText('stale-local-stream', 'stale closed local stream post'));
+	await expect(page.getByTestId('app-public-timeline-list')).not.toContainText('stale closed local stream post');
+	expect(replacementStreamClosed).toBe(false);
+	await page.goForward();
+	await expect(page.getByTestId('app-public-timeline-list')).toContainText('retained federated post 1');
+	expect(requests).toEqual([
+		{ local: 'true', maxId: null },
+		{ local: 'true', maxId: 'retained-local-12' },
+		{ local: null, maxId: null }
+	]);
+});
+
+test('app public timeline cache clears when the authenticated session changes', async ({ page }) => {
+	await authenticate(page);
+	const nextSession = { ...session, accessToken: 'fresh-token', createdAt: 1700000002000 };
+	const authorizations: string[] = [];
+	await mockAppPublicTimeline(page, async (route) => {
+		const authorization = route.request().headers().authorization ?? '';
+		authorizations.push(authorization);
+		await fulfillTimeline(route, [authorization === 'Bearer fresh-token'
+			? statusWithText('fresh-session-local', 'fresh account local post')
+			: statusWithText('old-session-local', 'old account local post')]);
+	});
+
+	await page.goto('/app/local');
+	await expect(page.getByTestId('app-public-timeline-list')).toContainText('old account local post');
+	await page.evaluate((storedSession) => {
+		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
+		window.dispatchEvent(new StorageEvent('storage', {
+			key: 'pleromanet.session',
+			newValue: JSON.stringify(storedSession),
+			storageArea: window.localStorage
+		}));
+	}, nextSession);
+
+	const list = page.getByTestId('app-public-timeline-list');
+	await expect(list).toContainText('fresh account local post');
+	await expect(list).not.toContainText('old account local post');
+	expect(authorizations).toEqual(['Bearer access-token', 'Bearer fresh-token']);
+});
+
+test('app public timeline rolls back failed actions after navigating away', async ({ page }) => {
+	await authenticate(page);
+	const actionStatus = { ...statusWithText('retained-local-action', 'retained local action rollback'), favourites_count: 9 };
+	let releaseFavorite: () => void = () => undefined;
+	const favoritePending = new Promise<void>((resolve) => {
+		releaseFavorite = resolve;
+	});
+	await mockAppPublicTimeline(page, async (route, url) => {
+		await fulfillTimeline(route, url.searchParams.get('local') === 'true'
+			? [actionStatus]
+			: [statusWithText('federated-action-baseline', 'federated action baseline')]);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/retained-local-action/favourite', async (route) => {
+		await favoritePending;
+		await fulfillTimeline(route, { error: 'favorite failed after leaving local' }, 503);
+	});
+
+	await page.goto('/app/local');
+	const localPost = page.locator('[data-status-id="retained-local-action"]');
+	await localPost.getByRole('button', { name: 'Favorite 9' }).click();
+	await expect(localPost.getByRole('button', { name: 'Favorite 10' })).toHaveAttribute('aria-pressed', 'true');
+	await page.getByRole('tab', { name: 'Federated' }).click();
+	const favoriteResponse = page.waitForResponse('https://pleroma.example/api/v1/statuses/retained-local-action/favourite');
+	releaseFavorite();
+	await favoriteResponse;
+	await page.goBack();
+
+	await expect(localPost.getByRole('button', { name: 'Favorite 9' })).toHaveAttribute('aria-pressed', 'false');
+	await expect(page.getByText('favorite failed after leaving local')).toHaveCount(0);
+});
+
 test('app public timeline action failures rollback while pagination is loading', async ({ page }) => {
 	await authenticate(page);
 	const actionStatus = { ...statusWithText('status-local-action', 'rollback local timeline favorite'), favourites_count: 9 };

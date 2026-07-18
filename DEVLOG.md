@@ -1,5 +1,11 @@
 # Devlog
 
+## 2026-07-18
+
+- Authenticated home, local, and federated timelines retain independent session-scoped pages and cursors across app navigation so browser history can restore scroll without an initial refetch.
+- Inactive timeline streams close and reconnect on return, while session replacement, sign-out, and stale in-flight work cannot expose or mutate a previous timeline cache.
+- Threads opened from timelines carry their return provenance in the history entry, preserving the back action through browser forward navigation while direct links fall back to home.
+
 ## 2026-07-17
 
 - GitHub Pages deployment requires a repository-aware SvelteKit base path because project sites are served below `/<repository>`.

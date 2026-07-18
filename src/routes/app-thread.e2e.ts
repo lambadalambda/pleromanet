@@ -365,12 +365,13 @@ test('real thread replies prefill all focused-status participants', async ({ pag
 	await expect(form.getByRole('textbox', { name: 'Reply text' })).toHaveText('@datagram@retro.social @lumen@example.social ');
 });
 
-test('real thread route opens from the home timeline and returns to home', async ({ page }) => {
+test('real thread route opened from home returns through browser history', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page);
 	await mockThread(page);
 	await setViewport(page, 'desktop');
-	await page.goto('/app/home');
+	await page.goto('/app/explore');
+	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Home' }).click();
 
 	await page.locator('[data-status-id="status-1"]').click();
 	await expect(page).toHaveURL('/app/thread/status-1');
@@ -379,6 +380,23 @@ test('real thread route opens from the home timeline and returns to home', async
 	await page.getByRole('button', { name: 'Back to home timeline' }).click();
 	await expect(page).toHaveURL('/app/home');
 	await expect(page.getByRole('tablist', { name: 'Timeline sections' })).toBeVisible();
+	await page.goForward();
+	await expect(page).toHaveURL('/app/thread/status-1');
+	await page.getByRole('button', { name: 'Back to home timeline' }).click();
+	await expect(page).toHaveURL('/app/home');
+	await page.goBack();
+	await expect(page).toHaveURL('/app/explore');
+});
+
+test('direct-linked thread back action safely falls back to home', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page);
+	await mockThread(page);
+	await page.goto('/app/thread/status-1');
+
+	await page.getByRole('button', { name: 'Back to home timeline' }).click();
+	await expect(page).toHaveURL('/app/home');
+	await expect(page.getByTestId('home-timeline-list')).toContainText('quiet CSS can still carry the voice.');
 });
 
 test('real thread route opens focused media in the attachment lightbox', async ({ page }) => {
