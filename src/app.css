@@ -1548,9 +1548,7 @@ a { color: inherit; text-decoration: none; }
 	background: var(--panel-2);
 	color: var(--ink-2);
 }
-.mobile-bottom,
-.mobile-drawer-bg,
-.mobile-sheet-bg { display: none; }
+.mobile-drawer-bg { display: none; }
 
 /* ===== Dark-theme class overrides ===== */
 body[data-theme='dusk'] .pill {
@@ -5668,7 +5666,6 @@ a.suggest-name:hover { color: var(--accent-ink); }
 @media (max-width: 880px) {
 	.radio,
 	.radio-revive {
-		bottom: 80px;
 		left: 12px;
 		right: 12px;
 	}
@@ -6990,7 +6987,7 @@ body[data-theme='custom'] .ds-anatomy-marker {
 	.header-notifs-pop .notif-pop {
 		display: flex;
 		flex-direction: column;
-		max-height: calc(100dvh - 136px - env(safe-area-inset-bottom));
+		max-height: calc(100dvh - 74px - env(safe-area-inset-bottom));
 	}
 	.header-notifs-pop .notif-pop-head,
 	.header-notifs-pop .notif-pop-tabs,
@@ -7016,11 +7013,10 @@ body[data-theme='custom'] .ds-anatomy-marker {
 		max-height: calc(100vh - 74px);
 		overflow-y: auto;
 	}
-	.post-control-toast { bottom: 76px; }
 	.app-shell-grid {
 		grid-template-columns: minmax(0, 1fr);
 		gap: 14px;
-		padding: 14px 14px 90px;
+		padding: 14px 14px 60px;
 	}
 	.app-left-sidebar { display: none; }
 	.pp-inline-rail { grid-template-columns: minmax(0, 1fr); }
@@ -7042,16 +7038,14 @@ body[data-theme='custom'] .ds-anatomy-marker {
 		background: var(--panel);
 		box-shadow: 4px 0 24px rgba(28, 32, 70, 0.12);
 	}
-	.mobile-drawer-bg,
-	.mobile-sheet-bg {
+	.mobile-drawer-bg {
 		display: block;
 		position: fixed;
 		inset: 0;
 		z-index: 99;
 		background: rgba(28, 32, 70, 0.4);
 	}
-	.drawer-head,
-	.sheet-head {
+	.drawer-head {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -7073,69 +7067,6 @@ body[data-theme='custom'] .ds-anatomy-marker {
 		font-size: 20px;
 	}
 	.drawer-close:hover { background: var(--bg); color: var(--ink); }
-	.mobile-sheet {
-		position: fixed;
-		right: 0;
-		bottom: 0;
-		left: 0;
-		z-index: 100;
-		max-height: 80vh;
-		overflow-y: auto;
-		padding-bottom: 20px;
-		border-top: 1px solid var(--border);
-		border-radius: 14px 14px 0 0;
-		background: var(--panel);
-		box-shadow: 0 -8px 32px rgba(28, 32, 70, 0.18);
-	}
-	.sheet-grip {
-		width: 40px;
-		height: 4px;
-		margin: 8px auto 4px;
-		border-radius: 2px;
-		background: var(--border-strong);
-	}
-	.sheet-title {
-		font-family: var(--mono);
-		font-size: 11px;
-		font-weight: 600;
-		letter-spacing: 0.14em;
-		text-transform: uppercase;
-		color: var(--ink);
-	}
-	.mobile-bottom {
-		display: grid;
-		position: fixed;
-		right: 0;
-		bottom: 0;
-		left: 0;
-		z-index: 50;
-		grid-template-columns: repeat(4, minmax(0, 1fr));
-		padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
-		border-top: 1px solid var(--border);
-		background: var(--panel);
-		box-shadow: 0 -2px 8px rgba(28, 32, 70, 0.06);
-	}
-	.mob-tab {
-		display: flex;
-		position: relative;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 4px;
-		min-width: 0;
-		padding: 6px 4px;
-		border-radius: 4px;
-		font-family: var(--mono);
-		font-size: 9.5px;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--muted);
-	}
-	.mob-tab svg { width: 22px; height: 22px; }
-	.mob-tab.active {
-		background: var(--accent-soft-2);
-		color: var(--accent-ink);
-	}
 	.btn-primary { padding: 6px 16px; font-size: 12.5px; }
 	.tabs { padding: 0 8px; }
 	.tab { padding: 12px 14px; font-size: 13px; }
@@ -7150,15 +7081,15 @@ body[data-theme='custom'] .ds-anatomy-marker {
 	}
 }
 @media (max-width: 720px) {
-	.app-shell-grid.mobile-full-bleed { padding-right: 0; padding-left: 0; }
+	.app-shell-grid.mobile-full-bleed { padding-top: 0; padding-right: 0; padding-left: 0; }
 	.composer-privacy-menu {
 		position: fixed;
 		top: auto;
 		right: 8px;
-		bottom: calc(76px + env(safe-area-inset-bottom));
+		bottom: calc(8px + env(safe-area-inset-bottom));
 		left: 8px;
 		width: auto;
-		max-height: calc(100dvh - 92px - env(safe-area-inset-bottom));
+		max-height: calc(100dvh - 24px - env(safe-area-inset-bottom));
 		overflow-y: auto;
 	}
 	.mobile-full-bleed .app-feed-card {

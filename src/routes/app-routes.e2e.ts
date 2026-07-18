@@ -275,7 +275,7 @@ test('real app shell stays responsive across desktop, medium, tablet, and mobile
 			await expect(page.getByTestId('right-rail')).toBeHidden();
 		} else {
 			await expect(page.getByTestId('left-sidebar')).toBeHidden();
-			await expect(page.getByTestId('mobile-bottom-nav')).toBeVisible();
+			await expect(page.getByTestId('mobile-bottom-nav')).toHaveCount(0);
 		}
 
 		await expectNoHorizontalOverflow(page);
@@ -390,7 +390,7 @@ test('real app user menu opens profile, settings, and signs out', async ({ page 
 	expect(await page.evaluate(() => window.localStorage.getItem('pleromanet.session'))).toBeNull();
 });
 
-test('mobile real app shell opens drawer and details sheet', async ({ page }) => {
+test('mobile real app shell navigates through the drawer', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page);
 	await setViewport(page, 'mobile');
@@ -401,15 +401,11 @@ test('mobile real app shell opens drawer and details sheet', async ({ page }) =>
 	await page.getByTestId('mobile-drawer').getByRole('link', { name: 'Local' }).click();
 	await expect(page).toHaveURL('/app/local');
 	await expect(page.getByTestId('mobile-drawer')).toBeHidden();
-
-	await page.getByTestId('mobile-bottom-nav').getByRole('button', { name: 'More' }).click();
-	await expect(page.getByTestId('mobile-sheet')).toBeVisible();
-	await page.getByRole('button', { name: 'Close details sheet' }).click();
-	await expect(page.getByTestId('mobile-sheet')).toBeHidden();
+	await expect(page.getByTestId('mobile-bottom-nav')).toHaveCount(0);
 	await expectNoHorizontalOverflow(page);
 });
 
-test('mobile navigation overlays contain focus and restore it when closed', async ({ page }) => {
+test('mobile navigation drawer contains focus and restores it when closed', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page);
 	await setViewport(page, 'mobile');
@@ -436,22 +432,6 @@ test('mobile navigation overlays contain focus and restore it when closed', asyn
 	await expect(drawer).toHaveCount(0);
 	await expect(drawerTrigger).toBeFocused();
 
-	const sheetTrigger = page.getByTestId('mobile-bottom-nav').getByRole('button', { name: 'More' });
-	await sheetTrigger.click();
-	const sheet = page.getByRole('dialog', { name: 'Details' });
-	const sheetClose = sheet.getByRole('button', { name: 'Close details sheet' });
-	await expect(sheet).toHaveAttribute('aria-modal', 'true');
-	await expect(sheetClose).toBeFocused();
-	await page.keyboard.press('Shift+Tab');
-	await expect.poll(async () => sheet.evaluate((element) => element.contains(document.activeElement))).toBe(true);
-	await page.keyboard.press('Escape');
-	await expect(sheet).toHaveCount(0);
-	await expect(sheetTrigger).toBeFocused();
-
-	await sheetTrigger.click();
-	await page.getByRole('dialog', { name: 'Details' }).getByRole('button', { name: 'Close details sheet' }).click();
-	await expect(sheetTrigger).toBeFocused();
-
 	await drawerTrigger.click();
 	await page.setViewportSize({ width: 1000, height: 800 });
 	await expect(page.getByRole('dialog', { name: 'Navigation menu' })).toHaveCount(0);
@@ -459,10 +439,4 @@ test('mobile navigation overlays contain focus and restore it when closed', asyn
 	await page.getByRole('button', { name: 'quiet admin account menu' }).click();
 	await expect(page.getByTestId('user-menu')).toBeVisible();
 	await page.keyboard.press('Escape');
-
-	await setViewport(page, 'mobile');
-	await sheetTrigger.click();
-	await page.setViewportSize({ width: 1000, height: 800 });
-	await expect(page.getByRole('dialog', { name: 'Details' })).toHaveCount(0);
-	await expect(page.getByTestId('mobile-bottom-nav')).toHaveJSProperty('inert', false);
 });

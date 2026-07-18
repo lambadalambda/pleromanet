@@ -286,6 +286,9 @@ test('mobile notification popover keeps its scrollable list and footer inside a 
 		const bounds = element.getBoundingClientRect();
 		return bounds.top >= 0 && bounds.bottom <= window.innerHeight;
 	})).toBe(true);
+	await expect.poll(async () => popover.locator('.notif-pop').evaluate((element) => (
+		window.innerHeight - element.getBoundingClientRect().bottom
+	))).toBeLessThanOrEqual(15);
 	await expect.poll(async () => list.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
 
 	const pageScrollY = await page.evaluate(() => window.scrollY);

@@ -237,13 +237,9 @@
 	let composerPrivacyOpen = $state(false);
 	let composerPrivacyTrigger = $state<HTMLButtonElement | null>(null);
 	let mobileDrawerOpen = $state(false);
-	let mobileSheetOpen = $state(false);
 	let mobileDrawerTrigger = $state<HTMLButtonElement | null>(null);
 	let mobileDrawerPanel = $state<HTMLElement | null>(null);
 	let mobileDrawerClose = $state<HTMLButtonElement | null>(null);
-	let mobileSheetTrigger = $state<HTMLButtonElement | null>(null);
-	let mobileSheetPanel = $state<HTMLElement | null>(null);
-	let mobileSheetClose = $state<HTMLButtonElement | null>(null);
 	let userMenuOpen = $state(false);
 	let userMenuTrigger = $state<HTMLButtonElement | null>(null);
 	let autoInsertTimelinePosts = $state(false);
@@ -1995,22 +1991,12 @@
 		trigger?.focus();
 	};
 	const openMobileDrawer = () => {
-		mobileSheetOpen = false;
 		mobileDrawerOpen = true;
 		void focusMobilePanel(() => mobileDrawerPanel, () => mobileDrawerClose);
 	};
 	const closeMobileDrawer = (restoreFocus = true) => {
 		mobileDrawerOpen = false;
 		if (restoreFocus) void restoreMobilePanelFocus(mobileDrawerTrigger);
-	};
-	const openMobileSheet = () => {
-		mobileDrawerOpen = false;
-		mobileSheetOpen = true;
-		void focusMobilePanel(() => mobileSheetPanel, () => mobileSheetClose);
-	};
-	const closeMobileSheet = (restoreFocus = true) => {
-		mobileSheetOpen = false;
-		if (restoreFocus) void restoreMobilePanelFocus(mobileSheetTrigger);
 	};
 	const trapMobilePanelFocus = (event: KeyboardEvent, panel: HTMLElement | null) => {
 		if (event.key !== 'Tab' || !panel) return;
@@ -2033,7 +2019,6 @@
 	};
 	const closeMobilePanels = () => {
 		mobileDrawerOpen = false;
-		mobileSheetOpen = false;
 	};
 	const applyTheme = (theme: ThemeName) => {
 		const palette = theme === 'custom' ? customThemePalette ?? customThemeDraft : undefined;
@@ -2086,10 +2071,6 @@
 		if (event.key !== 'Escape') return;
 		if (mobileDrawerOpen) {
 			closeMobileDrawer();
-			return;
-		}
-		if (mobileSheetOpen) {
-			closeMobileSheet();
 			return;
 		}
 		const restoreUserMenuFocus = userMenuOpen;
@@ -4225,7 +4206,7 @@
 	{/if}
 {:else if sessionReady}
 	<div class="app-route-shell">
-		<header class="app-header" data-testid="app-header" inert={mobileDrawerOpen || mobileSheetOpen}>
+		<header class="app-header" data-testid="app-header" inert={mobileDrawerOpen}>
 			<div class="app-header-shell">
 				<div class="app-header-inner">
 					<div class="app-brand">
@@ -4390,7 +4371,7 @@
 			</div>
 		</header>
 
-		<div class="app-shell-grid" class:content-wide={!hasRightRail} class:mobile-full-bleed={route === 'home' || route === 'local' || route === 'federated'} inert={mobileDrawerOpen || mobileSheetOpen}>
+		<div class="app-shell-grid" class:content-wide={!hasRightRail} class:mobile-full-bleed={route === 'home' || route === 'local' || route === 'federated'} inert={mobileDrawerOpen}>
 			<aside class="app-left-sidebar" data-testid="left-sidebar">
 				<ProfileMini account={currentSession?.account} instanceUrl={currentSession?.instanceUrl} />
 				<div class="card app-side-card">
@@ -5033,13 +5014,6 @@
 			{/if}
 		</div>
 
-		<nav class="mobile-bottom" data-testid="mobile-bottom-nav" aria-label="Mobile app navigation" inert={mobileDrawerOpen || mobileSheetOpen}>
-			<a href={appPath('/app/home')} class:active={route === 'home'} class="mob-tab"><Icon name="home" /><span>Home</span></a>
-			<a href={appPath('/app/explore')} class:active={route === 'explore'} class="mob-tab"><Icon name="search" /><span>Explore</span></a>
-			<a href={appPath('/app/settings')} class:active={route === 'settings'} class="mob-tab"><Icon name="gear" /><span>Settings</span></a>
-			<button bind:this={mobileSheetTrigger} type="button" class="mob-tab" onclick={openMobileSheet}><Icon name="list" /><span>More</span></button>
-		</nav>
-
 		{#if mobileDrawerOpen}
 			<button type="button" tabindex="-1" class="mobile-drawer-bg open" aria-hidden="true" aria-label="Close navigation menu" onclick={() => closeMobileDrawer()}></button>
 			<div bind:this={mobileDrawerPanel} class="mobile-drawer open" data-testid="mobile-drawer" role="dialog" aria-modal="true" aria-label="Navigation menu" tabindex="-1" onkeydown={(event) => trapMobilePanelFocus(event, mobileDrawerPanel)}>
@@ -5056,18 +5030,6 @@
 						</a>
 					{/each}
 				</nav>
-			</div>
-		{/if}
-
-		{#if mobileSheetOpen}
-			<button type="button" tabindex="-1" class="mobile-sheet-bg open" aria-hidden="true" aria-label="Dismiss details sheet" onclick={() => closeMobileSheet()}></button>
-			<div bind:this={mobileSheetPanel} class="mobile-sheet open" data-testid="mobile-sheet" role="dialog" aria-modal="true" aria-label="Details" tabindex="-1" onkeydown={(event) => trapMobilePanelFocus(event, mobileSheetPanel)}>
-				<div class="sheet-grip"></div>
-				<div class="sheet-head"><span class="sheet-title">Details</span><button bind:this={mobileSheetClose} type="button" class="drawer-close" aria-label="Close details sheet" onclick={() => closeMobileSheet()}>×</button></div>
-				<SurfaceCard kind="trends" trendsState={trendsState} />
-				{#if railSuggestions.length > 0}
-					<SurfaceCard kind="who-to-follow" suggestions={railSuggestions} onSuggestionFollow={toggleSuggestionFollow} />
-				{/if}
 			</div>
 		{/if}
 	</div>

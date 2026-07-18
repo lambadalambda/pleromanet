@@ -484,7 +484,7 @@
 	];
 
 	const MOBILE_PREVIEWS: MobilePreviewSpec[] = [
-		{ variant: 'home', label: 'Home · feed + bottom tab bar' },
+		{ variant: 'home', label: 'Home · feed' },
 		{ variant: 'drawer', label: 'Drawer · left side menu' },
 		{ variant: 'thread', label: 'Thread · ancestor + focused' },
 	];
@@ -2222,7 +2222,7 @@
 				<header class="ds-slab-head">
 					<div class="ds-kicker">16</div>
 					<h2 class="ds-h2">Mobile</h2>
-					<p class="ds-sub">The same components, scaled into a 375-wide viewport. Bottom tab bar, drawer (left), sheet (right) replace the rails.</p>
+					<p class="ds-sub">The same components, scaled into a 375-wide viewport. The header and left drawer replace the desktop rails.</p>
 				</header>
 				<div class="ds-slab-body">
 					<div class="ds-phone-row">
@@ -3023,52 +3023,6 @@
 
 	:global(.ds-mobile-feed .post-action) {
 		padding-inline: 3px;
-	}
-
-	:global(.ds-mobile-bottom) {
-		display: grid;
-		grid-template-columns: repeat(5, 1fr);
-		padding: 6px 4px 10px;
-		background: var(--panel);
-		border-top: 1px solid var(--border);
-		flex-shrink: 0;
-	}
-
-	:global(.ds-mobile-bottom .mob-tab) {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 4px;
-		padding: 8px 4px;
-		font-size: 10px;
-		letter-spacing: 0.04em;
-		color: var(--muted);
-		position: relative;
-		border-radius: 4px;
-	}
-
-	:global(.ds-mobile-bottom .mob-tab svg) {
-		width: 18px;
-		height: 18px;
-	}
-
-	:global(.ds-mobile-bottom .mob-tab.active) {
-		color: var(--accent-ink);
-	}
-
-	:global(.ds-mobile-bottom .tab-badge) {
-		position: absolute;
-		top: 4px;
-		right: 50%;
-		margin-right: -16px;
-		background: var(--bad);
-		color: white;
-		font-size: 9px;
-		padding: 1px 4px;
-		border-radius: 6px;
-		min-width: 14px;
-		text-align: center;
 	}
 
 	:global(.ds-mobile-drawer-inner) {

@@ -24,7 +24,6 @@
 		bookmarks?: number;
 		actions: { reply: boolean; boost: boolean; fav: boolean };
 	};
-	type BottomItem = { label: string; icon: IconName; active?: boolean; count?: number };
 	type DrawerItem = { label: string; icon: IconName; active?: boolean; count?: number };
 	type Props = {
 		variant: Variant;
@@ -74,13 +73,6 @@
 		views: '12.4K',
 		bookmarks: 24,
 	};
-	const bottomItems: BottomItem[] = [
-		{ label: 'Home', icon: 'home', active: true },
-		{ label: 'Explore', icon: 'search' },
-		{ label: 'Alerts', icon: 'bell', count: 3 },
-		{ label: 'Settings', icon: 'gear' },
-		{ label: 'More', icon: 'list' },
-	];
 	const drawerItems: DrawerItem[] = [
 		{ label: 'Home', icon: 'home', active: true },
 		{ label: 'Local', icon: 'users' },
@@ -114,15 +106,6 @@
 						<Post post={samplePost} onAction={() => {}} />
 						<Post post={bannerPost} onAction={() => {}} />
 					</div>
-					<nav class="ds-mobile-bottom" aria-label="Mobile bottom navigation preview">
-						{#each bottomItems as item}
-							<button type="button" class:active={item.active} class="mob-tab">
-								<Icon name={item.icon} />
-								<span>{item.label}</span>
-								{#if item.count}<span class="tab-badge">{item.count}</span>{/if}
-							</button>
-						{/each}
-					</nav>
 				</div>
 			{:else if variant === 'drawer'}
 				<div class="ds-mobile-app">

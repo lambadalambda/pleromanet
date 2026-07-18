@@ -77,3 +77,4 @@
 - [x] [69 Audit and polish mobile app](issues/69-audit-and-polish-mobile-app.md)
 - [x] [78 Fit mobile image lightbox](issues/78-fit-mobile-image-lightbox.md)
 - [x] [79 Keep lightbox close visible with long filenames](issues/79-keep-lightbox-close-visible-with-long-filenames.md)
+- [x] [80 Simplify the mobile app shell](issues/80-simplify-mobile-app-shell.md)

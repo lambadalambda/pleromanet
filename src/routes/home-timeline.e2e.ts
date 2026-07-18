@@ -3173,7 +3173,8 @@ test('mobile composer overlays stay inside narrow and keyboard-reduced viewports
 	await expectNoHorizontalOverflow(page);
 	await page.setViewportSize({ width: 320, height: 300 });
 	await expect.poll(() => privacyMenu.evaluate((element) => element.getBoundingClientRect().top)).toBeGreaterThanOrEqual(8);
-	await expect.poll(() => privacyMenu.evaluate((element) => element.getBoundingClientRect().bottom)).toBeLessThanOrEqual(224);
+	await expect.poll(() => privacyMenu.evaluate((element) => window.innerHeight - element.getBoundingClientRect().bottom)).toBeGreaterThanOrEqual(8);
+	await expect.poll(() => privacyMenu.evaluate((element) => window.innerHeight - element.getBoundingClientRect().bottom)).toBeLessThanOrEqual(9);
 	await privacyMenu.getByRole('menuitemradio', { name: /Public/ }).focus();
 	await page.keyboard.press('Tab');
 	await expect(privacyMenu.getByRole('menuitemradio', { name: /Unlisted/ })).toBeFocused();
@@ -3407,7 +3408,7 @@ test('home timeline post menu copies the status link', async ({ page }) => {
 	expect(copied).toBe('https://pleroma.example/notice/status-link');
 });
 
-test('mobile post feedback stays above navigation without blocking its tabs', async ({ page }) => {
+test('mobile post feedback stays above the viewport edge and survives drawer navigation', async ({ page }) => {
 	await authenticate(page);
 	await page.addInitScript(() => {
 		Object.defineProperty(navigator, 'clipboard', {
@@ -3425,15 +3426,18 @@ test('mobile post feedback stays above navigation without blocking its tabs', as
 	await post.getByRole('button', { name: 'More post actions' }).click();
 	await post.getByRole('menuitem', { name: 'Copy link to post' }).click();
 	const toast = page.getByTestId('post-control-toast');
-	const navigation = page.getByTestId('mobile-bottom-nav');
 	await expect(toast).toContainText('Link copied');
 	await expect.poll(async () => {
 		const toastBounds = await toast.boundingBox();
-		const navigationBounds = await navigation.boundingBox();
-		return toastBounds && navigationBounds ? navigationBounds.y - (toastBounds.y + toastBounds.height) : -1;
+		return toastBounds ? (page.viewportSize()?.height ?? 0) - (toastBounds.y + toastBounds.height) : -1;
 	}).toBeGreaterThanOrEqual(8);
+	await expect.poll(async () => {
+		const toastBounds = await toast.boundingBox();
+		return toastBounds ? (page.viewportSize()?.height ?? 0) - (toastBounds.y + toastBounds.height) : 999;
+	}).toBeLessThanOrEqual(32);
 
-	await navigation.getByRole('link', { name: 'Settings' }).click();
+	await page.getByRole('button', { name: 'Open navigation menu' }).click();
+	await page.getByTestId('mobile-drawer').getByRole('link', { name: 'Settings' }).click();
 	await expect(page).toHaveURL('/app/settings');
 	await expect(toast).toBeVisible();
 });

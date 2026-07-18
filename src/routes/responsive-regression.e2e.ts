@@ -153,27 +153,22 @@ test.describe('responsive regression coverage', () => {
 		await expect(page.getByTestId('left-sidebar')).toBeHidden();
 		await expect(page.getByTestId('right-rail')).toBeHidden();
 		await expect(page.getByRole('form', { name: 'Composer' })).toBeVisible();
-		await expect(page.getByRole('navigation', { name: 'Mobile app navigation' })).toBeVisible();
+		await expect(page.getByTestId('mobile-bottom-nav')).toHaveCount(0);
 		await expectNoHorizontalOverflow(page);
 
 		await setViewport(page, 'mobile');
 		await expect(page.getByTestId('left-sidebar')).toBeHidden();
-		await expect(page.getByRole('navigation', { name: 'Mobile app navigation' })).toBeVisible();
+		await expect(page.getByTestId('mobile-bottom-nav')).toHaveCount(0);
 		await expectNoMobileFocusZoom(page);
 
 		await page.getByRole('button', { name: 'Open navigation menu' }).click();
 		await expect(page.getByTestId('mobile-drawer')).toBeVisible();
 		await page.getByRole('button', { name: 'Close navigation menu' }).last().click();
 		await expect(page.getByTestId('mobile-drawer')).toBeHidden();
-
-		await page.getByTestId('mobile-bottom-nav').getByRole('button', { name: 'More' }).click();
-		await expect(page.getByTestId('mobile-sheet')).toBeVisible();
-		await page.getByRole('button', { name: 'Close details sheet' }).click();
-		await expect(page.getByTestId('mobile-sheet')).toBeHidden();
 		await expectNoHorizontalOverflow(page);
 	});
 
-	test('mobile timelines fill the viewport while panel routes keep their inset', async ({ page }) => {
+	test('mobile timelines meet the header and fill the viewport while panel routes keep their inset', async ({ page }) => {
 		await authenticate(page);
 		await mockHomeTimeline(page, [populatedStatus]);
 		await page.route('https://pleroma.example/api/v1/timelines/public**', async (route: Route) => {
@@ -186,6 +181,15 @@ test.describe('responsive regression coverage', () => {
 				await expectViewportWidth(page, page.getByTestId('app-content'));
 				const feed = page.locator('.app-feed-card');
 				await expectViewportWidth(page, feed);
+				const verticalGap = await page.evaluate(() => {
+					const header = document.querySelector<HTMLElement>('[data-testid="app-header"]');
+					const timeline = document.querySelector<HTMLElement>('.app-feed-card');
+					if (!header || !timeline) return null;
+					return timeline.getBoundingClientRect().top - header.getBoundingClientRect().bottom;
+				});
+				expect(verticalGap).not.toBeNull();
+				expect(Math.abs(verticalGap ?? 999)).toBeLessThanOrEqual(1);
+				await expect(page.getByTestId('mobile-bottom-nav')).toHaveCount(0);
 				await expect(feed).toHaveCSS('border-left-width', '0px');
 				await expect(feed).toHaveCSS('border-right-width', '0px');
 				await expect(feed).toHaveCSS('border-radius', '0px');

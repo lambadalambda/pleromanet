@@ -33,7 +33,7 @@ test('shows converted canonical design-system sections and switches themes', asy
 	await expect(page.locator('#oekaki')).toContainText('Tool rail');
 	await expect(page.locator('#surfaces')).toContainText('TrendsCard');
 	await expect(page.locator('#navigation')).toContainText('ProfileMini');
-	await expect(page.locator('#mobile')).toContainText('Home · feed + bottom tab bar');
+	await expect(page.locator('#mobile')).toContainText('Home · feed');
 
 	await page.getByRole('button', { name: 'Simoun' }).click();
 	await expect(page.locator('html')).toHaveAttribute('data-theme', 'simoun');
@@ -195,13 +195,12 @@ test('renders canonical mobile phone previews', async ({ page }) => {
 	await page.goto('/design-system');
 
 	const mobile = page.locator('#mobile');
-	await expect(mobile.getByText('Home · feed + bottom tab bar')).toBeVisible();
+	await expect(mobile.getByText('Home · feed', { exact: true })).toBeVisible();
 	await expect(mobile.getByText('Drawer · left side menu')).toBeVisible();
 	await expect(mobile.getByText('Thread · ancestor + focused')).toBeVisible();
 	await expect(mobile.locator('.ds-phone')).toHaveCount(3);
 	await expect(mobile.getByText('PleromaNet™').first()).toBeVisible();
-	await expect(mobile.getByRole('button', { name: /^Explore/ })).toBeVisible();
-	await expect(mobile.getByRole('button', { name: /^Alerts/ })).toContainText('3');
+	await expect(mobile.getByRole('navigation', { name: 'Mobile bottom navigation preview' })).toHaveCount(0);
 	await expect(mobile.getByText('@dreambyte@pleroma.social')).toBeVisible();
 	await expect(mobile.getByRole('button', { name: /^Local/ })).toBeVisible();
 	await expect(mobile.getByText('Thread', { exact: true })).toBeVisible();
