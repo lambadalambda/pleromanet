@@ -5,6 +5,7 @@
 - Authenticated home, local, and federated timelines retain independent session-scoped pages and cursors across app navigation so browser history can restore scroll without an initial refetch.
 - Inactive timeline streams close and reconnect on return, while session replacement, sign-out, and stale in-flight work cannot expose or mutate a previous timeline cache.
 - Threads opened from timelines carry their return provenance in the history entry, preserving the back action through browser forward navigation while direct links fall back to home.
+- The desktop left rail keeps its base 240px width until the tablet collapse so profile statistic labels remain legible instead of clipping at intermediate widths.
 
 ## 2026-07-17
 

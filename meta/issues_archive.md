@@ -65,3 +65,4 @@
 - [x] [65 Improve composer attachment previews](issues/65-improve-composer-attachment-previews.md)
 - [x] [66 Prefill replies with all participants](issues/66-prefill-replies-with-all-participants.md)
 - [x] [67 Preserve timelines across navigation](issues/67-preserve-timelines-across-navigation.md)
+- [x] [68 Prevent sidebar stat clipping](issues/68-prevent-sidebar-stat-clipping.md)

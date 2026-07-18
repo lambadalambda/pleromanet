@@ -28,6 +28,40 @@ const mockHomeTimeline = async (page: Page) => {
 	});
 };
 
+const expectSidebarProfileStatsFit = async (page: Page) => {
+	const sidebar = page.getByTestId('left-sidebar');
+	const labels = sidebar.locator('.stat-label');
+	await expect.poll(async () => sidebar.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThanOrEqual(240);
+	await expect(labels).toHaveText(['Posts', 'Following', 'Followers']);
+	await expect.poll(async () => labels.evaluateAll((elements) => elements.every((label) => {
+		const cell = label.parentElement;
+		if (!cell) return false;
+		const labelBounds = label.getBoundingClientRect();
+		const cellBounds = cell.getBoundingClientRect();
+		return label.scrollWidth <= label.clientWidth
+			&& labelBounds.left >= cellBounds.left - 1
+			&& labelBounds.right <= cellBounds.right + 1;
+	}))).toBe(true);
+};
+
+const expectAppContentControlsFit = async (page: Page) => {
+	const content = page.getByTestId('app-content');
+	const controls = page.locator('.composer-row, [data-testid="home-timeline-list"] .post-actions');
+	await expect(controls).not.toHaveCount(0);
+	await expect.poll(async () => {
+		const contentBounds = await content.evaluate((element) => {
+			const bounds = element.getBoundingClientRect();
+			return { left: bounds.left, right: bounds.right };
+		});
+		return controls.evaluateAll((elements, bounds) => elements.every((element) => {
+			const elementBounds = element.getBoundingClientRect();
+			return element.scrollWidth <= element.clientWidth
+				&& elementBounds.left >= bounds.left - 1
+				&& elementBounds.right <= bounds.right + 1;
+		}), contentBounds);
+	}).toBe(true);
+};
+
 test.describe('responsive regression coverage', () => {
 	for (const viewportName of Object.keys(viewports) as Array<keyof typeof viewports>) {
 		test(`signed-out landing has no horizontal overflow at ${viewportName}`, async ({ page }) => {
@@ -66,12 +100,21 @@ test.describe('responsive regression coverage', () => {
 		await expect(page.getByTestId('left-sidebar')).toBeVisible();
 		await expect(page.getByTestId('right-rail')).toBeHidden();
 		await expect(page.getByRole('form', { name: 'Composer' })).toBeVisible();
+		await expectSidebarProfileStatsFit(page);
 		await expectNoHorizontalOverflow(page);
 
 		await setViewport(page, 'medium');
 		await expect(page.getByTestId('left-sidebar')).toBeVisible();
 		await expect(page.getByTestId('right-rail')).toBeHidden();
 		await expect(page.getByRole('form', { name: 'Composer' })).toBeVisible();
+		await expectSidebarProfileStatsFit(page);
+		await expectNoHorizontalOverflow(page);
+
+		await page.setViewportSize({ width: 881, height: 800 });
+		await expect(page.getByTestId('left-sidebar')).toBeVisible();
+		await expect(page.getByTestId('right-rail')).toBeHidden();
+		await expectSidebarProfileStatsFit(page);
+		await expectAppContentControlsFit(page);
 		await expectNoHorizontalOverflow(page);
 
 		await setViewport(page, 'tablet');
