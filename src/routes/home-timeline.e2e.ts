@@ -923,6 +923,59 @@ test('home timeline composer toggles poll editor and submits poll fields', async
 	expect(params.get('poll[hide_totals]')).toBe('false');
 });
 
+test('composer poll settings stack and controls stay contained at 320px', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, pleromaFixtures.timelines.home);
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await page.getByRole('button', { name: 'Poll', exact: true }).click();
+
+	const panel = page.locator('.composer-poll');
+	const settings = panel.locator('.composer-poll-setting');
+	const desktopSettings = await settings.evaluateAll((elements) => elements.map((element) => {
+		const bounds = element.getBoundingClientRect();
+		return { x: bounds.x, y: bounds.y };
+	}));
+	expect(Math.abs(desktopSettings[0].y - desktopSettings[1].y)).toBeLessThanOrEqual(1);
+	expect(desktopSettings[1].x).toBeGreaterThan(desktopSettings[0].x);
+
+	await page.setViewportSize({ width: 320, height: 568 });
+	const mobileSettings = await settings.evaluateAll((elements) => elements.map((element) => {
+		const bounds = element.getBoundingClientRect();
+		return { x: bounds.x, y: bounds.y, height: bounds.height };
+	}));
+	expect(mobileSettings[1].y).toBeGreaterThan(mobileSettings[0].y + mobileSettings[0].height - 1);
+	await expect.poll(async () => panel.evaluate((element) => {
+		const panelBounds = element.getBoundingClientRect();
+		if (element.scrollWidth > element.clientWidth) return false;
+		return [...element.querySelectorAll<HTMLElement>('input, select, button')].every((control) => {
+			const bounds = control.getBoundingClientRect();
+			return bounds.left >= panelBounds.left - 1 && bounds.right <= panelBounds.right + 1;
+		});
+	})).toBe(true);
+	await expectNoHorizontalOverflow(page);
+
+	const removeThird = panel.getByRole('button', { name: 'Remove choice 3' });
+	await removeThird.focus();
+	await expect(removeThird).toBeFocused();
+	await removeThird.press('Enter');
+	await expect(panel.getByRole('textbox', { name: /Poll choice/ })).toHaveCount(2);
+	const addChoice = panel.getByRole('button', { name: 'Add choice' });
+	await addChoice.focus();
+	await expect(addChoice).toBeFocused();
+	await addChoice.press('Enter');
+	await expect(panel.getByRole('textbox', { name: /Poll choice/ })).toHaveCount(3);
+	const toggle = panel.getByRole('button', { name: 'Hide totals until poll ends' });
+	const pressed = await toggle.getAttribute('aria-pressed');
+	await toggle.focus();
+	await expect(toggle).toBeFocused();
+	await toggle.press('Space');
+	await expect(toggle).toHaveAttribute('aria-pressed', pressed === 'true' ? 'false' : 'true');
+});
+
 test('home timeline composer preserves drafts and shows inline errors on status creation failure', async ({ page }) => {
 	await authenticate(page);
 	await mockInstance(page);

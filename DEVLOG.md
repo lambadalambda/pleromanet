@@ -13,6 +13,7 @@
 - Mobile notification popovers reserve fixed-navigation clearance, constrain their complete frame to the dynamic viewport, and scroll loaded notification rows without moving the page or hiding the footer.
 - Mobile navigation drawers and detail sheets now behave as modal dialogs with trapped focus, inert background controls, opener focus restoration, and safe teardown when leaving the mobile breakpoint.
 - Shared post-control feedback moves above the fixed mobile navigation while retaining its existing desktop position and leaving navigation tabs clickable.
+- Composer poll settings collapse from two columns to one at phone widths, with shrinkable selects, wrapping toggle labels, and keyboard-operable controls contained at 320px.
 
 ## 2026-07-17
 

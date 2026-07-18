@@ -1,2 +1,1 @@
 - [ ] [69 Audit and polish mobile app](issues/69-audit-and-polish-mobile-app.md)
-- [ ] [77 Fix mobile poll editor layout](issues/77-fix-mobile-poll-editor-layout.md)

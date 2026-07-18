@@ -7232,6 +7232,10 @@ body[data-theme='custom'] .ds-anatomy-marker {
 	.composer-tool.privacy { padding: 0 8px; margin-left: 4px; font-size: 12px; }
 	.composer-tool.privacy span { display: none; }
 	.composer-count { font-size: 11px; margin-right: 8px; }
+	.composer-poll-settings { grid-template-columns: minmax(0, 1fr); }
+	.composer-poll-setting { min-width: 0; }
+	.composer-poll-select { width: 100%; min-width: 0; }
+	.composer-poll-toggle { max-width: 100%; white-space: normal; text-align: left; }
 	.quoted-smart { grid-template-columns: 100px 1fr; }
 	.lightbox-bg { padding: 0; }
 	.lightbox { max-height: none; border-radius: 0; }
