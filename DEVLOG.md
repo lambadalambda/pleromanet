@@ -14,6 +14,7 @@
 - Mobile navigation drawers and detail sheets now behave as modal dialogs with trapped focus, inert background controls, opener focus restoration, and safe teardown when leaving the mobile breakpoint.
 - Shared post-control feedback moves above the fixed mobile navigation while retaining its existing desktop position and leaving navigation tabs clickable.
 - Composer poll settings collapse from two columns to one at phone widths, with shrinkable selects, wrapping toggle labels, and keyboard-operable controls contained at 320px.
+- The authenticated mobile audit is complete across issues 70–77; all 288 route regressions pass together at the final head, with touch-target standards and physical iOS safe-area validation retained as explicit product follow-ups.
 
 ## 2026-07-17
 

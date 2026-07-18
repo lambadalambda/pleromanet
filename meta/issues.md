@@ -1,1 +1,0 @@
-- [ ] [69 Audit and polish mobile app](issues/69-audit-and-polish-mobile-app.md)
