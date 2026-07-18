@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { pleromaFixtures } from '../lib/pleroma/fixtures';
 import type { PleromaStatus } from '../lib/pleroma/types';
-import { fulfillJson, mockRightRailApis, setViewport } from '../test/playwright';
+import { expectNoHorizontalOverflow, fulfillJson, mockRightRailApis, setViewport } from '../test/playwright';
 
 const session = {
 	instanceUrl: 'https://pleroma.example',
@@ -48,6 +48,36 @@ test('bookmarks route lists saved posts from the API', async ({ page }) => {
 	await expect(list).toContainText('saved for later');
 	await expect(list).toContainText('another keeper');
 	expect(authorization).toBe('Bearer access-token');
+});
+
+test('populated bookmark actions stay available at 320px', async ({ page }) => {
+	await authenticate(page);
+	await page.route('https://pleroma.example/api/v1/bookmarks**', async (route: Route) => {
+		await fulfillJson(route, [{
+			...bookmarkStatus('bm-mobile', 'saved on a narrow screen'),
+			replies_count: 123,
+			reblogs_count: 456,
+			favourites_count: 789
+		}]);
+	});
+	await page.setViewportSize({ width: 320, height: 568 });
+	await page.goto('/app/bookmarks');
+
+	const post = page.getByTestId('bookmarks-list').locator('.post').first();
+	await expect(post.locator('.post-action, .post-more')).toHaveCount(5);
+	await expect(post.getByRole('button', { name: 'Reply 123', exact: true })).toBeVisible();
+	await expect(post.getByRole('button', { name: 'Boost 456', exact: true })).toBeVisible();
+	await expect(post.getByRole('button', { name: 'Favorite 789', exact: true })).toBeVisible();
+	await expect.poll(async () => post.evaluate((element) => {
+		const postBounds = element.getBoundingClientRect();
+		const row = element.querySelector<HTMLElement>('.post-actions');
+		if (!row || row.scrollWidth > row.clientWidth) return false;
+		return [...row.querySelectorAll<HTMLElement>('.post-action, .post-more')].every((action) => {
+			const actionBounds = action.getBoundingClientRect();
+			return actionBounds.left >= postBounds.left - 1 && actionBounds.right <= postBounds.right + 1;
+		});
+	})).toBe(true);
+	await expectNoHorizontalOverflow(page);
 });
 
 test('bookmarks route shows an empty state', async ({ page }) => {

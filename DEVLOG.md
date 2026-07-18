@@ -9,6 +9,7 @@
 - Mobile and coarse-pointer form controls use a 16px minimum text size across composers, search, chat, settings, polls, emoji, and attachment fields to prevent iOS focus zoom without disabling user scaling.
 - Phone-width home, local, and federated feeds use full-bleed surfaces with square viewport edges while conventional panel routes keep their inset card treatment.
 - Mobile privacy controls use a bounded sheet above bottom navigation, and emoji pickers clamp to live visual-viewport bounds as software keyboards resize the usable screen.
+- At 320px, populated status actions compact and wrap within timeline, thread, profile, and bookmark surfaces while keeping engagement counts and every action visible.
 
 ## 2026-07-17
 

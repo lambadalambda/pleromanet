@@ -1,5 +1,4 @@
 - [ ] [69 Audit and polish mobile app](issues/69-audit-and-polish-mobile-app.md)
-- [ ] [73 Keep mobile post actions in bounds](issues/73-keep-mobile-post-actions-in-bounds.md)
 - [ ] [74 Fit mobile notification popover](issues/74-fit-mobile-notification-popover.md)
 - [ ] [75 Make mobile navigation overlays modal](issues/75-make-mobile-navigation-overlays-modal.md)
 - [ ] [76 Keep mobile feedback above navigation](issues/76-keep-mobile-feedback-above-navigation.md)

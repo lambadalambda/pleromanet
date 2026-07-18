@@ -10,6 +10,12 @@ const session = {
 	createdAt: 1700000001000,
 	account: pleromaFixtures.account
 };
+const populatedStatus = {
+	...pleromaFixtures.status,
+	replies_count: 123,
+	reblogs_count: 456,
+	favourites_count: 789
+};
 
 const authenticate = async (page: Page) => {
 	await mockRightRailApis(page);
@@ -18,12 +24,12 @@ const authenticate = async (page: Page) => {
 	}, session);
 };
 
-const mockHomeTimeline = async (page: Page) => {
+const mockHomeTimeline = async (page: Page, statuses = pleromaFixtures.timelines.home) => {
 	await page.route('https://pleroma.example/api/v1/timelines/home**', async (route: Route) => {
 		await route.fulfill({
 			status: 200,
 			contentType: 'application/json',
-			body: JSON.stringify(pleromaFixtures.timelines.home)
+			body: JSON.stringify(statuses)
 		});
 	});
 };
@@ -60,6 +66,23 @@ const expectAppContentControlsFit = async (page: Page) => {
 				&& elementBounds.right <= bounds.right + 1;
 		}), contentBounds);
 	}).toBe(true);
+};
+
+const expectPostActionsFit = async (post: ReturnType<Page['locator']>, expectedControlCount = 5) => {
+	const actions = post.locator('.post-actions');
+	await expect(actions.locator('.post-action, .post-more')).toHaveCount(expectedControlCount);
+	await expect(post.getByRole('button', { name: 'Reply 123', exact: true })).toBeVisible();
+	await expect(post.getByRole('button', { name: 'Boost 456', exact: true })).toBeVisible();
+	await expect(post.getByRole('button', { name: 'Favorite 789', exact: true })).toBeVisible();
+	await expect.poll(async () => post.evaluate((element) => {
+		const postBounds = element.getBoundingClientRect();
+		const row = element.querySelector<HTMLElement>('.post-actions');
+		if (!row || row.scrollWidth > row.clientWidth) return false;
+		return [...row.querySelectorAll<HTMLElement>('.post-action, .post-more')].every((action) => {
+			const actionBounds = action.getBoundingClientRect();
+			return actionBounds.left >= postBounds.left - 1 && actionBounds.right <= postBounds.right + 1;
+		});
+	})).toBe(true);
 };
 
 const expectViewportWidth = async (page: Page, locator: ReturnType<Page['locator']>) => {
@@ -152,9 +175,9 @@ test.describe('responsive regression coverage', () => {
 
 	test('mobile timelines fill the viewport while panel routes keep their inset', async ({ page }) => {
 		await authenticate(page);
-		await mockHomeTimeline(page);
+		await mockHomeTimeline(page, [populatedStatus]);
 		await page.route('https://pleroma.example/api/v1/timelines/public**', async (route: Route) => {
-			await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(pleromaFixtures.timelines.public) });
+			await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([populatedStatus]) });
 		});
 		for (const width of [390, 320]) {
 			await page.setViewportSize({ width, height: 844 });
@@ -166,7 +189,8 @@ test.describe('responsive regression coverage', () => {
 				await expect(feed).toHaveCSS('border-left-width', '0px');
 				await expect(feed).toHaveCSS('border-right-width', '0px');
 				await expect(feed).toHaveCSS('border-radius', '0px');
-				if (width === 390) await expectNoHorizontalOverflow(page);
+				await expectPostActionsFit(feed.locator('.post').first());
+				await expectNoHorizontalOverflow(page);
 			}
 		}
 
@@ -178,6 +202,23 @@ test.describe('responsive regression coverage', () => {
 		});
 		expect(Math.abs(panelBounds.left - 14)).toBeLessThanOrEqual(1);
 		expect(Math.abs(panelBounds.right - 376)).toBeLessThanOrEqual(1);
+	});
+
+	test('populated post actions stay inside a status at 320px', async ({ page }) => {
+		await authenticate(page);
+		await page.route('https://pleroma.example/api/v1/timelines/home**', async (route: Route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify([populatedStatus])
+			});
+		});
+		await page.setViewportSize({ width: 320, height: 568 });
+		await page.goto('/app/home');
+
+		const post = page.getByTestId('home-timeline-list').locator('.post').first();
+		await expectPostActionsFit(post);
+		await expectNoHorizontalOverflow(page);
 	});
 
 	test('signed-out public profile has no horizontal overflow across breakpoints', async ({ page }) => {
@@ -193,7 +234,7 @@ test.describe('responsive regression coverage', () => {
 			await route.fulfill({
 				status: 200,
 				contentType: 'application/json',
-				body: JSON.stringify(url.searchParams.get('pinned') === 'true' ? [] : [pleromaFixtures.status])
+				body: JSON.stringify(url.searchParams.get('pinned') === 'true' ? [] : [populatedStatus])
 			});
 		});
 
@@ -204,6 +245,12 @@ test.describe('responsive regression coverage', () => {
 			await expect(page.getByTestId('profile-view')).toBeVisible();
 			await expectNoHorizontalOverflow(page);
 		}
+
+		await page.setViewportSize({ width: 320, height: 568 });
+		await page.goto('/app/profiles/quietadmin@pleroma.social');
+		const post = page.getByTestId('profile-posts').locator('.post').first();
+		await expectPostActionsFit(post, 4);
+		await expectNoHorizontalOverflow(page);
 	});
 });
 

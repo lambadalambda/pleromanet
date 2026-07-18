@@ -1060,6 +1060,49 @@ test('real thread layout remains readable on mobile without horizontal overflow'
 	await expectNoHorizontalOverflow(page);
 });
 
+test('populated nested thread actions stay inside their posts at 320px', async ({ page }) => {
+	await authenticate(page);
+	const populatedCounts = { replies_count: 123, reblogs_count: 456, favourites_count: 789 };
+	const child = { ...nestedThreadReply, ...populatedCounts, replies_count: 124 };
+	const grandchild = statusWithText('reply-1-grandchild', 'nested action row', {
+		...populatedCounts,
+		account: accountWithName('pixel', 'pixel', 'pixel@tiny.social'),
+		in_reply_to_id: child.id,
+		in_reply_to_account_id: child.account.id
+	});
+	await mockThread(page, { ...threadStatus, ...populatedCounts }, [{ ...threadReply, replies_count: 1 }, child, grandchild, secondThreadReply]);
+	await page.setViewportSize({ width: 320, height: 568 });
+	await page.goto('/app/thread/status-1');
+
+	const focused = page.getByTestId('focused-post');
+	const focusedActions = focused.getByTestId('focused-engagement');
+	await expect(focusedActions.locator('.focused-action')).toHaveCount(6);
+	await expect(focusedActions.locator('.focused-action-c')).toHaveText(['123', '456', '789']);
+	await expect(focusedActions.locator('.focused-action-c').first()).toBeVisible();
+	await expect.poll(async () => focused.evaluate((element) => {
+		const postBounds = element.getBoundingClientRect();
+		const row = element.querySelector<HTMLElement>('.focused-actions');
+		if (!row || row.scrollWidth > row.clientWidth) return false;
+		return [...row.querySelectorAll<HTMLElement>('.focused-action')].every((action) => {
+			const actionBounds = action.getBoundingClientRect();
+			return actionBounds.left >= postBounds.left - 1 && actionBounds.right <= postBounds.right + 1;
+		});
+	})).toBe(true);
+	await page.getByRole('button', { name: 'Show 1 reply' }).click();
+	const rows = page.locator('.thread-replies .post-actions');
+	await expect(rows).not.toHaveCount(0);
+	await expect.poll(async () => rows.evaluateAll((elements) => elements.every((row) => {
+		const post = row.closest<HTMLElement>('.post');
+		if (!post || row.scrollWidth > row.clientWidth) return false;
+		const postBounds = post.getBoundingClientRect();
+		return [...row.querySelectorAll<HTMLElement>('.post-action, .post-more')].every((action) => {
+			const actionBounds = action.getBoundingClientRect();
+			return actionBounds.left >= postBounds.left - 1 && actionBounds.right <= postBounds.right + 1;
+		});
+	}))).toBe(true);
+	await expectNoHorizontalOverflow(page);
+});
+
 test('real thread inline reply composer remains usable on mobile', async ({ page }) => {
 	await authenticate(page);
 	await mockThread(page);

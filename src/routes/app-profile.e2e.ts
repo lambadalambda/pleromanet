@@ -103,7 +103,10 @@ const pinnedStatuses = [
 ];
 const postStatuses = [
 	statusForProfile('soft-post-1', "rain recording from this morning's walk — 11 minutes, two takes, the kettle made it onto the second one.", {
-		media_attachments: [{ id: 'audio-1', type: 'audio', url: 'https://cdn.example/rain.wav', description: 'rain on glass · take 2', meta: { duration: 702 } }]
+		media_attachments: [{ id: 'audio-1', type: 'audio', url: 'https://cdn.example/rain.wav', description: 'rain on glass · take 2', meta: { duration: 702 } }],
+		replies_count: 123,
+		reblogs_count: 456,
+		favourites_count: 789
 	}),
 	statusForProfile('soft-post-2', "thinking about how the slow web isn't really slow — it's just the pace at which a person can actually pay attention.")
 ];
@@ -216,9 +219,22 @@ test('profile route loads the canonical account timeline surface', async ({ page
 	await expect(rail).toContainText('Also pinned');
 	await expectNoHorizontalOverflow(page);
 
-	await setViewport(page, 'mobile');
+	await page.setViewportSize({ width: 320, height: 568 });
 	await expect(profile.getByRole('heading', { name: 'soft.hertz ✦' })).toBeVisible();
 	await expect(profile).toContainText('Numbers');
+	await profile.getByRole('tab', { name: /Posts 2148/ }).click();
+	const post = profile.getByTestId('profile-posts').locator('.post').first();
+	await expect(post.locator('.post-action, .post-more')).toHaveCount(5);
+	await expect(post.getByRole('button', { name: 'Reply 123', exact: true })).toBeVisible();
+	await expect.poll(async () => post.evaluate((element) => {
+		const postBounds = element.getBoundingClientRect();
+		const row = element.querySelector<HTMLElement>('.post-actions');
+		if (!row || row.scrollWidth > row.clientWidth) return false;
+		return [...row.querySelectorAll<HTMLElement>('.post-action, .post-more')].every((action) => {
+			const actionBounds = action.getBoundingClientRect();
+			return actionBounds.left >= postBounds.left - 1 && actionBounds.right <= postBounds.right + 1;
+		});
+	})).toBe(true);
 	await expectNoHorizontalOverflow(page);
 });
 
