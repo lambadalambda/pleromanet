@@ -3995,16 +3995,19 @@ a.suggest-name:hover { color: var(--accent-ink); }
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	min-width: 0;
+	overflow: hidden;
 	padding: 14px 22px;
 	border-bottom: 1px solid rgba(255,255,255,0.08);
 	position: relative;
 	z-index: 2;
 }
-.lightbox-attr { display: flex; align-items: center; gap: 12px; }
-.lightbox-name { font-size: 13.5px; font-weight: 600; color: white; }
+.lightbox-attr { display: flex; align-items: center; gap: 12px; min-width: 0; overflow: hidden; }
+.lightbox-meta { flex: 1; min-width: 0; overflow: hidden; }
+.lightbox-name { overflow: hidden; color: white; font-size: 13.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .lightbox-name span { font-family: var(--mono); font-size: 11px; color: rgba(220,209,240,0.6); font-weight: 400; margin-left: 8px; }
-.lightbox-count { font-family: var(--mono); font-size: 11px; color: rgba(220,209,240,0.65); margin-top: 2px; }
-.lightbox-tools { display: flex; gap: 6px; }
+.lightbox-count { overflow: hidden; margin-top: 2px; color: rgba(220,209,240,0.65); font-family: var(--mono); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.lightbox-tools { display: flex; flex-shrink: 0; gap: 6px; }
 .lightbox-btn {
 	width: 30px; height: 30px;
 	border-radius: 4px;
@@ -7239,12 +7242,9 @@ body[data-theme='custom'] .ds-anatomy-marker {
 	.quoted-smart { grid-template-columns: 100px 1fr; }
 	.lightbox-bg { padding: 0; }
 	.lightbox { width: 100vw; height: 100dvh; max-height: none; border-radius: 0; }
-	.lightbox-head { gap: 10px; padding: 10px 12px; }
+	.lightbox-head { min-height: 51px; gap: 10px; padding: 10px 54px 10px 12px; }
 	.lightbox-attr { flex: 1; min-width: 0; gap: 10px; }
-	.lightbox-meta { min-width: 0; }
-	.lightbox-name,
-	.lightbox-count { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-	.lightbox-tools { flex-shrink: 0; }
+	.lightbox-tools { position: absolute; top: 10px; right: 12px; z-index: 3; }
 	.lightbox-body { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0; }
 	.lightbox-viewer { grid-column: 1; }
 	.lightbox-photo { width: 100%; height: 100%; max-width: none; max-height: none; border-radius: 0; }

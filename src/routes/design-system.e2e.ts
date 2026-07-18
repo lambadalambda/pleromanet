@@ -303,7 +303,12 @@ test('mobile image lightbox contains media and removes desktop-only hints', asyn
 	await page.evaluate(() => {
 		window.dispatchEvent(new CustomEvent('pn-open-lightbox', {
 			detail: {
-				attachments: [{ kind: 'photo', src: 'samples/cat-door.webp', alt: '11f7d9b562d9b844ce7b91f709261e13f1bd04b6ab900063028be35' }],
+				attachments: [{
+					kind: 'photo',
+					src: 'samples/cat-door.webp',
+					alt: 'door with cat',
+					filename: '0f35ac2a2d7fecdb9cc6a7520a84d766ad2b5458f840374'.repeat(12)
+				}],
 				startIdx: 0,
 				attribution: {
 					name: 'A very long mobile display name that must remain contained',
@@ -331,6 +336,7 @@ test('mobile image lightbox contains media and removes desktop-only hints', asyn
 		const imageBounds = image.getBoundingClientRect();
 		const scale = Math.min(imageBounds.width / image.naturalWidth, imageBounds.height / image.naturalHeight);
 		return {
+			lightboxFits: element.scrollWidth <= element.clientWidth,
 			headerFits: header.scrollWidth <= header.clientWidth,
 			metadataFits: attributionBounds.right <= toolsBounds.left + 1,
 			closeFits: toolsBounds.right <= headerBounds.right + 1,
@@ -341,16 +347,53 @@ test('mobile image lightbox contains media and removes desktop-only hints', asyn
 		};
 	});
 	expect(portrait).not.toBeNull();
+	expect(portrait?.lightboxFits).toBe(true);
 	expect(portrait?.headerFits).toBe(true);
 	expect(portrait?.metadataFits).toBe(true);
 	expect(portrait?.closeFits).toBe(true);
 	expect(portrait?.viewerLeft ?? 1).toBeLessThanOrEqual(1);
 	expect(portrait?.viewerRight ?? 0).toBeGreaterThanOrEqual((portrait?.viewportWidth ?? 0) - 1);
 	expect(portrait?.visualWidth ?? 0).toBeGreaterThanOrEqual((portrait?.viewportWidth ?? 0) * 0.9);
-	await expect(dialog.getByRole('button', { name: 'Close', exact: true })).toBeVisible();
+	const close = dialog.getByRole('button', { name: 'Close', exact: true });
+	await expect(close).toBeVisible();
 	await expect(dialog.getByRole('button', { name: 'Previous' })).toHaveCount(0);
 	await expect(dialog.getByRole('button', { name: 'Next' })).toHaveCount(0);
 	await expectNoHorizontalOverflow(page);
+	await close.click();
+	await expect(dialog).toHaveCount(0);
+
+	await page.evaluate(() => {
+		window.dispatchEvent(new CustomEvent('pn-open-lightbox', {
+			detail: {
+				attachments: [{ kind: 'photo', src: 'samples/cat-door.webp', alt: 'door with cat' }],
+				startIdx: 0
+			}
+		}));
+	});
+	dialog = page.getByRole('dialog', { name: 'Attachment lightbox' });
+	const closeWithoutAttribution = dialog.getByRole('button', { name: 'Close', exact: true });
+	await expect(closeWithoutAttribution).toBeVisible();
+	const attributionlessClose = await closeWithoutAttribution.evaluate((button) => {
+		const header = button.closest<HTMLElement>('.lightbox-head');
+		if (!header) return null;
+		const headerBounds = header.getBoundingClientRect();
+		const buttonBounds = button.getBoundingClientRect();
+		const target = document.elementFromPoint(
+			buttonBounds.left + buttonBounds.width / 2,
+			buttonBounds.top + buttonBounds.height / 2
+		);
+		return {
+			insideHeader:
+				buttonBounds.left >= headerBounds.left &&
+				buttonBounds.right <= headerBounds.right &&
+				buttonBounds.top >= headerBounds.top &&
+				buttonBounds.bottom <= headerBounds.bottom,
+			centerIsTopmost: target === button || button.contains(target)
+		};
+	});
+	expect(attributionlessClose).toEqual({ insideHeader: true, centerIsTopmost: true });
+	await closeWithoutAttribution.click();
+	await expect(dialog).toHaveCount(0);
 });
 
 test('renders canonical audio attachment specimens', async ({ page }) => {

@@ -16,6 +16,7 @@
 - Composer poll settings collapse from two columns to one at phone widths, with shrinkable selects, wrapping toggle labels, and keyboard-operable controls contained at 320px.
 - The authenticated mobile audit is complete across issues 70–77; all 288 route regressions pass together at the final head, with touch-target standards and physical iOS safe-area validation retained as explicit product follow-ups.
 - Phone lightboxes give images the full viewer width, overlay multi-image arrows instead of reserving side gutters, clamp long metadata around the close control, and omit desktop keyboard legends.
+- Lightbox headers now contain arbitrarily long attachment filenames and keep the mobile close control fully visible and clickable, including when attribution is absent.
 
 ## 2026-07-17
 
