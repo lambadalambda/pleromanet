@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 import { pleromaFixtures } from '../lib/pleroma/fixtures';
-import { expectElementIsTruncatedWithinParent, expectNoHorizontalOverflow, mockRightRailApis, setViewport } from '../test/playwright';
+import { expectElementIsTruncatedWithinParent, expectNoHorizontalOverflow, expectNoMobileFocusZoom, mockRightRailApis, setViewport } from '../test/playwright';
 
 const session = {
 	instanceUrl: 'https://pleroma.example',
@@ -439,6 +439,7 @@ test('home timeline composer previews video and audio attachments responsively',
 	await expect(audioCard.getByLabel('Preview audio song.ogg')).toHaveAttribute('controls', '');
 
 	await setViewport(page, 'mobile');
+	await expectNoMobileFocusZoom(page);
 	await expectNoHorizontalOverflow(page);
 	await expect(page.getByTestId('composer-attachment')).toHaveCount(2);
 });
@@ -832,13 +833,14 @@ test('home timeline emoji picker supports keyboard navigation and escape', async
 		await fulfillHome(route, pleromaFixtures.customEmojis);
 	});
 
-	await setViewport(page, 'desktop');
+	await setViewport(page, 'mobile');
 	await page.goto('/app/home');
 	const composer = page.getByRole('textbox', { name: 'Post text' });
 	await composer.fill('keyboard ');
 	await page.getByRole('button', { name: 'Emoji' }).click();
 	const picker = page.getByRole('dialog', { name: 'Emoji picker' });
 	await expect(picker).toBeVisible();
+	await expectNoMobileFocusZoom(page);
 	const search = page.getByRole('textbox', { name: 'Search emoji' });
 	await expect(search).toBeFocused();
 	await search.fill('cat');
@@ -904,6 +906,7 @@ test('home timeline composer toggles poll editor and submits poll fields', async
 	await expect(page.getByRole('button', { name: 'Hide totals until poll ends' })).toHaveAttribute('aria-pressed', 'false');
 	await setViewport(page, 'mobile');
 	await expect(page.locator('.composer-poll')).toBeVisible();
+	await expectNoMobileFocusZoom(page);
 	await expectNoHorizontalOverflow(page);
 	await setViewport(page, 'desktop');
 	await page.getByRole('button', { name: 'Post', exact: true }).click();

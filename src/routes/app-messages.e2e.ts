@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { pleromaFixtures } from '../lib/pleroma/fixtures';
 import type { PleromaAccount } from '../lib/pleroma/types';
-import { fulfillJson, mockRightRailApis, setViewport } from '../test/playwright';
+import { expectNoMobileFocusZoom, fulfillJson, mockRightRailApis, setViewport } from '../test/playwright';
 
 const session = {
 	instanceUrl: 'https://pleroma.example',
@@ -233,6 +233,7 @@ test('messages route works on mobile without horizontal overflow', async ({ page
 
 	await page.goto('/app/messages/chat-1');
 	await expect(page.getByTestId('chat-thread')).toContainText('did you find the cassette?');
+	await expectNoMobileFocusZoom(page);
 	const threadOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 	expect(threadOverflow).toBeLessThanOrEqual(0);
 });

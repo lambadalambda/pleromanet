@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { pleromaFixtures } from '../lib/pleroma/fixtures';
-import { expectNoHorizontalOverflow, fulfillJson, setViewport } from '../test/playwright';
+import { expectNoHorizontalOverflow, expectNoMobileFocusZoom, fulfillJson, setViewport } from '../test/playwright';
 
 const session = {
 	instanceUrl: 'https://pleroma.example',
@@ -155,6 +155,7 @@ test('custom theme editor stays usable on mobile', async ({ page }) => {
 	await expect(page.getByRole('textbox', { name: 'Page background hex' })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Save as active theme' })).toBeVisible();
 	await expect(page.getByTestId('right-rail')).toBeHidden();
+	await expectNoMobileFocusZoom(page);
 
 	await page.getByRole('button', { name: 'quiet admin account menu' }).click();
 	const customizeTheme = page.getByRole('button', { name: 'Customize theme…' });
@@ -256,6 +257,7 @@ test('real settings route stays touch-friendly on mobile', async ({ page }) => {
 	await expect(page.getByRole('button', { name: 'Choose avatar' })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Choose banner' })).toBeVisible();
 	await expect(page.getByTestId('right-rail')).toBeHidden();
+	await expectNoMobileFocusZoom(page);
 
 	const saveBox = await page.getByRole('button', { name: 'Save profile settings' }).boundingBox();
 	const toggleBox = await page.getByRole('switch', { name: 'Discoverable profile' }).boundingBox();

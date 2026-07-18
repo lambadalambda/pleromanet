@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { pleromaFixtures } from '../lib/pleroma/fixtures';
 import type { PleromaAccount, PleromaStatus } from '../lib/pleroma/types';
-import { expectNoHorizontalOverflow, mockRightRailApis, setViewport } from '../test/playwright';
+import { expectNoHorizontalOverflow, expectNoMobileFocusZoom, mockRightRailApis, setViewport } from '../test/playwright';
 
 const session = {
 	instanceUrl: 'https://pleroma.example',
@@ -1071,6 +1071,7 @@ test('real thread inline reply composer remains usable on mobile', async ({ page
 	await expect(replyForm).toBeVisible();
 	await expect(replyForm.getByRole('textbox', { name: 'Reply text' })).toBeVisible();
 	await expect(replyForm.getByRole('button', { name: 'Reply', exact: true })).toBeDisabled();
+	await expectNoMobileFocusZoom(page);
 	await expectNoHorizontalOverflow(page);
 });
 

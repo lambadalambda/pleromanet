@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { pleromaFixtures } from '../lib/pleroma/fixtures';
-import { expectNoHorizontalOverflow, mockRightRailApis, setViewport, viewports } from '../test/playwright';
+import { expectNoHorizontalOverflow, expectNoMobileFocusZoom, mockRightRailApis, setViewport, viewports } from '../test/playwright';
 
 const session = {
 	instanceUrl: 'https://pleroma.example',
@@ -127,6 +127,7 @@ test.describe('responsive regression coverage', () => {
 		await setViewport(page, 'mobile');
 		await expect(page.getByTestId('left-sidebar')).toBeHidden();
 		await expect(page.getByRole('navigation', { name: 'Mobile app navigation' })).toBeVisible();
+		await expectNoMobileFocusZoom(page);
 
 		await page.getByRole('button', { name: 'Open navigation menu' }).click();
 		await expect(page.getByTestId('mobile-drawer')).toBeVisible();
@@ -164,5 +165,18 @@ test.describe('responsive regression coverage', () => {
 			await expect(page.getByTestId('profile-view')).toBeVisible();
 			await expectNoHorizontalOverflow(page);
 		}
+	});
+});
+
+test.describe('touch landscape focus sizing', () => {
+	test.use({ hasTouch: true, viewport: { width: 956, height: 440 } });
+
+	test('authenticated text controls remain large enough to avoid focus zoom', async ({ page }) => {
+		await authenticate(page);
+		await mockHomeTimeline(page);
+		await page.goto('/app/home');
+
+		await expect(page.getByRole('textbox', { name: 'Post text' })).toBeVisible();
+		await expectNoMobileFocusZoom(page);
 	});
 });

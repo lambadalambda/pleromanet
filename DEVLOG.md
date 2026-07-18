@@ -6,6 +6,7 @@
 - Inactive timeline streams close and reconnect on return, while session replacement, sign-out, and stale in-flight work cannot expose or mutate a previous timeline cache.
 - Threads opened from timelines carry their return provenance in the history entry, preserving the back action through browser forward navigation while direct links fall back to home.
 - The desktop left rail keeps its base 240px width until the tablet collapse so profile statistic labels remain legible instead of clipping at intermediate widths.
+- Mobile and coarse-pointer form controls use a 16px minimum text size across composers, search, chat, settings, polls, emoji, and attachment fields to prevent iOS focus zoom without disabling user scaling.
 
 ## 2026-07-17
 

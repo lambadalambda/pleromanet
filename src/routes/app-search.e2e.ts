@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { pleromaFixtures } from '../lib/pleroma/fixtures';
 import type { PleromaAccount, PleromaRelationship, PleromaSearchResult, PleromaStatus } from '../lib/pleroma/types';
-import { expectNoHorizontalOverflow, fulfillJson, setViewport } from '../test/playwright';
+import { expectNoHorizontalOverflow, expectNoMobileFocusZoom, fulfillJson, setViewport } from '../test/playwright';
 
 const session = {
 	instanceUrl: 'https://pleroma.example',
@@ -300,8 +300,9 @@ test('header search shows and clears recent queries', async ({ page }) => {
 test('explore search box opens the full search page', async ({ page }) => {
 	await authenticate(page);
 	await mockSearch(page);
-	await setViewport(page, 'desktop');
+	await setViewport(page, 'mobile');
 	await page.goto('/app/explore');
+	await expectNoMobileFocusZoom(page);
 
 	await page.getByRole('searchbox', { name: 'Search topics, people, and posts' }).fill('gridwave');
 	await page.getByTestId('app-content').getByRole('button', { name: 'Search', exact: true }).click();
@@ -371,7 +372,10 @@ test('full search page keeps filters usable on mobile', async ({ page }) => {
 	await authenticate(page);
 	await mockSearch(page);
 	await setViewport(page, 'mobile');
+	await page.goto('/app/explore');
+	await expectNoMobileFocusZoom(page);
 	await page.goto('/app/search?q=slow%20web');
+	await expectNoMobileFocusZoom(page);
 
 	await page.getByRole('button', { name: /More filters/ }).click();
 
