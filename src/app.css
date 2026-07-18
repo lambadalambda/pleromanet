@@ -7132,6 +7132,12 @@ body[data-theme='custom'] .ds-anatomy-marker {
 	}
 }
 @media (max-width: 720px) {
+	.app-shell-grid.mobile-full-bleed { padding-right: 0; padding-left: 0; }
+	.mobile-full-bleed .app-feed-card {
+		border-right-width: 0;
+		border-left-width: 0;
+		border-radius: 0;
+	}
 	.app-panel { padding: 20px 16px; }
 	.app-panel h1 { font-size: 32px; }
 	.se-bar {

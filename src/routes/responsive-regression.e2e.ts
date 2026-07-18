@@ -62,6 +62,15 @@ const expectAppContentControlsFit = async (page: Page) => {
 	}).toBe(true);
 };
 
+const expectViewportWidth = async (page: Page, locator: ReturnType<Page['locator']>) => {
+	const bounds = await locator.evaluate((element) => {
+		const rect = element.getBoundingClientRect();
+		return { left: rect.left, right: rect.right };
+	});
+	expect(Math.abs(bounds.left)).toBeLessThanOrEqual(1);
+	expect(Math.abs(bounds.right - (await page.evaluate(() => window.innerWidth)))).toBeLessThanOrEqual(1);
+};
+
 test.describe('responsive regression coverage', () => {
 	for (const viewportName of Object.keys(viewports) as Array<keyof typeof viewports>) {
 		test(`signed-out landing has no horizontal overflow at ${viewportName}`, async ({ page }) => {
@@ -139,6 +148,36 @@ test.describe('responsive regression coverage', () => {
 		await page.getByRole('button', { name: 'Close details sheet' }).click();
 		await expect(page.getByTestId('mobile-sheet')).toBeHidden();
 		await expectNoHorizontalOverflow(page);
+	});
+
+	test('mobile timelines fill the viewport while panel routes keep their inset', async ({ page }) => {
+		await authenticate(page);
+		await mockHomeTimeline(page);
+		await page.route('https://pleroma.example/api/v1/timelines/public**', async (route: Route) => {
+			await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(pleromaFixtures.timelines.public) });
+		});
+		for (const width of [390, 320]) {
+			await page.setViewportSize({ width, height: 844 });
+			for (const path of ['/app/home', '/app/local', '/app/federated']) {
+				await page.goto(path);
+				await expectViewportWidth(page, page.getByTestId('app-content'));
+				const feed = page.locator('.app-feed-card');
+				await expectViewportWidth(page, feed);
+				await expect(feed).toHaveCSS('border-left-width', '0px');
+				await expect(feed).toHaveCSS('border-right-width', '0px');
+				await expect(feed).toHaveCSS('border-radius', '0px');
+				if (width === 390) await expectNoHorizontalOverflow(page);
+			}
+		}
+
+		await setViewport(page, 'mobile');
+		await page.goto('/app/explore');
+		const panelBounds = await page.getByTestId('app-content').evaluate((element) => {
+			const bounds = element.getBoundingClientRect();
+			return { left: bounds.left, right: bounds.right };
+		});
+		expect(Math.abs(panelBounds.left - 14)).toBeLessThanOrEqual(1);
+		expect(Math.abs(panelBounds.right - 376)).toBeLessThanOrEqual(1);
 	});
 
 	test('signed-out public profile has no horizontal overflow across breakpoints', async ({ page }) => {

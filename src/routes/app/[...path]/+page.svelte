@@ -4323,7 +4323,7 @@
 			</div>
 		</header>
 
-		<div class="app-shell-grid" class:content-wide={!hasRightRail}>
+		<div class="app-shell-grid" class:content-wide={!hasRightRail} class:mobile-full-bleed={route === 'home' || route === 'local' || route === 'federated'}>
 			<aside class="app-left-sidebar" data-testid="left-sidebar">
 				<ProfileMini account={currentSession?.account} instanceUrl={currentSession?.instanceUrl} />
 				<div class="card app-side-card">

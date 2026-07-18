@@ -14,8 +14,13 @@ Use the full phone viewport width for primary home, local, and federated timelin
 ## Acceptance Criteria
 
 - Home, local, and federated feed surfaces touch both viewport edges at the phone breakpoint.
-- Timeline content has no horizontal document overflow at 390px and 320px.
+- Timeline surfaces fill the viewport at 390px and 320px; the separate 320px post-action overflow is owned by issue 73 and remains a parent-audit completion dependency.
+- Timeline content has no horizontal document overflow at 390px.
 - Non-timeline panel routes retain their intended outer inset.
+
+## Dependencies
+
+- [73 Keep mobile post actions in bounds](73-keep-mobile-post-actions-in-bounds.md) owns the remaining 320px document overflow and must close before parent issue 69.
 
 ## Notes
 

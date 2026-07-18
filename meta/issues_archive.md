@@ -67,3 +67,4 @@
 - [x] [67 Preserve timelines across navigation](issues/67-preserve-timelines-across-navigation.md)
 - [x] [68 Prevent sidebar stat clipping](issues/68-prevent-sidebar-stat-clipping.md)
 - [x] [70 Prevent mobile input focus zoom](issues/70-prevent-mobile-input-focus-zoom.md)
+- [x] [71 Make mobile timelines edge to edge](issues/71-make-mobile-timelines-edge-to-edge.md)
