@@ -263,6 +263,41 @@ test('header bell opens real notifications popover with filters and read actions
 	await expect(popover).toHaveCount(0);
 });
 
+test('mobile notification popover keeps its scrollable list and footer inside a short viewport', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page);
+	const manyNotifications = Array.from({ length: 12 }, (_, index) => notification(
+		`notif-mobile-${index}`,
+		'follow',
+		accountWithName(`account-mobile-${index}`, `mobile actor ${index}`, `mobile${index}@example.social`),
+		new Date(Date.parse('2026-05-18T12:12:00.000Z') - index * 60_000).toISOString()
+	));
+	await mockNotifications(page, () => manyNotifications);
+	await page.setViewportSize({ width: 320, height: 568 });
+	await page.goto('/app/home');
+
+	await headerBell(page).click();
+	const popover = page.getByTestId('header-notifications-popover');
+	const list = popover.locator('.notif-pop-body');
+	const footer = popover.getByRole('button', { name: /See all notifications/ });
+	await expect(list.locator('.notif-row')).toHaveCount(12);
+	await expect(footer).toBeVisible();
+	await expect.poll(async () => popover.locator('.notif-pop').evaluate((element) => {
+		const bounds = element.getBoundingClientRect();
+		return bounds.top >= 0 && bounds.bottom <= window.innerHeight;
+	})).toBe(true);
+	await expect.poll(async () => list.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+
+	const pageScrollY = await page.evaluate(() => window.scrollY);
+	await list.hover();
+	await page.mouse.wheel(0, 300);
+	await expect.poll(async () => list.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+	expect(await page.evaluate(() => window.scrollY)).toBe(pageScrollY);
+
+	await footer.click();
+	await expect(page).toHaveURL('/app/notifications');
+});
+
 test('header notification rows navigate by target and close the popover', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page);

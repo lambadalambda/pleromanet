@@ -10,6 +10,7 @@
 - Phone-width home, local, and federated feeds use full-bleed surfaces with square viewport edges while conventional panel routes keep their inset card treatment.
 - Mobile privacy controls use a bounded sheet above bottom navigation, and emoji pickers clamp to live visual-viewport bounds as software keyboards resize the usable screen.
 - At 320px, populated status actions compact and wrap within timeline, thread, profile, and bookmark surfaces while keeping engagement counts and every action visible.
+- Mobile notification popovers reserve fixed-navigation clearance, constrain their complete frame to the dynamic viewport, and scroll loaded notification rows without moving the page or hiding the footer.
 
 ## 2026-07-17
 

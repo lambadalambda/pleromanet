@@ -6984,6 +6984,19 @@ body[data-theme='custom'] .ds-anatomy-marker {
 		left: 14px;
 		width: auto;
 	}
+	.header-notifs-pop .notif-pop {
+		display: flex;
+		flex-direction: column;
+		max-height: calc(100dvh - 136px - env(safe-area-inset-bottom));
+	}
+	.header-notifs-pop .notif-pop-head,
+	.header-notifs-pop .notif-pop-tabs,
+	.header-notifs-pop .notif-pop-foot { flex-shrink: 0; }
+	.header-notifs-pop .notif-pop-body {
+		flex: 1 1 auto;
+		min-height: 0;
+		max-height: none;
+	}
 	.user-chip {
 		justify-self: end;
 		padding: 2px;
