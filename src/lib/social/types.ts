@@ -148,6 +148,7 @@ export type SocialPost = {
 	attachments?: PostAttachment[];
 	mediaHidden?: boolean;
 	addressees?: string[];
+	inReplyToId?: string | null;
 	boostedBy?: BoostAttributionView;
 	copyJson?: unknown;
 	quotedPost?: QuotedPostView;

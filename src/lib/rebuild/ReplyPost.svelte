@@ -29,6 +29,7 @@
 		authorHandle?: string;
 		statusUrl?: string;
 		addressees?: string[];
+		inReplyToId?: string | null;
 		quotedPost?: Record<string, unknown>;
 		replies: number;
 		boosts: number;
@@ -93,7 +94,7 @@
 		<div style="min-width:0">
 			<PostHead post={post} />
 			<PostCW post={post}>
-				<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} mentionAccts={post.mentionAccts} />
+				<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} parentStatusId={post.inReplyToId} mentionAccts={post.mentionAccts} />
 				<QuotedPost quoted={post.quotedPost} />
 				<PostMedia post={post} onOpen={(idx) => handleLightbox(post, idx)} onVote={onVote ? (pollId, choice) => onVote(post.id, pollId, choice) : undefined} />
 			</PostCW>

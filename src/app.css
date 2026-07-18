@@ -4495,6 +4495,9 @@ a.suggest-name:hover { color: var(--accent-ink); }
 	flex-wrap: wrap;
 }
 .post-pinged-l {
+	padding: 0;
+	border: 0;
+	background: transparent;
 	font-family: var(--mono);
 	font-size: 9.5px;
 	letter-spacing: 0.14em;
@@ -4503,6 +4506,9 @@ a.suggest-name:hover { color: var(--accent-ink); }
 	flex-shrink: 0;
 	white-space: nowrap;
 }
+button.post-pinged-l { cursor: help; }
+button.post-pinged-l:hover,
+button.post-pinged-l:focus-visible { color: var(--accent-ink); }
 .post-pinged-list {
 	display: inline-flex;
 	align-items: center;
@@ -4564,6 +4570,65 @@ a.suggest-name:hover { color: var(--accent-ink); }
 	margin-top: 12px;
 	padding-top: 10px;
 }
+.reply-preview {
+	position: fixed;
+	z-index: 80;
+	width: min(360px, calc(100vw - 24px));
+	max-height: calc(100dvh - 24px);
+	overflow: hidden;
+	padding: 14px;
+	border: 1px solid var(--border-strong);
+	border-radius: 8px;
+	background: var(--panel);
+	box-shadow: 0 18px 50px -22px rgba(20, 16, 46, 0.55);
+	color: var(--ink);
+	pointer-events: none;
+}
+.reply-preview-head {
+	display: grid;
+	grid-template-columns: 36px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 9px;
+}
+.reply-preview-avatar {
+	display: inline-flex;
+	overflow: hidden;
+	border-radius: 50%;
+	background: var(--accent-soft-2);
+}
+.reply-preview-identity { min-width: 0; }
+.reply-preview-identity strong,
+.reply-preview-identity span {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.reply-preview-identity strong { font-size: 13px; }
+.reply-preview-identity span,
+.reply-preview time {
+	color: var(--ink-2);
+	font-family: var(--mono);
+	font-size: 10px;
+}
+.reply-preview time { white-space: nowrap; }
+.reply-preview-body,
+.reply-preview-cw,
+.reply-preview-state {
+	margin-top: 10px;
+	padding-top: 9px;
+	border-top: 1px dashed var(--border);
+	font-size: 12.5px;
+	line-height: 1.45;
+}
+.reply-preview-body {
+	display: -webkit-box;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 4;
+}
+.reply-preview-cw { color: var(--accent-ink); font-weight: 600; }
+.reply-preview-state { color: var(--ink-2); font-family: var(--mono); font-size: 10px; }
 
 /* ===== Post boost attribution ===== */
 .post-boost {

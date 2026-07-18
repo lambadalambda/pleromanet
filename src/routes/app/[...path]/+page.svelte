@@ -60,9 +60,10 @@
 	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, composerReplyDraft, customEmojiPack, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
 	import type { ProfileData, ProfileMediaItem, ProfilePost } from '$lib/rebuild/profile';
+	import { replyPreviewLoaderContext, type ReplyPreview, type ReplyPreviewLoader } from '$lib/rebuild/reply-preview';
 	import type { PleromaAccount, PleromaInstance, PleromaNotification, PleromaRelationship, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
 	import type { CustomEmoji, PostAttachment, SocialNotificationData, SocialPost } from '$lib/social/types';
-	import { onMount, tick, untrack } from 'svelte';
+	import { onMount, setContext, tick, untrack } from 'svelte';
 	import { env } from '$env/dynamic/public';
 
 	type AppRoute = 'home' | 'local' | 'federated' | 'public' | 'thread' | 'profile' | 'notifications' | 'explore' | 'search' | 'settings' | 'bookmarks' | 'messages';
@@ -108,6 +109,7 @@
 		boosts: number;
 		favs: number;
 		addressees?: string[];
+		inReplyToId?: string | null;
 		mentionAccts?: Record<string, string>;
 		replyAccounts?: PleromaReplyAccount[];
 		boostedBy?: PostLike['boostedBy'];
@@ -672,6 +674,7 @@
 			attachments: post.attachments,
 			mediaHidden: post.mediaHidden,
 			addressees: post.addressees,
+			inReplyToId: post.inReplyToId,
 			mentionAccts: post.mentionAccts,
 			replyAccounts: post.replyAccounts,
 			boostedBy: post.boostedBy ? {
@@ -701,6 +704,43 @@
 			},
 		};
 	};
+	const replyPreviewRequests = new Map<string, Promise<ReplyPreview | null>>();
+	let replyPreviewRequestIdentity = '';
+	const loadReplyPreview: ReplyPreviewLoader = (statusId) => {
+		const session = currentSession;
+		const requestIdentity = session ? sessionKey(session) : `public\n${publicInstanceUrl}`;
+		if (replyPreviewRequestIdentity !== requestIdentity) {
+			replyPreviewRequests.clear();
+			replyPreviewRequestIdentity = requestIdentity;
+		}
+		const cacheKey = `${requestIdentity}\n${statusId}`;
+		const cached = replyPreviewRequests.get(cacheKey);
+		if (cached) return cached;
+
+		const client = createPleromaClient({
+			instanceUrl: session?.instanceUrl ?? publicInstanceUrl,
+			accessToken: session?.accessToken,
+			fetch: window.fetch.bind(window)
+		});
+		const request = client.getStatus(statusId)
+			.then((status) => {
+				const post = postForRebuild(adaptPleromaStatus(status));
+				return {
+					name: post.name,
+					handle: post.handle,
+					time: post.time,
+					createdAt: post.createdAt,
+					avatarUrl: post.avatarUrl,
+					avClass: post.avClass,
+					body: post.body,
+					cw: post.cw
+				};
+			})
+			.catch(() => null);
+		replyPreviewRequests.set(cacheKey, request);
+		return request;
+	};
+	setContext(replyPreviewLoaderContext, loadReplyPreview);
 	const threadFullTime = (createdAt: string) => {
 		const date = new Date(createdAt);
 		if (Number.isNaN(date.getTime())) return '';

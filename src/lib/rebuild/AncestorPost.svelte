@@ -23,6 +23,7 @@
 		bodyEmojis?: CustomEmoji[];
 		mentionAccts?: Record<string, string>;
 		addressees?: string[];
+		inReplyToId?: string | null;
 		quotedPost?: Record<string, unknown>;
 		bookmarked?: boolean;
 		own?: boolean;
@@ -67,7 +68,7 @@
 		<div style="min-width:0">
 			<PostHead post={post} />
 			<PostCW post={post}>
-				<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} mentionAccts={post.mentionAccts} />
+				<PostBody body={post.body} emojis={post.bodyEmojis} addressees={post.addressees} parentStatusId={post.inReplyToId} mentionAccts={post.mentionAccts} />
 				<QuotedPost quoted={post.quotedPost} />
 				<PostMedia post={post} onOpen={handleLightbox} onVote={onVote ? (pollId, choice) => onVote(post.id, pollId, choice) : undefined} />
 			</PostCW>

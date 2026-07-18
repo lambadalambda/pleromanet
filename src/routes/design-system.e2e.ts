@@ -503,6 +503,7 @@ test('renders canonical reply addressee chip specimens', async ({ page }) => {
 	const parentOnly = posts.locator('.ds-spec').filter({ hasText: 'Reply · parent only' });
 	const parentChip = parentOnly.locator('.post-pinged-chip-parent');
 	await expect(parentOnly.locator('.post-pinged-l')).toHaveText('Replying to');
+	await expect(parentOnly.locator('button.post-pinged-l')).toHaveCount(0);
 	await expect(parentChip).toContainText('@gridwave');
 	await expect(parentChip.locator('svg')).toBeVisible();
 	await expect(parentOnly.locator('.ds-spec-note')).toHaveText("addressees=[parent] · ghost chip + ↪ glyph · no 'also'");

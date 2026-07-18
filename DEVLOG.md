@@ -1,5 +1,9 @@
 # Devlog
 
+## 2026-07-19
+
+- Reply context now lazily previews the replied-to post on hover, focus, or touch with session-isolated caching, content-warning safety, public-profile support, and viewport-contained positioning.
+
 ## 2026-07-18
 
 - Authenticated home, local, and federated timelines retain independent session-scoped pages and cursors across app navigation so browser history can restore scroll without an initial refetch.
