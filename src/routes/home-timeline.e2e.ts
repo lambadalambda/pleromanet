@@ -3078,6 +3078,73 @@ test('home timeline composer visibility selector scopes the created status', asy
 	expect(new URLSearchParams(createBodies[1]).get('visibility')).toBe('private');
 });
 
+test('mobile composer overlays stay inside narrow and keyboard-reduced viewports', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, []);
+	});
+	await page.addInitScript(() => {
+		const events = new EventTarget();
+		let height = 568;
+		const viewport = {
+			width: 320,
+			get height() { return height; },
+			offsetLeft: 0,
+			offsetTop: 0,
+			pageLeft: 0,
+			pageTop: 0,
+			scale: 1,
+			addEventListener: events.addEventListener.bind(events),
+			removeEventListener: events.removeEventListener.bind(events),
+			dispatchEvent: events.dispatchEvent.bind(events)
+		};
+		Object.defineProperty(window, 'visualViewport', { configurable: true, value: viewport });
+		(window as typeof window & { __setVisualViewportHeight?: (nextHeight: number) => void }).__setVisualViewportHeight = (nextHeight) => {
+			height = nextHeight;
+			events.dispatchEvent(new Event('resize'));
+		};
+	});
+	await page.setViewportSize({ width: 320, height: 568 });
+	await page.goto('/app/home');
+
+	await page.getByRole('button', { name: 'Privacy: Public' }).click();
+	const privacyMenu = page.getByTestId('composer-privacy-menu');
+	await expect(privacyMenu).toBeVisible();
+	const privacyBounds = await privacyMenu.evaluate((element) => {
+		const bounds = element.getBoundingClientRect();
+		return { left: bounds.left, right: bounds.right };
+	});
+	expect(privacyBounds.left).toBeGreaterThanOrEqual(8);
+	expect(privacyBounds.right).toBeLessThanOrEqual(312);
+	await expectNoHorizontalOverflow(page);
+	await page.setViewportSize({ width: 320, height: 300 });
+	await expect.poll(() => privacyMenu.evaluate((element) => element.getBoundingClientRect().top)).toBeGreaterThanOrEqual(8);
+	await expect.poll(() => privacyMenu.evaluate((element) => element.getBoundingClientRect().bottom)).toBeLessThanOrEqual(224);
+	await privacyMenu.getByRole('menuitemradio', { name: /Public/ }).focus();
+	await page.keyboard.press('Tab');
+	await expect(privacyMenu.getByRole('menuitemradio', { name: /Unlisted/ })).toBeFocused();
+	await page.keyboard.press('Escape');
+	await page.setViewportSize({ width: 320, height: 568 });
+
+	await page.getByRole('button', { name: 'Emoji' }).click();
+	const picker = page.getByRole('dialog', { name: 'Emoji picker' });
+	await expect(picker).toBeVisible();
+	await expect(page.getByRole('textbox', { name: 'Search emoji' })).toBeFocused();
+	await page.evaluate(() => {
+		(window as typeof window & { __setVisualViewportHeight?: (height: number) => void }).__setVisualViewportHeight?.(300);
+	});
+	await expect.poll(() => picker.evaluate((element) => element.getBoundingClientRect().bottom)).toBeLessThanOrEqual(292);
+	const pickerBounds = await picker.evaluate((element) => {
+		const bounds = element.getBoundingClientRect();
+		return { left: bounds.left, top: bounds.top, right: bounds.right, bottom: bounds.bottom };
+	});
+	expect(pickerBounds.left).toBeGreaterThanOrEqual(8);
+	expect(pickerBounds.top).toBeGreaterThanOrEqual(8);
+	expect(pickerBounds.right).toBeLessThanOrEqual(312);
+	expect(pickerBounds.bottom).toBeLessThanOrEqual(292);
+});
+
 test('home timeline emoji picker scrolls long packs and offers canonical unicode groups', async ({ page }) => {
 	await authenticate(page);
 	await mockInstance(page);

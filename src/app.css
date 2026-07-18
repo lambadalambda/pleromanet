@@ -7133,6 +7133,16 @@ body[data-theme='custom'] .ds-anatomy-marker {
 }
 @media (max-width: 720px) {
 	.app-shell-grid.mobile-full-bleed { padding-right: 0; padding-left: 0; }
+	.composer-privacy-menu {
+		position: fixed;
+		top: auto;
+		right: 8px;
+		bottom: calc(76px + env(safe-area-inset-bottom));
+		left: 8px;
+		width: auto;
+		max-height: calc(100dvh - 92px - env(safe-area-inset-bottom));
+		overflow-y: auto;
+	}
 	.mobile-full-bleed .app-feed-card {
 		border-right-width: 0;
 		border-left-width: 0;
