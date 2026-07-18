@@ -7013,6 +7013,7 @@ body[data-theme='custom'] .ds-anatomy-marker {
 		max-height: calc(100vh - 74px);
 		overflow-y: auto;
 	}
+	.post-control-toast { bottom: 76px; }
 	.app-shell-grid {
 		grid-template-columns: minmax(0, 1fr);
 		gap: 14px;

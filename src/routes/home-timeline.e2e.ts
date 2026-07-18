@@ -3347,9 +3347,42 @@ test('home timeline post menu copies the status link', async ({ page }) => {
 	await post.getByRole('button', { name: 'More post actions' }).click();
 	await post.getByRole('menuitem', { name: 'Copy link to post' }).click();
 
-	await expect(page.getByTestId('post-control-toast')).toContainText('Link copied');
+	const toast = page.getByTestId('post-control-toast');
+	await expect(toast).toContainText('Link copied');
+	await expect(toast).toHaveCSS('bottom', '28px');
 	const copied = await page.evaluate(() => window.localStorage.getItem('pleromanet.copied-link'));
 	expect(copied).toBe('https://pleroma.example/notice/status-link');
+});
+
+test('mobile post feedback stays above navigation without blocking its tabs', async ({ page }) => {
+	await authenticate(page);
+	await page.addInitScript(() => {
+		Object.defineProperty(navigator, 'clipboard', {
+			configurable: true,
+			value: { writeText: async () => undefined }
+		});
+	});
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [statusWithText('status-mobile-link', 'mobile link feedback')]);
+	});
+	await setViewport(page, 'mobile');
+	await page.goto('/app/home');
+
+	const post = page.locator('.post').filter({ hasText: 'mobile link feedback' }).first();
+	await post.getByRole('button', { name: 'More post actions' }).click();
+	await post.getByRole('menuitem', { name: 'Copy link to post' }).click();
+	const toast = page.getByTestId('post-control-toast');
+	const navigation = page.getByTestId('mobile-bottom-nav');
+	await expect(toast).toContainText('Link copied');
+	await expect.poll(async () => {
+		const toastBounds = await toast.boundingBox();
+		const navigationBounds = await navigation.boundingBox();
+		return toastBounds && navigationBounds ? navigationBounds.y - (toastBounds.y + toastBounds.height) : -1;
+	}).toBeGreaterThanOrEqual(8);
+
+	await navigation.getByRole('link', { name: 'Settings' }).click();
+	await expect(page).toHaveURL('/app/settings');
+	await expect(toast).toBeVisible();
 });
 
 test('home timeline deletes an own post after confirmation', async ({ page }) => {
