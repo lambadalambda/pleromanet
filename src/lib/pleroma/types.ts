@@ -220,6 +220,7 @@ export type StatusCreateRequest = {
 	status: string;
 	visibility?: 'public' | 'unlisted' | 'private' | 'direct' | string;
 	spoilerText?: string;
+	sensitive?: boolean;
 	inReplyToId?: string;
 	mediaIds?: string[];
 	poll?: {

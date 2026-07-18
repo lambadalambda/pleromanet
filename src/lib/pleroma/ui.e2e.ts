@@ -307,6 +307,37 @@ test('Pleroma status adapters expose media attachments for shared post rendering
 	]);
 });
 
+test('Pleroma status adapters retain sensitive-only media for gated rendering', () => {
+	const post = adaptPleromaStatus(withStatus({
+		id: 'sensitive-media',
+		content: '<p>body stays visible</p>',
+		sensitive: true,
+		spoiler_text: '',
+		pleroma: {
+			content: { 'text/plain': 'body stays visible' },
+			spoiler_text: { 'text/plain': '' }
+		},
+		media_attachments: [{
+			id: 'sensitive-photo',
+			type: 'image',
+			url: 'https://cdn.example/sensitive.jpg',
+			preview_url: 'https://cdn.example/sensitive-preview.jpg',
+			description: 'sensitive attachment'
+		}]
+	}));
+
+	expect(post.body).toBe('body stays visible');
+	expect(post.cw).toBeUndefined();
+	expect(post.hasContentWarning).toBe(false);
+	expect(post.mediaHidden).toBe(true);
+	expect(post.attachments).toEqual([{
+		kind: 'photo',
+		src: 'https://cdn.example/sensitive.jpg',
+		alt: 'sensitive attachment',
+		filename: 'sensitive.jpg'
+	}]);
+});
+
 test('Pleroma status adapters expose poll attachments for shared post rendering', () => {
 	const post = adaptPleromaStatus(withStatus({
 		id: 'status-with-poll',

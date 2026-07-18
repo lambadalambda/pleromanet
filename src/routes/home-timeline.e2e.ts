@@ -326,6 +326,7 @@ test('home timeline composer creates statuses through Pleroma', async ({ page })
 	expect(params.get('status')).toBe('posting through Pleroma composer');
 	expect(params.get('visibility')).toBe('public');
 	expect(params.get('spoiler_text')).toBe('soft spoiler');
+	expect(params.get('sensitive')).toBeNull();
 });
 
 test('home timeline composer submits with keyboard shortcut', async ({ page }) => {
@@ -379,6 +380,9 @@ test('home timeline composer uploads media and submits media ids', async ({ page
 	await setViewport(page, 'desktop');
 	await page.goto('/app/home');
 	const composer = page.getByRole('textbox', { name: 'Post text' });
+	const sensitive = page.getByRole('button', { name: 'Sensitive media', exact: true });
+	await expect(sensitive).toBeDisabled();
+	await expect(sensitive).toHaveAttribute('aria-pressed', 'false');
 	await composer.fill('image attached');
 	await page.getByLabel('Attach media').setInputFiles({ name: 'cat.png', mimeType: 'image/png', buffer: Buffer.from('cat') });
 
@@ -386,6 +390,9 @@ test('home timeline composer uploads media and submits media ids', async ({ page
 	await expect(page.getByText('100%')).toBeVisible();
 	const imageCard = page.getByTestId('composer-attachment').filter({ hasText: 'cat.png' });
 	await expect(imageCard.getByRole('img', { name: 'Preview of cat.png' })).toHaveAttribute('src', 'https://cdn.example/uploads/cat-thumb.png');
+	await expect(sensitive).toBeEnabled();
+	await sensitive.click();
+	await expect(sensitive).toHaveAttribute('aria-pressed', 'true');
 	await page.getByRole('button', { name: 'Post', exact: true }).click();
 
 	expect(uploadMethod).toBe('POST');
@@ -393,8 +400,50 @@ test('home timeline composer uploads media and submits media ids', async ({ page
 	const params = new URLSearchParams(createdBody);
 	expect(params.get('status')).toBe('image attached');
 	expect(params.getAll('media_ids[]')).toEqual(['media-1']);
+	expect(params.get('sensitive')).toBe('true');
 	await expect(page.locator('[data-status-id="created-media-status"]')).toContainText('image attached');
 	await expect(page.getByText('cat.png')).toHaveCount(0);
+	await expect(sensitive).toBeDisabled();
+	await expect(sensitive).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('home timeline composer clears sensitive media state after route navigation', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, []);
+	});
+	let uploadCount = 0;
+	await page.route('https://pleroma.example/api/v1/media', async (route) => {
+		uploadCount += 1;
+		await fulfillHome(route, {
+			id: `media-route-${uploadCount}`,
+			type: 'image',
+			url: `https://cdn.example/uploads/route-${uploadCount}.png`,
+			preview_url: `https://cdn.example/uploads/route-${uploadCount}-thumb.png`,
+			description: null
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	let sensitive = page.getByRole('button', { name: 'Sensitive media', exact: true });
+	await page.getByLabel('Attach media').setInputFiles({ name: 'first.png', mimeType: 'image/png', buffer: Buffer.from('first') });
+	await expect(sensitive).toBeEnabled();
+	await sensitive.click();
+	await expect(sensitive).toHaveAttribute('aria-pressed', 'true');
+
+	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Settings' }).click();
+	await expect(page).toHaveURL('/app/settings');
+	await page.getByRole('link', { name: 'PleromaNet™' }).click();
+	await expect(page).toHaveURL('/app/home');
+
+	sensitive = page.getByRole('button', { name: 'Sensitive media', exact: true });
+	await expect(sensitive).toBeDisabled();
+	await expect(sensitive).toHaveAttribute('aria-pressed', 'false');
+	await page.getByLabel('Attach media').setInputFiles({ name: 'second.png', mimeType: 'image/png', buffer: Buffer.from('second') });
+	await expect(sensitive).toBeEnabled();
+	await expect(sensitive).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('home timeline composer previews video and audio attachments responsively', async ({ page }) => {
@@ -1354,7 +1403,7 @@ test('home timeline inline reply composer autocompletes mentions and custom emoj
 	expect(params.get('in_reply_to_id')).toBe('status-inline-autocomplete');
 });
 
-test('home timeline inline reply composer uploads media-only replies', async ({ page }) => {
+test('home timeline inline reply composer resets and submits sensitive media-only replies', async ({ page }) => {
 	await authenticate(page);
 	await mockInstance(page);
 	const targetStatus = { ...statusWithText('status-inline-media', 'reply media target'), replies_count: 0 };
@@ -1362,10 +1411,12 @@ test('home timeline inline reply composer uploads media-only replies', async ({ 
 		await fulfillHome(route, [targetStatus]);
 	});
 	let uploadAuthorization: string | undefined;
+	let uploadCount = 0;
 	await page.route('https://pleroma.example/api/v1/media', async (route) => {
+		uploadCount += 1;
 		uploadAuthorization = route.request().headers().authorization;
 		await fulfillHome(route, {
-			id: 'reply-media-1',
+			id: `reply-media-${uploadCount}`,
 			type: 'image',
 			url: 'https://cdn.example/uploads/reply-cat.png',
 			preview_url: 'https://cdn.example/uploads/reply-cat-thumb.png',
@@ -1384,12 +1435,27 @@ test('home timeline inline reply composer uploads media-only replies', async ({ 
 	await setViewport(page, 'desktop');
 	await page.goto('/app/home');
 	await page.locator('[data-status-id="status-inline-media"]').getByRole('button', { name: 'Reply 0' }).click();
-	const replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
+	let replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
+	let sensitive = replyForm.getByRole('button', { name: 'Sensitive media', exact: true });
 	await expect(replyForm.getByRole('button', { name: 'Reply', exact: true })).toBeDisabled();
+	await expect(sensitive).toBeDisabled();
 	await replyForm.getByLabel('Attach reply media').setInputFiles({ name: 'reply-cat.png', mimeType: 'image/png', buffer: Buffer.from('cat') });
 
 	await expect(replyForm.getByText('reply-cat.png')).toBeVisible();
 	await expect(replyForm.getByRole('progressbar', { name: 'Upload progress for reply-cat.png' })).toHaveAttribute('aria-valuenow', '100');
+	await sensitive.click();
+	await expect(sensitive).toHaveAttribute('aria-pressed', 'true');
+	await replyForm.getByRole('button', { name: 'Cancel' }).click();
+	await expect(replyForm).toHaveCount(0);
+
+	await page.locator('[data-status-id="status-inline-media"]').getByRole('button', { name: 'Reply 0' }).click();
+	replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
+	sensitive = replyForm.getByRole('button', { name: 'Sensitive media', exact: true });
+	await expect(sensitive).toBeDisabled();
+	await expect(sensitive).toHaveAttribute('aria-pressed', 'false');
+	await replyForm.getByLabel('Attach reply media').setInputFiles({ name: 'reply-cat.png', mimeType: 'image/png', buffer: Buffer.from('cat') });
+	await expect(replyForm.getByRole('progressbar', { name: 'Upload progress for reply-cat.png' })).toHaveAttribute('aria-valuenow', '100');
+	await sensitive.click();
 	await expect(replyForm.getByRole('button', { name: 'Reply', exact: true })).toBeEnabled();
 	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
 
@@ -1398,7 +1464,8 @@ test('home timeline inline reply composer uploads media-only replies', async ({ 
 	const params = new URLSearchParams(createdBody);
 	expect(params.get('status')).toBe('');
 	expect(params.get('in_reply_to_id')).toBe('status-inline-media');
-	expect(params.getAll('media_ids[]')).toEqual(['reply-media-1']);
+	expect(params.getAll('media_ids[]')).toEqual(['reply-media-2']);
+	expect(params.get('sensitive')).toBe('true');
 });
 
 test('home timeline inline reply composer inserts custom emoji from picker', async ({ page }) => {
@@ -2182,6 +2249,7 @@ test('home timeline folds content warnings around body and media until revealed'
 	await mockHomeTimeline(page, async (route) => {
 		await fulfillHome(route, [{
 			...statusWithText('status-cw-media', 'hidden timeline words with attached proof'),
+			sensitive: true,
 			spoiler_text: 'timeline spoiler',
 			pleroma: {
 				...pleromaFixtures.status.pleroma,
@@ -2211,10 +2279,42 @@ test('home timeline folds content warnings around body and media until revealed'
 	await post.getByRole('button', { name: 'Show post' }).click();
 	await expect(post).toContainText('hidden timeline words with attached proof');
 	await expect(post.locator('.post-photos img[alt="cw hidden photo"]')).toHaveAttribute('src', 'https://cdn.example/media/cw-photo.jpg');
+	await expect(post.getByRole('button', { name: 'Show sensitive media' })).toHaveCount(0);
 	await expect(page).toHaveURL('/app/home');
 	await post.getByRole('button', { name: 'Hide' }).click();
 	await expect(post).not.toContainText('hidden timeline words');
 	await expect(post.getByRole('button', { name: 'Favorite 10' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('home timeline hides sensitive-only media while keeping status text visible', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [{
+			...statusWithText('status-sensitive-media', 'the text is safe to read'),
+			sensitive: true,
+			spoiler_text: '',
+			media_attachments: [{
+				id: 'sensitive-photo',
+				type: 'image',
+				url: 'https://cdn.example/media/sensitive-photo.jpg',
+				preview_url: 'https://cdn.example/media/sensitive-photo-preview.jpg',
+				description: 'hidden sensitive photo'
+			}]
+		}]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('[data-status-id="status-sensitive-media"]');
+	await expect(post).toContainText('the text is safe to read');
+	await expect(post.locator('.post-cw-card')).toHaveCount(0);
+	await expect(post.getByAltText('hidden sensitive photo')).toHaveCount(0);
+	const reveal = post.getByRole('button', { name: 'Show sensitive media' });
+	await expect(reveal).toHaveAttribute('aria-expanded', 'false');
+	await reveal.click();
+	await expect(post.getByAltText('hidden sensitive photo')).toHaveAttribute('src', 'https://cdn.example/media/sensitive-photo.jpg');
+	await expect(post).toContainText('the text is safe to read');
 });
 
 test('home timeline renders boosted Pleroma statuses with attribution and media actions', async ({ page }) => {

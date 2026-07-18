@@ -23,6 +23,7 @@
 		error?: PleromaRequestErrorView | null;
 		spoilerActive?: boolean;
 		spoilerText?: string;
+		sensitive?: boolean;
 		poll?: ComposerPollDraft | null;
 		pollValid?: boolean;
 		accounts?: ComposerMentionAccount[];
@@ -35,6 +36,7 @@
 		onSpoilerToggle?: () => void;
 		onSpoilerInput?: (value: string) => void;
 		onSpoilerRemove?: () => void;
+		onSensitiveToggle?: () => void;
 		onPollToggle?: () => void;
 		onPollChange?: (poll: ComposerPollDraft) => void;
 		onPollRemove?: () => void;
@@ -56,6 +58,7 @@
 		error = null,
 		spoilerActive = false,
 		spoilerText = '',
+		sensitive = false,
 		poll = null,
 		pollValid = true,
 		accounts = [],
@@ -68,6 +71,7 @@
 		onSpoilerToggle,
 		onSpoilerInput,
 		onSpoilerRemove,
+		onSensitiveToggle,
 		onPollToggle,
 		onPollChange,
 		onPollRemove,
@@ -202,6 +206,7 @@
 			<button type="button" class="thread-inline-reply-tool" class:active={emojiPickerOpen} title="Emoji" aria-label="Emoji" aria-haspopup="dialog" aria-expanded={emojiPickerOpen} aria-pressed={emojiPickerOpen} disabled={submitting} data-emoji-trigger onclick={toggleEmojiPicker}><Icon name="smile" width={16} height={16} /></button>
 			<button type="button" class="thread-inline-reply-tool" class:active={Boolean(poll)} title="Poll" aria-label="Poll" aria-pressed={Boolean(poll)} disabled={!onPollToggle || submitting} onclick={() => onPollToggle?.()}><Icon name="poll" width={16} height={16} /></button>
 			<button type="button" class="thread-inline-reply-cw" class:active={spoilerActive} aria-label="Content warning" aria-pressed={spoilerActive} disabled={!onSpoilerToggle || submitting} onclick={() => onSpoilerToggle?.()}>CW</button>
+			<button type="button" class="thread-inline-reply-cw" class:active={sensitive} title="Mark all attached media as sensitive" aria-label="Sensitive media" aria-pressed={sensitive} disabled={!hasUploadedMedia || !onSensitiveToggle || submitting} onclick={() => onSensitiveToggle?.()}>NSFW</button>
 			<span class="thread-inline-reply-spacer"></span>
 			<button type="button" class="thread-inline-reply-cancel" disabled={submitting} onclick={onCancel}>Cancel</button>
 			<span class="thread-inline-reply-count" class:over-limit={remaining < 0}>{remaining}</span>

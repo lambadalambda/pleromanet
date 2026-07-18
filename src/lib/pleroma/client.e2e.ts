@@ -151,18 +151,21 @@ test('Pleroma client isolates typed endpoints and authorization headers', async 
 	expect(requests[14].bodyKind).toBe('form-data');
 });
 
-test('Pleroma client sends media ids on status creation', async () => {
+test('Pleroma client sends media ids and status-level sensitivity on status creation', async () => {
 	const { fetchImpl, requests } = createJsonFetch((request) => {
 		if (request.url.pathname === '/api/v1/statuses') return { body: pleromaFixtures.status };
 		return { status: 404, body: { error: 'missing fixture' } };
 	});
 	const client = createPleromaClient({ instanceUrl: 'https://pleroma.example', accessToken: 'access-token', fetch: fetchImpl });
 
-	await client.createStatus({ status: 'with image', mediaIds: ['media-1', 'media-2'] });
+	await client.createStatus({ status: 'with image', mediaIds: ['media-1', 'media-2'], sensitive: true });
+	await client.createStatus({ status: 'plain image', mediaIds: ['media-3'] });
 
-	expect(requests[0].body).toContain('status=with+image');
-	expect(requests[0].body).toContain('media_ids%5B%5D=media-1');
-	expect(requests[0].body).toContain('media_ids%5B%5D=media-2');
+	const sensitiveBody = new URLSearchParams(requests[0].body);
+	expect(sensitiveBody.get('status')).toBe('with image');
+	expect(sensitiveBody.getAll('media_ids[]')).toEqual(['media-1', 'media-2']);
+	expect(sensitiveBody.get('sensitive')).toBe('true');
+	expect(new URLSearchParams(requests[1].body).get('sensitive')).toBeNull();
 });
 
 test('Pleroma client converts timeline Link headers into cursor data', async () => {

@@ -232,6 +232,7 @@
 	let composerDragDepth = $state(0);
 	let composerSpoilerActive = $state(false);
 	let composerSpoilerText = $state('');
+	let composerSensitive = $state(false);
 	let composerPoll = $state<ComposerPollDraft | null>(null);
 	let composerVisibility = $state<StatusVisibility>('public');
 	let composerPrivacyOpen = $state(false);
@@ -273,6 +274,7 @@
 	let inlineReplyUploads = $state<ComposerUpload[]>([]);
 	let inlineReplySpoilerActive = $state(false);
 	let inlineReplySpoilerText = $state('');
+	let inlineReplySensitive = $state(false);
 	let inlineReplyPoll = $state<ComposerPollDraft | null>(null);
 	let inlineReplySubmitState = $state<'idle' | 'submitting'>('idle');
 	let inlineReplySubmitError = $state<PleromaRequestErrorView | null>(null);
@@ -379,6 +381,7 @@
 		inlineReplyUploads = [];
 		inlineReplySpoilerActive = false;
 		inlineReplySpoilerText = '';
+		inlineReplySensitive = false;
 		inlineReplyPoll = null;
 		inlineReplySubmitState = 'idle';
 		inlineReplySubmitError = null;
@@ -414,6 +417,7 @@
 		homePostSubmitError = null;
 		clearInlineReply('home');
 		composerUploads = [];
+		composerSensitive = false;
 		composerDragActive = false;
 		composerDragDepth = 0;
 		clearStatusActionErrors('home');
@@ -669,6 +673,7 @@
 			bodyEmojis: post.bodyEmojis,
 			media: post.media,
 			attachments: post.attachments,
+			mediaHidden: post.mediaHidden,
 			addressees: post.addressees,
 			mentionAccts: post.mentionAccts,
 			replyAccounts: post.replyAccounts,
@@ -1639,9 +1644,11 @@
 	};
 	const removeComposerUpload = (localId: string) => {
 		composerUploads = composerUploads.filter((upload) => upload.localId !== localId);
+		if (!composerUploads.some((upload) => upload.status === 'uploaded')) composerSensitive = false;
 	};
 	const removeInlineReplyUpload = (localId: string) => {
 		inlineReplyUploads = inlineReplyUploads.filter((upload) => upload.localId !== localId);
+		if (!inlineReplyUploads.some((upload) => upload.status === 'uploaded')) inlineReplySensitive = false;
 	};
 	const saveUploadAltText = (getUploads: () => ComposerUpload[], updateUploads: (updater: (uploads: ComposerUpload[]) => ComposerUpload[]) => void, localId: string, description: string) => {
 		const session = currentSession;
@@ -1732,7 +1739,7 @@
 				accessToken: session.accessToken,
 				fetch: window.fetch.bind(window)
 			});
-			const status = await client.createStatus({ status: body, visibility: composerVisibility, spoilerText: spoilerText || undefined, poll, mediaIds: composerUploadedMediaIds });
+			const status = await client.createStatus({ status: body, visibility: composerVisibility, spoilerText: spoilerText || undefined, sensitive: composerSensitive && composerUploadedMediaIds.length > 0 || undefined, poll, mediaIds: composerUploadedMediaIds });
 			if (requestId !== homePostSubmitRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			upsertAccountCache(accountsFromPleromaStatus(status));
@@ -1759,6 +1766,7 @@
 			composerText = '';
 			composerSpoilerActive = false;
 			composerSpoilerText = '';
+			composerSensitive = false;
 			composerPoll = null;
 			composerUploads = [];
 			homePostSubmitState = 'idle';
@@ -1844,6 +1852,7 @@
 		inlineReplyUploads = [];
 		inlineReplySpoilerActive = false;
 		inlineReplySpoilerText = '';
+		inlineReplySensitive = false;
 		inlineReplyPoll = null;
 	};
 	const clearInlineReplySpoiler = () => {
@@ -1887,7 +1896,7 @@
 				accessToken: session.accessToken,
 				fetch: window.fetch.bind(window)
 			});
-			const status = await client.createStatus({ status: body, visibility: target.visibility, inReplyToId: target.targetId, spoilerText: spoilerText || undefined, poll, mediaIds: inlineReplyUploadedMediaIds });
+			const status = await client.createStatus({ status: body, visibility: target.visibility, inReplyToId: target.targetId, spoilerText: spoilerText || undefined, sensitive: inlineReplySensitive && inlineReplyUploadedMediaIds.length > 0 || undefined, poll, mediaIds: inlineReplyUploadedMediaIds });
 			if (requestId !== inlineReplyRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 			if (!inlineReplyTarget || inlineReplyTarget.route !== target.route || inlineReplyTarget.targetId !== target.targetId) return;
 
@@ -3013,6 +3022,7 @@
 		error: inlineReplySubmitError,
 		spoilerActive: inlineReplySpoilerActive,
 		spoilerText: inlineReplySpoilerText,
+		sensitive: inlineReplySensitive,
 		poll: inlineReplyPoll,
 		pollValid: Boolean(preparedInlineReplyPoll),
 		accounts: composerMentionAccounts,
@@ -3025,6 +3035,7 @@
 		onSpoilerToggle: toggleInlineReplySpoiler,
 		onSpoilerInput: (value: string) => (inlineReplySpoilerText = value),
 		onSpoilerRemove: clearInlineReplySpoiler,
+		onSensitiveToggle: () => (inlineReplySensitive = !inlineReplySensitive),
 		onPollToggle: toggleInlineReplyPoll,
 		onPollChange: (poll: ComposerPollDraft) => (inlineReplyPoll = poll),
 		onPollRemove: () => (inlineReplyPoll = null),
@@ -4453,6 +4464,7 @@
 									<button type="button" class="composer-tool" class:active={Boolean(composerPoll)} title="Poll" aria-label="Poll" aria-pressed={Boolean(composerPoll)} onclick={toggleComposerPoll}><Icon name="poll" width={18} height={18} /></button>
 									<button type="button" class="composer-tool" class:active={composerEmojiPickerOpen} title="Emoji" aria-label="Emoji" aria-pressed={composerEmojiPickerOpen} data-emoji-trigger onclick={toggleComposerEmojiPicker}><Icon name="smile" width={18} height={18} /></button>
 									<button type="button" class="composer-tool cw" class:active={composerSpoilerActive} aria-label="Content warning" aria-pressed={composerSpoilerActive} onclick={toggleComposerSpoiler}>CW</button>
+									<button type="button" class="composer-tool sensitive" class:active={composerSensitive} title="Mark all attached media as sensitive" aria-label="Sensitive media" aria-pressed={composerSensitive} disabled={composerUploadedMediaIds.length === 0 || homePostSubmitState === 'submitting'} onclick={() => (composerSensitive = !composerSensitive)}>NSFW</button>
 									<span class="composer-privacy-wrap">
 										<button bind:this={composerPrivacyTrigger} type="button" class="composer-tool privacy" aria-label={`Privacy: ${composerVisibilityOption.label}`} aria-haspopup="menu" aria-expanded={composerPrivacyOpen} onclick={() => (composerPrivacyOpen = !composerPrivacyOpen)}>
 											<Icon name={composerVisibilityOption.icon} width={13} height={13} /><span>{composerVisibilityOption.label}</span><Icon name="chevDown" width={12} height={12} className={composerPrivacyOpen ? 'chev open' : 'chev'} />

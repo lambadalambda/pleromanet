@@ -79,6 +79,7 @@ export type LegacyAudioAttachment = Omit<AudioAttachment, 'kind'> & { kind?: 'au
 export type PostLike = {
 	cw?: string;
 	attachments?: Attachment[];
+	mediaHidden?: boolean;
 	photos?: LegacyPhotoAttachment[];
 	video?: LegacyVideoAttachment;
 	audio?: LegacyAudioAttachment;

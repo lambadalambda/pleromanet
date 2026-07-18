@@ -146,6 +146,7 @@ export type SocialPost = {
 	avatarUrl?: string | null;
 	media?: MediaVariant;
 	attachments?: PostAttachment[];
+	mediaHidden?: boolean;
 	addressees?: string[];
 	boostedBy?: BoostAttributionView;
 	copyJson?: unknown;

@@ -19,6 +19,7 @@
 - Lightbox headers now contain arbitrarily long attachment filenames and keep the mobile close control fully visible and clickable, including when attribution is absent.
 - Mobile timelines meet the sticky header without an empty gutter, and the redundant bottom navigation and details sheet are removed in favor of the header logo and focus-trapped side drawer.
 - Repository agents must review every completed task, address findings, then create a topical commit and push it without waiting for a separate request.
+- Incoming sensitive statuses without content warnings keep safe text visible while gating media behind an explicit reveal, and media composers can submit Pleroma's status-level `sensitive` flag with reset-safe NSFW controls.
 
 ## 2026-07-17
 

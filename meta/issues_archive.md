@@ -79,3 +79,4 @@
 - [x] [79 Keep lightbox close visible with long filenames](issues/79-keep-lightbox-close-visible-with-long-filenames.md)
 - [x] [80 Simplify the mobile app shell](issues/80-simplify-mobile-app-shell.md)
 - [x] [81 Require review commit and push](issues/81-require-review-commit-and-push.md)
+- [x] [82 Support sensitive posts and media](issues/82-support-sensitive-posts-and-media.md)

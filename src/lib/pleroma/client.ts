@@ -125,6 +125,7 @@ const statusCreateForm = (input: StatusCreateRequest) => {
 	const form = new URLSearchParams({ status: input.status });
 	if (input.visibility) form.set('visibility', input.visibility);
 	if (input.spoilerText) form.set('spoiler_text', input.spoilerText);
+	if (input.sensitive) form.set('sensitive', 'true');
 	if (input.inReplyToId) form.set('in_reply_to_id', input.inReplyToId);
 	for (const mediaId of input.mediaIds ?? []) form.append('media_ids[]', mediaId);
 	if (input.poll) {
