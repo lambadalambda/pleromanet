@@ -60,8 +60,8 @@ PleromaNet is a new frontend for Pleroma with a reduced, refined visual style. T
 - Do not introduce backward-compatibility layers unless there is a concrete need.
 - Do not write class declarations or class inheritance in application code. Framework internals and third-party APIs are exempt.
 - Keep code comments rare and focused on non-obvious behavior.
-- Agents should only create commits when explicitly requested.
-- For larger UI/handoff slices, request a focused review before committing, especially when porting canonical design behavior into the real app.
+- Before considering any task finished, request a focused review and address all actionable findings.
+- After review, create a topical commit and push it to the tracked remote without waiting for a separate request. If commit or push is blocked, report the blocker and do not describe the task as complete.
 
 ## Composer Behavior
 
