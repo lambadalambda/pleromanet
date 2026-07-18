@@ -62,7 +62,7 @@
 	import type { ProfileData, ProfileMediaItem, ProfilePost } from '$lib/rebuild/profile';
 	import type { PleromaAccount, PleromaInstance, PleromaNotification, PleromaRelationship, PleromaSession, PleromaStatus, PleromaTag } from '$lib/pleroma/types';
 	import type { CustomEmoji, PostAttachment, SocialNotificationData, SocialPost } from '$lib/social/types';
-	import { onMount, untrack } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import { env } from '$env/dynamic/public';
 
 	type AppRoute = 'home' | 'local' | 'federated' | 'public' | 'thread' | 'profile' | 'notifications' | 'explore' | 'search' | 'settings' | 'bookmarks' | 'messages';
@@ -238,6 +238,12 @@
 	let composerPrivacyTrigger = $state<HTMLButtonElement | null>(null);
 	let mobileDrawerOpen = $state(false);
 	let mobileSheetOpen = $state(false);
+	let mobileDrawerTrigger = $state<HTMLButtonElement | null>(null);
+	let mobileDrawerPanel = $state<HTMLElement | null>(null);
+	let mobileDrawerClose = $state<HTMLButtonElement | null>(null);
+	let mobileSheetTrigger = $state<HTMLButtonElement | null>(null);
+	let mobileSheetPanel = $state<HTMLElement | null>(null);
+	let mobileSheetClose = $state<HTMLButtonElement | null>(null);
 	let userMenuOpen = $state(false);
 	let userMenuTrigger = $state<HTMLButtonElement | null>(null);
 	let autoInsertTimelinePosts = $state(false);
@@ -1976,6 +1982,55 @@
 		const targetId = statusActionTargetId(post);
 		if (targetId) mutateStatusAction(targetId, key, rebuildPostActionValue(post, key), 'profile');
 	};
+	const mobilePanelFocusable = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+	const focusMobilePanel = async (getPanel: () => HTMLElement | null, getPreferred: () => HTMLElement | null) => {
+		await tick();
+		const panel = getPanel();
+		const preferred = getPreferred();
+		preferred?.focus();
+		if (!preferred) panel?.querySelector<HTMLElement>(mobilePanelFocusable)?.focus();
+	};
+	const restoreMobilePanelFocus = async (trigger: HTMLElement | null) => {
+		await tick();
+		trigger?.focus();
+	};
+	const openMobileDrawer = () => {
+		mobileSheetOpen = false;
+		mobileDrawerOpen = true;
+		void focusMobilePanel(() => mobileDrawerPanel, () => mobileDrawerClose);
+	};
+	const closeMobileDrawer = (restoreFocus = true) => {
+		mobileDrawerOpen = false;
+		if (restoreFocus) void restoreMobilePanelFocus(mobileDrawerTrigger);
+	};
+	const openMobileSheet = () => {
+		mobileDrawerOpen = false;
+		mobileSheetOpen = true;
+		void focusMobilePanel(() => mobileSheetPanel, () => mobileSheetClose);
+	};
+	const closeMobileSheet = (restoreFocus = true) => {
+		mobileSheetOpen = false;
+		if (restoreFocus) void restoreMobilePanelFocus(mobileSheetTrigger);
+	};
+	const trapMobilePanelFocus = (event: KeyboardEvent, panel: HTMLElement | null) => {
+		if (event.key !== 'Tab' || !panel) return;
+		const focusable = [...panel.querySelectorAll<HTMLElement>(mobilePanelFocusable)];
+		if (focusable.length === 0) {
+			event.preventDefault();
+			panel.focus();
+			return;
+		}
+		const first = focusable[0];
+		const last = focusable.at(-1);
+		const active = document.activeElement;
+		if (event.shiftKey && (active === first || !panel.contains(active))) {
+			event.preventDefault();
+			last?.focus();
+		} else if (!event.shiftKey && (active === last || !panel.contains(active))) {
+			event.preventDefault();
+			first.focus();
+		}
+	};
 	const closeMobilePanels = () => {
 		mobileDrawerOpen = false;
 		mobileSheetOpen = false;
@@ -2029,14 +2084,20 @@
 			return;
 		}
 		if (event.key !== 'Escape') return;
+		if (mobileDrawerOpen) {
+			closeMobileDrawer();
+			return;
+		}
+		if (mobileSheetOpen) {
+			closeMobileSheet();
+			return;
+		}
 		const restoreUserMenuFocus = userMenuOpen;
 		const restorePrivacyFocus = composerPrivacyOpen;
 		userMenuOpen = false;
 		notificationsMenuOpen = false;
 		composerPrivacyOpen = false;
 		closeHeaderSearch();
-		mobileDrawerOpen = false;
-		mobileSheetOpen = false;
 		if (restoreUserMenuFocus) userMenuTrigger?.focus();
 		if (restorePrivacyFocus) composerPrivacyTrigger?.focus();
 	};
@@ -3920,10 +3981,15 @@
 		const syncStoredSession = (event: StorageEvent) => {
 			if (event.key === PLEROMA_SESSION_KEY) readSessionOrRedirect({ optional: route === 'profile' });
 		};
+		const mobileNavigationMedia = window.matchMedia('(max-width: 880px)');
+		const closeMobilePanelsOutsideMobile = (event: MediaQueryListEvent) => {
+			if (!event.matches) closeMobilePanels();
+		};
 		window.addEventListener(HOME_TIMELINE_CHECK_EVENT, triggerHomeTimelineCheck);
 		window.addEventListener(NOTIFICATION_POLL_EVENT, pollNotifications);
 		window.addEventListener('storage', syncStoredSession);
 		window.addEventListener('scroll', updateTimelineTop, { passive: true });
+		mobileNavigationMedia.addEventListener('change', closeMobilePanelsOutsideMobile);
 		const checkInterval = window.setInterval(triggerHomeTimelineCheck, HOME_TIMELINE_FALLBACK_INTERVAL_MS);
 		const notificationInterval = window.setInterval(pollNotifications, NOTIFICATION_POLL_INTERVAL_MS);
 
@@ -3940,6 +4006,7 @@
 			window.removeEventListener(NOTIFICATION_POLL_EVENT, pollNotifications);
 			window.removeEventListener('storage', syncStoredSession);
 			window.removeEventListener('scroll', updateTimelineTop);
+			mobileNavigationMedia.removeEventListener('change', closeMobilePanelsOutsideMobile);
 			window.clearInterval(checkInterval);
 			window.clearInterval(notificationInterval);
 		};
@@ -4158,11 +4225,11 @@
 	{/if}
 {:else if sessionReady}
 	<div class="app-route-shell">
-		<header class="app-header" data-testid="app-header">
+		<header class="app-header" data-testid="app-header" inert={mobileDrawerOpen || mobileSheetOpen}>
 			<div class="app-header-shell">
 				<div class="app-header-inner">
 					<div class="app-brand">
-						<button type="button" class="menu-btn app-mobile-menu" aria-label="Open navigation menu" onclick={() => (mobileDrawerOpen = true)}>
+						<button bind:this={mobileDrawerTrigger} type="button" class="menu-btn app-mobile-menu" aria-label="Open navigation menu" onclick={openMobileDrawer}>
 							<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
 						</button>
 						<a href={appPath('/app/home')} class="brand-core" onclick={closeMobilePanels}>
@@ -4323,7 +4390,7 @@
 			</div>
 		</header>
 
-		<div class="app-shell-grid" class:content-wide={!hasRightRail} class:mobile-full-bleed={route === 'home' || route === 'local' || route === 'federated'}>
+		<div class="app-shell-grid" class:content-wide={!hasRightRail} class:mobile-full-bleed={route === 'home' || route === 'local' || route === 'federated'} inert={mobileDrawerOpen || mobileSheetOpen}>
 			<aside class="app-left-sidebar" data-testid="left-sidebar">
 				<ProfileMini account={currentSession?.account} instanceUrl={currentSession?.instanceUrl} />
 				<div class="card app-side-card">
@@ -4966,19 +5033,19 @@
 			{/if}
 		</div>
 
-		<nav class="mobile-bottom" data-testid="mobile-bottom-nav" aria-label="Mobile app navigation">
+		<nav class="mobile-bottom" data-testid="mobile-bottom-nav" aria-label="Mobile app navigation" inert={mobileDrawerOpen || mobileSheetOpen}>
 			<a href={appPath('/app/home')} class:active={route === 'home'} class="mob-tab"><Icon name="home" /><span>Home</span></a>
 			<a href={appPath('/app/explore')} class:active={route === 'explore'} class="mob-tab"><Icon name="search" /><span>Explore</span></a>
 			<a href={appPath('/app/settings')} class:active={route === 'settings'} class="mob-tab"><Icon name="gear" /><span>Settings</span></a>
-			<button type="button" class="mob-tab" onclick={() => (mobileSheetOpen = true)}><Icon name="list" /><span>More</span></button>
+			<button bind:this={mobileSheetTrigger} type="button" class="mob-tab" onclick={openMobileSheet}><Icon name="list" /><span>More</span></button>
 		</nav>
 
 		{#if mobileDrawerOpen}
-			<button type="button" class="mobile-drawer-bg open" aria-label="Close navigation menu" onclick={() => (mobileDrawerOpen = false)}></button>
-			<aside class="mobile-drawer open" data-testid="mobile-drawer">
+			<button type="button" tabindex="-1" class="mobile-drawer-bg open" aria-hidden="true" aria-label="Close navigation menu" onclick={() => closeMobileDrawer()}></button>
+			<div bind:this={mobileDrawerPanel} class="mobile-drawer open" data-testid="mobile-drawer" role="dialog" aria-modal="true" aria-label="Navigation menu" tabindex="-1" onkeydown={(event) => trapMobilePanelFocus(event, mobileDrawerPanel)}>
 				<div class="drawer-head">
 					<div class="drawer-brand"><span class="brand-mark"><Icon name="sparkBig" /></span><span class="brand-name">PleromaNet<sup>™</sup></span></div>
-					<button type="button" class="drawer-close" aria-label="Close navigation menu" onclick={() => (mobileDrawerOpen = false)}>×</button>
+					<button bind:this={mobileDrawerClose} type="button" class="drawer-close" aria-label="Close navigation menu" onclick={() => closeMobileDrawer()}>×</button>
 				</div>
 				<nav class="side-nav" aria-label="Mobile sections">
 					{#each navItems as item}
@@ -4989,19 +5056,19 @@
 						</a>
 					{/each}
 				</nav>
-			</aside>
+			</div>
 		{/if}
 
 		{#if mobileSheetOpen}
-			<button type="button" class="mobile-sheet-bg open" aria-label="Dismiss details sheet" onclick={() => (mobileSheetOpen = false)}></button>
-			<aside class="mobile-sheet open" data-testid="mobile-sheet">
+			<button type="button" tabindex="-1" class="mobile-sheet-bg open" aria-hidden="true" aria-label="Dismiss details sheet" onclick={() => closeMobileSheet()}></button>
+			<div bind:this={mobileSheetPanel} class="mobile-sheet open" data-testid="mobile-sheet" role="dialog" aria-modal="true" aria-label="Details" tabindex="-1" onkeydown={(event) => trapMobilePanelFocus(event, mobileSheetPanel)}>
 				<div class="sheet-grip"></div>
-				<div class="sheet-head"><span class="sheet-title">Details</span><button type="button" class="drawer-close" aria-label="Close details sheet" onclick={() => (mobileSheetOpen = false)}>×</button></div>
+				<div class="sheet-head"><span class="sheet-title">Details</span><button bind:this={mobileSheetClose} type="button" class="drawer-close" aria-label="Close details sheet" onclick={() => closeMobileSheet()}>×</button></div>
 				<SurfaceCard kind="trends" trendsState={trendsState} />
 				{#if railSuggestions.length > 0}
 					<SurfaceCard kind="who-to-follow" suggestions={railSuggestions} onSuggestionFollow={toggleSuggestionFollow} />
 				{/if}
-			</aside>
+			</div>
 		{/if}
 	</div>
 {/if}

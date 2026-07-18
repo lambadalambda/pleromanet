@@ -71,3 +71,4 @@
 - [x] [72 Contain mobile composer overlays](issues/72-contain-mobile-composer-overlays.md)
 - [x] [73 Keep mobile post actions in bounds](issues/73-keep-mobile-post-actions-in-bounds.md)
 - [x] [74 Fit mobile notification popover](issues/74-fit-mobile-notification-popover.md)
+- [x] [75 Make mobile navigation overlays modal](issues/75-make-mobile-navigation-overlays-modal.md)

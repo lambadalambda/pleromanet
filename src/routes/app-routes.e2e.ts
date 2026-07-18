@@ -408,3 +408,61 @@ test('mobile real app shell opens drawer and details sheet', async ({ page }) =>
 	await expect(page.getByTestId('mobile-sheet')).toBeHidden();
 	await expectNoHorizontalOverflow(page);
 });
+
+test('mobile navigation overlays contain focus and restore it when closed', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page);
+	await setViewport(page, 'mobile');
+	await page.goto('/app/home');
+
+	const drawerTrigger = page.getByRole('button', { name: 'Open navigation menu' });
+	await drawerTrigger.focus();
+	await drawerTrigger.click();
+	const drawer = page.getByRole('dialog', { name: 'Navigation menu' });
+	const drawerClose = drawer.getByRole('button', { name: 'Close navigation menu' });
+	await expect(drawer).toHaveAttribute('aria-modal', 'true');
+	await expect(drawerClose).toBeFocused();
+	await expect(page.getByTestId('app-header')).toHaveJSProperty('inert', true);
+	await drawerTrigger.evaluate((element) => element.focus());
+	await expect(drawerClose).toBeFocused();
+
+	const lastDrawerLink = drawer.getByRole('link').last();
+	await lastDrawerLink.focus();
+	await page.keyboard.press('Tab');
+	await expect(drawerClose).toBeFocused();
+	await page.keyboard.press('Shift+Tab');
+	await expect(lastDrawerLink).toBeFocused();
+	await page.keyboard.press('Escape');
+	await expect(drawer).toHaveCount(0);
+	await expect(drawerTrigger).toBeFocused();
+
+	const sheetTrigger = page.getByTestId('mobile-bottom-nav').getByRole('button', { name: 'More' });
+	await sheetTrigger.click();
+	const sheet = page.getByRole('dialog', { name: 'Details' });
+	const sheetClose = sheet.getByRole('button', { name: 'Close details sheet' });
+	await expect(sheet).toHaveAttribute('aria-modal', 'true');
+	await expect(sheetClose).toBeFocused();
+	await page.keyboard.press('Shift+Tab');
+	await expect.poll(async () => sheet.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+	await page.keyboard.press('Escape');
+	await expect(sheet).toHaveCount(0);
+	await expect(sheetTrigger).toBeFocused();
+
+	await sheetTrigger.click();
+	await page.getByRole('dialog', { name: 'Details' }).getByRole('button', { name: 'Close details sheet' }).click();
+	await expect(sheetTrigger).toBeFocused();
+
+	await drawerTrigger.click();
+	await page.setViewportSize({ width: 1000, height: 800 });
+	await expect(page.getByRole('dialog', { name: 'Navigation menu' })).toHaveCount(0);
+	await expect(page.getByTestId('app-header')).toHaveJSProperty('inert', false);
+	await page.getByRole('button', { name: 'quiet admin account menu' }).click();
+	await expect(page.getByTestId('user-menu')).toBeVisible();
+	await page.keyboard.press('Escape');
+
+	await setViewport(page, 'mobile');
+	await sheetTrigger.click();
+	await page.setViewportSize({ width: 1000, height: 800 });
+	await expect(page.getByRole('dialog', { name: 'Details' })).toHaveCount(0);
+	await expect(page.getByTestId('mobile-bottom-nav')).toHaveJSProperty('inert', false);
+});

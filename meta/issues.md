@@ -1,4 +1,3 @@
 - [ ] [69 Audit and polish mobile app](issues/69-audit-and-polish-mobile-app.md)
-- [ ] [75 Make mobile navigation overlays modal](issues/75-make-mobile-navigation-overlays-modal.md)
 - [ ] [76 Keep mobile feedback above navigation](issues/76-keep-mobile-feedback-above-navigation.md)
 - [ ] [77 Fix mobile poll editor layout](issues/77-fix-mobile-poll-editor-layout.md)
