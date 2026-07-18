@@ -218,6 +218,7 @@ test('opens the attachment lightbox from the design-system specimen', async ({ p
 	await expect(dialog).toBeVisible();
 	await expect(page.getByText('1 of 5 · station platform at dusk')).toBeVisible();
 	await expect(dialog.locator('.lightbox-photo')).toHaveCSS('filter', 'none');
+	await expect(dialog.locator('.lightbox-foot')).toBeVisible();
 	await dialog.getByRole('button', { name: 'Next' }).click();
 	await dialog.getByRole('button', { name: 'Next' }).click();
 	await expect(page.getByText('3 of 5 · door with cat')).toBeVisible();
@@ -256,6 +257,100 @@ test('opens the attachment lightbox from the design-system specimen', async ({ p
 	expect(previousIsTopmost).toBe(true);
 	await dialog.getByRole('button', { name: 'Close', exact: true }).click();
 	await expect(page.getByRole('dialog', { name: 'Attachment lightbox' })).toBeHidden();
+});
+
+test('mobile image lightbox contains media and removes desktop-only hints', async ({ page }) => {
+	await setViewport(page, 'mobile');
+	await page.goto('/design-system');
+	await page.locator('#attachments').getByRole('button', { name: 'Open lightbox →' }).click();
+
+	let dialog = page.getByRole('dialog', { name: 'Attachment lightbox' });
+	let photo = dialog.locator('.lightbox-photo');
+	await expect(photo).toBeVisible();
+	await expect.poll(async () => photo.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+	await expect(dialog.locator('.lightbox-foot')).toBeHidden();
+	const landscape = await dialog.evaluate((element) => {
+		const viewer = element.querySelector<HTMLElement>('.lightbox-viewer');
+		const image = element.querySelector<HTMLImageElement>('.lightbox-photo');
+		if (!viewer || !image) return null;
+		const viewerBounds = viewer.getBoundingClientRect();
+		const imageBounds = image.getBoundingClientRect();
+		const scale = Math.min(imageBounds.width / image.naturalWidth, imageBounds.height / image.naturalHeight);
+		return {
+			viewerLeft: viewerBounds.left,
+			viewerRight: viewerBounds.right,
+			imageLeft: imageBounds.left,
+			imageRight: imageBounds.right,
+			visualWidth: image.naturalWidth * scale,
+			viewportWidth: window.innerWidth
+		};
+	});
+	expect(landscape).not.toBeNull();
+	expect(landscape?.viewerLeft ?? 1).toBeLessThanOrEqual(1);
+	expect(landscape?.viewerRight ?? 0).toBeGreaterThanOrEqual((landscape?.viewportWidth ?? 0) - 1);
+	expect(landscape?.imageLeft ?? -1).toBeGreaterThanOrEqual(0);
+	expect(landscape?.imageRight ?? 9999).toBeLessThanOrEqual(landscape?.viewportWidth ?? 0);
+	expect(landscape?.visualWidth ?? 0).toBeGreaterThanOrEqual((landscape?.viewportWidth ?? 0) * 0.9);
+
+	await dialog.getByRole('button', { name: 'Next' }).click();
+	await expect(dialog).toContainText('2 of 5');
+	await dialog.getByRole('button', { name: 'Previous' }).click();
+	await expect(dialog).toContainText('1 of 5 · station platform at dusk');
+	await dialog.getByTitle('door with cat').click();
+	await expect(dialog).toContainText('3 of 5 · door with cat');
+	await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+
+	await page.evaluate(() => {
+		window.dispatchEvent(new CustomEvent('pn-open-lightbox', {
+			detail: {
+				attachments: [{ kind: 'photo', src: 'samples/cat-door.webp', alt: '11f7d9b562d9b844ce7b91f709261e13f1bd04b6ab900063028be35' }],
+				startIdx: 0,
+				attribution: {
+					name: 'A very long mobile display name that must remain contained',
+					handle: '@long-unbroken-mobile-handle@example.social',
+					avClass: 'av-orb'
+				}
+			}
+		}));
+	});
+	dialog = page.getByRole('dialog', { name: 'Attachment lightbox' });
+	photo = dialog.locator('.lightbox-photo');
+	await expect(photo).toBeVisible();
+	await expect.poll(async () => photo.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+	const portrait = await dialog.evaluate((element) => {
+		const header = element.querySelector<HTMLElement>('.lightbox-head');
+		const attribution = element.querySelector<HTMLElement>('.lightbox-attr');
+		const tools = element.querySelector<HTMLElement>('.lightbox-tools');
+		const viewer = element.querySelector<HTMLElement>('.lightbox-viewer');
+		const image = element.querySelector<HTMLImageElement>('.lightbox-photo');
+		if (!header || !attribution || !tools || !viewer || !image) return null;
+		const headerBounds = header.getBoundingClientRect();
+		const attributionBounds = attribution.getBoundingClientRect();
+		const toolsBounds = tools.getBoundingClientRect();
+		const viewerBounds = viewer.getBoundingClientRect();
+		const imageBounds = image.getBoundingClientRect();
+		const scale = Math.min(imageBounds.width / image.naturalWidth, imageBounds.height / image.naturalHeight);
+		return {
+			headerFits: header.scrollWidth <= header.clientWidth,
+			metadataFits: attributionBounds.right <= toolsBounds.left + 1,
+			closeFits: toolsBounds.right <= headerBounds.right + 1,
+			viewerLeft: viewerBounds.left,
+			viewerRight: viewerBounds.right,
+			visualWidth: image.naturalWidth * scale,
+			viewportWidth: window.innerWidth
+		};
+	});
+	expect(portrait).not.toBeNull();
+	expect(portrait?.headerFits).toBe(true);
+	expect(portrait?.metadataFits).toBe(true);
+	expect(portrait?.closeFits).toBe(true);
+	expect(portrait?.viewerLeft ?? 1).toBeLessThanOrEqual(1);
+	expect(portrait?.viewerRight ?? 0).toBeGreaterThanOrEqual((portrait?.viewportWidth ?? 0) - 1);
+	expect(portrait?.visualWidth ?? 0).toBeGreaterThanOrEqual((portrait?.viewportWidth ?? 0) * 0.9);
+	await expect(dialog.getByRole('button', { name: 'Close', exact: true })).toBeVisible();
+	await expect(dialog.getByRole('button', { name: 'Previous' })).toHaveCount(0);
+	await expect(dialog.getByRole('button', { name: 'Next' })).toHaveCount(0);
+	await expectNoHorizontalOverflow(page);
 });
 
 test('renders canonical audio attachment specimens', async ({ page }) => {
