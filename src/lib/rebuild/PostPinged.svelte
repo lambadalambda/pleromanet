@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getContext, tick } from 'svelte';
 	import Avatar from './Avatar.svelte';
+	import PostPingedLine from './PostPinged.svelte';
 	import { profileHref } from './profile-links';
 	import RelativeTime from './RelativeTime.svelte';
 	import { replyPreviewLoaderContext, type ReplyPreview, type ReplyPreviewLoader } from './reply-preview';
@@ -9,13 +10,14 @@
 		addressees?: string[];
 		parentStatusId?: string | null;
 		focused?: boolean;
+		staticMode?: boolean;
 	};
 
-	let { addressees = [], parentStatusId = null, focused = false }: Props = $props();
+	let { addressees = [], parentStatusId = null, focused = false, staticMode = false }: Props = $props();
 	let parent = $derived(addressees[0]);
 	let cc = $derived(addressees.slice(1));
 	const loadReplyPreview = getContext<ReplyPreviewLoader | undefined>(replyPreviewLoaderContext);
-	let canPreview = $derived(Boolean(parentStatusId && loadReplyPreview));
+	let canPreview = $derived(Boolean(!staticMode && parentStatusId && loadReplyPreview));
 	let previewOpen = $state(false);
 	let previewState = $state<'idle' | 'loading' | 'ready' | 'unavailable'>('idle');
 	let preview = $state<ReplyPreview | null>(null);
@@ -89,6 +91,14 @@
 	});
 </script>
 
+{#snippet parentChipContents()}
+	<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="10" height="10" aria-hidden="true">
+		<path d="M6 4L2 8l4 4" />
+		<path d="M2 8h7a4 4 0 014 4v1" />
+	</svg>
+	<span class="post-pinged-handle">{shortHandle(parent)}</span>
+{/snippet}
+
 {#if parent}
 	<div class="post-pinged {focused ? 'focused-pinged' : ''}" role="group" aria-label="Reply context">
 		{#if canPreview}
@@ -97,18 +107,20 @@
 			<span class="post-pinged-l">Replying to</span>
 		{/if}
 		<span class="post-pinged-list">
-			<a class="post-pinged-chip-parent" title={parent} aria-label={`Open profile for ${parent}`} aria-describedby={previewOpen ? previewId : undefined} href={profileHref(parent) ?? undefined} onmouseenter={openPreview} onmouseleave={closePreview} onfocus={openPreview} onblur={closePreview} onkeydown={handleKeydown}>
-				<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="10" height="10" aria-hidden="true">
-					<path d="M6 4L2 8l4 4" />
-					<path d="M2 8h7a4 4 0 014 4v1" />
-				</svg>
-				<span class="post-pinged-handle">{shortHandle(parent)}</span>
-			</a>
+			{#if staticMode}
+				<span class="post-pinged-chip-parent" title={parent}>{@render parentChipContents()}</span>
+			{:else}
+				<a class="post-pinged-chip-parent" title={parent} aria-label={`Open profile for ${parent}`} aria-describedby={previewOpen ? previewId : undefined} href={profileHref(parent) ?? undefined} onmouseenter={openPreview} onmouseleave={closePreview} onfocus={openPreview} onblur={closePreview} onkeydown={handleKeydown}>{@render parentChipContents()}</a>
+			{/if}
 			{#if cc.length > 0}
 				<span class="post-pinged-also">· also</span>
 			{/if}
 			{#each cc as address}
-				<a class="post-pinged-chip" title={address} aria-label={`Open profile for ${address}`} href={profileHref(address) ?? undefined}>{shortHandle(address)}</a>
+				{#if staticMode}
+					<span class="post-pinged-chip" title={address}>{shortHandle(address)}</span>
+				{:else}
+					<a class="post-pinged-chip" title={address} aria-label={`Open profile for ${address}`} href={profileHref(address) ?? undefined}>{shortHandle(address)}</a>
+				{/if}
 			{/each}
 		</span>
 		{#if previewOpen}
@@ -122,13 +134,13 @@
 						</div>
 						<time datetime={preview.createdAt}><RelativeTime createdAt={preview.createdAt} fallback={preview.time} /></time>
 					</div>
-					{#if preview.replyingTo !== undefined}
-						<div class="reply-preview-context">Replying to <span>{preview.replyingTo ?? 'a parent post'}</span></div>
-					{/if}
 					{#if preview.cw}
 						<div class="reply-preview-cw">Content warning: {preview.cw}</div>
 					{:else}
 						<div class="reply-preview-body">{preview.body || 'Media post'}</div>
+					{/if}
+					{#if preview.replyingTo !== undefined}
+						<PostPingedLine addressees={[preview.replyingTo ?? 'a parent post']} staticMode />
 					{/if}
 				{:else if previewState === 'unavailable'}
 					<div class="reply-preview-state">Parent post unavailable</div>

@@ -2014,8 +2014,15 @@ test('reply context lazily previews and caches the parent post on hover and focu
 	await expect(preview).toHaveAttribute('aria-live', 'polite');
 	await expect(preview).toContainText('Mischievous Tomato');
 	await expect(preview).toContainText('@mischievoustomato@tsundere.love');
-	await expect(preview).toContainText('Replying to @grandparent@retro.social');
-	await expect(preview).not.toContainText('Replying to @cc@side.example');
+	const previewReplyContext = preview.locator('.post-pinged');
+	await expect(previewReplyContext.locator('.post-pinged-l')).toHaveText('Replying to');
+	await expect(previewReplyContext.locator('.post-pinged-chip-parent')).toHaveText('@grandparent');
+	await expect(previewReplyContext.locator('.post-pinged-chip-parent')).toHaveAttribute('title', '@grandparent@retro.social');
+	await expect(previewReplyContext).not.toContainText('@cc');
+	await expect(previewReplyContext.getByRole('button')).toHaveCount(0);
+	await expect(previewReplyContext.getByRole('link')).toHaveCount(0);
+	await expect(page.getByRole('tooltip')).toHaveCount(1);
+	await expect(preview.locator('.reply-preview-context')).toHaveCount(0);
 	await expect(preview.locator('.reply-preview-body')).toHaveText('the original post lives here');
 	await expect.poll(() => previewRequests).toBe(1);
 	await expect.poll(async () => preview.evaluate((element) => {
@@ -2080,7 +2087,11 @@ test('reply parent previews do not expose content hidden by a content warning', 
 	await page.locator('[data-status-id="status-cw-preview-reply"] .post-pinged-l').hover();
 
 	const preview = page.getByRole('tooltip');
-	await expect(preview).toContainText('Replying to a parent post');
+	const fallbackContext = preview.locator('.post-pinged');
+	await expect(fallbackContext).toContainText('Replying to a parent post');
+	await expect(fallbackContext.getByRole('button')).toHaveCount(0);
+	await expect(fallbackContext.getByRole('link')).toHaveCount(0);
+	await expect(fallbackContext.locator('.post-pinged-chip-parent')).not.toHaveAttribute('href', /.+/);
 	await expect(preview).toContainText('Content warning: Discussion of the ending');
 	await expect(preview).not.toContainText('hidden parent body');
 });

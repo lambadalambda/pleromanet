@@ -83,3 +83,4 @@
 - [x] [83 Make Explore search only](issues/83-make-explore-search-only.md)
 - [x] [84 Preview replied-to posts](issues/84-preview-replied-to-posts.md)
 - [x] [85 Show reply context in post previews](issues/85-show-reply-context-in-post-previews.md)
+- [x] [86 Reuse reply context in previews](issues/86-reuse-reply-context-in-previews.md)
