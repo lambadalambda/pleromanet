@@ -332,6 +332,88 @@ test('real settings route saves through the account update API and reconciles th
 	await expect(page.getByTestId('settings-save-state')).toContainText('Saved');
 });
 
+test('profile updates immediately refresh existing own posts across client navigation', async ({ page }) => {
+	await authenticate(page);
+	const refreshedBio = 'making quieter software in public';
+	const refreshedAccount = {
+		...updatedAccount,
+		note: `<p>${refreshedBio}</p>`,
+		source: { ...updatedAccount.source, note: refreshedBio }
+	};
+	const otherAccount = {
+		...pleromaFixtures.status.account,
+		id: 'account-other',
+		username: 'datagram',
+		acct: 'datagram@retro.social',
+		display_name: 'datagram'
+	};
+	const quotingStatus = {
+		...pleromaFixtures.status,
+		id: 'status-quoting-own-post',
+		account: otherAccount,
+		content: '<p>keeping this one close</p>',
+		pleroma: {
+			...pleromaFixtures.status.pleroma,
+			quote: pleromaFixtures.status
+		}
+	};
+	const boostedStatus = {
+		...pleromaFixtures.status,
+		id: 'status-own-boost',
+		reblog: {
+			...pleromaFixtures.status,
+			id: 'status-boosted-other',
+			account: otherAccount,
+			content: '<p>signal from elsewhere</p>'
+		}
+	};
+	await page.route('https://pleroma.example/api/v1/timelines/home**', async (route: Route) => {
+		await fulfillJson(route, [pleromaFixtures.status, quotingStatus, boostedStatus]);
+	});
+	await page.route('https://pleroma.example/api/v1/notifications**', async (route: Route) => {
+		await fulfillJson(route, []);
+	});
+	await page.route('https://pleroma.example/api/v1/accounts/update_credentials', async (route: Route) => {
+		await fulfillJson(route, refreshedAccount);
+	});
+	await page.route('https://pleroma.example/api/v1/accounts/account-1/statuses**', async (route: Route) => {
+		await fulfillJson(route, [pleromaFixtures.status]);
+	});
+
+	await page.goto('/app/home');
+	const homeTimeline = page.getByTestId('home-timeline-list');
+	const ownPost = homeTimeline.locator('[data-status-id="status-1"]');
+	const quotedOwnPost = homeTimeline.locator('[data-status-id="status-quoting-own-post"] .quoted-card');
+	const otherPost = homeTimeline.locator('[data-status-id="status-quoting-own-post"]');
+	const ownBoost = homeTimeline.locator('.post-boost:has([data-status-id="status-own-boost"]) .post-boost-attr');
+	await expect(ownPost).toContainText('quiet admin');
+	await expect(quotedOwnPost).toContainText('quiet admin');
+	await expect(ownBoost).toContainText('quiet admin');
+
+	await page.getByRole('link', { name: 'Settings' }).click();
+	await page.getByRole('textbox', { name: 'Display name' }).fill('dreambyte archive');
+	await page.getByRole('textbox', { name: 'Bio' }).fill(refreshedBio);
+	await page.getByRole('button', { name: 'Save profile settings' }).click();
+	await expect(page.getByTestId('settings-save-state')).toContainText('Saved just now');
+
+	await page.getByRole('link', { name: 'Home' }).click();
+	await expect(ownPost).toContainText('dreambyte archive');
+	await expect(ownPost).not.toContainText('quiet admin');
+	await expect(quotedOwnPost).toContainText('dreambyte archive');
+	await expect(quotedOwnPost).not.toContainText('quiet admin');
+	await expect(ownBoost).toContainText('dreambyte archive');
+	await expect(ownBoost).not.toContainText('quiet admin');
+	await expect(otherPost.locator('.post-head')).toContainText('datagram');
+
+	await ownPost.getByRole('link', { name: '@quietadmin@pleroma.example' }).click();
+	await expect(page.getByTestId('profile-view')).toContainText(refreshedBio);
+	await expect(page.getByTestId('profile-posts').locator('[data-status-id="status-1"]')).toContainText('dreambyte archive');
+	await page.getByRole('link', { name: 'Home' }).click();
+	await expect(ownPost).toContainText('dreambyte archive');
+	await expect(quotedOwnPost).toContainText('dreambyte archive');
+	await expect(ownBoost).toContainText('dreambyte archive');
+});
+
 test('real settings route keeps the draft and shows an error when saving fails', async ({ page }) => {
 	await authenticate(page);
 	await setViewport(page, 'wide');

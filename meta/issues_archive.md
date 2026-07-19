@@ -85,3 +85,4 @@
 - [x] [85 Show reply context in post previews](issues/85-show-reply-context-in-post-previews.md)
 - [x] [86 Reuse reply context in previews](issues/86-reuse-reply-context-in-previews.md)
 - [x] [87 Add automatic theme switching](issues/87-add-automatic-theme-switching.md)
+- [x] [88 Refresh existing posts after profile updates](issues/88-refresh-existing-posts-after-profile-updates.md)

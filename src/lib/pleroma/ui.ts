@@ -621,6 +621,7 @@ const adaptQuotedPost = (status: PleromaStatus, now?: number): QuotedPostView =>
 	const warning = spoilerText(status);
 
 	return {
+		authorId: account.id,
 		href: threadHref(status.id),
 		name: account.displayName,
 		nameEmojis: account.emojis,
@@ -834,6 +835,7 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		attachments: postAttachments,
 		media: undefined,
 		boostedBy: booster ? {
+			authorId: booster.id,
 			name: booster.displayName,
 			nameEmojis: booster.emojis,
 			handle: booster.handle,

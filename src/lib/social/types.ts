@@ -101,6 +101,7 @@ export type PollAttachment = {
 export type PostAttachment = PhotoAttachment | VideoAttachment | AudioAttachment | PollAttachment;
 
 export type QuotedPostView = {
+	authorId?: string;
 	href?: string;
 	name: string;
 	nameEmojis?: CustomEmoji[];
@@ -121,6 +122,7 @@ export type QuotedPostView = {
 };
 
 export type BoostAttributionView = {
+	authorId?: string;
 	name: string;
 	nameEmojis?: CustomEmoji[];
 	handle: string;

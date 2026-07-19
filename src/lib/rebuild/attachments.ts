@@ -62,6 +62,7 @@ export type RenderableAttachment = PhotoAttachment | VideoAttachment | AudioAtta
 export type Attachment = RenderableAttachment | PollAttachment;
 
 export type BoostAttribution = {
+	authorId?: string;
 	name?: string;
 	nameEmojis?: CustomEmoji[];
 	handle?: string;

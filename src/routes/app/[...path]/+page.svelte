@@ -123,6 +123,7 @@
 		mentionAccts?: Record<string, string>;
 		replyAccounts?: PleromaReplyAccount[];
 		boostedBy?: PostLike['boostedBy'];
+		quotedPost?: SocialPost['quotedPost'];
 		copyJson?: unknown;
 		reactions?: PleromaReactionView[];
 		bookmarked?: boolean;
@@ -214,6 +215,7 @@
 	let sessionReady = $state(false);
 	let mounted = $state(false);
 	let currentSession = $state<PleromaSession | null>(null);
+	let locallyUpdatedAccount = $state<PleromaAccount | null>(null);
 	let accountCache = $state(createPleromaAccountCache());
 	let homeTimelineState = $state<HomeTimelineState>({ status: 'idle' });
 	let appPublicTimelineStates = $state<AppPublicTimelineStates>({ local: { status: 'idle' }, federated: { status: 'idle' } });
@@ -369,9 +371,31 @@
 	const resetAccountCache = () => {
 		accountCache = createPleromaAccountCache();
 	};
+	const preserveLocallyUpdatedProfile = (account: PleromaAccount) => {
+		const updated = locallyUpdatedAccount;
+		if (!updated || updated.id !== account.id) return account;
+
+		return {
+			...account,
+			display_name: updated.display_name,
+			note: updated.note,
+			avatar: updated.avatar,
+			avatar_static: updated.avatar_static,
+			header: updated.header,
+			header_static: updated.header_static,
+			discoverable: updated.discoverable,
+			fields: updated.fields,
+			emojis: updated.emojis,
+			source: updated.source,
+			pleroma: {
+				...account.pleroma,
+				hide_followers_count: updated.pleroma.hide_followers_count
+			}
+		};
+	};
 	const upsertAccountCache = (accounts: PleromaAccount[], options?: Parameters<typeof upsertPleromaAccounts>[2]) => {
 		if (accounts.length === 0) return;
-		const nextCache = upsertPleromaAccounts(accountCache, accounts, options);
+		const nextCache = upsertPleromaAccounts(accountCache, accounts.map(preserveLocallyUpdatedProfile), options);
 		if (nextCache !== accountCache) accountCache = nextCache;
 	};
 	const instanceHost = (instanceUrl: string | undefined) => {
@@ -669,6 +693,8 @@
 	const postForRebuild = (post: AccountBackedPost): RebuildPost => {
 		const account = cachedAccountView(post.account);
 		const booster = cachedAccountView(post.rebloggedBy);
+		const locallyUpdatedView = locallyUpdatedAccount ? adaptPleromaAccount(locallyUpdatedAccount) : null;
+		const quotedPost = locallyUpdatedView ? refreshedQuotedAuthor(post.quotedPost, locallyUpdatedView) : post.quotedPost;
 
 		return {
 			id: post.id,
@@ -694,6 +720,7 @@
 			mentionAccts: post.mentionAccts,
 			replyAccounts: post.replyAccounts,
 			boostedBy: post.boostedBy ? {
+				authorId: post.boostedBy.authorId,
 				name: booster?.displayName ?? post.boostedBy.name,
 				nameEmojis: booster?.emojis ?? post.boostedBy.nameEmojis,
 				handle: booster?.handle ?? post.boostedBy.handle,
@@ -703,7 +730,7 @@
 				avatarUrl: booster?.avatarUrl ?? post.boostedBy.avatarUrl
 			} : undefined,
 			copyJson: post.copyJson,
-			quotedPost: post.quotedPost,
+			quotedPost,
 			reactions: post.reactions,
 			bookmarked: post.bookmarked,
 			statusUrl: post.url,
@@ -721,6 +748,134 @@
 		};
 	};
 	const replyPreviewRequests = new Map<string, Promise<ReplyPreview | null>>();
+	const refreshedQuotedAuthor = (quotedPost: PleromaStatusView['quotedPost'], account: PleromaAccountView) =>
+		quotedPost?.authorId === account.id
+			? {
+				...quotedPost,
+				name: account.displayName,
+				nameEmojis: account.emojis,
+				handle: account.handle,
+				avClass: account.avatarUrl ? undefined : 'av-grad-2',
+				avatarUrl: account.avatarUrl
+			}
+			: quotedPost;
+	const refreshStatusViewAuthor = (post: PleromaStatusView, account: PleromaAccountView): PleromaStatusView => {
+		const authorMatches = post.account.id === account.id;
+		const boosterMatches = post.rebloggedBy?.id === account.id;
+		const quotedPost = refreshedQuotedAuthor(post.quotedPost, account);
+		if (!authorMatches && !boosterMatches && quotedPost === post.quotedPost) return post;
+
+		return {
+			...post,
+			...(authorMatches ? {
+				name: account.displayName,
+				nameEmojis: account.emojis,
+				handle: account.handle,
+				avatar: account.avatarUrl ? 'orb' as const : 'grad-2' as const,
+				avatarUrl: account.avatarUrl,
+				account
+			} : {}),
+			...(boosterMatches ? {
+				boostedBy: post.boostedBy ? {
+					...post.boostedBy,
+					name: account.displayName,
+					nameEmojis: account.emojis,
+					handle: account.handle,
+					avatar: account.avatarUrl ? 'orb' as const : 'grad-2' as const,
+					avatarUrl: account.avatarUrl
+				} : undefined,
+				rebloggedBy: account
+			} : {}),
+			quotedPost
+		};
+	};
+	const refreshRebuildPostAuthor = <PostType extends RebuildPost & { nestedReplies?: PostType[] }>(post: PostType, account: PleromaAccountView): PostType => {
+		const authorMatches = post.authorId === account.id;
+		const boosterMatches = post.boostedBy?.authorId === account.id;
+		const quotedPost = refreshedQuotedAuthor(post.quotedPost, account);
+		const nestedReplies = post.nestedReplies?.map((reply) => refreshRebuildPostAuthor(reply, account));
+		if (!authorMatches && !boosterMatches && quotedPost === post.quotedPost && nestedReplies === undefined) return post;
+
+		return {
+			...post,
+			...(authorMatches ? {
+				name: account.displayName,
+				nameEmojis: account.emojis,
+				handle: account.handle,
+				avClass: account.avatarUrl ? undefined : 'av-grad-2',
+				avatarUrl: account.avatarUrl,
+				authorHandle: account.handle
+			} : {}),
+			...(boosterMatches ? {
+				boostedBy: post.boostedBy ? {
+					...post.boostedBy,
+					name: account.displayName,
+					nameEmojis: account.emojis,
+					handle: account.handle,
+					avClass: account.avatarUrl ? undefined : 'av-grad-2',
+					avatarUrl: account.avatarUrl
+				} : undefined
+			} : {}),
+			quotedPost,
+			...(nestedReplies ? { nestedReplies } : {})
+		} as PostType;
+	};
+	const refreshLoadedAccount = (updatedAccount: PleromaAccount) => {
+		const account = adaptPleromaAccount(updatedAccount);
+		const refreshStatuses = (posts: PleromaStatusView[]) => posts.map((post) => refreshStatusViewAuthor(post, account));
+		const refreshPosts = <PostType extends RebuildPost & { nestedReplies?: PostType[] }>(posts: PostType[]) => posts.map((post) => refreshRebuildPostAuthor(post, account));
+
+		localHomePosts = refreshPosts(localHomePosts);
+		if (homeTimelineState.status === 'success') {
+			homeTimelineState = { ...homeTimelineState, data: refreshStatuses(homeTimelineState.data), newerPosts: refreshStatuses(homeTimelineState.newerPosts) };
+		}
+		const refreshPublicTimeline = (state: AppPublicTimelineState): AppPublicTimelineState => state.status === 'success'
+			? { ...state, data: refreshStatuses(state.data), newerPosts: refreshStatuses(state.newerPosts) }
+			: state;
+		appPublicTimelineStates = {
+			local: refreshPublicTimeline(appPublicTimelineStates.local),
+			federated: refreshPublicTimeline(appPublicTimelineStates.federated)
+		};
+		if (bookmarksState.status === 'success') bookmarksState = { ...bookmarksState, data: refreshStatuses(bookmarksState.data) };
+		if (threadState.status === 'success') {
+			threadState = {
+				...threadState,
+				focused: refreshRebuildPostAuthor(threadState.focused, account),
+				ancestors: refreshPosts(threadState.ancestors),
+				replies: refreshPosts(threadState.replies)
+			};
+		}
+		if (profileRouteState.status === 'success') {
+			profileRouteState = {
+				...profileRouteState,
+				data: {
+					...profileRouteState.data,
+					profile: profileRouteState.data.profile.id === account.id
+						? adaptPleromaProfile(updatedAccount, { instanceUrl: currentSession?.instanceUrl, currentAccountId: currentSession?.account?.id })
+						: profileRouteState.data.profile,
+					posts: refreshPosts(profileRouteState.data.posts),
+					replies: refreshPosts(profileRouteState.data.replies),
+					pinned: refreshPosts(profileRouteState.data.pinned)
+				}
+			};
+		}
+		const refreshSearch = (state: SearchState): SearchState => state.status === 'success'
+			? {
+				...state,
+				accounts: state.accounts.map((entry) => entry.id === account.id ? {
+					...entry,
+					...account,
+					bio: htmlToPlainText(updatedAccount.note ?? ''),
+					followers: updatedAccount.followers_count,
+					posts: updatedAccount.statuses_count
+				} : entry),
+				posts: refreshStatuses(state.posts)
+			}
+			: state;
+		searchState = refreshSearch(searchState);
+		headerSearchState = refreshSearch(headerSearchState);
+		replyPreviewRequests.clear();
+	};
 	let replyPreviewRequestIdentity = '';
 	const loadReplyPreview: ReplyPreviewLoader = (statusId) => {
 		const session = currentSession;
@@ -1607,10 +1762,13 @@
 			const account = await client.updateAccountProfile(profileUpdateFromSettings(profile, session.account));
 			if (requestId !== settingsSaveRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
+			locallyUpdatedAccount = account;
 			upsertAccountCache([account]);
+			invalidateProfileAccountRequests();
 			const nextSession = { ...session, account };
 			currentSession = nextSession;
 			writePleromaSession(localStorage, nextSession);
+			refreshLoadedAccount(account);
 			savedProfile = profileSettingsFromAccount(account);
 			profile = { ...savedProfile };
 			settingsSaveState = 'Saved just now';
@@ -2193,6 +2351,7 @@
 		invalidateComposerAutocompleteRequests();
 		closeHomeTimelineStreaming();
 		localHomePosts = [];
+		locallyUpdatedAccount = null;
 		resetAccountCache();
 		loadedHomeTimelineKey = '';
 		homeTimelineRouteActive = false;
@@ -2210,6 +2369,7 @@
 		}
 
 		if (sessionKey(currentSession) !== sessionKey(session)) {
+			locallyUpdatedAccount = null;
 			invalidateHomeTimelineRequests();
 			invalidateAppPublicTimelineRequests();
 			invalidateThreadRequests();
@@ -2707,13 +2867,16 @@
 	);
 	const searchFollowIsFollowing = (followState: PleromaProfileFollowState) => ['following', 'mutual', 'requested'].includes(followState);
 	const searchFollowDisabled = (account: SearchAccountView) => account.followState === 'self' || account.followState === 'blocked' || Boolean(searchFollowPending[account.id]);
-	const adaptSearchAccount = (account: PleromaAccount, currentAccountId?: string, relationship: PleromaRelationship | undefined = account.pleroma.relationship): SearchAccountView => ({
-		...adaptPleromaAccount(account),
-		bio: htmlToPlainText(account.note ?? ''),
-		followers: account.followers_count,
-		posts: account.statuses_count,
-		followState: followStateFromRelationship(relationship, account.id, currentAccountId)
-	});
+	const adaptSearchAccount = (account: PleromaAccount, currentAccountId?: string, relationship: PleromaRelationship | undefined = account.pleroma.relationship): SearchAccountView => {
+		const protectedAccount = preserveLocallyUpdatedProfile(account);
+		return {
+			...adaptPleromaAccount(protectedAccount),
+			bio: htmlToPlainText(protectedAccount.note ?? ''),
+			followers: protectedAccount.followers_count,
+			posts: protectedAccount.statuses_count,
+			followState: followStateFromRelationship(relationship, protectedAccount.id, currentAccountId)
+		};
+	};
 	const readSearchRecents = () => {
 		try {
 			const value = JSON.parse(localStorage.getItem(SEARCH_RECENTS_STORAGE_KEY) ?? '[]') as unknown;
@@ -2759,7 +2922,9 @@
 		);
 		const currentAccountId = currentSession?.account?.id ?? session.account?.id;
 		const accounts = result.accounts.map((account) => adaptSearchAccount(account, currentAccountId, relationshipById.get(account.id)));
-		const posts = adaptPleromaStatuses(result.statuses, { timelines: ['home'] });
+		const adaptedPosts = adaptPleromaStatuses(result.statuses, { timelines: ['home'] });
+		const locallyUpdatedView = locallyUpdatedAccount ? adaptPleromaAccount(locallyUpdatedAccount) : null;
+		const posts = locallyUpdatedView ? adaptedPosts.map((post) => refreshStatusViewAuthor(post, locallyUpdatedView)) : adaptedPosts;
 
 		return accounts.length + posts.length > 0
 			? { status: 'success' as const, query, accounts, posts }
