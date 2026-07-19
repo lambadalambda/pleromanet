@@ -189,6 +189,25 @@ test('Pleroma status adapters synthesize reply addressees from metadata without 
 	expect(post.addressees).toEqual(['@mischievoustomato@tsundere.love']);
 });
 
+test('Pleroma status adapters identify the direct reply account independently of mention order', () => {
+	const post = adaptPleromaStatus(withStatus({
+		id: 'reply-with-leading-cc',
+		in_reply_to_id: 'parent-status',
+		in_reply_to_account_id: 'parent-account',
+		content: '<p>@cc@side.example @parent@home.example context follows the direct parent.</p>',
+		pleroma: {
+			content: { 'text/plain': '@cc@side.example @parent@home.example context follows the direct parent.' }
+		},
+		mentions: [
+			{ id: 'cc-account', url: 'https://side.example/users/cc', username: 'cc', acct: 'cc@side.example' },
+			{ id: 'parent-account', url: 'https://home.example/users/parent', username: 'parent', acct: 'parent@home.example' }
+		]
+	}));
+
+	expect(post.addressees).toEqual(['@cc@side.example', '@parent@home.example']);
+	expect(post.directReplyAccount).toBe('@parent@home.example');
+});
+
 test('Pleroma status adapters handle reblogs, remote handles, warnings, and fallback assets', () => {
 	const remoteAccount = {
 		...pleromaFixtures.account,

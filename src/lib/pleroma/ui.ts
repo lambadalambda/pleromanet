@@ -84,6 +84,7 @@ export type PleromaStatusView = TimelinePost & {
 	originalStatusId: string;
 	visibility: PleromaStatus['visibility'];
 	inReplyToId: string | null;
+	directReplyAccount: string | null;
 	createdAt: string;
 	applicationName: string | null;
 	url: string;
@@ -813,6 +814,7 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		originalStatusId: source.id,
 		visibility: source.visibility,
 		inReplyToId: source.in_reply_to_id,
+		directReplyAccount: directReplyAccountHandle(source),
 		createdAt: source.created_at,
 		applicationName: source.application?.name ?? null,
 		timelines: timelineMembership(source, options),

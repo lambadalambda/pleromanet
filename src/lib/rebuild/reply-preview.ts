@@ -7,6 +7,7 @@ export type ReplyPreview = {
 	avClass?: string;
 	body: string;
 	cw?: string;
+	replyingTo?: string | null;
 };
 
 export type ReplyPreviewLoader = (statusId: string) => Promise<ReplyPreview | null>;

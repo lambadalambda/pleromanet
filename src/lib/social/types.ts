@@ -149,6 +149,7 @@ export type SocialPost = {
 	mediaHidden?: boolean;
 	addressees?: string[];
 	inReplyToId?: string | null;
+	directReplyAccount?: string | null;
 	boostedBy?: BoostAttributionView;
 	copyJson?: unknown;
 	quotedPost?: QuotedPostView;

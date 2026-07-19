@@ -122,6 +122,9 @@
 						</div>
 						<time datetime={preview.createdAt}><RelativeTime createdAt={preview.createdAt} fallback={preview.time} /></time>
 					</div>
+					{#if preview.replyingTo !== undefined}
+						<div class="reply-preview-context">Replying to <span>{preview.replyingTo ?? 'a parent post'}</span></div>
+					{/if}
 					{#if preview.cw}
 						<div class="reply-preview-cw">Content warning: {preview.cw}</div>
 					{:else}

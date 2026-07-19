@@ -3,6 +3,7 @@
 ## 2026-07-19
 
 - Reply context now lazily previews the replied-to post on hover, focus, or touch with session-isolated caching, content-warning safety, public-profile support, and viewport-contained positioning.
+- Replied-to previews retain their own direct reply target, including correct parent selection when CC mentions appear first and a generic fallback when account metadata is unavailable.
 
 ## 2026-07-18
 

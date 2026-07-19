@@ -1977,8 +1977,11 @@ test('reply context lazily previews and caches the parent post on hover and focu
 	let previewRequests = 0;
 	await page.route('https://pleroma.example/api/v1/statuses/parent-preview-status', async (route) => {
 		previewRequests += 1;
+		const parentStatus = statusWithText('parent-preview-status', '@cc@side.example @grandparent@retro.social the original post lives here');
 		await fulfillHome(route, {
-			...statusWithText('parent-preview-status', 'the original post lives here'),
+			...parentStatus,
+			in_reply_to_id: 'grandparent-preview-status',
+			in_reply_to_account_id: 'grandparent-preview-account',
 			created_at: '2026-05-22T11:45:00.000Z',
 			account: {
 				...pleromaFixtures.account,
@@ -1986,6 +1989,13 @@ test('reply context lazily previews and caches the parent post on hover and focu
 				display_name: 'Mischievous Tomato',
 				username: 'mischievoustomato',
 				acct: 'mischievoustomato@tsundere.love'
+			},
+			mentions: [
+				{ id: 'cc-preview-account', url: 'https://side.example/users/cc', username: 'cc', acct: 'cc@side.example' },
+				{ id: 'grandparent-preview-account', url: 'https://retro.social/users/grandparent', username: 'grandparent', acct: 'grandparent@retro.social' }
+			],
+			pleroma: {
+				...parentStatus.pleroma
 			}
 		});
 	});
@@ -2004,7 +2014,9 @@ test('reply context lazily previews and caches the parent post on hover and focu
 	await expect(preview).toHaveAttribute('aria-live', 'polite');
 	await expect(preview).toContainText('Mischievous Tomato');
 	await expect(preview).toContainText('@mischievoustomato@tsundere.love');
-	await expect(preview).toContainText('the original post lives here');
+	await expect(preview).toContainText('Replying to @grandparent@retro.social');
+	await expect(preview).not.toContainText('Replying to @cc@side.example');
+	await expect(preview.locator('.reply-preview-body')).toHaveText('the original post lives here');
 	await expect.poll(() => previewRequests).toBe(1);
 	await expect.poll(async () => preview.evaluate((element) => {
 		const bounds = element.getBoundingClientRect();
@@ -2051,6 +2063,7 @@ test('reply parent previews do not expose content hidden by a content warning', 
 	await page.route('https://pleroma.example/api/v1/statuses/parent-cw-status', async (route) => {
 		await fulfillHome(route, {
 			...statusWithText('parent-cw-status', 'hidden parent body'),
+			in_reply_to_id: 'unknown-grandparent-status',
 			spoiler_text: 'Discussion of the ending',
 			account: {
 				...pleromaFixtures.account,
@@ -2067,6 +2080,7 @@ test('reply parent previews do not expose content hidden by a content warning', 
 	await page.locator('[data-status-id="status-cw-preview-reply"] .post-pinged-l').hover();
 
 	const preview = page.getByRole('tooltip');
+	await expect(preview).toContainText('Replying to a parent post');
 	await expect(preview).toContainText('Content warning: Discussion of the ending');
 	await expect(preview).not.toContainText('hidden parent body');
 });
@@ -2154,6 +2168,7 @@ test('reply preview cache stays stable through account hydration and isolates sa
 	await expect.poll(() => previewAuthorizations).toHaveLength(1);
 	releaseFirstParent();
 	await expect(page.getByRole('tooltip')).toContainText('first session parent');
+	await expect(page.getByRole('tooltip')).not.toContainText('Replying to');
 	await page.getByTestId('app-header').hover();
 	await replyLabel.hover();
 	await expect(page.getByRole('tooltip')).toContainText('first session parent');

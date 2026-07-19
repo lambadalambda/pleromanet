@@ -82,3 +82,4 @@
 - [x] [82 Support sensitive posts and media](issues/82-support-sensitive-posts-and-media.md)
 - [x] [83 Make Explore search only](issues/83-make-explore-search-only.md)
 - [x] [84 Preview replied-to posts](issues/84-preview-replied-to-posts.md)
+- [x] [85 Show reply context in post previews](issues/85-show-reply-context-in-post-previews.md)

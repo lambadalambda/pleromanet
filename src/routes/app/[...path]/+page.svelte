@@ -110,6 +110,7 @@
 		favs: number;
 		addressees?: string[];
 		inReplyToId?: string | null;
+		directReplyAccount?: string | null;
 		mentionAccts?: Record<string, string>;
 		replyAccounts?: PleromaReplyAccount[];
 		boostedBy?: PostLike['boostedBy'];
@@ -675,6 +676,7 @@
 			mediaHidden: post.mediaHidden,
 			addressees: post.addressees,
 			inReplyToId: post.inReplyToId,
+			directReplyAccount: post.directReplyAccount,
 			mentionAccts: post.mentionAccts,
 			replyAccounts: post.replyAccounts,
 			boostedBy: post.boostedBy ? {
@@ -733,7 +735,8 @@
 					avatarUrl: post.avatarUrl,
 					avClass: post.avClass,
 					body: post.body,
-					cw: post.cw
+					cw: post.cw,
+					replyingTo: post.inReplyToId ? post.directReplyAccount ?? null : undefined
 				};
 			})
 			.catch(() => null);
