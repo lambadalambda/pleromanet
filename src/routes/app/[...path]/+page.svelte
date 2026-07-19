@@ -29,18 +29,27 @@
 	import TimelineNewPostsIndicator from '$lib/rebuild/TimelineNewPostsIndicator.svelte';
 	import TimelineSettings from '$lib/rebuild/TimelineSettings.svelte';
 	import ThemeEditor from '$lib/rebuild/ThemeEditor.svelte';
+	import ThemePreferencesControls from '$lib/rebuild/ThemePreferencesControls.svelte';
 	import {
 		BUILT_IN_THEME_PALETTES,
 		CUSTOM_THEME_DRAFT_STORAGE_KEY,
 		CUSTOM_THEME_SOURCE_STORAGE_KEY,
 		CUSTOM_THEME_STORAGE_KEY,
+		DEFAULT_THEME_PREFERENCES,
+		THEME_PALETTE_KEYS,
+		THEME_PREFERENCES_STORAGE_KEY,
 		THEME_STORAGE_KEY,
 		applyThemeToDocument,
+		readStoredThemePreferences,
 		readStoredThemePalette,
+		resolveThemePreferences,
+		writeStoredThemePreferences,
 		writeStoredThemePalette,
 		type BuiltInThemeName,
 		type ThemeName,
-		type ThemePalette
+		type ThemePalette,
+		type ThemePreferenceMode,
+		type ThemePreferences
 	} from '$lib/theme';
 	import { accountsFromPleromaNotifications, accountsFromPleromaStatus, accountsFromPleromaStatuses, createPleromaAccountCache, getCachedPleromaAccount, upsertPleromaAccounts } from '$lib/pleroma/account-cache';
 	import { createPleromaClient } from '$lib/pleroma/client';
@@ -248,8 +257,13 @@
 	let autoInsertTimelinePosts = $state(false);
 	let timelineAtTop = $state(true);
 	let activeTheme = $state<ThemeName>('cream');
+	let themePreferences = $state<ThemePreferences>({ ...DEFAULT_THEME_PREFERENCES });
+	let systemPrefersDark = $state(false);
 	let customThemePalette = $state<ThemePalette | null>(null);
 	let customThemeDraft = $state<ThemePalette>({ ...BUILT_IN_THEME_PALETTES.cream });
+	let customThemeDraftDirty = $state(false);
+	let customThemeRawDirty = $state(false);
+	let customThemeExternalChange = $state(false);
 	let customThemeSource = $state<BuiltInThemeName>('cream');
 	let notificationsMenuOpen = $state(false);
 	let headerSearchDraft = $state('');
@@ -2061,20 +2075,49 @@
 	const closeMobilePanels = () => {
 		mobileDrawerOpen = false;
 	};
-	const applyTheme = (theme: ThemeName) => {
-		const palette = theme === 'custom' ? customThemePalette ?? customThemeDraft : undefined;
-		if (theme === 'custom' && !palette) return;
+	const applyResolvedTheme = () => {
+		const theme = resolveThemePreferences(themePreferences, systemPrefersDark, customThemePalette);
 		activeTheme = theme;
-		applyThemeToDocument(document, theme, palette);
+		applyThemeToDocument(document, theme, theme === 'custom' ? customThemePalette ?? undefined : undefined);
 		localStorage.setItem(THEME_STORAGE_KEY, theme);
+	};
+	const updateThemePreferences = (preferences: ThemePreferences) => {
+		themePreferences = preferences;
+		writeStoredThemePreferences(localStorage, preferences);
+		applyResolvedTheme();
+	};
+	const applyTheme = (theme: ThemeName) => {
+		if (theme === 'custom' && !customThemePalette) return;
+		updateThemePreferences({ ...themePreferences, mode: 'fixed', fixedTheme: theme });
+	};
+	const selectThemeMode = (mode: ThemePreferenceMode) => {
+		updateThemePreferences({ ...themePreferences, mode });
+	};
+	const selectFixedTheme = (theme: ThemeName) => {
+		if (theme === 'custom' && !customThemePalette) return;
+		updateThemePreferences({ ...themePreferences, fixedTheme: theme });
+	};
+	const selectSystemTheme = (slot: 'light' | 'dark', theme: ThemeName) => {
+		if (theme === 'custom' && !customThemePalette) return;
+		updateThemePreferences({
+			...themePreferences,
+			[slot === 'light' ? 'lightTheme' : 'darkTheme']: theme
+		});
 	};
 	const openThemeSettings = () => {
 		userMenuOpen = false;
 		goto(appPath('/app/settings/appearance'));
 	};
+	const themePalettesEqual = (left: ThemePalette | null, right: ThemePalette | null) =>
+		left === right || Boolean(left && right && THEME_PALETTE_KEYS.every((key) => left[key] === right[key]));
 	const updateCustomThemeDraft = (palette: ThemePalette) => {
 		customThemeDraft = palette;
+		customThemeDraftDirty = true;
+		customThemeRawDirty = false;
 		writeStoredThemePalette(localStorage, palette, CUSTOM_THEME_DRAFT_STORAGE_KEY);
+	};
+	const markCustomThemeRawDirty = () => {
+		customThemeRawDirty = true;
 	};
 	const selectCustomThemeSource = (theme: BuiltInThemeName) => {
 		customThemeSource = theme;
@@ -2085,9 +2128,19 @@
 		customThemePalette = { ...customThemeDraft };
 		writeStoredThemePalette(localStorage, customThemePalette, CUSTOM_THEME_STORAGE_KEY);
 		writeStoredThemePalette(localStorage, customThemePalette, CUSTOM_THEME_DRAFT_STORAGE_KEY);
-		applyTheme('custom');
+		customThemeDraftDirty = false;
+		customThemeRawDirty = false;
+		customThemeExternalChange = false;
+		if (themePreferences.mode === 'fixed') applyTheme('custom');
+		else applyResolvedTheme();
 	};
-	const discardCustomThemeChanges = () => updateCustomThemeDraft({ ...(customThemePalette ?? BUILT_IN_THEME_PALETTES[customThemeSource]) });
+	const discardCustomThemeChanges = () => {
+		customThemeDraft = { ...(customThemePalette ?? BUILT_IN_THEME_PALETTES[customThemeSource]) };
+		customThemeDraftDirty = false;
+		customThemeRawDirty = false;
+		customThemeExternalChange = false;
+		writeStoredThemePalette(localStorage, customThemeDraft, CUSTOM_THEME_DRAFT_STORAGE_KEY);
+	};
 	const openUserProfile = () => {
 		const account = currentSession?.account;
 		userMenuOpen = false;
@@ -3989,11 +4042,16 @@
 		const storedSource = localStorage.getItem(CUSTOM_THEME_SOURCE_STORAGE_KEY);
 		customThemeSource = storedSource === 'cream' || storedSource === 'dusk' || storedSource === 'drive' || storedSource === 'simoun' ? storedSource : storedBuiltInTheme;
 		customThemePalette = readStoredThemePalette(localStorage, CUSTOM_THEME_STORAGE_KEY);
-		customThemeDraft = readStoredThemePalette(localStorage, CUSTOM_THEME_DRAFT_STORAGE_KEY) ?? { ...(customThemePalette ?? BUILT_IN_THEME_PALETTES[customThemeSource]) };
-		if (storedTheme === 'custom' && customThemePalette) applyTheme('custom');
-		else if (storedTheme === 'cream' || storedTheme === 'dusk' || storedTheme === 'drive' || storedTheme === 'simoun') {
-			applyTheme(storedTheme);
-		} else applyTheme('cream');
+		const storedCustomThemeDraft = readStoredThemePalette(localStorage, CUSTOM_THEME_DRAFT_STORAGE_KEY);
+		const savedOrSourcePalette = customThemePalette ?? BUILT_IN_THEME_PALETTES[customThemeSource];
+		customThemeDraft = storedCustomThemeDraft ?? { ...savedOrSourcePalette };
+		customThemeDraftDirty = Boolean(storedCustomThemeDraft && !themePalettesEqual(storedCustomThemeDraft, savedOrSourcePalette));
+		customThemeRawDirty = false;
+		themePreferences = readStoredThemePreferences(localStorage, customThemePalette);
+		writeStoredThemePreferences(localStorage, themePreferences);
+		const colorSchemeMedia = window.matchMedia('(prefers-color-scheme: dark)');
+		systemPrefersDark = colorSchemeMedia.matches;
+		applyResolvedTheme();
 		searchRecents = readSearchRecents();
 		autoInsertTimelinePosts = localStorage.getItem(TIMELINE_AUTO_INSERT_KEY) === 'true';
 		updateTimelineTop();
@@ -4003,7 +4061,29 @@
 			if (route === 'home') void checkHomeTimelineForNewPosts();
 		};
 		const syncStoredSession = (event: StorageEvent) => {
-			if (event.key === PLEROMA_SESSION_KEY) readSessionOrRedirect({ optional: route === 'profile' });
+			if (event.key === PLEROMA_SESSION_KEY || event.key === null) readSessionOrRedirect({ optional: route === 'profile' });
+			if (event.key === THEME_PREFERENCES_STORAGE_KEY || event.key === CUSTOM_THEME_STORAGE_KEY || event.key === null) {
+				const incomingPalette = readStoredThemePalette(localStorage, CUSTOM_THEME_STORAGE_KEY);
+				if ((event.key === CUSTOM_THEME_STORAGE_KEY || event.key === null) && !themePalettesEqual(incomingPalette, customThemePalette)) {
+					customThemePalette = incomingPalette;
+					if (!customThemeRawDirty && customThemeDraftDirty && themePalettesEqual(incomingPalette, customThemeDraft)) {
+						customThemeDraftDirty = false;
+						customThemeExternalChange = false;
+						writeStoredThemePalette(localStorage, customThemeDraft, CUSTOM_THEME_DRAFT_STORAGE_KEY);
+					} else if (customThemeDraftDirty || customThemeRawDirty) customThemeExternalChange = true;
+					else {
+						customThemeDraft = { ...(incomingPalette ?? BUILT_IN_THEME_PALETTES[customThemeSource]) };
+						customThemeExternalChange = false;
+						writeStoredThemePalette(localStorage, customThemeDraft, CUSTOM_THEME_DRAFT_STORAGE_KEY);
+					}
+				}
+				themePreferences = readStoredThemePreferences(localStorage, customThemePalette);
+				applyResolvedTheme();
+			}
+		};
+		const applySystemTheme = (event: MediaQueryListEvent) => {
+			systemPrefersDark = event.matches;
+			if (themePreferences.mode === 'system') applyResolvedTheme();
 		};
 		const mobileNavigationMedia = window.matchMedia('(max-width: 880px)');
 		const closeMobilePanelsOutsideMobile = (event: MediaQueryListEvent) => {
@@ -4013,6 +4093,7 @@
 		window.addEventListener(NOTIFICATION_POLL_EVENT, pollNotifications);
 		window.addEventListener('storage', syncStoredSession);
 		window.addEventListener('scroll', updateTimelineTop, { passive: true });
+		colorSchemeMedia.addEventListener('change', applySystemTheme);
 		mobileNavigationMedia.addEventListener('change', closeMobilePanelsOutsideMobile);
 		const checkInterval = window.setInterval(triggerHomeTimelineCheck, HOME_TIMELINE_FALLBACK_INTERVAL_MS);
 		const notificationInterval = window.setInterval(pollNotifications, NOTIFICATION_POLL_INTERVAL_MS);
@@ -4030,6 +4111,7 @@
 			window.removeEventListener(NOTIFICATION_POLL_EVENT, pollNotifications);
 			window.removeEventListener('storage', syncStoredSession);
 			window.removeEventListener('scroll', updateTimelineTop);
+			colorSchemeMedia.removeEventListener('change', applySystemTheme);
 			mobileNavigationMedia.removeEventListener('change', closeMobilePanelsOutsideMobile);
 			window.clearInterval(checkInterval);
 			window.clearInterval(notificationInterval);
@@ -4929,6 +5011,15 @@
 					</section>
 				{:else if route === 'settings'}
 					{#if settingsSection === 'appearance'}
+						<ThemePreferencesControls
+							preferences={themePreferences}
+							resolvedTheme={activeTheme}
+							{systemPrefersDark}
+							customAvailable={Boolean(customThemePalette)}
+							onModeChange={selectThemeMode}
+							onFixedThemeChange={selectFixedTheme}
+							onSystemThemeChange={selectSystemTheme}
+						/>
 						<ThemeEditor
 							palette={customThemeDraft}
 							sourceTheme={customThemeSource}
@@ -4936,6 +5027,9 @@
 							onSourceChange={selectCustomThemeSource}
 							onSave={saveCustomTheme}
 							onDiscard={discardCustomThemeChanges}
+							onRawEdit={markCustomThemeRawDirty}
+							saveLabel={themePreferences.mode === 'system' ? 'Save custom theme' : 'Save as active theme'}
+							externalChangeMessage={customThemeExternalChange ? 'The saved custom theme changed in another tab. Your unsaved draft is preserved; discard it to use the external palette.' : null}
 						/>
 					{:else}
 						<section class="card app-panel settings-panel">

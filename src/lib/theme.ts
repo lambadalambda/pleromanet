@@ -1,5 +1,13 @@
 export type BuiltInThemeName = 'cream' | 'dusk' | 'drive' | 'simoun';
 export type ThemeName = BuiltInThemeName | 'custom';
+export type ThemePreferenceMode = 'fixed' | 'system';
+export type ThemePreferences = {
+	version: 1;
+	mode: ThemePreferenceMode;
+	fixedTheme: ThemeName;
+	lightTheme: ThemeName;
+	darkTheme: ThemeName;
+};
 
 export type ThemePalette = {
 	bg: string;
@@ -22,10 +30,19 @@ export type ThemeTokens = Record<ThemeTokenName, string>;
 export type ThemeContrastCheck = { id: string; label: string; ratio: number; passes: boolean; level: 'AAA' | 'AA' | 'Fail' };
 
 export const THEME_STORAGE_KEY = 'pn-theme';
+export const THEME_PREFERENCES_STORAGE_KEY = 'pn-theme-preferences';
 export const CUSTOM_THEME_STORAGE_KEY = 'pn-custom-theme';
 export const CUSTOM_THEME_DRAFT_STORAGE_KEY = 'pn-custom-theme-draft';
 export const CUSTOM_THEME_SOURCE_STORAGE_KEY = 'pn-custom-theme-source';
 export const THEME_CHANGE_EVENT = 'pleromanet:theme-change';
+
+export const DEFAULT_THEME_PREFERENCES: ThemePreferences = {
+	version: 1,
+	mode: 'fixed',
+	fixedTheme: 'cream',
+	lightTheme: 'cream',
+	darkTheme: 'dusk'
+};
 
 export const THEME_PALETTE_KEYS = ['bg', 'panel', 'ink', 'muted', 'accent', 'good', 'warn', 'bad'] as const satisfies readonly (keyof ThemePalette)[];
 
@@ -143,6 +160,67 @@ export const themeContrastChecks = (palette: ThemePalette): ThemeContrastCheck[]
 const isThemePalette = (value: unknown): value is ThemePalette => {
 	if (!value || typeof value !== 'object') return false;
 	return THEME_PALETTE_KEYS.every((key) => typeof (value as Record<string, unknown>)[key] === 'string' && normalizeHex((value as Record<string, string>)[key]) != null);
+};
+
+const isThemeName = (value: unknown): value is ThemeName =>
+	value === 'cream' || value === 'dusk' || value === 'drive' || value === 'simoun' || value === 'custom';
+
+const availableTheme = (value: unknown, fallback: ThemeName, customPalette: ThemePalette | null) =>
+	isThemeName(value) && (value !== 'custom' || customPalette) ? value : fallback;
+
+export const readStoredThemePreferences = (
+	storage: Pick<Storage, 'getItem'>,
+	customPalette: ThemePalette | null
+): ThemePreferences => {
+	try {
+		const value = JSON.parse(storage.getItem(THEME_PREFERENCES_STORAGE_KEY) ?? 'null') as Record<string, unknown> | null;
+		if (value?.version === 1 && (value.mode === 'fixed' || value.mode === 'system')) {
+			return {
+				version: 1,
+				mode: value.mode,
+				fixedTheme: availableTheme(value.fixedTheme, 'cream', customPalette),
+				lightTheme: availableTheme(value.lightTheme, 'cream', customPalette),
+				darkTheme: availableTheme(value.darkTheme, 'dusk', customPalette)
+			};
+		}
+	} catch {
+		// Fall through to the legacy single-theme preference.
+	}
+
+	const legacyTheme = storage.getItem(THEME_STORAGE_KEY);
+	return {
+		...DEFAULT_THEME_PREFERENCES,
+		fixedTheme: availableTheme(legacyTheme, 'cream', customPalette)
+	};
+};
+
+export const hasUnsupportedStoredThemePreferences = (storage: Pick<Storage, 'getItem'>) => {
+	const stored = storage.getItem(THEME_PREFERENCES_STORAGE_KEY);
+	if (!stored) return false;
+	try {
+		const value = JSON.parse(stored) as Record<string, unknown> | null;
+		return Boolean(value && typeof value === 'object' && 'version' in value && value.version !== 1);
+	} catch {
+		return false;
+	}
+};
+
+export const writeStoredThemePreferences = (storage: Pick<Storage, 'getItem' | 'setItem'>, preferences: ThemePreferences) => {
+	if (hasUnsupportedStoredThemePreferences(storage)) return false;
+	storage.setItem(THEME_PREFERENCES_STORAGE_KEY, JSON.stringify(preferences));
+	return true;
+};
+
+export const resolveThemePreferences = (
+	preferences: ThemePreferences,
+	systemPrefersDark: boolean,
+	customPalette: ThemePalette | null
+): ThemeName => {
+	const selected = preferences.mode === 'fixed'
+		? preferences.fixedTheme
+		: systemPrefersDark ? preferences.darkTheme : preferences.lightTheme;
+	if (selected === 'custom' && !customPalette) return systemPrefersDark && preferences.mode === 'system' ? 'dusk' : 'cream';
+	return selected;
 };
 
 export const readStoredThemePalette = (storage: Pick<Storage, 'getItem'>, key = CUSTOM_THEME_STORAGE_KEY): ThemePalette | null => {

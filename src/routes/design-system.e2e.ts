@@ -54,6 +54,52 @@ test('preserves a saved custom theme on the design system route', async ({ page 
 	expect(await page.evaluate(() => window.localStorage.getItem('pn-theme'))).toBe('custom');
 });
 
+test('design system resolves automatic themes and explicit picks return to one theme', async ({ page }) => {
+	await page.emulateMedia({ colorScheme: 'dark' });
+	await page.addInitScript(() => {
+		localStorage.setItem('pn-theme-preferences', JSON.stringify({ version: 1, mode: 'system', fixedTheme: 'cream', lightTheme: 'cream', darkTheme: 'drive' }));
+	});
+	await page.goto('/design-system');
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'drive');
+
+	await page.emulateMedia({ colorScheme: 'light' });
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'cream');
+	await page.getByRole('button', { name: 'Simoun' }).click();
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'simoun');
+	await page.emulateMedia({ colorScheme: 'dark' });
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'simoun');
+	const preferences = await page.evaluate(() => JSON.parse(localStorage.getItem('pn-theme-preferences') ?? '{}'));
+	expect(preferences).toMatchObject({ version: 1, mode: 'fixed', fixedTheme: 'simoun', lightTheme: 'cream', darkTheme: 'drive' });
+});
+
+test('design system synchronizes theme preferences and custom palette changes across tabs', async ({ page }) => {
+	await page.goto('/design-system');
+	const otherPage = await page.context().newPage();
+	await otherPage.goto('/design-system');
+
+	await otherPage.evaluate(() => {
+		localStorage.setItem('pn-theme-preferences', JSON.stringify({ version: 1, mode: 'fixed', fixedTheme: 'simoun', lightTheme: 'cream', darkTheme: 'dusk' }));
+	});
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'simoun');
+
+	await otherPage.evaluate(() => {
+		localStorage.setItem('pn-custom-theme', JSON.stringify({ bg: '#102030', panel: '#183048', ink: '#F0F4F8', muted: '#A0B0C0', accent: '#80C0D0', good: '#80C090', warn: '#D0B070', bad: '#D08080' }));
+		localStorage.setItem('pn-theme-preferences', JSON.stringify({ version: 1, mode: 'fixed', fixedTheme: 'custom', lightTheme: 'cream', darkTheme: 'dusk' }));
+	});
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'custom');
+	await expect(page.locator('html')).toHaveCSS('--bg', '#102030');
+
+	await otherPage.evaluate(() => localStorage.removeItem('pn-custom-theme'));
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'cream');
+	await otherPage.evaluate(() => {
+		localStorage.setItem('pn-theme-preferences', JSON.stringify({ version: 1, mode: 'fixed', fixedTheme: 'simoun', lightTheme: 'cream', darkTheme: 'dusk' }));
+	});
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'simoun');
+	await otherPage.evaluate(() => localStorage.clear());
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'cream');
+	await otherPage.close();
+});
+
 test('renders canonical composer content-warning specimen', async ({ page }) => {
 	await setViewport(page, 'desktop');
 	await page.goto('/design-system');

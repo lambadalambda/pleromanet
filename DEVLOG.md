@@ -5,6 +5,7 @@
 - Reply context now lazily previews the replied-to post on hover, focus, or touch with session-isolated caching, content-warning safety, public-profile support, and viewport-contained positioning.
 - Replied-to previews retain their own direct reply target, including correct parent selection when CC mentions appear first and a generic fallback when account metadata is unavailable.
 - Previewed replies reuse the normal post-card Replying to footer in an explicitly static mode, preserving the shared visual treatment without links or recursive previews inside tooltips.
+- Appearance settings can keep one fixed theme or follow the system with independently selected light and dark themes, including saved Custom slots, live OS changes, migration, and conflict-safe cross-tab synchronization.
 
 ## 2026-07-18
 

@@ -305,6 +305,7 @@ test('real app user menu switches themes and closes with escape', async ({ page 
 	await expect(menu).toContainText('PleromaNet™');
 	await page.getByRole('button', { name: 'Simoun' }).click();
 	await expect(page.locator('html')).toHaveAttribute('data-theme', 'simoun');
+	expect(await page.evaluate(() => JSON.parse(localStorage.getItem('pn-theme-preferences') ?? '{}'))).toMatchObject({ mode: 'fixed', fixedTheme: 'simoun' });
 	await expect(menu).toBeVisible();
 
 	await page.keyboard.press('Escape');

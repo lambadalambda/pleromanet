@@ -18,6 +18,9 @@
 		onSourceChange: (theme: BuiltInThemeName) => void;
 		onSave: () => void;
 		onDiscard: () => void;
+		onRawEdit?: () => void;
+		saveLabel?: string;
+		externalChangeMessage?: string | null;
 	};
 
 	const fields: Array<{ key: keyof ThemePalette; label: string; description: string }> = [
@@ -31,7 +34,7 @@
 		{ key: 'bad', label: 'Danger', description: 'Errors and destructive actions.' }
 	];
 
-	let { palette, sourceTheme, onPaletteChange, onSourceChange, onSave, onDiscard }: Props = $props();
+	let { palette, sourceTheme, onPaletteChange, onSourceChange, onSave, onDiscard, onRawEdit, saveLabel = 'Save as active theme', externalChangeMessage = null }: Props = $props();
 	let rawValues = $state<Record<keyof ThemePalette, string>>({ ...BUILT_IN_THEME_PALETTES.cream });
 	let invalidFields = $state<Partial<Record<keyof ThemePalette, boolean>>>({});
 	let importValue = $state('');
@@ -121,6 +124,7 @@
 		</div>
 
 		<div class="theme-editor-controls">
+			{#if externalChangeMessage}<div class="theme-external-change" role="alert">{externalChangeMessage}</div>{/if}
 			<label class="theme-source-label" for="theme-source">Start from</label>
 			<select id="theme-source" class="input theme-source" bind:value={selectedSource} onchange={(event) => onSourceChange(event.currentTarget.value as BuiltInThemeName)}>
 				{#each Object.keys(BUILT_IN_THEME_PALETTES) as theme}
@@ -135,7 +139,7 @@
 							<div id={`theme-${field.key}-label`} class="theme-color-label">{field.label}</div>
 							<div class="theme-color-description">{field.description}</div>
 						</div>
-						<input class="theme-color-picker" type="color" aria-label={`${field.label} color`} value={palette[field.key]} oninput={(event) => setColor(field.key, event.currentTarget.value, true)} />
+						<input class="theme-color-picker" type="color" aria-label={`${field.label} color`} value={palette[field.key]} oninput={(event) => { onRawEdit?.(); setColor(field.key, event.currentTarget.value, true); }} />
 						<input
 							class="input theme-hex-input"
 							class:invalid={invalidFields[field.key]}
@@ -144,7 +148,7 @@
 							aria-invalid={invalidFields[field.key] ? 'true' : 'false'}
 							aria-describedby={invalidFields[field.key] ? `theme-${field.key}-error` : undefined}
 							value={rawValues[field.key]}
-							oninput={(event) => setColor(field.key, event.currentTarget.value)}
+							oninput={(event) => { onRawEdit?.(); setColor(field.key, event.currentTarget.value); }}
 							onblur={(event) => setColor(field.key, event.currentTarget.value, true)}
 							onkeydown={(event) => { if (event.key === 'Enter') setColor(field.key, event.currentTarget.value, true); }}
 						/>
@@ -190,7 +194,7 @@
 			</section>
 
 			<div class="theme-save-row">
-				<button type="button" class="btn-primary" disabled={Object.values(invalidFields).some(Boolean)} onclick={onSave}>Save as active theme</button>
+				<button type="button" class="btn-primary" disabled={Object.values(invalidFields).some(Boolean)} onclick={onSave}>{saveLabel}</button>
 				<button type="button" class="btn-secondary" onclick={onDiscard}>Discard changes</button>
 			</div>
 		</div>

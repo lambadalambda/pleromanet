@@ -152,15 +152,133 @@ test('custom theme editor stays usable on mobile', async ({ page }) => {
 
 	await expect(page.getByRole('heading', { name: 'Custom theme' })).toBeVisible();
 	await expect(page.getByTestId('theme-preview')).toBeVisible();
+	await expect(page.getByRole('radio', { name: 'Single theme' })).toBeVisible();
+	await expect(page.getByRole('radio', { name: 'Follow system' })).toBeVisible();
+	const modeCards = page.locator('.theme-mode-options label');
+	const firstModeBounds = await modeCards.nth(0).boundingBox();
+	const secondModeBounds = await modeCards.nth(1).boundingBox();
+	expect(secondModeBounds?.y ?? 0).toBeGreaterThan(firstModeBounds?.y ?? 0);
 	await expect(page.getByRole('textbox', { name: 'Page background hex' })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Save as active theme' })).toBeVisible();
 	await expect(page.getByTestId('right-rail')).toBeHidden();
 	await expectNoMobileFocusZoom(page);
+	await expectNoHorizontalOverflow(page);
 
 	await page.getByRole('button', { name: 'quiet admin account menu' }).click();
 	const customizeTheme = page.getByRole('button', { name: 'Customize theme…' });
 	await expect(customizeTheme).toBeVisible();
 	expect((await customizeTheme.boundingBox())?.height).toBeGreaterThanOrEqual(40);
+});
+
+test('appearance follows separate system light and dark themes and can return to one theme', async ({ page }) => {
+	await authenticate(page);
+	await page.emulateMedia({ colorScheme: 'light' });
+	await page.goto('/app/settings/appearance');
+
+	await page.getByRole('radio', { name: 'Follow system' }).check();
+	const lightTheme = page.getByLabel('Light theme', { exact: true });
+	const darkTheme = page.getByLabel('Dark theme', { exact: true });
+	await lightTheme.selectOption('cream');
+	await darkTheme.selectOption('drive');
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'cream');
+	await expect(page.getByRole('button', { name: 'Save custom theme' })).toBeVisible();
+
+	await page.emulateMedia({ colorScheme: 'dark' });
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'drive');
+	await expect(page.getByRole('status', { name: 'Automatic theme status' })).toContainText('System is dark');
+	await page.reload();
+	await expect(page.getByRole('radio', { name: 'Follow system' })).toBeChecked();
+	await expect(lightTheme).toHaveValue('cream');
+	await expect(darkTheme).toHaveValue('drive');
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'drive');
+
+	await page.emulateMedia({ colorScheme: 'light' });
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'cream');
+	await page.getByRole('button', { name: 'Save custom theme' }).click();
+	await expect(page.getByRole('radio', { name: 'Follow system' })).toBeChecked();
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'cream');
+	await page.getByRole('radio', { name: 'Single theme' }).check();
+	await page.getByLabel('Single theme selection').selectOption('simoun');
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'simoun');
+	await page.emulateMedia({ colorScheme: 'dark' });
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'simoun');
+
+	const preferences = await page.evaluate(() => JSON.parse(localStorage.getItem('pn-theme-preferences') ?? '{}'));
+	expect(preferences).toMatchObject({ version: 1, mode: 'fixed', fixedTheme: 'simoun', lightTheme: 'cream', darkTheme: 'drive' });
+});
+
+test('automatic theme slots can use the saved custom palette', async ({ page }) => {
+	await authenticate(page);
+	await page.emulateMedia({ colorScheme: 'dark' });
+	await page.addInitScript(() => {
+		localStorage.setItem('pn-custom-theme', JSON.stringify({ bg: '#102030', panel: '#183048', ink: '#F0F4F8', muted: '#A0B0C0', accent: '#80C0D0', good: '#80C090', warn: '#D0B070', bad: '#D08080' }));
+		localStorage.setItem('pn-theme-preferences', JSON.stringify({ version: 1, mode: 'system', fixedTheme: 'cream', lightTheme: 'cream', darkTheme: 'custom' }));
+	});
+	await page.goto('/app/settings/appearance');
+
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'custom');
+	await expect(page.locator('html')).toHaveCSS('--bg', '#102030');
+	await expect(page.getByLabel('Dark theme', { exact: true })).toHaveValue('custom');
+	await page.emulateMedia({ colorScheme: 'light' });
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'cream');
+});
+
+test('newer theme preference versions are preserved without downgrade', async ({ page }) => {
+	await authenticate(page);
+	await page.addInitScript(() => {
+		localStorage.setItem('pn-theme', 'drive');
+		localStorage.setItem('pn-theme-preferences', JSON.stringify({ version: 2, mode: 'future', themes: ['unknown'] }));
+	});
+	await page.goto('/app/settings/appearance');
+
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'drive');
+	expect(await page.evaluate(() => localStorage.getItem('pn-theme-preferences'))).toBe('{"version":2,"mode":"future","themes":["unknown"]}');
+});
+
+test('custom theme editor synchronizes pristine drafts and protects dirty drafts across tabs', async ({ page }) => {
+	await authenticate(page);
+	await page.addInitScript(() => {
+		const palette = { bg: '#101010', panel: '#202020', ink: '#F0F0F0', muted: '#A0A0A0', accent: '#8080D0', good: '#80C090', warn: '#D0B070', bad: '#D08080' };
+		if (!localStorage.getItem('pn-custom-theme')) localStorage.setItem('pn-custom-theme', JSON.stringify(palette));
+		if (!localStorage.getItem('pn-custom-theme-draft')) localStorage.setItem('pn-custom-theme-draft', JSON.stringify(palette));
+	});
+	await page.goto('/app/settings/appearance');
+	const pageBackground = page.getByRole('textbox', { name: 'Page background hex' });
+	await expect(pageBackground).toHaveValue('#101010');
+
+	const otherPage = await page.context().newPage();
+	await otherPage.addInitScript((storedSession) => {
+		localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
+	}, session);
+	await otherPage.goto('/app/home');
+	await otherPage.evaluate(() => {
+		localStorage.setItem('pn-custom-theme', JSON.stringify({ bg: '#223344', panel: '#283848', ink: '#F0F0F0', muted: '#A0A0A0', accent: '#8080D0', good: '#80C090', warn: '#D0B070', bad: '#D08080' }));
+	});
+	await expect(pageBackground).toHaveValue('#223344');
+	await page.reload();
+	await expect(pageBackground).toHaveValue('#223344');
+
+	await pageBackground.fill('#123456');
+	await otherPage.evaluate(() => {
+		localStorage.setItem('pn-custom-theme', JSON.stringify({ bg: '#123456', panel: '#283848', ink: '#F0F0F0', muted: '#A0A0A0', accent: '#8080D0', good: '#80C090', warn: '#D0B070', bad: '#D08080' }));
+	});
+	await expect(page.getByText('changed in another tab')).toHaveCount(0);
+	await otherPage.evaluate(() => {
+		localStorage.setItem('pn-custom-theme', JSON.stringify({ bg: '#334455', panel: '#384858', ink: '#F0F0F0', muted: '#A0A0A0', accent: '#8080D0', good: '#80C090', warn: '#D0B070', bad: '#D08080' }));
+	});
+	await expect(pageBackground).toHaveValue('#334455');
+
+	await pageBackground.fill('not-a-color');
+	await otherPage.evaluate(() => {
+		localStorage.setItem('pn-custom-theme', JSON.stringify({ bg: '#445566', panel: '#485868', ink: '#F0F0F0', muted: '#A0A0A0', accent: '#8080D0', good: '#80C090', warn: '#D0B070', bad: '#D08080' }));
+	});
+	await expect(pageBackground).toHaveValue('not-a-color');
+	await expect(page.getByRole('alert')).toContainText('changed in another tab');
+
+	await page.getByRole('button', { name: 'Discard changes' }).click();
+	await expect(pageBackground).toHaveValue('#445566');
+	await expect(page.getByText('changed in another tab')).toHaveCount(0);
+	await otherPage.close();
 });
 
 test('real settings route saves through the account update API and reconciles the session', async ({ page }) => {
