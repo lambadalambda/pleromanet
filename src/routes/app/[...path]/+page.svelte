@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { disableScrollHandling, goto, onNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { appPath, stripBasePath } from '$lib/navigation';
 	import AncestorPost from '$lib/rebuild/AncestorPost.svelte';
@@ -320,6 +320,7 @@
 	let appPublicTimelineRequestId = 0;
 	let appPublicTimelineActionGenerationId = 0;
 	let threadRequestId = 0;
+	let threadHistoryScroll: { statusId: string; y: number } | null = null;
 	let profileRouteRequestId = 0;
 	let notificationRequestId = 0;
 	let searchRequestId = 0;
@@ -476,6 +477,7 @@
 	};
 	const invalidateThreadRequests = () => {
 		threadRequestId += 1;
+		threadHistoryScroll = null;
 		loadedThreadKey = '';
 		threadState = { status: 'idle' };
 		expandedThreadReplyIds = {};
@@ -3791,6 +3793,26 @@
 			appPublicTimelineStates[timelineRoute] = { status: 'error', error: normalized };
 		}
 	};
+	const scrollToFocusedThreadPost = async (requestId: number, statusId: string) => {
+		await tick();
+		await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+		if (route !== 'thread' || requestId !== threadRequestId || threadStatusId !== statusId) return;
+		const historyScroll = threadHistoryScroll;
+		if (historyScroll?.statusId === statusId && Number.isFinite(historyScroll.y) && historyScroll.y >= 0) {
+			threadHistoryScroll = null;
+			window.scrollTo({ top: historyScroll.y, behavior: 'auto' });
+			return;
+		}
+
+		const focusedPost = document.querySelector<HTMLElement>('[data-testid="thread-view"] [data-testid="focused-post"]');
+		if (!focusedPost) return;
+
+		const stickyOffset = Number.parseFloat(getComputedStyle(document.querySelector('.app-route-shell') ?? document.documentElement).getPropertyValue('--app-header-sticky-offset')) || 0;
+		const focusedTop = focusedPost.getBoundingClientRect().top;
+		if (focusedTop >= stickyOffset && focusedTop < window.innerHeight) return;
+
+		focusedPost.scrollIntoView({ behavior: 'auto', block: 'start' });
+	};
 	const loadThread = async (session: PleromaSession, statusId: string) => {
 		const requestSessionKey = sessionKey(session);
 		const requestId = threadRequestId + 1;
@@ -3831,6 +3853,7 @@
 				ancestors: adaptPleromaStatuses(context.ancestors).map(threadPostForRebuild),
 				replies: threadRepliesForRebuild(status.id, adaptPleromaStatuses(context.descendants))
 			};
+			await scrollToFocusedThreadPost(requestId, statusId);
 		} catch (error) {
 			if (requestId !== threadRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
@@ -4213,6 +4236,18 @@
 		if (route === 'home') showNewHomePosts(false);
 		else if (route === 'local' || route === 'federated') showNewAppPublicPosts(false);
 	};
+	onNavigate(({ to, type }) => {
+		if (!to || !stripBasePath(to.url.pathname).startsWith('/app/thread')) {
+			threadHistoryScroll = null;
+			return;
+		}
+
+		disableScrollHandling();
+		const statusId = decodeURIComponent(stripBasePath(to.url.pathname).split('/').filter(Boolean).slice(2).join('/') || '');
+		threadHistoryScroll = type === 'popstate' && to.scroll
+			? { statusId, y: to.scroll.y }
+			: null;
+	});
 	const updateTimelineTop = () => {
 		timelineAtTop = window.scrollY <= TIMELINE_TOP_THRESHOLD;
 		flushNewTimelinePostsAtTop();
@@ -5013,7 +5048,11 @@
 							</div>
 						{/each}
 						{#if threadState.status === 'loading'}
-							<div class="request-state" role="status" aria-label="Request status">Loading thread</div>
+							<div class="request-state thread-loading" role="status" aria-label="Loading thread" aria-live="polite">
+								<div class="thread-loading-indicator" data-testid="thread-loading-indicator" aria-hidden="true"></div>
+								<strong>Loading thread context</strong>
+								<span>Gathering the conversation around this post</span>
+							</div>
 						{:else if threadState.status === 'error'}
 							<div class="request-state request-error">
 								<h2>{threadState.error.title}</h2>

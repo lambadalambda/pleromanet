@@ -1475,6 +1475,46 @@ a { color: inherit; text-decoration: none; }
 .settings-actions button,
 .settings-panel .upload-row button { min-height: 40px; }
 .thread-view { overflow: hidden; }
+.thread-loading {
+	display: grid;
+	justify-items: center;
+	gap: 7px;
+	min-height: 180px;
+	align-content: center;
+}
+.thread-loading-indicator {
+	position: relative;
+	width: 32px;
+	height: 32px;
+	margin-bottom: 4px;
+	border: 1px solid var(--border);
+	border-top-color: var(--accent-ink);
+	border-radius: 50%;
+	animation: thread-loading-spin 0.9s linear infinite;
+}
+.thread-loading-indicator::after {
+	content: '';
+	position: absolute;
+	top: 4px;
+	right: 4px;
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: var(--accent);
+}
+.thread-loading strong {
+	font-family: var(--mono);
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--ink);
+}
+.thread-loading span { font-size: 12px; }
+@keyframes thread-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+	.thread-loading-indicator { animation: none; }
+}
 .thread-head-title {
 	display: flex;
 	align-items: center;
@@ -4828,6 +4868,7 @@ button.post-pinged-l:focus-visible { color: var(--accent-ink); }
 	background: var(--panel-2);
 	position: relative;
 }
+.thread-view .focused-post { scroll-margin-top: calc(var(--app-header-sticky-offset, 0px) + 12px); }
 .thread-ancestors + .focused-post { border-top: none; }
 .thread-line-top {
 	position: absolute;

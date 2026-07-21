@@ -237,13 +237,15 @@ test('real thread route loads focused status, ancestors, and replies from Plerom
 	expect(await threadTitle.evaluate((node) => Number.parseFloat(getComputedStyle(node).fontSize))).toBeLessThanOrEqual(14);
 	await expect(page.getByTestId('thread-ancestor')).toContainText('gridwave');
 	await expect(page.getByTestId('thread-ancestor')).toContainText('the earlier context from gridwave');
+	await expect(page.getByTestId('focused-post')).toContainText('quiet CSS can still carry the voice.');
+	await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+	expect(await page.evaluate(() => window.scrollY)).toBeLessThanOrEqual(1);
 	await page.getByTestId('thread-ancestor').getByRole('button', { name: 'Reply 1' }).click();
 	const ancestorReplyForm = page.getByRole('form', { name: 'Inline reply to @gridwave' });
 	await expect(ancestorReplyForm).toBeVisible();
 	await ancestorReplyForm.getByRole('button', { name: 'Cancel' }).click();
 	await expect(ancestorReplyForm).toHaveCount(0);
 	await expect(page.getByTestId('thread-line')).toBeVisible();
-	await expect(page.getByTestId('focused-post')).toContainText('quiet CSS can still carry the voice.');
 	await expect(page.getByTestId('focused-post')).toContainText('4:18 PM · May 11, 2026');
 	await expect(page.getByTestId('focused-post')).toContainText('Pleroma Web');
 	await expect(page.getByTestId('focused-post').locator('.post-photos img[alt="thread photo"]')).toHaveAttribute('src', 'https://cdn.example/thread-photo.jpg');
@@ -260,6 +262,119 @@ test('real thread route loads focused status, ancestors, and replies from Plerom
 	await setViewport(page, 'desktop');
 	await page.getByRole('button', { name: 'Show 1 reply' }).click();
 	await expect(page.getByText('around the time the algorithm replaced the timeline.')).toBeVisible();
+});
+
+test('real thread route shows animated loading feedback while thread requests are pending', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	let releaseThread: () => void = () => undefined;
+	const threadPending = new Promise<void>((resolve) => {
+		releaseThread = resolve;
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-1', async (route) => {
+		await threadPending;
+		await fulfillJson(route, threadStatus);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-1/context', async (route) => {
+		await threadPending;
+		await fulfillJson(route, { ancestors: [threadAncestor], descendants: [threadReply] });
+	});
+	await page.goto('/app/thread/status-1');
+
+	const loadingStatus = page.getByRole('status', { name: 'Loading thread' });
+	await expect(loadingStatus).toContainText('Loading thread context');
+	await expect(loadingStatus.getByTestId('thread-loading-indicator')).toBeVisible();
+	await expect.poll(async () => loadingStatus.getByTestId('thread-loading-indicator').evaluate((element) => getComputedStyle(element).animationName)).not.toBe('none');
+	const backButton = page.getByRole('button', { name: 'Back to home timeline' });
+	await backButton.focus();
+	await expect(backButton).toBeFocused();
+
+	releaseThread();
+	await expect(page.getByTestId('focused-post')).toContainText('quiet CSS can still carry the voice.');
+	await expect(backButton).toBeFocused();
+});
+
+test('real thread route uses static loading feedback when reduced motion is requested', async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await authenticate(page);
+	await mockInstance(page);
+	let releaseThread: () => void = () => undefined;
+	const threadPending = new Promise<void>((resolve) => {
+		releaseThread = resolve;
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-1', async (route) => {
+		await threadPending;
+		await fulfillJson(route, threadStatus);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-1/context', async (route) => {
+		await threadPending;
+		await fulfillJson(route, { ancestors: [threadAncestor], descendants: [threadReply] });
+	});
+	await page.goto('/app/thread/status-1');
+
+	const indicator = page.getByTestId('thread-loading-indicator');
+	await expect(indicator).toBeVisible();
+	await expect.poll(async () => indicator.evaluate((element) => getComputedStyle(element).animationName)).toBe('none');
+
+	releaseThread();
+	await expect(page.getByTestId('focused-post')).toBeVisible();
+});
+
+test('real thread route scrolls a selected post below long ancestor context into view', async ({ page }) => {
+	await authenticate(page);
+	const longAncestors = Array.from({ length: 24 }, (_, index) => statusWithText(
+		`long-ancestor-${index}`,
+		`ancestor ${index + 1} adds enough context to move the selected post down the page`,
+		{
+			account: accountWithName(`long-account-${index}`, `ancestor ${index + 1}`, `ancestor${index + 1}@retro.social`),
+			created_at: new Date(Date.UTC(2026, 4, 11, 12, index)).toISOString(),
+			replies_count: 1
+		}
+	));
+	await mockThread(page, threadStatus, [], longAncestors);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	const focused = page.getByTestId('focused-post');
+	await expect(focused).toBeVisible();
+	await expect.poll(async () => focused.evaluate((element) => {
+		const bounds = element.getBoundingClientRect();
+		const offset = Number.parseFloat(getComputedStyle(document.querySelector('.app-route-shell') ?? document.documentElement).getPropertyValue('--app-header-sticky-offset')) || 0;
+		return bounds.top >= offset && bounds.top < window.innerHeight;
+	})).toBe(true);
+	expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(500);
+	await expect(focused).not.toBeFocused();
+});
+
+test('real thread route restores a long thread scroll position through browser history', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page);
+	const longAncestors = Array.from({ length: 18 }, (_, index) => statusWithText(`history-ancestor-${index}`, `history ancestor ${index + 1}`, {
+		account: accountWithName(`history-account-${index}`, `history ancestor ${index + 1}`, `history${index + 1}@retro.social`),
+		created_at: new Date(Date.UTC(2026, 4, 11, 12, index)).toISOString(),
+		replies_count: 1
+	}));
+	const longReplies = Array.from({ length: 12 }, (_, index) => statusWithText(`history-reply-${index}`, `history reply ${index + 1}`, {
+		account: accountWithName(`history-reply-account-${index}`, `history reply ${index + 1}`, `reply${index + 1}@retro.social`),
+		in_reply_to_id: 'status-1',
+		in_reply_to_account_id: threadStatus.account.id
+	}));
+	await mockThread(page, threadStatus, longReplies, longAncestors);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await page.locator('[data-status-id="status-1"] .post-body').click();
+	await expect(page).toHaveURL('/app/thread/status-1');
+	await expect(page.getByTestId('focused-post')).toBeVisible();
+	await page.getByTestId('thread-reply').last().scrollIntoViewIfNeeded();
+	const savedScroll = await page.evaluate(() => window.scrollY);
+	expect(savedScroll).toBeGreaterThan(1000);
+
+	await page.goBack();
+	await expect(page).toHaveURL('/app/home');
+	await page.goForward();
+	await expect(page).toHaveURL('/app/thread/status-1');
+	await expect(page.getByTestId('focused-post')).toBeVisible();
+	await expect.poll(async () => Math.abs((await page.evaluate(() => window.scrollY)) - savedScroll)).toBeLessThanOrEqual(12);
 });
 
 test('real thread route mutes and unmutes the conversation', async ({ page }) => {
@@ -1056,9 +1171,15 @@ test('real thread route renders an API error state and retries', async ({ page }
 	await expect(page.getByTestId('focused-post')).toContainText('quiet CSS can still carry the voice.');
 });
 
-test('real thread route ignores stale status responses after moving to a no-id thread route', async ({ page }) => {
+test('real thread route does not scroll a rendered thread when a stale thread response arrives', async ({ page }) => {
 	await authenticate(page);
 	await mockInstance(page);
+	const secondStatus = statusWithText('status-2', 'the current thread stays in place', { replies_count: 12 });
+	const secondReplies = Array.from({ length: 12 }, (_, index) => statusWithText(`status-2-reply-${index}`, `current thread reply ${index + 1}`, {
+		account: accountWithName(`status-2-account-${index}`, `current reply ${index + 1}`, `current${index + 1}@retro.social`),
+		in_reply_to_id: 'status-2',
+		in_reply_to_account_id: secondStatus.account.id
+	}));
 	let releaseStatus: () => void = () => undefined;
 	const statusPending = new Promise<void>((resolve) => {
 		releaseStatus = resolve;
@@ -1070,14 +1191,30 @@ test('real thread route ignores stale status responses after moving to a no-id t
 	await page.route('https://pleroma.example/api/v1/statuses/status-1/context', async (route) => {
 		await fulfillJson(route, { ancestors: [threadAncestor], descendants: [threadReply] });
 	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-2', async (route) => {
+		await fulfillJson(route, secondStatus);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-2/context', async (route) => {
+		await fulfillJson(route, { ancestors: [], descendants: secondReplies });
+	});
 	await setViewport(page, 'desktop');
 	await page.goto('/app/thread/status-1');
-	await page.goto('/app/thread');
-	await expect(page.getByText('Thread unavailable')).toBeVisible();
+	await page.evaluate(() => {
+		window.history.pushState({}, '', '/app/thread/status-2');
+		window.dispatchEvent(new PopStateEvent('popstate'));
+	});
+	await expect(page).toHaveURL('/app/thread/status-2');
+	await expect(page.getByTestId('focused-post')).toContainText('the current thread stays in place');
+	await page.getByTestId('thread-reply').last().scrollIntoViewIfNeeded();
+	const currentScroll = await page.evaluate(() => window.scrollY);
+	expect(currentScroll).toBeGreaterThan(500);
 
+	const staleResponse = page.waitForResponse('https://pleroma.example/api/v1/statuses/status-1');
 	releaseStatus();
-	await expect(page.getByText('PleromaNet needs a status id to load a thread.')).toBeVisible();
-	await expect(page.getByTestId('focused-post')).toHaveCount(0);
+	await staleResponse;
+	await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+	await expect(page.getByTestId('focused-post')).toContainText('the current thread stays in place');
+	await expect.poll(async () => Math.abs((await page.evaluate(() => window.scrollY)) - currentScroll)).toBeLessThanOrEqual(1);
 });
 
 test('real thread layout remains readable on mobile without horizontal overflow', async ({ page }) => {

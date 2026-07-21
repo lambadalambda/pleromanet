@@ -4,6 +4,7 @@
 
 - GitHub Actions now gates Pages deployment on type checks, the complete mocked Playwright suite, and the dockerized Pleroma integration suite, with failure diagnostics retained as artifacts.
 - Authenticated post menus can mute or unmute a thread through Pleroma's conversation endpoints and reconcile the returned mute state across visible post surfaces.
+- Long threads show accessible animated loading feedback, align fresh routes to the selected post after context renders, and preserve exact native history positions without moving keyboard focus.
 
 ## 2026-07-19
 

@@ -88,3 +88,4 @@
 - [x] [88 Refresh existing posts after profile updates](issues/88-refresh-existing-posts-after-profile-updates.md)
 - [x] [89 Add thread mute and unmute controls](issues/89-add-thread-mute-and-unmute-controls.md)
 - [x] [90 Run all tests in GitHub Actions](issues/90-run-all-tests-in-github-actions.md)
+- [x] [91 Improve large-thread loading and focused-post navigation](issues/91-improve-large-thread-loading-and-focused-post-navigation.md)
