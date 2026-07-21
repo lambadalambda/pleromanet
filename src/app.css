@@ -4869,6 +4869,8 @@ button.post-pinged-l:focus-visible { color: var(--accent-ink); }
 	position: relative;
 }
 .thread-view .focused-post { scroll-margin-top: calc(var(--app-header-sticky-offset, 0px) + 12px); }
+.thread-view > .focused-post:last-child { border-bottom: 0; }
+.thread-view > .thread-inline-reply:last-child { border-bottom: 0; }
 .thread-ancestors + .focused-post { border-top: none; }
 .thread-line-top {
 	position: absolute;

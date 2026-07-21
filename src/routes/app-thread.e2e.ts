@@ -477,10 +477,21 @@ test('real thread route handles an empty descendant context and accepts the firs
 	await expect(page.getByTestId('focused-post')).toContainText('quiet CSS can still carry the voice.');
 	await expect(page.getByTestId('thread-reply-count')).toHaveCount(0);
 	await expect(page.getByTestId('thread-reply')).toHaveCount(0);
+	await expect(page.locator('.thread-replies')).toHaveCount(0);
+	await expect.poll(async () => page.getByTestId('focused-post').evaluate((element) => getComputedStyle(element).borderBottomWidth)).toBe('0px');
 	await expect(page.getByRole('group', { name: 'Reply sort' })).toHaveCount(0);
 
 	await page.getByTestId('focused-post').getByRole('button', { name: 'Reply 0' }).click();
-	const replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
+	let replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
+	await expect(replyForm).toBeVisible();
+	await expect.poll(async () => page.getByTestId('focused-post').evaluate((element) => getComputedStyle(element).borderBottomWidth)).toBe('1px');
+	await expect.poll(async () => replyForm.evaluate((element) => getComputedStyle(element).borderBottomWidth)).toBe('0px');
+	await replyForm.getByRole('button', { name: 'Cancel' }).click();
+	await expect(replyForm).toHaveCount(0);
+	await expect.poll(async () => page.getByTestId('focused-post').evaluate((element) => getComputedStyle(element).borderBottomWidth)).toBe('0px');
+
+	await page.getByTestId('focused-post').getByRole('button', { name: 'Reply 0' }).click();
+	replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
 	await replyForm.getByRole('textbox', { name: 'Reply text' }).fill('the first reply lands in an empty thread');
 	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
 
@@ -488,6 +499,8 @@ test('real thread route handles an empty descendant context and accepts the firs
 	await expect(page.getByTestId('thread-reply-count')).toContainText('1 reply');
 	await expect(page.getByRole('group', { name: 'Reply sort' })).toBeVisible();
 	await expect(page.getByTestId('thread-reply')).toHaveCount(1);
+	await expect(page.locator('.thread-replies')).toHaveCount(1);
+	await expect.poll(async () => page.getByTestId('focused-post').evaluate((element) => getComputedStyle(element).borderBottomWidth)).toBe('1px');
 	await expect(page.getByText('the first reply lands in an empty thread')).toBeVisible();
 	const params = new URLSearchParams(createBody);
 	expect(params.get('status')).toBe('the first reply lands in an empty thread');

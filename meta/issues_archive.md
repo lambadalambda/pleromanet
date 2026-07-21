@@ -89,3 +89,4 @@
 - [x] [89 Add thread mute and unmute controls](issues/89-add-thread-mute-and-unmute-controls.md)
 - [x] [90 Run all tests in GitHub Actions](issues/90-run-all-tests-in-github-actions.md)
 - [x] [91 Improve large-thread loading and focused-post navigation](issues/91-improve-large-thread-loading-and-focused-post-navigation.md)
+- [x] [92 Remove the double seam at thread endings](issues/92-remove-the-double-seam-at-thread-endings.md)

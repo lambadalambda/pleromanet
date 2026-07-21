@@ -5092,25 +5092,25 @@
 										<button type="button" aria-pressed={replySort === 'newest'} class:active={replySort === 'newest'} onclick={() => (replySort = 'newest')}>Newest</button>
 									</div>
 								</div>
+								<div class="thread-replies">
+									{#each sortedThreadReplyPosts as reply, i (reply.id)}
+										<div data-testid="thread-reply">
+											<ReplyPost
+												post={reply}
+												isLast={i === sortedThreadReplyPosts.length - 1}
+												nestedReplies={reply.nestedReplies}
+												onAction={handleThreadPostAction}
+												onReact={handleThreadReact}
+												onVote={handleThreadVote}
+												canManage={Boolean(currentSession)}
+												inlineReply={threadInlineReplyBinding}
+												expandedReplyIds={expandedThreadReplyIds}
+												onShowNested={showThreadReplyNested}
+											/>
+										</div>
+									{/each}
+								</div>
 							{/if}
-							<div class="thread-replies">
-								{#each sortedThreadReplyPosts as reply, i (reply.id)}
-									<div data-testid="thread-reply">
-										<ReplyPost
-											post={reply}
-											isLast={i === sortedThreadReplyPosts.length - 1}
-											nestedReplies={reply.nestedReplies}
-											onAction={handleThreadPostAction}
-											onReact={handleThreadReact}
-											onVote={handleThreadVote}
-											canManage={Boolean(currentSession)}
-											inlineReply={threadInlineReplyBinding}
-											expandedReplyIds={expandedThreadReplyIds}
-											onShowNested={showThreadReplyNested}
-										/>
-									</div>
-								{/each}
-							</div>
 					{/if}
 					</section>
 				{:else if route === 'profile'}
