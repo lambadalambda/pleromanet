@@ -26,6 +26,7 @@
 		inReplyToId?: string | null;
 		quotedPost?: Record<string, unknown>;
 		bookmarked?: boolean;
+		threadMuted?: boolean;
 		own?: boolean;
 		authorHandle?: string;
 		statusUrl?: string;

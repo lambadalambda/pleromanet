@@ -33,6 +33,7 @@
 			mentionAccts?: Record<string, string>;
 			reactions?: PleromaReactionView[];
 			bookmarked?: boolean;
+			threadMuted?: boolean;
 			own?: boolean;
 			authorHandle?: string;
 			statusUrl?: string;

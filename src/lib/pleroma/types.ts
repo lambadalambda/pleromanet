@@ -109,6 +109,7 @@ export type PleromaStatus = {
 	pleroma: {
 		content?: Record<string, string>;
 		conversation_id?: number;
+		thread_muted?: boolean;
 		emoji_reactions?: PleromaEmojiReaction[];
 		local?: boolean;
 		quote?: PleromaStatus | null;

@@ -1,5 +1,9 @@
 # Devlog
 
+## 2026-07-21
+
+- Authenticated post menus can mute or unmute a thread through Pleroma's conversation endpoints and reconcile the returned mute state across visible post surfaces.
+
 ## 2026-07-19
 
 - Reply context now lazily previews the replied-to post on hover, focus, or touch with session-isolated caching, content-warning safety, public-profile support, and viewport-contained positioning.

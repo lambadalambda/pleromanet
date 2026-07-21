@@ -8,6 +8,7 @@
 			favs: number;
 			copyJson?: unknown;
 			bookmarked?: boolean;
+			threadMuted?: boolean;
 			own?: boolean;
 			authorHandle?: string;
 			statusUrl?: string;
@@ -151,6 +152,9 @@
 		</button>
 		{#if menuOpen}
 			<div class="post-action-menu" role="menu" style={menuStyle}>
+				{#if canManage}
+					<button type="button" role="menuitem" onclick={() => runAction('mute-thread')}>{post.threadMuted ? 'Unmute thread' : 'Mute thread'}</button>
+				{/if}
 				{#if canManage && post.bookmarked !== undefined}
 					<button type="button" role="menuitem" onclick={() => runAction('bookmark')}>{post.bookmarked ? 'Remove bookmark' : 'Bookmark'}</button>
 				{/if}

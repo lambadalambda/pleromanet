@@ -98,7 +98,7 @@
 		avatarUrl?: string | null;
 	};
 	type InlineReplyComposerData = Omit<InlineReplyComposerProps, 'id'>;
-	type AccountBackedPost = SocialPost & { visibility?: StatusVisibility; account?: PleromaAccountView; rebloggedBy?: PleromaAccountView; reactions?: PleromaReactionView[]; replyAccounts?: PleromaReplyAccount[]; bookmarked?: boolean; url?: string };
+	type AccountBackedPost = SocialPost & { visibility?: StatusVisibility; account?: PleromaAccountView; rebloggedBy?: PleromaAccountView; reactions?: PleromaReactionView[]; replyAccounts?: PleromaReplyAccount[]; bookmarked?: boolean; threadMuted?: boolean; pleroma?: { conversationId?: number }; url?: string };
 	type RebuildPost = PostLike & {
 		id: string | number;
 		actionStatusId?: string;
@@ -127,6 +127,8 @@
 		copyJson?: unknown;
 		reactions?: PleromaReactionView[];
 		bookmarked?: boolean;
+		threadMuted?: boolean;
+		conversationId?: number;
 		statusUrl?: string;
 		authorId?: string;
 		authorHandle?: string;
@@ -733,6 +735,8 @@
 			quotedPost,
 			reactions: post.reactions,
 			bookmarked: post.bookmarked,
+			threadMuted: post.threadMuted,
+			conversationId: post.pleroma?.conversationId,
 			statusUrl: post.url,
 			authorId: account?.id ?? post.account?.id,
 			authorHandle: account?.handle ?? post.account?.handle,
@@ -1015,6 +1019,13 @@
 		});
 	const updateStatusViewsByActionTarget = (posts: PleromaStatusView[], targetId: string, update: (post: PleromaStatusView) => PleromaStatusView) =>
 		posts.map((post) => matchesStatusActionTarget(post, targetId) ? update(post) : post);
+	const updateRebuildPostsByConversation = <PostType extends RebuildPost & { nestedReplies?: PostType[] }>(posts: PostType[], conversationId: number, threadMuted: boolean): PostType[] =>
+		posts.map((post) => {
+			const updated = post.conversationId === conversationId ? { ...post, threadMuted } : post;
+			return updated.nestedReplies ? { ...updated, nestedReplies: updateRebuildPostsByConversation(updated.nestedReplies, conversationId, threadMuted) } : updated;
+		});
+	const updateStatusViewsByConversation = (posts: PleromaStatusView[], conversationId: number, threadMuted: boolean) =>
+		posts.map((post) => post.pleroma.conversationId === conversationId ? { ...post, threadMuted } : post);
 	const updateProfilePostsByActionTarget = (posts: ProfilePost[], targetId: string, update: (post: ProfilePost) => ProfilePost) =>
 		posts.map((post) => matchesStatusActionTarget(post, targetId) ? update(post) : post);
 	const updateRebuildPostsByReplyTarget = <PostType extends RebuildPost & { nestedReplies?: PostType[] }>(posts: PostType[], targetId: string, update: (post: PostType) => PostType): PostType[] =>
@@ -1564,7 +1575,62 @@
 			}
 		})();
 	};
+	const setConversationMuteStateEverywhere = (targetId: string, conversationId: number | undefined, threadMuted: boolean) => {
+		if (conversationId === undefined) {
+			applyStatusActionUpdate('all', targetId, (post) => ({ ...post, threadMuted }), (post) => ({ ...post, threadMuted }));
+			return;
+		}
+		localHomePosts = updateRebuildPostsByConversation(localHomePosts, conversationId, threadMuted);
+		if (homeTimelineState.status === 'success') homeTimelineState = { ...homeTimelineState, data: updateStatusViewsByConversation(homeTimelineState.data, conversationId, threadMuted), newerPosts: updateStatusViewsByConversation(homeTimelineState.newerPosts, conversationId, threadMuted) };
+		if (bookmarksState.status === 'success') bookmarksState = { ...bookmarksState, data: updateStatusViewsByConversation(bookmarksState.data, conversationId, threadMuted) };
+		if (searchState.status === 'success') searchState = { ...searchState, posts: updateStatusViewsByConversation(searchState.posts, conversationId, threadMuted) };
+		if (headerSearchState.status === 'success') headerSearchState = { ...headerSearchState, posts: updateStatusViewsByConversation(headerSearchState.posts, conversationId, threadMuted) };
+		for (const route of ['local', 'federated'] as const) {
+			const state = appPublicTimelineStates[route];
+			if (state.status === 'success') appPublicTimelineStates[route] = { ...state, data: updateStatusViewsByConversation(state.data, conversationId, threadMuted), newerPosts: updateStatusViewsByConversation(state.newerPosts, conversationId, threadMuted) };
+		}
+		if (threadState.status === 'success') threadState = { ...threadState, focused: threadState.focused.conversationId === conversationId ? { ...threadState.focused, threadMuted } : threadState.focused, ancestors: updateRebuildPostsByConversation(threadState.ancestors, conversationId, threadMuted), replies: updateRebuildPostsByConversation(threadState.replies, conversationId, threadMuted) };
+		if (profileRouteState.status === 'success') profileRouteState = { ...profileRouteState, data: { ...profileRouteState.data, posts: updateRebuildPostsByConversation(profileRouteState.data.posts, conversationId, threadMuted), replies: updateRebuildPostsByConversation(profileRouteState.data.replies, conversationId, threadMuted), pinned: updateRebuildPostsByConversation(profileRouteState.data.pinned, conversationId, threadMuted) } };
+	};
+	const mutateConversationMute = (targetId: string, conversationId: number | undefined, previouslyMuted: boolean) => {
+		const session = currentSession;
+		if (!session) return;
+		const pendingKey = `conversation:${conversationId ?? targetId}`;
+		if (statusActionPending[pendingKey]) return;
+		const requestId = statusActionRequestId + 1;
+		statusActionRequestId = requestId;
+		statusActionPending = { ...statusActionPending, [pendingKey]: requestId };
+		const requestSessionKey = sessionKey(session);
+		void (async () => {
+			try {
+				const client = createPleromaClient({ instanceUrl: session.instanceUrl, accessToken: session.accessToken, fetch: window.fetch.bind(window) });
+				const status = previouslyMuted
+					? await client.unmuteConversation(targetId)
+					: await client.muteConversation(targetId);
+				if (!isCurrentSessionRequest(requestSessionKey) || statusActionPending[pendingKey] !== requestId) return;
+				const adapted = adaptPleromaStatus(status);
+				setConversationMuteStateEverywhere(targetId, adapted.pleroma.conversationId ?? conversationId, adapted.threadMuted);
+				clearStatusActionPending(pendingKey, requestId);
+				flashPostControl(adapted.threadMuted ? 'Thread muted' : 'Thread unmuted');
+			} catch (error) {
+				if (!isCurrentSessionRequest(requestSessionKey) || statusActionPending[pendingKey] !== requestId) return;
+				clearStatusActionPending(pendingKey, requestId);
+				const normalized = normalizePleromaRequestError(error);
+				if (normalized.reauthRequired) {
+					signOutPleroma(localStorage);
+					redirectToLanding();
+					return;
+				}
+				flashPostControl(`${previouslyMuted ? 'Unmute' : 'Mute'} thread failed: ${normalized.title}`);
+			}
+		})();
+	};
 	const handleManageAction = (post: RebuildPost, key: string, originRoute: StatusActionOrigin): boolean => {
+		if (key === 'mute-thread') {
+			const targetId = statusActionTargetId(post);
+			if (targetId) mutateConversationMute(targetId, post.conversationId, post.threadMuted === true);
+			return true;
+		}
 		if (key === 'bookmark') {
 			const targetId = statusActionTargetId(post);
 			if (targetId) mutateBookmark(targetId, post.bookmarked === true, originRoute);
@@ -2161,7 +2227,7 @@
 			if (post) handleReactionAction(post, key, 'thread');
 			return;
 		}
-		if (key === 'bookmark' || key === 'copy-link' || key === 'delete' || key === 'mute' || key === 'block') {
+		if (key === 'mute-thread' || key === 'bookmark' || key === 'copy-link' || key === 'delete' || key === 'mute' || key === 'block') {
 			const post = findThreadPost(postId);
 			if (post) handleManageAction(post, key, 'thread');
 			return;

@@ -1,4 +1,4 @@
-import { base } from '$app/paths';
+const base = import.meta.env?.BASE_PATH ?? '';
 
 export const appPath = (path: string) => `${base}${path}`;
 

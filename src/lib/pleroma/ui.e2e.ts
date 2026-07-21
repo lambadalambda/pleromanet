@@ -42,6 +42,14 @@ test('Pleroma status adapters preserve plain text content and UI action state', 
 	expect(post.mediaHidden).toBe(false);
 });
 
+test('Pleroma status adapters distinguish thread mutes from author mutes', () => {
+	const authorMuted = adaptPleromaStatus(withStatus({ muted: true, pleroma: { thread_muted: false } }));
+	const threadMuted = adaptPleromaStatus(withStatus({ muted: true, pleroma: { thread_muted: true } }));
+
+	expect(authorMuted.threadMuted).toBe(false);
+	expect(threadMuted.threadMuted).toBe(true);
+});
+
 test('Pleroma status timestamp formatter returns relative labels', () => {
 	const now = Date.parse('2026-05-22T12:00:00.000Z');
 

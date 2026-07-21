@@ -63,6 +63,7 @@ const status: PleromaStatus = {
 	pleroma: {
 		content: { 'text/plain': 'quiet CSS can still carry the voice.' },
 		conversation_id: 42,
+		thread_muted: false,
 		local: true,
 		spoiler_text: { 'text/plain': '' }
 	},

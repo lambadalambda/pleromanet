@@ -99,6 +99,7 @@ export type PleromaStatusView = TimelinePost & {
 	reactions: PleromaReactionView[];
 	replyAccounts: PleromaReplyAccount[];
 	bookmarked: boolean;
+	threadMuted: boolean;
 	rebloggedBy?: PleromaAccountView;
 	pleroma: {
 		conversationId?: number;
@@ -860,6 +861,7 @@ export const adaptPleromaStatus = (status: PleromaStatus, options: AdaptPleromaS
 		reactions: adaptStatusReactions(source),
 		replyAccounts: statusReplyAccounts(source),
 		bookmarked: source.bookmarked === true,
+		threadMuted: source.pleroma.thread_muted === true,
 		rebloggedBy: booster,
 		pleroma: {
 			conversationId: source.pleroma.conversation_id,

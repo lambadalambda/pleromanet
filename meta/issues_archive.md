@@ -86,3 +86,4 @@
 - [x] [86 Reuse reply context in previews](issues/86-reuse-reply-context-in-previews.md)
 - [x] [87 Add automatic theme switching](issues/87-add-automatic-theme-switching.md)
 - [x] [88 Refresh existing posts after profile updates](issues/88-refresh-existing-posts-after-profile-updates.md)
+- [x] [89 Add thread mute and unmute controls](issues/89-add-thread-mute-and-unmute-controls.md)

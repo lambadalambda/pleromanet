@@ -29,6 +29,7 @@
 		mentionAccts?: Record<string, string>;
 		reactions?: PleromaReactionView[];
 		bookmarked?: boolean;
+		threadMuted?: boolean;
 		own?: boolean;
 		authorHandle?: string;
 		statusUrl?: string;
@@ -121,9 +122,12 @@
 			<button bind:this={moreButton} type="button" class="post-more" aria-label="More post actions" aria-haspopup="menu" aria-expanded={menuOpen} onclick={() => (menuOpen ? closeMenu() : openMenu())}><Icon name="more" width={16} height={16} /></button>
 			{#if menuOpen}
 				<div class="post-action-menu" role="menu" style={menuStyle}>
-					{#if post.statusUrl}
-						<button type="button" role="menuitem" onclick={() => runMenuAction('copy-link')}>Copy link to post</button>
-					{/if}
+				{#if canManage}
+					<button type="button" role="menuitem" onclick={() => runMenuAction('mute-thread')}>{post.threadMuted ? 'Unmute thread' : 'Mute thread'}</button>
+				{/if}
+				{#if post.statusUrl}
+					<button type="button" role="menuitem" onclick={() => runMenuAction('copy-link')}>Copy link to post</button>
+				{/if}
 					{#if canManage && post.own}
 						{#if confirmDelete}
 							<button type="button" role="menuitem" class="menu-danger" onclick={() => runMenuAction('delete')}>Confirm delete</button>

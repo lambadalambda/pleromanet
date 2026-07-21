@@ -25,6 +25,7 @@
 		bodyEmojis?: CustomEmoji[];
 		mentionAccts?: Record<string, string>;
 		bookmarked?: boolean;
+		threadMuted?: boolean;
 		own?: boolean;
 		authorHandle?: string;
 		statusUrl?: string;

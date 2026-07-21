@@ -379,6 +379,20 @@ export const createPleromaClient = (config: ClientConfig) => {
 			return timelinePage(response.body, response.headers);
 		},
 
+		muteConversation: (id: string) =>
+			http.request<PleromaStatus>({
+				method: 'POST',
+				path: `/api/v1/statuses/${encodePathSegment(id)}/mute`,
+				auth: 'required'
+			}),
+
+		unmuteConversation: (id: string) =>
+			http.request<PleromaStatus>({
+				method: 'POST',
+				path: `/api/v1/statuses/${encodePathSegment(id)}/unmute`,
+				auth: 'required'
+			}),
+
 		deleteStatus: (id: string) =>
 			http.request<PleromaStatus>({
 				method: 'DELETE',

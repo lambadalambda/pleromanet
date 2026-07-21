@@ -262,6 +262,38 @@ test('real thread route loads focused status, ancestors, and replies from Plerom
 	await expect(page.getByText('around the time the algorithm replaced the timeline.')).toBeVisible();
 });
 
+test('real thread route mutes and unmutes the conversation', async ({ page }) => {
+	await authenticate(page);
+	await mockThread(page);
+	const requests: string[] = [];
+	await page.route(/https:\/\/pleroma\.example\/api\/v1\/statuses\/status-1\/(?:mute|unmute)/, async (route) => {
+		requests.push(new URL(route.request().url()).pathname);
+		await fulfillJson(route, {
+			...threadStatus,
+			muted: requests.length === 1,
+			pleroma: { ...threadStatus.pleroma, thread_muted: requests.length === 1 }
+		});
+	});
+	await page.goto('/app/thread/status-1');
+
+	const focusedPost = page.getByTestId('focused-post');
+	await focusedPost.getByRole('button', { name: 'More post actions' }).click();
+	await focusedPost.getByRole('menuitem', { name: 'Mute thread' }).click();
+	await expect(page.getByRole('status')).toContainText('Thread muted');
+	const reply = page.getByTestId('thread-reply').first();
+	await reply.getByRole('button', { name: 'More post actions' }).click();
+	await expect(reply.getByRole('menuitem', { name: 'Unmute thread' })).toBeVisible();
+	await page.keyboard.press('Escape');
+
+	await focusedPost.getByRole('button', { name: 'More post actions' }).click();
+	await focusedPost.getByRole('menuitem', { name: 'Unmute thread' }).click();
+	await expect(page.getByRole('status')).toContainText('Thread unmuted');
+	expect(requests).toEqual([
+		'/api/v1/statuses/status-1/mute',
+		'/api/v1/statuses/status-1/unmute'
+	]);
+});
+
 test('real thread route bridges multiple ancestor rails with warnings and media', async ({ page }) => {
 	await authenticate(page);
 	const warningAncestor = statusWithText('ancestor-warning', 'cw hidden ancestor body', {
