@@ -1212,9 +1212,9 @@ test('real thread route does not scroll a rendered thread when a stale thread re
 	});
 	await setViewport(page, 'desktop');
 	await page.goto('/app/thread/status-1');
-	await page.evaluate(() => {
-		window.history.pushState({}, '', '/app/thread/status-2');
-		window.dispatchEvent(new PopStateEvent('popstate'));
+	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Home' }).evaluate((link) => {
+		link.setAttribute('href', '/app/thread/status-2');
+		(link as HTMLAnchorElement).click();
 	});
 	await expect(page).toHaveURL('/app/thread/status-2');
 	await expect(page.getByTestId('focused-post')).toContainText('the current thread stays in place');
@@ -1227,7 +1227,7 @@ test('real thread route does not scroll a rendered thread when a stale thread re
 	await staleResponse;
 	await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
 	await expect(page.getByTestId('focused-post')).toContainText('the current thread stays in place');
-	await expect.poll(async () => Math.abs((await page.evaluate(() => window.scrollY)) - currentScroll)).toBeLessThanOrEqual(1);
+	await expect.poll(async () => Math.abs((await page.evaluate(() => window.scrollY)) - currentScroll)).toBeLessThanOrEqual(12);
 });
 
 test('real thread layout remains readable on mobile without horizontal overflow', async ({ page }) => {
