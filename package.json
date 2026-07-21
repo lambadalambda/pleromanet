@@ -16,7 +16,7 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test:e2e": "playwright test",
-		"test:integration": "playwright test --config=playwright.integration.config.ts",
+		"test:integration": "bash scripts/test-integration.sh",
 		"test": "pnpm run test:e2e"
 	},
 	"devDependencies": {

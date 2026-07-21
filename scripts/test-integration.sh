@@ -13,8 +13,19 @@ export PLEROMANET_INTEGRATION_INSTANCE_URL="${PLEROMANET_INTEGRATION_INSTANCE_UR
 compose=(docker compose -f "$compose_file" -p "$project_name")
 
 cleanup() {
+	local status=$?
 	if [[ "$skip_docker" != "1" ]]; then
+		if (( status != 0 )); then
+			capture_diagnostics
+		fi
 		"${compose[@]}" down --volumes --remove-orphans >/dev/null
+	fi
+	return "$status"
+}
+
+capture_diagnostics() {
+	if [[ "$skip_docker" != "1" ]]; then
+		"${compose[@]}" logs --no-color > integration-compose.log 2>&1 || true
 	fi
 }
 

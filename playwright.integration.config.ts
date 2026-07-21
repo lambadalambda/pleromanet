@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
+	reporter: process.env.CI ? [['line'], ['html', { open: 'never' }]] : 'list',
 	testDir: './tests/integration',
 	testMatch: '**/*.integration.e2e.ts',
 	timeout: 60_000,
