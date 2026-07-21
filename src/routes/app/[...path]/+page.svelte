@@ -904,12 +904,14 @@
 				const post = postForRebuild(adaptPleromaStatus(status));
 				return {
 					name: post.name,
+					nameEmojis: post.nameEmojis,
 					handle: post.handle,
 					time: post.time,
 					createdAt: post.createdAt,
 					avatarUrl: post.avatarUrl,
 					avClass: post.avClass,
 					body: post.body,
+					bodyEmojis: post.bodyEmojis,
 					cw: post.cw,
 					replyingTo: post.inReplyToId ? post.directReplyAccount ?? null : undefined
 				};

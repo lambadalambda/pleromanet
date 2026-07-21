@@ -7,6 +7,7 @@
 - Long threads show accessible animated loading feedback, align fresh routes to the selected post after context renders, and preserve exact native history positions without moving keyboard focus.
 - Reply-free threads end at one clean card border, including while their focused inline reply composer opens and closes.
 - Stale-thread browser coverage now uses real intercepted app navigation and tolerates only negligible layout settling, eliminating synthetic-popstate CI races.
+- Replied-to post previews render API-provided custom emoji in author names and visible bodies while content-warning previews avoid rendering or requesting hidden emoji.
 
 ## 2026-07-19
 

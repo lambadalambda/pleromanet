@@ -4654,15 +4654,15 @@ button.post-pinged-l:focus-visible { color: var(--accent-ink); }
 	background: var(--accent-soft-2);
 }
 .reply-preview-identity { min-width: 0; }
-.reply-preview-identity strong,
-.reply-preview-identity span {
+.reply-preview-identity > strong,
+.reply-preview-identity > span {
 	display: block;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
-.reply-preview-identity strong { font-size: 13px; }
-.reply-preview-identity span,
+.reply-preview-identity > strong { font-size: 13px; }
+.reply-preview-identity > span,
 .reply-preview time {
 	color: var(--ink-2);
 	font-family: var(--mono);

@@ -4,6 +4,7 @@
 	import PostPingedLine from './PostPinged.svelte';
 	import { profileHref } from './profile-links';
 	import RelativeTime from './RelativeTime.svelte';
+	import RichText from './RichText.svelte';
 	import { replyPreviewLoaderContext, type ReplyPreview, type ReplyPreviewLoader } from './reply-preview';
 
 	type Props = {
@@ -129,7 +130,7 @@
 					<div class="reply-preview-head">
 						<Avatar avatarUrl={preview.avatarUrl} avClass={preview.avClass} alt={`${preview.name} avatar`} size={36} variant="plain" element="span" profileHref="" className="reply-preview-avatar" />
 						<div class="reply-preview-identity">
-							<strong>{preview.name}</strong>
+							<strong><RichText text={preview.name} emojis={preview.nameEmojis} linkMentions={false} /></strong>
 							<span>{preview.handle}</span>
 						</div>
 						<time datetime={preview.createdAt}><RelativeTime createdAt={preview.createdAt} fallback={preview.time} /></time>
@@ -137,7 +138,7 @@
 					{#if preview.cw}
 						<div class="reply-preview-cw">Content warning: {preview.cw}</div>
 					{:else}
-						<div class="reply-preview-body">{preview.body || 'Media post'}</div>
+						<div class="reply-preview-body"><RichText text={preview.body || 'Media post'} emojis={preview.bodyEmojis} linkMentions={false} /></div>
 					{/if}
 					{#if preview.replyingTo !== undefined}
 						<PostPingedLine addressees={[preview.replyingTo ?? 'a parent post']} staticMode />

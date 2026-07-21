@@ -1977,7 +1977,7 @@ test('reply context lazily previews and caches the parent post on hover and focu
 	let previewRequests = 0;
 	await page.route('https://pleroma.example/api/v1/statuses/parent-preview-status', async (route) => {
 		previewRequests += 1;
-		const parentStatus = statusWithText('parent-preview-status', '@cc@side.example @grandparent@retro.social the original post lives here');
+		const parentStatus = statusWithText('parent-preview-status', '@cc@side.example @grandparent@retro.social the original post lives here :blobcat:');
 		await fulfillHome(route, {
 			...parentStatus,
 			in_reply_to_id: 'grandparent-preview-status',
@@ -1986,10 +1986,12 @@ test('reply context lazily previews and caches the parent post on hover and focu
 			account: {
 				...pleromaFixtures.account,
 				id: 'parent-preview-account',
-				display_name: 'Mischievous Tomato',
+				display_name: 'Mischievous @home Tomato :tomato:',
 				username: 'mischievoustomato',
-				acct: 'mischievoustomato@tsundere.love'
+				acct: 'mischievoustomato@tsundere.love',
+				emojis: [{ shortcode: 'tomato', url: 'https://cdn.example/emoji/tomato.png', static_url: 'https://cdn.example/emoji/tomato-static.png' }]
 			},
+			emojis: [{ shortcode: 'blobcat', url: 'https://cdn.example/emoji/blobcat.png', static_url: 'https://cdn.example/emoji/blobcat-static.png' }],
 			mentions: [
 				{ id: 'cc-preview-account', url: 'https://side.example/users/cc', username: 'cc', acct: 'cc@side.example' },
 				{ id: 'grandparent-preview-account', url: 'https://retro.social/users/grandparent', username: 'grandparent', acct: 'grandparent@retro.social' }
@@ -2012,8 +2014,11 @@ test('reply context lazily previews and caches the parent post on hover and focu
 	const preview = page.getByRole('tooltip');
 	await expect(preview).toBeVisible();
 	await expect(preview).toHaveAttribute('aria-live', 'polite');
-	await expect(preview).toContainText('Mischievous Tomato');
+	await expect(preview).toContainText('Mischievous @home Tomato');
 	await expect(preview).toContainText('@mischievoustomato@tsundere.love');
+	await expect(preview.locator('.reply-preview-identity img[alt=":tomato:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/tomato.png');
+	await expect(preview.locator('.reply-preview-identity strong')).not.toContainText(':tomato:');
+	await expect(preview.locator('.reply-preview-identity strong span')).toHaveCSS('display', 'inline');
 	const previewReplyContext = preview.locator('.post-pinged');
 	await expect(previewReplyContext.locator('.post-pinged-l')).toHaveText('Replying to');
 	await expect(previewReplyContext.locator('.post-pinged-chip-parent')).toHaveText('@grandparent');
@@ -2024,6 +2029,8 @@ test('reply context lazily previews and caches the parent post on hover and focu
 	await expect(page.getByRole('tooltip')).toHaveCount(1);
 	await expect(preview.locator('.reply-preview-context')).toHaveCount(0);
 	await expect(preview.locator('.reply-preview-body')).toHaveText('the original post lives here');
+	await expect(preview.locator('.reply-preview-body img[alt=":blobcat:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/blobcat.png');
+	await expect(preview.locator('.reply-preview-body')).not.toContainText(':blobcat:');
 	await expect.poll(() => previewRequests).toBe(1);
 	await expect.poll(async () => preview.evaluate((element) => {
 		const bounds = element.getBoundingClientRect();
@@ -2050,7 +2057,12 @@ test('reply context lazily previews and caches the parent post on hover and focu
 });
 
 test('reply parent previews do not expose content hidden by a content warning', async ({ page }) => {
+	let hiddenEmojiRequests = 0;
 	await authenticate(page);
+	await page.route('https://cdn.example/emoji/secret.png', async (route) => {
+		hiddenEmojiRequests += 1;
+		await route.fulfill({ status: 204 });
+	});
 	await mockHomeTimeline(page, async (route) => {
 		await fulfillHome(route, [
 			{
@@ -2069,9 +2081,10 @@ test('reply parent previews do not expose content hidden by a content warning', 
 	});
 	await page.route('https://pleroma.example/api/v1/statuses/parent-cw-status', async (route) => {
 		await fulfillHome(route, {
-			...statusWithText('parent-cw-status', 'hidden parent body'),
+			...statusWithText('parent-cw-status', 'hidden parent body :secret:'),
 			in_reply_to_id: 'unknown-grandparent-status',
 			spoiler_text: 'Discussion of the ending',
+			emojis: [{ shortcode: 'secret', url: 'https://cdn.example/emoji/secret.png', static_url: 'https://cdn.example/emoji/secret-static.png' }],
 			account: {
 				...pleromaFixtures.account,
 				id: 'parent-cw-account',
@@ -2094,6 +2107,8 @@ test('reply parent previews do not expose content hidden by a content warning', 
 	await expect(fallbackContext.locator('.post-pinged-chip-parent')).not.toHaveAttribute('href', /.+/);
 	await expect(preview).toContainText('Content warning: Discussion of the ending');
 	await expect(preview).not.toContainText('hidden parent body');
+	await expect(preview.locator('img[alt=":secret:"]')).toHaveCount(0);
+	expect(hiddenEmojiRequests).toBe(0);
 });
 
 test('reply parent previews degrade safely when the parent is unavailable', async ({ page }) => {
