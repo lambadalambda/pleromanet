@@ -69,6 +69,25 @@ test('real settings route populates the form from the session account', async ({
 	await expect(page.getByTestId('app-content').getByTestId('profile-preview-card')).toHaveCount(0);
 });
 
+test('profile settings preview renders display-name custom emoji', async ({ page }) => {
+	await page.addInitScript((storedSession) => {
+		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
+	}, {
+		...session,
+		account: {
+			...pleromaFixtures.account,
+			display_name: 'quiet :spark:',
+			emojis: [{ shortcode: 'spark', url: 'https://cdn.example/emoji/spark.png', static_url: 'https://cdn.example/emoji/spark-static.png' }]
+		}
+	});
+	await setViewport(page, 'wide');
+	await page.goto('/app/settings');
+
+	const preview = page.getByTestId('profile-preview-card');
+	await expect(preview.locator('.surface-preview-name img[alt=":spark:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/spark.png');
+	await expect(preview.locator('.surface-preview-name')).not.toContainText(':spark:');
+});
+
 test('custom theme editor previews, imports, saves, and restores a shared palette', async ({ page }) => {
 	await authenticate(page);
 	await setViewport(page, 'wide');

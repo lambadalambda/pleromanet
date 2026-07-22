@@ -553,6 +553,59 @@ test('notification rows render name custom emoji and media-only excerpts', async
 	await expectNoHorizontalOverflow(page);
 });
 
+test('notification page and header popover render status and CW custom emoji', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page);
+	let hiddenEmojiRequests = 0;
+	let hiddenMediaRequests = 0;
+	await page.route('https://cdn.example/emoji/secret.png', async (route) => {
+		hiddenEmojiRequests += 1;
+		await route.fulfill({ status: 204 });
+	});
+	await page.route('https://cdn.example/hidden-notification.png', async (route) => {
+		hiddenMediaRequests += 1;
+		await route.fulfill({ status: 204 });
+	});
+	const bodyStatus = {
+		...statusWithText('status-body-emoji', 'a compact :blobcat: excerpt'),
+		emojis: [{ shortcode: 'blobcat', url: 'https://cdn.example/emoji/blobcat.png', static_url: 'https://cdn.example/emoji/blobcat.png' }]
+	};
+	const cwStatus = {
+		...statusWithText('status-cw-emoji', 'hidden body'),
+		spoiler_text: 'spoiler :warning:',
+		emojis: [
+			{ shortcode: 'warning', url: 'https://cdn.example/emoji/warning.png', static_url: 'https://cdn.example/emoji/warning.png' },
+			{ shortcode: 'secret', url: 'https://cdn.example/emoji/secret.png', static_url: 'https://cdn.example/emoji/secret.png' }
+		],
+		media_attachments: [{ id: 'hidden-notification-media', type: 'image', url: 'https://cdn.example/hidden-notification.png', description: 'hidden notification image' }],
+		pleroma: {
+			...pleromaFixtures.status.pleroma,
+			content: { 'text/plain': 'hidden :secret: body' },
+			spoiler_text: { 'text/plain': 'spoiler :warning:' }
+		}
+	};
+	await mockNotifications(page, () => [
+		notification('notif-body-emoji', 'favourite', favActor, '2026-05-18T12:03:00.000Z', bodyStatus),
+		notification('notif-cw-emoji', 'mention', mentionActor, '2026-05-18T12:02:00.000Z', cwStatus)
+	]);
+
+	await page.goto('/app/notifications');
+	let surface = page.getByTestId('notifications-list');
+	await expect(surface.locator('.notif-row-quote img[alt=":blobcat:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/blobcat.png');
+	await expect(surface.locator('.notif-row-quote img[alt=":warning:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/warning.png');
+	await expect(surface).not.toContainText('hidden body');
+	await expect(surface.locator('img[alt=":secret:"]')).toHaveCount(0);
+
+	await page.goto('/app/home');
+	await headerBell(page).click();
+	surface = page.getByTestId('header-notifications-popover');
+	await expect(surface.locator('.notif-row-quote img[alt=":blobcat:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/blobcat.png');
+	await expect(surface.locator('.notif-row-quote img[alt=":warning:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/warning.png');
+	await expect(surface.locator('img[alt=":secret:"]')).toHaveCount(0);
+	await expect.poll(() => hiddenEmojiRequests).toBe(0);
+	await expect.poll(() => hiddenMediaRequests).toBe(0);
+});
+
 test('notification video previews defer loading until they approach the viewport', async ({ page }) => {
 	await authenticate(page);
 	let videoRequests = 0;

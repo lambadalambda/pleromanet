@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { normalizeAttachments, type PostLike } from './attachments';
+	import type { CustomEmoji } from '$lib/social/types';
+	import RichText from './RichText.svelte';
 
 	type Props = {
 		post: PostLike & {
 			body?: string;
+			bodyEmojis?: CustomEmoji[];
 			handle?: string;
 		};
 		children: import('svelte').Snippet;
@@ -45,7 +48,7 @@
 	<div class="post-cw-revealed-summary">
 		{@render glyph()}
 		<span class="post-cw-revealed-l">CW</span>
-		<span class="post-cw-revealed-text">{summary}</span>
+		<span class="post-cw-revealed-text"><RichText text={summary} emojis={post.bodyEmojis} linkMentions={false} /></span>
 		<button type="button" class="post-cw-revealed-hide" onclick={(event) => { event.stopPropagation(); revealed = false; }}>Hide</button>
 	</div>
 	{@render children()}
@@ -55,7 +58,7 @@
 			{@render glyph()}
 			Content warning
 		</div>
-		<div class="post-cw-summary">{summary}</div>
+		<div class="post-cw-summary"><RichText text={summary} emojis={post.bodyEmojis} linkMentions={false} /></div>
 		{#if attachmentChips.length > 0 || words > 0}
 			<div class="post-cw-meta">
 				<span>Hidden:</span>

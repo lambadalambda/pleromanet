@@ -137,7 +137,7 @@
 						<time datetime={preview.createdAt}><RelativeTime createdAt={preview.createdAt} fallback={preview.time} /></time>
 					</div>
 					{#if preview.cw}
-						<div class="reply-preview-cw">Content warning: {preview.cw}</div>
+						<div class="reply-preview-cw">Content warning: <RichText text={preview.cw} emojis={preview.bodyEmojis} linkMentions={false} /></div>
 					{:else}
 						{#if preview.body}
 							<div class="reply-preview-body"><RichText text={preview.body} emojis={preview.bodyEmojis} linkMentions={false} /></div>

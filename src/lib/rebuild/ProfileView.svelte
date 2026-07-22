@@ -139,13 +139,13 @@
 		{#if timelineLoading}
 			<div class="pp-empty" role="status" aria-label="Profile timeline status">
 				<div class="pp-empty-h">Loading profile posts</div>
-				<div class="pp-empty-s">Fetching {profile.displayName}'s posts, replies, pinned posts, and media.</div>
+				<div class="pp-empty-s">Fetching <RichText text={profile.displayName} emojis={profile.displayNameEmojis} linkMentions={false} />'s posts, replies, pinned posts, and media.</div>
 			</div>
 		{:else if empty && locked}
 			<div class="pp-locked">
 				<div class="pp-locked-icon"><Icon name="lock" width={16} height={16} /></div>
 				<div class="pp-locked-h">This account is locked</div>
-				<div class="pp-locked-s">{profile.displayName} approves followers manually. Send a follow request to see their posts.</div>
+				<div class="pp-locked-s"><RichText text={profile.displayName} emojis={profile.displayNameEmojis} linkMentions={false} /> approves followers manually. Send a follow request to see their posts.</div>
 				{#if signedOut}
 					<button type="button" class="pp-follow-btn" onclick={() => onSignIn?.()}>Sign in to follow</button>
 				{:else}
@@ -155,7 +155,7 @@
 		{:else if empty}
 			<div class="pp-empty">
 				<div class="pp-empty-h">Nothing here yet</div>
-				<div class="pp-empty-s">{profile.displayName} hasn't posted anything yet. Check back later or follow to get notified when they do.</div>
+				<div class="pp-empty-s"><RichText text={profile.displayName} emojis={profile.displayNameEmojis} linkMentions={false} /> hasn't posted anything yet. Check back later or follow to get notified when they do.</div>
 			</div>
 		{:else if tab === 'media'}
 			<div class="pp-media-grid" data-testid="profile-media-grid">

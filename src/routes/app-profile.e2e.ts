@@ -81,6 +81,7 @@ const statusForProfile = (id: string, text: string, options: Partial<PleromaStat
 	in_reply_to_account_id: options.in_reply_to_account_id ?? null,
 	in_reply_to_id: options.in_reply_to_id ?? null,
 	media_attachments: options.media_attachments ?? [],
+	emojis: options.emojis ?? [],
 	pinned: options.pinned ?? false,
 	pleroma: {
 		...pleromaFixtures.status.pleroma,
@@ -99,7 +100,13 @@ const statusForProfile = (id: string, text: string, options: Partial<PleromaStat
 
 const pinnedStatuses = [
 	statusForProfile('pin-1', "the algorithm doesn't care about you. the timeline doesn't either. but the people in it do, and that's worth keeping.", { pinned: true, favourites_count: 891, reblogs_count: 312, replies_count: 142 }),
-	statusForProfile('pin-2', 'follow whoever you want. mute liberally. block when you need to. the timeline is yours to tend.', { pinned: true, favourites_count: 612, reblogs_count: 124, replies_count: 38 })
+	statusForProfile('pin-2', 'follow :tape: whoever you want. mute liberally. block when you need to. the timeline is yours to tend.', {
+		pinned: true,
+		favourites_count: 612,
+		reblogs_count: 124,
+		replies_count: 38,
+		emojis: [{ shortcode: 'tape', url: 'https://cdn.example/emoji/tape.png', static_url: 'https://cdn.example/emoji/tape-static.png' }]
+	})
 ];
 const postStatuses = [
 	statusForProfile('soft-post-1', "rain recording from this morning's walk — 11 minutes, two takes, the kettle made it onto the second one.", {
@@ -134,7 +141,12 @@ const authenticate = async (page: Page) => {
 	}, session);
 };
 
-const mockProfileApis = async (page: Page, account: PleromaAccount = profileAccount) => {
+const mockProfileApis = async (
+	page: Page,
+	account: PleromaAccount = profileAccount,
+	pinned: PleromaStatus[] = pinnedStatuses,
+	timelines: { posts: PleromaStatus[]; replies: PleromaStatus[]; media: PleromaStatus[] } = { posts: postStatuses, replies: replyStatuses, media: mediaStatuses }
+) => {
 	await page.route('https://pleroma.example/api/v1/accounts/search**', async (route: Route) => {
 		const url = new URL(route.request().url());
 		expect(url.searchParams.get('q')).toBe(account.acct);
@@ -145,12 +157,12 @@ const mockProfileApis = async (page: Page, account: PleromaAccount = profileAcco
 	await page.route(`https://pleroma.example/api/v1/accounts/${account.id}/statuses**`, async (route: Route) => {
 		const url = new URL(route.request().url());
 		const body = url.searchParams.get('pinned') === 'true'
-			? pinnedStatuses
+			? pinned
 			: url.searchParams.get('only_media') === 'true'
-				? mediaStatuses
+				? timelines.media
 				: url.searchParams.get('exclude_replies') === 'true'
-					? postStatuses
-					: replyStatuses;
+					? timelines.posts
+					: timelines.replies;
 		await fulfillJson(route, body.map((status) => ({ ...status, account })));
 	});
 };
@@ -217,6 +229,7 @@ test('profile route loads the canonical account timeline surface', async ({ page
 	await expect(rail).toContainText('Details');
 	await expect(rail).toContainText('softhertz.land');
 	await expect(rail).toContainText('Also pinned');
+	await expect(rail.locator('.pp-mini-post-body img[alt=":tape:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/tape.png');
 	await expectNoHorizontalOverflow(page);
 
 	await page.setViewportSize({ width: 320, height: 568 });
@@ -236,6 +249,74 @@ test('profile route loads the canonical account timeline surface', async ({ page
 		});
 	})).toBe(true);
 	await expectNoHorizontalOverflow(page);
+});
+
+test('profile loading and empty context render display-name custom emoji', async ({ page }) => {
+	const emojiProfile: PleromaAccount = {
+		...profileAccount,
+		display_name: 'soft :spark:',
+		emojis: [{ shortcode: 'spark', url: 'https://cdn.example/emoji/spark.png', static_url: 'https://cdn.example/emoji/spark-static.png' }]
+	};
+	let releaseStatuses: () => void = () => undefined;
+	const statusesPending = new Promise<void>((resolve) => {
+		releaseStatuses = resolve;
+	});
+	await authenticate(page);
+	await page.route('https://pleroma.example/api/v1/accounts/search**', async (route) => fulfillJson(route, [emojiProfile]));
+	await page.route('https://pleroma.example/api/v1/accounts/relationships**', async (route) => fulfillJson(route, [relationshipFor(emojiProfile.id)]));
+	await page.route(`https://pleroma.example/api/v1/accounts/${emojiProfile.id}/statuses**`, async (route) => {
+		await statusesPending;
+		await fulfillJson(route, []);
+	});
+	await page.goto('/app/profiles/soft.hertz@kolektiva.social');
+
+	const profile = page.getByTestId('profile-view');
+	await expect(profile.locator('.pp-empty-s img[alt=":spark:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/spark.png');
+	releaseStatuses();
+	await expect(profile.getByText('Nothing here yet')).toBeVisible();
+	await expect(profile.locator('.pp-empty-s img[alt=":spark:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/spark.png');
+});
+
+test('locked profile context renders display-name custom emoji', async ({ page }) => {
+	const lockedProfile: PleromaAccount = {
+		...profileAccount,
+		display_name: 'locked :spark:',
+		emojis: [{ shortcode: 'spark', url: 'https://cdn.example/emoji/spark.png', static_url: 'https://cdn.example/emoji/spark-static.png' }],
+		locked: true,
+		pleroma: { ...profileAccount.pleroma, relationship: relationshipFor(profileAccount.id) }
+	};
+	await authenticate(page);
+	await mockProfileApis(page, lockedProfile, [], { posts: [], replies: [], media: [] });
+	await page.route('https://pleroma.example/api/v1/accounts/relationships**', async (route: Route) => {
+		await fulfillJson(route, [relationshipFor(lockedProfile.id)]);
+	});
+	await page.goto('/app/profiles/soft.hertz@kolektiva.social');
+
+	const lockedCopy = page.getByTestId('profile-view').locator('.pp-locked-s');
+	await expect(lockedCopy.locator('img[alt=":spark:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/spark.png');
+	await expect(lockedCopy).not.toContainText(':spark:');
+});
+
+test('profile side rail renders a pinned CW without exposing its body emoji', async ({ page }) => {
+	const warningPinned = statusForProfile('pin-warning', 'hidden pinned :secret: body', {
+		pinned: true,
+		spoiler_text: 'pinned :warning:',
+		emojis: [
+			{ shortcode: 'secret', url: 'https://cdn.example/emoji/secret.png', static_url: 'https://cdn.example/emoji/secret-static.png' },
+			{ shortcode: 'warning', url: 'https://cdn.example/emoji/warning.png', static_url: 'https://cdn.example/emoji/warning-static.png' }
+		]
+	});
+	await authenticate(page);
+	await mockProfileApis(page, profileAccount, [pinnedStatuses[0], warningPinned]);
+	await page.route('https://pleroma.example/api/v1/accounts/relationships**', async (route: Route) => {
+		await fulfillJson(route, [relationshipFor(profileAccount.id, { following: true, followed_by: true })]);
+	});
+	await page.goto('/app/profiles/soft.hertz@kolektiva.social');
+
+	const compactPinned = page.getByTestId('right-rail').locator('.pp-mini-post-body');
+	await expect(compactPinned.locator('img[alt=":warning:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/warning.png');
+	await expect(compactPinned).not.toContainText('hidden pinned');
+	await expect(compactPinned.locator('img[alt=":secret:"]')).toHaveCount(0);
 });
 
 test('profile route uses a placeholder when the profile avatar image fails', async ({ page }) => {

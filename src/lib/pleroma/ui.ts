@@ -334,7 +334,17 @@ const numberValue = (value: unknown) => (typeof value === 'number' && Number.isF
 
 const booleanValue = (value: unknown) => (typeof value === 'boolean' ? value : null);
 
-const compactExcerpt = (text: string) => text.length > 160 ? `${text.slice(0, 157).trimEnd()}...` : text;
+export const compactExcerpt = (text: string, emojis: Array<{ shortcode: string }> = []) => {
+	if (text.length <= 160) return text;
+	const target = 157;
+	const interruptedEmojiStarts = emojis.flatMap((emoji) => {
+		const token = `:${emoji.shortcode}:`;
+		const start = text.lastIndexOf(token, target);
+		return start >= 0 && start < target && start + token.length > target ? [start] : [];
+	});
+	const end = interruptedEmojiStarts.length > 0 ? Math.min(...interruptedEmojiStarts) : target;
+	return `${text.slice(0, end).trimEnd()}...`;
+};
 
 const notificationKind = (type: string): SocialNotificationKind => {
 	const normalized = type.toLowerCase();
@@ -406,7 +416,7 @@ const notificationPostRef = (status: PleromaStatus | null | undefined): SocialNo
 	if (!status) return undefined;
 	const source = status.reblog ?? status;
 	const warning = spoilerText(source);
-	const text = compactExcerpt(plainTextContent(source));
+	const text = compactExcerpt(plainTextContent(source), source.emojis);
 	const attachments = adaptStatusAttachments(source).postAttachments.filter((attachment) => attachment.kind !== 'poll');
 	const mediaFallback = mediaPlaceholderText(statusMediaTypes(source), Boolean(source.poll));
 	const mediaFallbackItems = statusMediaFallbackItems(source);
@@ -420,6 +430,7 @@ const notificationPostRef = (status: PleromaStatus | null | undefined): SocialNo
 
 	return {
 		excerpt,
+		emojis: adaptCustomEmojis(source.emojis),
 		tStamp: formatStatusDate(source.created_at),
 		...(hasRawMedia ? { attachments, mediaHidden, mediaOnly, mediaFallback, mediaFallbackItems } : {})
 	};
@@ -983,6 +994,7 @@ export type PleromaChatView = {
 	id: string;
 	account: PleromaAccountView;
 	lastMessage: string | null;
+	lastMessageEmojis: CustomEmoji[];
 	lastMessageOwn: boolean;
 	unread: number;
 	time: string;
@@ -991,12 +1003,13 @@ export type PleromaChatView = {
 
 export const adaptPleromaChat = (chat: PleromaChat, options: ChatAdaptOptions = {}): PleromaChatView => {
 	const last = chat.last_message ?? null;
-	const lastText = last && typeof last.content === 'string' && last.content ? compactExcerpt(htmlToPlainText(last.content)) : null;
+	const lastText = last && typeof last.content === 'string' && last.content ? compactExcerpt(htmlToPlainText(last.content), last.emojis) : null;
 	const lastPlaceholder = last?.attachment ? mediaPlaceholderText([stringValue(last.attachment.type) ?? undefined]) : null;
 	return {
 		id: chat.id,
 		account: adaptPleromaAccount(chat.account),
 		lastMessage: lastText ?? lastPlaceholder,
+		lastMessageEmojis: adaptCustomEmojis(last?.emojis),
 		lastMessageOwn: Boolean(last && options.currentAccountId && last.account_id === options.currentAccountId),
 		unread: chat.unread,
 		time: chat.updated_at ? formatRelativeStatusTime(chat.updated_at, options.now) : '',

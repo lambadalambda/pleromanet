@@ -26,7 +26,7 @@
 			<span class="chat-row-time">{chat.time}</span>
 		</div>
 		<div class="chat-row-bottom">
-			<span class="chat-row-excerpt">{#if chat.lastMessage}{#if chat.lastMessageOwn}<span class="chat-row-you">You: </span>{/if}{chat.lastMessage}{:else}No messages yet{/if}</span>
+			<span class="chat-row-excerpt">{#if chat.lastMessage}{#if chat.lastMessageOwn}<span class="chat-row-you">You: </span>{/if}<RichText text={chat.lastMessage} emojis={chat.lastMessageEmojis} linkMentions={false} />{:else}No messages yet{/if}</span>
 			{#if chat.unread > 0}<span class="chat-row-unread">{chat.unread}</span>{/if}
 		</div>
 	</div>

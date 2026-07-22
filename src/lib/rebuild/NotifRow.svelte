@@ -104,7 +104,7 @@
 			<div id={postRefId} class="notif-row-quote static {n.post.mediaOnly ? 'media-only' : ''}">
 				{#if !n.post.mediaOnly}
 					<span class="notif-quote-mark">&quot;</span>
-					<span class="notif-quote-t">{n.post.excerpt}</span>
+					<span class="notif-quote-t"><RichText text={n.post.excerpt} emojis={n.post.emojis} linkMentions={false} /></span>
 				{/if}
 				{#if n.post.attachments?.length || n.post.mediaFallbackItems?.length}
 					<CompactMediaPreview attachments={n.post.attachments} hidden={n.post.mediaHidden} fallback={n.post.mediaFallback} fallbackItems={n.post.mediaFallbackItems} />

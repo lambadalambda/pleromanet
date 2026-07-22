@@ -3,6 +3,7 @@
 	import Avatar from './Avatar.svelte';
 	import { applyAvatarImageFallback } from './avatar';
 	import type { ComposerEmoji, ComposerMentionAccount } from './composer';
+	import RichText from './RichText.svelte';
 
 	type PopState =
 		| { type: 'mention'; query: string; accounts: ComposerMentionAccount[]; emojis?: never; top: number; left: number }
@@ -401,7 +402,7 @@
 				{#each visibleAccounts as account, index (account.id)}
 					<button id={`${listboxId}-${index}`} type="button" role="option" aria-selected={index === selectedIndex} class="me-row" class:sel={index === selectedIndex} onmousedown={(event) => { event.preventDefault(); selectedIndex = index; insertSelected(); }}>
 						<Avatar variant="plain" element="span" className="me-row-av" avClass={account.avClass} avatarUrl={account.avatarUrl} alt={`${account.displayName || account.username} avatar`} />
-						<span class="me-row-name">{account.displayName}</span>
+						<span class="me-row-name"><RichText text={account.displayName} emojis={account.emojis} linkMentions={false} /></span>
 						<span class="me-row-acct">@{account.acct}</span>
 						{#if index === selectedIndex}<span class="me-row-go"><span class="me-kbd">Tab</span></span>{/if}
 					</button>

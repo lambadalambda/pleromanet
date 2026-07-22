@@ -66,7 +66,7 @@
 		type PaginatedTimelineState,
 		type PaginatedTimelineSuccess
 	} from '$lib/pleroma/timeline-state';
-	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaChatMessage, adaptPleromaChatMessages, adaptPleromaChats, adaptPleromaPoll, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, mediaPlaceholderText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit, statusMediaFallbackItems, statusMediaTypes, type PleromaAccountView, type PleromaChatMessageView, type PleromaChatView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaProfileSettingsView, type PleromaReactionView, type PleromaReplyAccount, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaChatMessage, adaptPleromaChatMessages, adaptPleromaChats, adaptPleromaPoll, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, compactExcerpt, htmlToPlainText, mediaPlaceholderText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit, statusMediaFallbackItems, statusMediaTypes, type PleromaAccountView, type PleromaChatMessageView, type PleromaChatView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaProfileSettingsView, type PleromaReactionView, type PleromaReplyAccount, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, composerReplyDraft, customEmojiPack, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
@@ -2721,7 +2721,6 @@
 	};
 	const chatClient = (session: PleromaSession) =>
 		createPleromaClient({ instanceUrl: session.instanceUrl, accessToken: session.accessToken, fetch: window.fetch.bind(window) });
-	const chatExcerpt = (text: string) => (text.length > 160 ? `${text.slice(0, 157).trimEnd()}...` : text);
 	const loadChats = async (session: PleromaSession) => {
 		const requestSessionKey = sessionKey(session);
 		const requestId = chatsRequestId + 1;
@@ -2826,7 +2825,7 @@
 				if (chatsState.status === 'success') {
 					chatsState = {
 						...chatsState,
-						data: chatsState.data.map((row) => (row.id === chatId ? { ...row, lastMessage: chatExcerpt(view.body), lastMessageOwn: true, time: view.time, updatedAt: view.createdAt } : row))
+						data: chatsState.data.map((row) => (row.id === chatId ? { ...row, lastMessage: compactExcerpt(view.body, view.bodyEmojis), lastMessageEmojis: view.bodyEmojis, lastMessageOwn: true, time: view.time, updatedAt: view.createdAt } : row))
 					};
 				}
 			} catch (error) {
@@ -2985,6 +2984,7 @@
 			username: view.username,
 			displayName: view.displayName,
 			acct: view.acct,
+			emojis: view.emojis,
 			avatarUrl: view.avatarUrl,
 			avClass: 'av-grad-3'
 		};
@@ -5615,7 +5615,7 @@
 					<div class="card surface-card surface-profile-preview" data-testid="profile-preview-card">
 						<div class="surface-profile-head"><div>Profile preview</div></div>
 						<div class="surface-preview-body">
-							<div class="surface-preview-name">{profile.displayName}</div>
+							<div class="surface-preview-name"><RichText text={profile.displayName} emojis={headerAccount?.emojis} linkMentions={false} /></div>
 							<div class="surface-preview-handle">@{profile.username}@{headerInstanceDomain}</div>
 							<div class="surface-preview-bio">{profile.bio}</div>
 							<div class="surface-preview-note">This is how your profile appears to other users.</div>

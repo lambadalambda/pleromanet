@@ -1,1 +1,0 @@
-- [ ] [96 Audit custom emoji rendering across app surfaces](issues/96-audit-custom-emoji-rendering-across-app-surfaces.md)

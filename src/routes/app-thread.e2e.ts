@@ -446,12 +446,13 @@ test('real thread route bridges multiple ancestor rails with warnings and media'
 	const warningAncestor = statusWithText('ancestor-warning', 'cw hidden ancestor body', {
 		account: accountWithName('warning-ancestor-account', 'mistwalk', 'mistwalk@garden.cafe'),
 		created_at: '2026-05-11T15:20:00.000Z',
-		spoiler_text: 'thread context warning',
+		spoiler_text: 'thread context :warning:',
+		emojis: [{ shortcode: 'warning', url: 'https://cdn.example/emoji/warning.png', static_url: 'https://cdn.example/emoji/warning-static.png' }],
 		pleroma: {
 			...pleromaFixtures.status.pleroma,
 			content: { 'text/plain': 'cw hidden ancestor body' },
 			conversation_id: 99,
-			spoiler_text: { 'text/plain': 'thread context warning' }
+			spoiler_text: { 'text/plain': 'thread context :warning:' }
 		},
 		replies_count: 1,
 		reblogs_count: 0,
@@ -478,7 +479,9 @@ test('real thread route bridges multiple ancestor rails with warnings and media'
 
 	const ancestors = page.getByTestId('thread-ancestor');
 	await expect(ancestors).toHaveCount(2);
-	await expect(ancestors.first().locator('.post-cw-card')).toContainText('thread context warning');
+	await expect(ancestors.first().locator('.post-cw-card img[alt=":warning:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/warning.png');
+	await ancestors.first().getByRole('button', { name: 'Show post' }).click();
+	await expect(ancestors.first().locator('.post-cw-revealed-summary img[alt=":warning:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/warning.png');
 	await expect(ancestors.nth(1).locator('.post-boost > .post-boost-attr')).toBeVisible();
 	await expect(ancestors.nth(1).locator('.post-boost-name')).toContainText('orbit');
 	await expect(ancestors.nth(1).locator('.post-photos img[alt="ancestor photo"]')).toHaveAttribute('src', 'https://cdn.example/ancestor-photo.jpg');
@@ -601,6 +604,37 @@ test('real thread route opens focused media in the attachment lightbox', async (
 	const dialog = page.getByRole('dialog');
 	await expect(dialog).toBeVisible();
 	await expect(dialog.locator('.lightbox-photo')).toHaveAttribute('src', 'https://cdn.example/thread-photo.jpg');
+});
+
+test('ancestor and reply lightboxes render author custom emoji attribution', async ({ page }) => {
+	await authenticate(page);
+	const ancestor = statusWithText('ancestor-emoji-lightbox', 'ancestor media', {
+		account: {
+			...accountWithName('ancestor-emoji-account', 'ancestor :spark:', 'ancestor@retro.social'),
+			emojis: [{ shortcode: 'spark', url: 'https://cdn.example/emoji/spark.png', static_url: 'https://cdn.example/emoji/spark-static.png' }]
+		},
+		media_attachments: [{ id: 'ancestor-emoji-photo', type: 'image', url: 'https://cdn.example/ancestor-emoji.jpg', description: 'ancestor emoji photo' }]
+	});
+	const reply = statusWithText('reply-emoji-lightbox', 'reply media', {
+		account: {
+			...accountWithName('reply-emoji-account', 'reply :tape:', 'reply@retro.social'),
+			emojis: [{ shortcode: 'tape', url: 'https://cdn.example/emoji/tape.png', static_url: 'https://cdn.example/emoji/tape-static.png' }]
+		},
+		in_reply_to_id: 'status-1',
+		in_reply_to_account_id: pleromaFixtures.account.id,
+		media_attachments: [{ id: 'reply-emoji-photo', type: 'image', url: 'https://cdn.example/reply-emoji.jpg', description: 'reply emoji photo' }]
+	});
+	await mockThread(page, threadStatus, [reply], [ancestor]);
+	await page.goto('/app/thread/status-1');
+
+	await page.getByTestId('thread-ancestor').locator('.post-photos button').click();
+	let dialog = page.getByRole('dialog', { name: 'Attachment lightbox' });
+	await expect(dialog.locator('.lightbox-name img[alt=":spark:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/spark.png');
+	await dialog.locator('.lightbox-close').click();
+
+	await page.getByTestId('thread-reply').locator('.post-photos button').click();
+	dialog = page.getByRole('dialog', { name: 'Attachment lightbox' });
+	await expect(dialog.locator('.lightbox-name img[alt=":tape:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/tape.png');
 });
 
 test('real thread route renders focused reply addressee chips', async ({ page }) => {

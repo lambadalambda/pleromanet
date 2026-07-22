@@ -54,3 +54,11 @@ Custom emoji do not render correctly in at least some notification content. Audi
 - Lightbox attribution from ancestor and reply openers.
 - Profile contextual names and settings preview.
 - Shortcode-safe truncation boundaries.
+
+## Resolution
+
+- Propagated custom emoji metadata through every defective adapter and compact renderer identified by the audit.
+- Reused the shared rich-text renderer for visible notification, CW, pinned, chat, mention-suggestion, lightbox, and profile text.
+- Made compact excerpt truncation shortcode-safe and reused it for initial and locally updated chat rows.
+- Preserved CW and sensitive-media privacy on anonymous public, notification, reply-preview, and pinned surfaces.
+- Added adapter and browser regressions for each identified gap, including hidden-resource no-request assertions.

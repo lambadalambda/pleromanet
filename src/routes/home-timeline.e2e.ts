@@ -744,7 +744,8 @@ test('home timeline composer autocompletes mentions and custom emoji before post
 			id: 'soft-hertz',
 			username: 'soft.hertz',
 			acct: 'soft.hertz@kolektiva.social',
-			display_name: 'soft.hertz ✦'
+			display_name: 'soft.hertz ✦ :spark:',
+			emojis: [{ shortcode: 'spark', url: 'https://cdn.example/emoji/spark.png', static_url: 'https://cdn.example/emoji/spark-static.png' }]
 		}]);
 	});
 	await page.route(customEmojisUrl, async (route) => {
@@ -765,10 +766,11 @@ test('home timeline composer autocompletes mentions and custom emoji before post
 	await expect(page.getByRole('listbox', { name: 'Mention suggestions' })).toBeVisible();
 	await expect(page.getByRole('option', { name: /soft.hertz/ })).toBeVisible();
 	await expect(page.getByRole('option', { name: /soft.hertz.*Tab/ })).toBeVisible();
-	await expect(page.locator('img[alt="soft.hertz ✦ avatar"]').first()).toHaveAttribute('src', 'https://pleroma.example/avatar.png');
+	await expect(page.getByRole('listbox', { name: 'Mention suggestions' }).locator('.me-row-name img[alt=":spark:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/spark.png');
+	await expect(page.locator('img[alt="soft.hertz ✦ :spark: avatar"]').first()).toHaveAttribute('src', 'https://pleroma.example/avatar.png');
 	await composer.press('Enter');
 	await expect(composer).toContainText('@soft.hertz');
-	await expect(composer.locator('.me-pill img[alt="soft.hertz ✦ avatar"]')).toHaveAttribute('src', 'https://pleroma.example/avatar.png');
+	await expect(composer.locator('.me-pill img[alt="soft.hertz ✦ :spark: avatar"]')).toHaveAttribute('src', 'https://pleroma.example/avatar.png');
 
 	await composer.pressSequentially(':bl');
 	await expect(page.getByRole('listbox', { name: 'Emoji suggestions' })).toBeVisible();
@@ -2197,6 +2199,9 @@ test('reply parent previews do not expose content hidden by a content warning', 
 		hiddenEmojiRequests += 1;
 		await route.fulfill({ status: 204 });
 	});
+	await page.route('https://cdn.example/emoji/warning.png', async (route) => {
+		await route.fulfill({ status: 204 });
+	});
 	await page.route('https://cdn.example/media/secret-parent-thumb.jpg', async (route) => {
 		hiddenMediaRequests += 1;
 		await route.fulfill({ status: 204 });
@@ -2221,9 +2226,12 @@ test('reply parent previews do not expose content hidden by a content warning', 
 		await fulfillHome(route, {
 			...statusWithText('parent-cw-status', 'hidden parent body :secret:'),
 			in_reply_to_id: 'unknown-grandparent-status',
-			spoiler_text: 'Discussion of the ending',
+			spoiler_text: 'Discussion :warning: of the ending',
 			media_attachments: [{ id: 'secret-parent-media', type: 'image', url: 'https://cdn.example/media/secret-parent.jpg', preview_url: 'https://cdn.example/media/secret-parent-thumb.jpg', description: 'hidden ending frame' }],
-			emojis: [{ shortcode: 'secret', url: 'https://cdn.example/emoji/secret.png', static_url: 'https://cdn.example/emoji/secret-static.png' }],
+			emojis: [
+				{ shortcode: 'secret', url: 'https://cdn.example/emoji/secret.png', static_url: 'https://cdn.example/emoji/secret-static.png' },
+				{ shortcode: 'warning', url: 'https://cdn.example/emoji/warning.png', static_url: 'https://cdn.example/emoji/warning-static.png' }
+			],
 			account: {
 				...pleromaFixtures.account,
 				id: 'parent-cw-account',
@@ -2245,6 +2253,7 @@ test('reply parent previews do not expose content hidden by a content warning', 
 	await expect(fallbackContext.getByRole('link')).toHaveCount(0);
 	await expect(fallbackContext.locator('.post-pinged-chip-parent')).not.toHaveAttribute('href', /.+/);
 	await expect(preview).toContainText('Content warning: Discussion of the ending');
+	await expect(preview.locator('.reply-preview-cw img[alt=":warning:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/warning.png');
 	await expect(preview.locator('.compact-media-preview img, .compact-media-preview video')).toHaveCount(0);
 	expect(hiddenMediaRequests).toBe(0);
 	await expect(preview).not.toContainText('hidden parent body');

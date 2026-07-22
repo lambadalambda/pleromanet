@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PleromaProfileView } from '$lib/pleroma/ui';
 	import RelativeTime from './RelativeTime.svelte';
+	import RichText from './RichText.svelte';
 	import type { ProfilePost } from './profile';
 
 	type Props = {
@@ -61,7 +62,13 @@
 				{#each pinned.slice(1) as post (post.id)}
 					<div class="pp-mini-post">
 						<div class="pp-mini-post-time">Pinned · <RelativeTime createdAt={post.createdAt} fallback={post.time} /></div>
-						<div class="pp-mini-post-body">{post.body}</div>
+						<div class="pp-mini-post-body">
+							{#if post.cw}
+								Content warning: <RichText text={post.cw} emojis={post.bodyEmojis} linkMentions={false} />
+							{:else}
+								<RichText text={post.body} emojis={post.bodyEmojis} linkMentions={false} />
+							{/if}
+						</div>
 					</div>
 				{/each}
 			</div>

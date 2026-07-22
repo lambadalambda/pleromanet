@@ -1,10 +1,12 @@
 import type { PleromaMediaAttachment } from '$lib/pleroma/types';
+import type { CustomEmoji } from '$lib/social/types';
 
 export type ComposerMentionAccount = {
 	id: string;
 	username: string;
 	displayName: string;
 	acct: string;
+	emojis?: CustomEmoji[];
 	avatarUrl?: string | null;
 	avClass?: string;
 };

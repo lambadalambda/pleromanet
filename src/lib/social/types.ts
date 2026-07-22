@@ -17,6 +17,7 @@ export type SocialNotificationActor = {
 
 export type SocialNotificationPostRef = {
 	excerpt: string;
+	emojis?: CustomEmoji[];
 	tStamp?: string;
 	attachments?: PostAttachment[];
 	mediaHidden?: boolean;

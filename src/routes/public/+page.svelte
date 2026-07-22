@@ -19,6 +19,7 @@
 		actionStatusId?: string;
 		threadStatusId?: string;
 		name: string;
+		nameEmojis?: SocialPost['nameEmojis'];
 		handle: string;
 		time: string;
 		createdAt?: string;
@@ -26,6 +27,7 @@
 		avBanner?: BannerVariant;
 		avatarUrl?: string | null;
 		body: string;
+		bodyEmojis?: SocialPost['bodyEmojis'];
 		mentionAccts?: Record<string, string>;
 		boostedBy?: PostLike['boostedBy'];
 		replies: number;
@@ -52,15 +54,19 @@
 		actionStatusId: post.actionStatusId,
 		threadStatusId: post.threadStatusId,
 		name: post.name,
+		nameEmojis: post.nameEmojis,
 		handle: post.handle,
 		time: post.time,
 		createdAt: post.createdAt,
 		avClass: avatarClass(post.avatar),
 		avatarUrl: post.avatarUrl,
+		cw: post.cw,
 		body: post.body,
+		bodyEmojis: post.bodyEmojis,
 		mentionAccts: post.mentionAccts,
 		media: post.media,
 		attachments: post.attachments,
+		mediaHidden: post.mediaHidden,
 		boostedBy: post.boostedBy ? {
 			name: post.boostedBy.name,
 			nameEmojis: post.boostedBy.nameEmojis,

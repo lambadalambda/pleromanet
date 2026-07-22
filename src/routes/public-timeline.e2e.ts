@@ -56,6 +56,70 @@ test('anonymous public route loads local and federated timelines through the API
 	await expectNoHorizontalOverflow(page);
 });
 
+test('anonymous public route renders account and status custom emoji', async ({ page }) => {
+	const emojiStatus = {
+		...statusWithText('public-custom-emoji', 'public body :blobcat:'),
+		account: {
+			...pleromaFixtures.account,
+			display_name: 'quiet :tux:',
+			emojis: [{ shortcode: 'tux', url: 'https://cdn.example/emoji/tux.png', static_url: 'https://cdn.example/emoji/tux-static.png' }]
+		},
+		emojis: [{ shortcode: 'blobcat', url: 'https://cdn.example/emoji/blobcat.png', static_url: 'https://cdn.example/emoji/blobcat-static.png' }]
+	};
+	await mockPublicTimeline(page, async (route) => fulfillJson(route, [emojiStatus]));
+
+	await page.goto('/public');
+
+	const post = page.locator('[data-status-id="public-custom-emoji"]');
+	await expect(post.locator('.post-name img[alt=":tux:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/tux.png');
+	await expect(post.locator('.post-body img[alt=":blobcat:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/blobcat.png');
+	await expect(post).not.toContainText(':tux:');
+	await expect(post).not.toContainText(':blobcat:');
+});
+
+test('anonymous public route keeps CW bodies and sensitive media concealed', async ({ page }) => {
+	let hiddenEmojiRequests = 0;
+	let hiddenMediaRequests = 0;
+	await page.route('https://cdn.example/emoji/secret.png', async (route) => {
+		hiddenEmojiRequests += 1;
+		await route.fulfill({ status: 204 });
+	});
+	await page.route('https://cdn.example/hidden-*.png', async (route) => {
+		hiddenMediaRequests += 1;
+		await route.fulfill({ status: 204 });
+	});
+	const cwStatus = {
+		...statusWithText('public-cw', 'hidden :secret: body'),
+		spoiler_text: 'public :warning:',
+		emojis: [
+			{ shortcode: 'secret', url: 'https://cdn.example/emoji/secret.png', static_url: 'https://cdn.example/emoji/secret-static.png' },
+			{ shortcode: 'warning', url: 'https://cdn.example/emoji/warning.png', static_url: 'https://cdn.example/emoji/warning-static.png' }
+		],
+		media_attachments: [{ id: 'cw-media', type: 'image', url: 'https://cdn.example/hidden-cw.png', description: 'hidden CW image' }],
+		pleroma: {
+			...pleromaFixtures.status.pleroma,
+			content: { 'text/plain': 'hidden :secret: body' },
+			spoiler_text: { 'text/plain': 'public :warning:' }
+		}
+	};
+	const sensitiveStatus = {
+		...statusWithText('public-sensitive', 'visible sensitive caption'),
+		sensitive: true,
+		media_attachments: [{ id: 'sensitive-media', type: 'image', url: 'https://cdn.example/hidden-sensitive.png', description: 'hidden sensitive image' }]
+	};
+	await mockPublicTimeline(page, async (route) => fulfillJson(route, [cwStatus, sensitiveStatus]));
+
+	await page.goto('/public');
+
+	const cwPost = page.locator('[data-status-id="public-cw"]');
+	await expect(cwPost.locator('.post-cw-summary img[alt=":warning:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/warning.png');
+	await expect(cwPost).not.toContainText('hidden body');
+	await expect(cwPost.locator('img[alt=":secret:"]')).toHaveCount(0);
+	await expect(page.locator('[data-status-id="public-sensitive"] .post-sensitive-media')).toBeVisible();
+	await expect.poll(() => hiddenEmojiRequests).toBe(0);
+	await expect.poll(() => hiddenMediaRequests).toBe(0);
+});
+
 test('public timeline loads a next cursor page and deduplicates overlapping statuses', async ({ page }) => {
 	const requestedMaxIds: Array<string | null> = [];
 	await mockPublicTimeline(page, async (route, url) => {

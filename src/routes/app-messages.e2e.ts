@@ -95,6 +95,24 @@ test('messages route lists chats with unread badges and nav count', async ({ pag
 	await expect(navMessages).toContainText('2');
 });
 
+test('messages route renders custom emoji in compact chat excerpts', async ({ page }) => {
+	await authenticate(page);
+	const emojiChat = chatFixture({
+		last_message: {
+			...chatFixture().last_message,
+			content: 'found it :cassette:',
+			emojis: [{ shortcode: 'cassette', url: 'https://cdn.example/emoji/cassette.png', static_url: 'https://cdn.example/emoji/cassette-static.png' }]
+		}
+	});
+	await page.route('https://pleroma.example/api/v2/pleroma/chats**', async (route: Route) => fulfillJson(route, [emojiChat]));
+
+	await page.goto('/app/messages');
+
+	const excerpt = page.getByTestId('chat-list').locator('.chat-row-excerpt');
+	await expect(excerpt.locator('img[alt=":cassette:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/cassette.png');
+	await expect(excerpt).not.toContainText(':cassette:');
+});
+
 test('messages route shows an empty state', async ({ page }) => {
 	await authenticate(page);
 	await page.route('https://pleroma.example/api/v2/pleroma/chats**', async (route: Route) => fulfillJson(route, []));
@@ -134,17 +152,21 @@ test('sending a chat message posts the content and appends the reply', async ({ 
 	await authenticate(page);
 	await page.route('https://pleroma.example/api/v2/pleroma/chats**', async (route: Route) => fulfillJson(route, [chatFixture({ unread: 0 })]));
 	let sendBody = '';
+	const sentText = `found :cassette: ${'x'.repeat(133)} :edge: ending`;
 	await page.route('https://pleroma.example/api/v1/pleroma/chats/chat-1/messages**', async (route: Route) => {
 		if (route.request().method() === 'POST') {
 			sendBody = route.request().postData() ?? '';
 			await fulfillJson(route, {
 				id: 'msg-3',
-				content: 'found it in the b-side crate',
+				content: sentText,
 				chat_id: 'chat-1',
 				account_id: pleromaFixtures.account.id,
 				created_at: '2026-07-06T09:00:00.000Z',
 				attachment: null,
-				emojis: [],
+				emojis: [
+					{ shortcode: 'cassette', url: 'https://cdn.example/emoji/cassette.png', static_url: 'https://cdn.example/emoji/cassette-static.png' },
+					{ shortcode: 'edge', url: 'https://cdn.example/emoji/edge.png', static_url: 'https://cdn.example/emoji/edge-static.png' }
+				],
 				unread: false
 			});
 			return;
@@ -156,12 +178,16 @@ test('sending a chat message posts the content and appends the reply', async ({ 
 	await page.goto('/app/messages/chat-1');
 
 	const thread = page.getByTestId('chat-thread');
-	await thread.getByRole('textbox', { name: 'Message text' }).fill('found it in the b-side crate');
+	await thread.getByRole('textbox', { name: 'Message text' }).fill(sentText);
 	await thread.getByRole('button', { name: 'Send' }).click();
 
-	await expect(thread.locator('.chat-msg.own').last()).toContainText('found it in the b-side crate');
-	expect(JSON.parse(sendBody)).toMatchObject({ content: 'found it in the b-side crate' });
+	await expect(thread.locator('.chat-msg.own').last().locator('img[alt=":cassette:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/cassette.png');
+	expect(JSON.parse(sendBody)).toMatchObject({ content: sentText });
 	await expect(thread.getByRole('textbox', { name: 'Message text' })).toHaveValue('');
+	await page.getByRole('link', { name: 'Back to conversations' }).click();
+	const excerpt = page.getByTestId('chat-list').locator('.chat-row-excerpt');
+	await expect(excerpt.locator('img[alt=":cassette:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/cassette.png');
+	await expect(excerpt).not.toContainText(':edge');
 });
 
 test('a failed send surfaces the error and keeps the draft', async ({ page }) => {

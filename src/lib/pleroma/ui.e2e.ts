@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, formatRelativeStatusTime, htmlToPlainText, mediaPlaceholderText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit } from './ui';
+import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptPleromaChat, adaptPleromaNotifications, adaptPleromaStatus, adaptPleromaStatuses, formatRelativeStatusTime, htmlToPlainText, mediaPlaceholderText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit } from './ui';
 import { pleromaFixtures } from './fixtures';
 import type { PleromaStatus } from './types';
 
@@ -592,6 +592,44 @@ test('Pleroma notification adapters map known and unknown types with local last-
 		})
 	}]);
 	expect(cwNotification.post?.excerpt).toBe('Content warning: quiet spoiler');
+});
+
+test('compact status excerpts preserve custom emoji metadata without splitting shortcodes', () => {
+	const emoji = {
+		shortcode: 'blobcat',
+		url: 'https://cdn.example/emoji/blobcat.png',
+		static_url: 'https://cdn.example/emoji/blobcat-static.png'
+	};
+	const longText = `${'x'.repeat(150)} :blobcat: after the compact boundary`;
+	const status = withStatus({
+		id: 'emoji-excerpt-status',
+		content: `<p>${longText}</p>`,
+		emojis: [emoji],
+		pleroma: { content: { 'text/plain': longText } }
+	});
+	const [notification] = adaptPleromaNotifications([{
+		...pleromaFixtures.notifications[0],
+		id: 'emoji-excerpt-notification',
+		status
+	}]);
+	const chat = adaptPleromaChat({
+		id: 'emoji-excerpt-chat',
+		account: pleromaFixtures.account,
+		unread: 1,
+		updated_at: '2026-05-18T12:00:00.000Z',
+		last_message: {
+			id: 'emoji-excerpt-message',
+			chat_id: 'emoji-excerpt-chat',
+			account_id: pleromaFixtures.account.id,
+			content: longText,
+			emojis: [emoji]
+		}
+	});
+
+	expect(notification.post?.excerpt).toBe(`${'x'.repeat(150)}...`);
+	expect(notification.post?.emojis).toEqual([{ shortcode: 'blobcat', url: emoji.url, staticUrl: emoji.static_url }]);
+	expect(chat.lastMessage).toBe(`${'x'.repeat(150)}...`);
+	expect(chat.lastMessageEmojis).toEqual([{ shortcode: 'blobcat', url: emoji.url, staticUrl: emoji.static_url }]);
 });
 
 test('Pleroma status list adapter keeps fixture order and covers missing plain-text fallbacks', () => {
