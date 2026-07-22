@@ -273,7 +273,7 @@ test('Pleroma status adapters handle reblogs, remote handles, warnings, and fall
 	expect(post.contentText).toBe('HTML fallback with\nline breaks & entities.');
 	expect(post.media).toBeUndefined();
 	expect(post.attachments).toEqual([
-		{ kind: 'photo', src: 'https://cdn.example/media.png', alt: 'screenshot', filename: 'media.png' }
+		{ kind: 'photo', src: 'https://cdn.example/media.png', previewUrl: 'https://cdn.example/preview.png', alt: 'screenshot', filename: 'media.png' }
 	]);
 	expect(post.mediaHidden).toBe(true);
 	expect(post.boosts).toBe(5);
@@ -328,10 +328,33 @@ test('Pleroma status adapters expose media attachments for shared post rendering
 
 	expect(post.media).toBeUndefined();
 	expect(post.attachments).toEqual([
-		{ kind: 'photo', src: 'https://cdn.example/media/photo.jpg', alt: 'two cats in a window', filename: 'photo.jpg' },
+		{ kind: 'photo', src: 'https://cdn.example/media/photo.jpg', previewUrl: 'https://cdn.example/media/photo-preview.jpg', alt: 'two cats in a window', filename: 'photo.jpg' },
 		{ kind: 'video', src: 'https://cdn.example/media/clip.mp4', posterUrl: 'https://cdn.example/media/clip.jpg', title: 'short clip', caption: 'short clip', duration: '1:23', filename: 'clip.mp4' },
 		{ kind: 'audio', src: 'https://cdn.example/media/field.mp3', title: 'field recording', byline: 'audio', duration: '2:04', filename: 'field.mp3' }
 	]);
+});
+
+test('Pleroma status adapters retain poster-only video previews', () => {
+	const post = adaptPleromaStatus(withStatus({
+		id: 'status-with-poster-only-video',
+		media_attachments: [{
+			id: 'poster-only-video',
+			type: 'video',
+			url: null,
+			preview_url: 'https://cdn.example/media/poster-only.jpg',
+			description: 'poster-only clip'
+		}]
+	}));
+
+	expect(post.attachments).toEqual([{
+		kind: 'video',
+		src: undefined,
+		posterUrl: 'https://cdn.example/media/poster-only.jpg',
+		title: 'poster-only clip',
+		caption: 'poster-only clip',
+		duration: undefined,
+		filename: 'poster-only.jpg'
+	}]);
 });
 
 test('Pleroma status adapters retain sensitive-only media for gated rendering', () => {
@@ -360,6 +383,7 @@ test('Pleroma status adapters retain sensitive-only media for gated rendering', 
 	expect(post.attachments).toEqual([{
 		kind: 'photo',
 		src: 'https://cdn.example/sensitive.jpg',
+		previewUrl: 'https://cdn.example/sensitive-preview.jpg',
 		alt: 'sensitive attachment',
 		filename: 'sensitive.jpg'
 	}]);
@@ -733,13 +757,27 @@ test('media placeholder text summarizes media-only statuses', () => {
 		status: {
 			...pleromaFixtures.status,
 			content: '',
-			media_attachments: [{ id: 'm1', type: 'image', url: 'https://cdn.example/a.png' }],
+			media_attachments: [{ id: 'm1', type: 'image', url: 'https://cdn.example/a.png', preview_url: 'https://cdn.example/a-thumb.png' }],
 			pleroma: { ...pleromaFixtures.status.pleroma, content: { 'text/plain': '' } }
 		},
 		pleroma: {}
 	}]);
 	expect(imageOnly.post?.excerpt).toBe('[image]');
+	expect(imageOnly.post?.mediaOnly).toBe(true);
+	expect(imageOnly.post?.mediaHidden).toBe(false);
+	expect(imageOnly.post?.attachments).toEqual([{ kind: 'photo', src: 'https://cdn.example/a.png', previewUrl: 'https://cdn.example/a-thumb.png', alt: undefined, filename: 'a.png' }]);
 	expect(imageOnly.who[0].emojis).toEqual([]);
+
+	const sourceStatus = { ...pleromaFixtures.status, id: 'notification-source-status' };
+	const [reblogged] = adaptPleromaNotifications([{
+		id: 'notif-reblog-source',
+		type: 'reblog',
+		created_at: '2026-05-18T12:00:00.000Z',
+		account: pleromaFixtures.account,
+		status: { ...pleromaFixtures.status, id: 'notification-wrapper-status', reblog: sourceStatus },
+		pleroma: {}
+	}]);
+	expect(reblogged.target).toEqual({ route: 'thread', statusId: 'notification-source-status' });
 
 	const [empty] = adaptPleromaNotifications([{
 		id: 'notif-empty',

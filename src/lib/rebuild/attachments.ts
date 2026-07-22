@@ -10,6 +10,7 @@ export const isBannerVariant = (value: string | undefined): value is BannerVaria
 export type PhotoAttachment = {
 	kind: 'photo';
 	src: string;
+	previewUrl?: string;
 	alt?: string;
 	cw?: boolean;
 	filename?: string;
@@ -26,6 +27,7 @@ export type VideoAttachment = {
 	caption?: string;
 	start?: number;
 	filename?: string;
+	cw?: boolean;
 };
 
 export type AudioAttachment = {
@@ -37,6 +39,7 @@ export type AudioAttachment = {
 	cover?: string;
 	start?: number;
 	filename?: string;
+	cw?: boolean;
 };
 
 export type PollChoice = {

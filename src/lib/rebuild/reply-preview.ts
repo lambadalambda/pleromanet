@@ -1,4 +1,5 @@
 import type { CustomEmoji } from '$lib/social/types';
+import type { Attachment } from './attachments';
 
 export type ReplyPreview = {
 	name: string;
@@ -11,6 +12,10 @@ export type ReplyPreview = {
 	body: string;
 	bodyEmojis?: CustomEmoji[];
 	cw?: string;
+	attachments?: Attachment[];
+	mediaHidden?: boolean;
+	mediaFallback?: string;
+	mediaFallbackItems?: string[];
 	replyingTo?: string | null;
 };
 

@@ -18,6 +18,11 @@ export type SocialNotificationActor = {
 export type SocialNotificationPostRef = {
 	excerpt: string;
 	tStamp?: string;
+	attachments?: PostAttachment[];
+	mediaHidden?: boolean;
+	mediaOnly?: boolean;
+	mediaFallback?: string;
+	mediaFallbackItems?: string[];
 };
 
 export type SocialNotificationTarget =
@@ -50,6 +55,7 @@ export type CustomEmoji = {
 export type PhotoAttachment = {
 	kind: 'photo';
 	src: string;
+	previewUrl?: string;
 	alt?: string;
 	cw?: boolean;
 	filename?: string;
@@ -66,6 +72,7 @@ export type VideoAttachment = {
 	caption?: string;
 	start?: number;
 	filename?: string;
+	cw?: boolean;
 };
 
 export type AudioAttachment = {
@@ -77,6 +84,7 @@ export type AudioAttachment = {
 	cover?: string;
 	start?: number;
 	filename?: string;
+	cw?: boolean;
 };
 
 export type PollChoice = {

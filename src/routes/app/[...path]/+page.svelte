@@ -66,7 +66,7 @@
 		type PaginatedTimelineState,
 		type PaginatedTimelineSuccess
 	} from '$lib/pleroma/timeline-state';
-	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaChatMessage, adaptPleromaChatMessages, adaptPleromaChats, adaptPleromaPoll, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, mediaPlaceholderText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit, type PleromaAccountView, type PleromaChatMessageView, type PleromaChatView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaProfileSettingsView, type PleromaReactionView, type PleromaReplyAccount, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
+	import { DEFAULT_STATUS_CHARACTER_LIMIT, adaptCustomEmojis, adaptPleromaAccount, adaptPleromaChatMessage, adaptPleromaChatMessages, adaptPleromaChats, adaptPleromaPoll, adaptPleromaNotifications, adaptPleromaProfile, adaptPleromaStatus, adaptPleromaStatuses, htmlToPlainText, mediaPlaceholderText, normalizePleromaRequestError, profileSettingsFromAccount, profileUpdateFromSettings, statusCharacterLimit, statusMediaFallbackItems, statusMediaTypes, type PleromaAccountView, type PleromaChatMessageView, type PleromaChatView, type PleromaNotificationView, type PleromaProfileFollowState, type PleromaProfileSettingsView, type PleromaReactionView, type PleromaReplyAccount, type PleromaRequestErrorView, type PleromaRequestState, type PleromaStatusView } from '$lib/pleroma/ui';
 	import type { BannerVariant, PostLike } from '$lib/rebuild/attachments';
 	import { COMPOSER_MAX_UPLOAD_BYTES, COMPOSER_MAX_UPLOADS, composerPollPayload, composerReplyDraft, customEmojiPack, composerUploadError, composerUploadKind, createComposerPollDraft, getComposerUploadedMediaIds, hasComposerUploadsPending, isComposerUploadType, type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from '$lib/rebuild/composer';
 	import type { IconName } from '$lib/rebuild/icons';
@@ -926,7 +926,9 @@
 		});
 		const request = client.getStatus(statusId)
 			.then((status) => {
-				const post = postForRebuild(adaptPleromaStatus(status));
+				const source = status.reblog ?? status;
+				const adapted = adaptPleromaStatus(status);
+				const post = postForRebuild(adapted);
 				return {
 					name: post.name,
 					nameEmojis: post.nameEmojis,
@@ -938,6 +940,10 @@
 					body: post.body,
 					bodyEmojis: post.bodyEmojis,
 					cw: post.cw,
+					attachments: post.attachments,
+					mediaHidden: post.mediaHidden,
+					mediaFallback: mediaPlaceholderText(statusMediaTypes(source), Boolean(source.poll)),
+					mediaFallbackItems: statusMediaFallbackItems(source),
 					replyingTo: post.inReplyToId ? post.directReplyAccount ?? null : undefined
 				};
 			})
@@ -963,8 +969,9 @@
 	const profilePostForRebuild = (post: PleromaStatusView): ProfilePost => postForRebuild(post);
 	const profileMediaItem = (attachment: PleromaStatusView['mediaAttachments'][number]): ProfileMediaItem | null => {
 		const type = attachment.type.toLowerCase();
-		if (type === 'image' || type === 'photo') return { kind: 'photo', src: attachment.previewUrl ?? attachment.url, alt: attachment.description ?? undefined };
-		if (type === 'video' || type === 'gifv') return { kind: 'video', src: attachment.previewUrl ?? attachment.url, alt: attachment.description ?? undefined, title: attachment.description ?? attachment.filename ?? 'video' };
+		const src = attachment.previewUrl ?? attachment.url;
+		if ((type === 'image' || type === 'photo') && src) return { kind: 'photo', src, alt: attachment.description ?? undefined };
+		if ((type === 'video' || type === 'gifv') && src) return { kind: 'video', src, alt: attachment.description ?? undefined, title: attachment.description ?? attachment.filename ?? 'video' };
 		if (type === 'audio') return { kind: 'audio', title: attachment.description ?? attachment.filename ?? 'audio' };
 		return null;
 	};

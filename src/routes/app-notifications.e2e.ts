@@ -483,6 +483,9 @@ test('notification polling pauses after the session is removed', async ({ page }
 
 test('notification rows render name custom emoji and media-only excerpts', async ({ page }) => {
 	await authenticate(page);
+	await page.route(/^https:\/\/cdn\.example\/only(?:-2)?-thumb\.png$/, async (route) => {
+		await route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64') });
+	});
 	const emojiActor: PleromaAccount = {
 		...accountWithName('account-tux', 'James Randson :tux:', 'james@linux.example'),
 		emojis: [{ shortcode: 'tux', url: 'https://cdn.example/emoji/tux.png', static_url: 'https://cdn.example/emoji/tux.png' }]
@@ -492,7 +495,8 @@ test('notification rows render name custom emoji and media-only excerpts', async
 		content: '',
 		media_attachments: [
 			{ id: 'media-1', type: 'image', url: 'https://cdn.example/only.png', preview_url: 'https://cdn.example/only-thumb.png', description: null },
-			{ id: 'media-2', type: 'image', url: 'https://cdn.example/only-2.png', preview_url: 'https://cdn.example/only-2-thumb.png', description: null }
+			{ id: 'media-2', type: 'image', url: 'https://cdn.example/only-2.png', preview_url: 'https://cdn.example/only-2-thumb.png', description: null },
+			{ id: 'media-document', type: 'unknown', url: 'https://cdn.example/notes.pdf', preview_url: null, description: 'notes document' }
 		]
 	};
 	const videoOnlyStatus: PleromaStatus = {
@@ -500,9 +504,16 @@ test('notification rows render name custom emoji and media-only excerpts', async
 		content: '',
 		media_attachments: [{ id: 'media-3', type: 'video', url: 'https://cdn.example/clip.mp4', description: null }]
 	};
+	const sensitiveStatus: PleromaStatus = {
+		...statusWithText('status-sensitive-image', ''),
+		content: '',
+		sensitive: true,
+		media_attachments: [{ id: 'media-4', type: 'image', url: 'https://cdn.example/sensitive.png', preview_url: 'https://cdn.example/sensitive-thumb.png', description: 'private image' }]
+	};
 	await mockNotifications(page, () => [
 		notification('notif-emoji-fav', 'favourite', emojiActor, '2026-05-18T12:03:00.000Z', imageOnlyStatus),
-		notification('notif-video-boost', 'reblog', boostActor, '2026-05-18T12:02:00.000Z', videoOnlyStatus)
+		notification('notif-video-boost', 'reblog', boostActor, '2026-05-18T12:02:00.000Z', videoOnlyStatus),
+		notification('notif-sensitive-fav', 'favourite', favActor, '2026-05-18T12:01:00.000Z', sensitiveStatus)
 	]);
 	await setViewport(page, 'desktop');
 	await page.goto('/app/notifications');
@@ -512,10 +523,68 @@ test('notification rows render name custom emoji and media-only excerpts', async
 	await expect(list.locator('.notif-names img[alt=":tux:"]').first()).toBeVisible();
 	await expect(list.locator('.notif-names').first()).not.toContainText(':tux:');
 
-	const favRow = list.locator('.notif-row').filter({ hasText: 'favorited your post' });
-	await expect(favRow.locator('.notif-row-quote')).toContainText('[2 images]');
+	const favRow = list.locator('.notif-row').filter({ hasText: 'James Randson' });
+	await expect(favRow.locator('.notif-row-quote')).not.toContainText('[2 images]');
+	await expect(favRow.locator('.compact-media-preview img')).toHaveCount(2);
+	await expect(favRow.locator('.compact-media-preview img').first()).toHaveAttribute('src', 'https://cdn.example/only-thumb.png');
+	await expect(favRow.locator('.compact-media-item').filter({ hasText: '[attachment]' })).toBeVisible();
+	await expect(favRow).toHaveAttribute('aria-describedby', /notification-post/);
+	await expect(favRow).toHaveAccessibleDescription(/Image preview.*attachment/i);
+	await expect(favRow.locator('.compact-media-preview')).toHaveAttribute('role', 'group');
 	const boostRow = list.locator('.notif-row').filter({ hasText: 'boosted your post' });
-	await expect(boostRow.locator('.notif-row-quote')).toContainText('[video]');
+	const videoPreview = boostRow.locator('.compact-media-preview video');
+	await expect(videoPreview).toHaveAttribute('src', 'https://cdn.example/clip.mp4');
+	await expect(videoPreview).toHaveAttribute('preload', 'metadata');
+	expect(await videoPreview.evaluate((video) => {
+		if (!(video instanceof HTMLVideoElement)) throw new Error('Expected a video preview');
+		let currentTime = 0;
+		Object.defineProperty(video, 'duration', { configurable: true, value: 8 });
+		Object.defineProperty(video, 'currentTime', { configurable: true, get: () => currentTime, set: (value: number) => (currentTime = value) });
+		Object.defineProperty(video, 'readyState', { configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA });
+		video.dispatchEvent(new Event('loadedmetadata'));
+		video.dispatchEvent(new Event('seeked'));
+		return { currentTime, ready: video.classList.contains('ready'), autoplay: video.autoplay, paused: video.paused };
+	})).toEqual({ currentTime: 1, ready: true, autoplay: false, paused: true });
+	await expect(boostRow.locator('.compact-media-item-fallback')).toBeHidden();
+	const sensitiveRow = list.locator('.notif-row').filter({ hasText: 'kestrel' });
+	await expect(sensitiveRow.locator('.compact-media-hidden')).toContainText('Sensitive media');
+	await expect(sensitiveRow.locator('img[src*="sensitive"], video[src*="sensitive"]')).toHaveCount(0);
+	await setViewport(page, 'mobile');
+	await expectNoHorizontalOverflow(page);
+});
+
+test('notification video previews defer loading until they approach the viewport', async ({ page }) => {
+	await authenticate(page);
+	let videoRequests = 0;
+	await page.route('https://cdn.example/offscreen-clip.mp4', async (route) => {
+		videoRequests += 1;
+		await route.fulfill({ status: 200, contentType: 'video/mp4', body: '' });
+	});
+	const fillers = Array.from({ length: 18 }, (_, index) => notification(
+		`notif-filler-${index}`,
+		'follow',
+		accountWithName(`filler-${index}`, `filler ${index}`, `filler${index}@example.social`),
+		new Date(Date.UTC(2026, 4, 18, 12, 30 - index)).toISOString()
+	));
+	const offscreenVideo = {
+		...statusWithText('status-offscreen-video', ''),
+		content: '',
+		media_attachments: [{ id: 'offscreen-video', type: 'video', url: 'https://cdn.example/offscreen-clip.mp4', description: 'offscreen clip' }]
+	};
+	await mockNotifications(page, () => [
+		...fillers,
+		notification('notif-offscreen-video', 'reblog', boostActor, '2026-05-18T11:00:00.000Z', offscreenVideo)
+	]);
+	await page.setViewportSize({ width: 900, height: 500 });
+	await page.goto('/app/notifications');
+
+	const video = page.locator('.compact-media-preview video[data-src="https://cdn.example/offscreen-clip.mp4"]');
+	await expect(video).toHaveCount(1);
+	await expect(video).not.toHaveAttribute('src', /.+/);
+	expect(videoRequests).toBe(0);
+	await video.scrollIntoViewIfNeeded();
+	await expect(video).toHaveAttribute('src', 'https://cdn.example/offscreen-clip.mp4');
+	await expect.poll(() => videoRequests).toBe(1);
 });
 
 test('reaction notifications render custom emoji images with alt text', async ({ page }) => {

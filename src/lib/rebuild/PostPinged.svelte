@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getContext, tick } from 'svelte';
 	import Avatar from './Avatar.svelte';
+	import CompactMediaPreview from './CompactMediaPreview.svelte';
 	import PostPingedLine from './PostPinged.svelte';
 	import { profileHref } from './profile-links';
 	import RelativeTime from './RelativeTime.svelte';
@@ -138,7 +139,10 @@
 					{#if preview.cw}
 						<div class="reply-preview-cw">Content warning: {preview.cw}</div>
 					{:else}
-						<div class="reply-preview-body"><RichText text={preview.body || 'Media post'} emojis={preview.bodyEmojis} linkMentions={false} /></div>
+						{#if preview.body}
+							<div class="reply-preview-body"><RichText text={preview.body} emojis={preview.bodyEmojis} linkMentions={false} /></div>
+						{/if}
+						<CompactMediaPreview attachments={preview.attachments} hidden={preview.mediaHidden} fallback={preview.mediaFallback} fallbackItems={preview.mediaFallbackItems} />
 					{/if}
 					{#if preview.replyingTo !== undefined}
 						<PostPingedLine addressees={[preview.replyingTo ?? 'a parent post']} staticMode />

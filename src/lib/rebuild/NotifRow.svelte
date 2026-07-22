@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Avatar from './Avatar.svelte';
+	import CompactMediaPreview from './CompactMediaPreview.svelte';
 	import NotifIcon from './NotifIcon.svelte';
 	import RichText from './RichText.svelte';
 	import { NOTIF_KINDS, type NotificationData } from './notifications';
@@ -13,6 +14,8 @@
 	};
 
 	let { n, dense = false, onOpen, onAccept, onReject }: Props = $props();
+	const componentId = $props.id();
+	const postRefId = `${componentId}-notification-post`;
 	let requestState = $state<'idle' | 'accepting' | 'rejecting' | 'accepted' | 'rejected'>('idle');
 	let requestBusy = $derived(requestState === 'accepting' || requestState === 'rejecting');
 
@@ -59,6 +62,7 @@
 	role={actionable ? 'button' : undefined}
 	tabindex={actionable ? 0 : undefined}
 	aria-label={actionable ? openLabel : undefined}
+	aria-describedby={actionable && n.post ? postRefId : undefined}
 	onclick={openRow}
 	onkeydown={handleKeydown}
 >
@@ -97,9 +101,14 @@
 			</div>
 		{/if}
 		{#if n.post}
-			<div class="notif-row-quote static">
-				<span class="notif-quote-mark">&quot;</span>
-				<span class="notif-quote-t">{n.post.excerpt}</span>
+			<div id={postRefId} class="notif-row-quote static {n.post.mediaOnly ? 'media-only' : ''}">
+				{#if !n.post.mediaOnly}
+					<span class="notif-quote-mark">&quot;</span>
+					<span class="notif-quote-t">{n.post.excerpt}</span>
+				{/if}
+				{#if n.post.attachments?.length || n.post.mediaFallbackItems?.length}
+					<CompactMediaPreview attachments={n.post.attachments} hidden={n.post.mediaHidden} fallback={n.post.mediaFallback} fallbackItems={n.post.mediaFallbackItems} />
+				{/if}
 			</div>
 		{/if}
 		{#if n.bio}

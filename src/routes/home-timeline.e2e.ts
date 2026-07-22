@@ -1959,6 +1959,9 @@ test('home timeline shows reply pill from metadata when the body has no leading 
 
 test('reply context lazily previews and caches the parent post on hover and focus', async ({ page }) => {
 	await authenticate(page);
+	await page.route('https://cdn.example/media/preview-context-thumb.jpg', async (route) => {
+		await route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64') });
+	});
 	await mockHomeTimeline(page, async (route) => {
 		await fulfillHome(route, [
 			{
@@ -1993,6 +1996,7 @@ test('reply context lazily previews and caches the parent post on hover and focu
 				emojis: [{ shortcode: 'tomato', url: 'https://cdn.example/emoji/tomato.png', static_url: 'https://cdn.example/emoji/tomato-static.png' }]
 			},
 			emojis: [{ shortcode: 'blobcat', url: 'https://cdn.example/emoji/blobcat.png', static_url: 'https://cdn.example/emoji/blobcat-static.png' }],
+			media_attachments: [{ id: 'preview-context-image', type: 'image', url: 'https://cdn.example/media/preview-context.jpg', preview_url: 'https://cdn.example/media/preview-context-thumb.jpg', description: 'small context image' }],
 			mentions: [
 				{ id: 'cc-preview-account', url: 'https://side.example/users/cc', username: 'cc', acct: 'cc@side.example' },
 				{ id: 'grandparent-preview-account', url: 'https://retro.social/users/grandparent', username: 'grandparent', acct: 'grandparent@retro.social' }
@@ -2032,11 +2036,16 @@ test('reply context lazily previews and caches the parent post on hover and focu
 	await expect(preview.locator('.reply-preview-body')).toHaveText('the original post lives here');
 	await expect(preview.locator('.reply-preview-body img[alt=":blobcat:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/blobcat.png');
 	await expect(preview.locator('.reply-preview-body')).not.toContainText(':blobcat:');
+	const contextMedia = preview.locator('.compact-media-preview img[alt="small context image"]');
+	await expect(contextMedia).toBeVisible();
 	await expect.poll(() => previewRequests).toBe(1);
 	await expect.poll(async () => preview.evaluate((element) => {
 		const bounds = element.getBoundingClientRect();
 		return bounds.left >= 12 && bounds.right <= window.innerWidth - 12 && bounds.top >= 12 && bounds.bottom <= window.innerHeight - 12;
 	})).toBe(true);
+	await expect.poll(async () => Promise.all([preview.boundingBox(), contextMedia.boundingBox()]).then(([previewBounds, mediaBounds]) => Boolean(
+		previewBounds && mediaBounds && mediaBounds.y >= previewBounds.y && mediaBounds.y + mediaBounds.height <= previewBounds.y + previewBounds.height
+	))).toBe(true);
 
 	await page.getByTestId('app-header').hover();
 	await expect(preview).toHaveCount(0);
@@ -2050,6 +2059,9 @@ test('reply context lazily previews and caches the parent post on hover and focu
 		const bounds = element.getBoundingClientRect();
 		return bounds.left >= 12 && bounds.right <= window.innerWidth - 12 && bounds.top >= 12 && bounds.bottom <= window.innerHeight - 12;
 	})).toBe(true);
+	await expect.poll(async () => Promise.all([preview.boundingBox(), contextMedia.boundingBox()]).then(([previewBounds, mediaBounds]) => Boolean(
+		previewBounds && mediaBounds && mediaBounds.y >= previewBounds.y && mediaBounds.y + mediaBounds.height <= previewBounds.y + previewBounds.height
+	))).toBe(true);
 	await page.keyboard.press('Escape');
 	await expect(preview).toHaveCount(0);
 	await replyContext.locator('.post-pinged-l').click();
@@ -2057,11 +2069,136 @@ test('reply context lazily previews and caches the parent post on hover and focu
 	await expect.poll(() => previewRequests).toBe(1);
 });
 
+test('reply context renders compact media for an image-only parent post', async ({ page }) => {
+	let attachmentCwRequests = 0;
+	await authenticate(page);
+	await page.route('https://cdn.example/media/parent-image-thumb.jpg', async (route) => {
+		await route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64') });
+	});
+	await page.route('https://cdn.example/media/parent-cw-thumb.jpg', async (route) => {
+		attachmentCwRequests += 1;
+		await route.fulfill({ status: 204 });
+	});
+	await page.route(/^https:\/\/cdn\.example\/media\/parent-cw-video(?:-poster\.jpg|\.mp4)$/, async (route) => {
+		attachmentCwRequests += 1;
+		await route.fulfill({ status: 204 });
+	});
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [{
+			...pleromaFixtures.status,
+			id: 'status-image-preview-reply',
+			in_reply_to_id: 'parent-image-preview-status',
+			in_reply_to_account_id: 'parent-image-preview-account',
+			content: '<p>reply beneath an image</p>',
+			pleroma: {
+				...pleromaFixtures.status.pleroma,
+				content: { 'text/plain': 'reply beneath an image' },
+				in_reply_to_account_acct: 'imageparent@pleroma.example'
+			}
+		}]);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/parent-image-preview-status', async (route) => {
+		await fulfillHome(route, {
+			...statusWithText('parent-image-preview-status', ''),
+			content: '',
+			media_attachments: [
+				{
+					id: 'parent-image',
+					type: 'image',
+					url: 'https://cdn.example/media/parent-image.jpg',
+					preview_url: 'https://cdn.example/media/parent-image-thumb.jpg',
+					description: 'a cat watching rain'
+				},
+				{
+					id: 'parent-cw-image',
+					type: 'image',
+					url: 'https://cdn.example/media/parent-cw.jpg',
+					preview_url: 'https://cdn.example/media/parent-cw-thumb.jpg',
+					description: 'attachment-level hidden image',
+					cw: true
+				},
+				{
+					id: 'parent-cw-video',
+					type: 'video',
+					url: 'https://cdn.example/media/parent-cw-video.mp4',
+					preview_url: 'https://cdn.example/media/parent-cw-video-poster.jpg',
+					description: 'attachment-level hidden video',
+					cw: true
+				}
+			]
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await page.locator('[data-status-id="status-image-preview-reply"] .post-pinged-l').hover();
+
+	const preview = page.getByRole('tooltip');
+	await expect(preview).not.toContainText('Media post');
+	await expect(preview.locator('.compact-media-preview img')).toHaveCount(1);
+	await expect(preview.locator('.compact-media-preview img')).toHaveAttribute('src', 'https://cdn.example/media/parent-image-thumb.jpg');
+	await expect(preview.locator('.compact-media-preview img')).toHaveAttribute('alt', 'a cat watching rain');
+	await expect(preview.locator('.compact-media-item').filter({ hasText: 'Content warning media' })).toHaveCount(2);
+	await expect(preview.locator('.compact-media-preview video')).toHaveCount(0);
+	expect(attachmentCwRequests).toBe(0);
+});
+
+test('reply context conceals sensitive parent media', async ({ page }) => {
+	let hiddenMediaRequests = 0;
+	await authenticate(page);
+	await page.route('https://cdn.example/media/sensitive-parent-thumb.jpg', async (route) => {
+		hiddenMediaRequests += 1;
+		await route.fulfill({ status: 204 });
+	});
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [{
+			...pleromaFixtures.status,
+			id: 'status-sensitive-preview-reply',
+			in_reply_to_id: 'parent-sensitive-preview-status',
+			in_reply_to_account_id: 'parent-sensitive-preview-account',
+			content: '<p>reply beneath sensitive media</p>',
+			pleroma: {
+				...pleromaFixtures.status.pleroma,
+				content: { 'text/plain': 'reply beneath sensitive media' },
+				in_reply_to_account_acct: 'sensitiveparent@pleroma.example'
+			}
+		}]);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/parent-sensitive-preview-status', async (route) => {
+		await fulfillHome(route, {
+			...statusWithText('parent-sensitive-preview-status', ''),
+			content: '',
+			sensitive: true,
+			media_attachments: [{
+				id: 'parent-sensitive-image',
+				type: 'image',
+				url: 'https://cdn.example/media/sensitive-parent.jpg',
+				preview_url: 'https://cdn.example/media/sensitive-parent-thumb.jpg',
+				description: 'private parent image'
+			}]
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await page.locator('[data-status-id="status-sensitive-preview-reply"] .post-pinged-l').hover();
+
+	const preview = page.getByRole('tooltip');
+	await expect(preview.locator('.compact-media-hidden')).toContainText('Sensitive media');
+	await expect(preview.locator('.compact-media-preview img, .compact-media-preview video')).toHaveCount(0);
+	expect(hiddenMediaRequests).toBe(0);
+});
+
 test('reply parent previews do not expose content hidden by a content warning', async ({ page }) => {
 	let hiddenEmojiRequests = 0;
+	let hiddenMediaRequests = 0;
 	await authenticate(page);
 	await page.route('https://cdn.example/emoji/secret.png', async (route) => {
 		hiddenEmojiRequests += 1;
+		await route.fulfill({ status: 204 });
+	});
+	await page.route('https://cdn.example/media/secret-parent-thumb.jpg', async (route) => {
+		hiddenMediaRequests += 1;
 		await route.fulfill({ status: 204 });
 	});
 	await mockHomeTimeline(page, async (route) => {
@@ -2085,6 +2222,7 @@ test('reply parent previews do not expose content hidden by a content warning', 
 			...statusWithText('parent-cw-status', 'hidden parent body :secret:'),
 			in_reply_to_id: 'unknown-grandparent-status',
 			spoiler_text: 'Discussion of the ending',
+			media_attachments: [{ id: 'secret-parent-media', type: 'image', url: 'https://cdn.example/media/secret-parent.jpg', preview_url: 'https://cdn.example/media/secret-parent-thumb.jpg', description: 'hidden ending frame' }],
 			emojis: [{ shortcode: 'secret', url: 'https://cdn.example/emoji/secret.png', static_url: 'https://cdn.example/emoji/secret-static.png' }],
 			account: {
 				...pleromaFixtures.account,
@@ -2107,6 +2245,8 @@ test('reply parent previews do not expose content hidden by a content warning', 
 	await expect(fallbackContext.getByRole('link')).toHaveCount(0);
 	await expect(fallbackContext.locator('.post-pinged-chip-parent')).not.toHaveAttribute('href', /.+/);
 	await expect(preview).toContainText('Content warning: Discussion of the ending');
+	await expect(preview.locator('.compact-media-preview img, .compact-media-preview video')).toHaveCount(0);
+	expect(hiddenMediaRequests).toBe(0);
 	await expect(preview).not.toContainText('hidden parent body');
 	await expect(preview.locator('img[alt=":secret:"]')).toHaveCount(0);
 	expect(hiddenEmojiRequests).toBe(0);

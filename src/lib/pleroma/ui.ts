@@ -56,11 +56,12 @@ export type PleromaProfileView = {
 export type PleromaMediaAttachmentView = {
 	id: string;
 	type: string;
-	url: string;
+	url: string | null;
 	previewUrl: string | null;
 	description: string | null;
 	filename: string | null;
 	duration: string | null;
+	cw?: boolean;
 };
 
 export type PleromaReactionView = {
@@ -346,7 +347,7 @@ const notificationKind = (type: string): SocialNotificationKind => {
 };
 
 const notificationTarget = (kind: SocialNotificationKind, notification: PleromaNotification): SocialNotificationData['target'] => {
-	const statusId = notification.status?.id;
+	const statusId = (notification.status?.reblog ?? notification.status)?.id;
 	if ((kind === 'mention' || kind === 'reply' || kind === 'fav' || kind === 'boost' || kind === 'poll' || kind === 'reaction') && statusId) {
 		return { route: 'thread', statusId };
 	}
@@ -386,20 +387,42 @@ export const mediaPlaceholderText = (types: Array<string | undefined>, hasPoll =
 	return normalized.length === 1 ? `[${singular}]` : `[${normalized.length} ${plural}]`;
 };
 
-const statusMediaTypes = (status: PleromaStatus) =>
+export const statusMediaTypes = (status: PleromaStatus) =>
 	(Array.isArray(status.media_attachments) ? status.media_attachments : [])
 		.map((attachment) => (isRecord(attachment) && typeof attachment.type === 'string' ? attachment.type : ''));
 
+export const statusMediaFallbackItems = (status: PleromaStatus) =>
+	(Array.isArray(status.media_attachments) ? status.media_attachments : []).flatMap((attachment) => {
+		if (!isRecord(attachment)) return ['[attachment]'];
+		const type = stringValue(attachment.type)?.toLowerCase() ?? '';
+		const url = stringValue(attachment.url) ?? stringValue(attachment.remote_url);
+		const previewUrl = stringValue(attachment.preview_url) ?? stringValue(attachment.previewUrl);
+		if ((type === 'image' || type === 'photo' || type === 'video' || type === 'gifv') && (url || previewUrl)) return [];
+		if (type === 'audio' && url) return [];
+		return [mediaPlaceholderText([type || undefined])];
+	});
+
 const notificationPostRef = (status: PleromaStatus | null | undefined): SocialNotificationData['post'] => {
 	if (!status) return undefined;
-	const warning = spoilerText(status);
-	const text = compactExcerpt(plainTextContent(status));
+	const source = status.reblog ?? status;
+	const warning = spoilerText(source);
+	const text = compactExcerpt(plainTextContent(source));
+	const attachments = adaptStatusAttachments(source).postAttachments.filter((attachment) => attachment.kind !== 'poll');
+	const mediaFallback = mediaPlaceholderText(statusMediaTypes(source), Boolean(source.poll));
+	const mediaFallbackItems = statusMediaFallbackItems(source);
+	const hasRawMedia = statusMediaTypes(source).length > 0;
+	const mediaHidden = Boolean(warning || source.sensitive);
+	const mediaOnly = !warning && !text && hasRawMedia;
 	const excerpt = warning
 		? `Content warning: ${warning}`
-		: text || mediaPlaceholderText(statusMediaTypes(status), Boolean(status.poll));
+		: text || (source.sensitive && attachments.length > 0 ? 'Sensitive media' : mediaFallback);
 	if (!excerpt) return undefined;
 
-	return { excerpt, tStamp: formatStatusDate(status.created_at) };
+	return {
+		excerpt,
+		tStamp: formatStatusDate(source.created_at),
+		...(hasRawMedia ? { attachments, mediaHidden, mediaOnly, mediaFallback, mediaFallbackItems } : {})
+	};
 };
 
 const positiveIntegerValue = (value: unknown) => {
@@ -453,50 +476,60 @@ const adaptMediaAttachment = (attachment: unknown, index: number): PleromaMediaA
 	if (!isRecord(attachment)) return null;
 
 	const url = stringValue(attachment.url) ?? stringValue(attachment.remote_url);
-	if (!url) return null;
+	const previewUrl = stringValue(attachment.preview_url) ?? stringValue(attachment.previewUrl);
+	if (!url && !previewUrl) return null;
+	const filenameUrl = url ?? previewUrl;
 
 	return {
 		id: stringValue(attachment.id) ?? `media-${index + 1}`,
 		type: stringValue(attachment.type) ?? 'unknown',
 		url,
-		previewUrl: stringValue(attachment.preview_url) ?? stringValue(attachment.previewUrl),
+		previewUrl,
 		description: stringValue(attachment.description),
-		filename: filenameFromUrl(url),
-		duration: mediaDuration(attachment)
+		filename: filenameUrl ? filenameFromUrl(filenameUrl) : null,
+		duration: mediaDuration(attachment),
+		...(booleanValue(attachment.cw) === true ? { cw: true } : {})
 	};
 };
 
 const adaptPostAttachment = (attachment: PleromaMediaAttachmentView): PostAttachment | null => {
 	const type = attachment.type.toLowerCase();
 	if (type === 'image' || type === 'photo') {
+		const src = attachment.url ?? attachment.previewUrl;
+		if (!src) return null;
 		return {
 			kind: 'photo',
-			src: attachment.url,
+			src,
+			...(attachment.previewUrl ? { previewUrl: attachment.previewUrl } : {}),
 			alt: attachment.description ?? undefined,
-			filename: attachment.filename ?? undefined
+			filename: attachment.filename ?? undefined,
+			...(attachment.cw ? { cw: true } : {})
 		};
 	}
 
 	if (type === 'video' || type === 'gifv') {
 		return {
 			kind: 'video',
-			src: attachment.url,
+			src: attachment.url ?? undefined,
 			posterUrl: attachment.previewUrl ?? undefined,
 			title: attachment.description ?? attachment.filename ?? 'video',
 			caption: attachment.description ?? undefined,
 			duration: attachment.duration ?? undefined,
-			filename: attachment.filename ?? undefined
+			filename: attachment.filename ?? undefined,
+			...(attachment.cw ? { cw: true } : {})
 		};
 	}
 
 	if (type === 'audio') {
+		if (!attachment.url) return null;
 		return {
 			kind: 'audio',
 			src: attachment.url,
 			title: attachment.description ?? attachment.filename ?? 'audio',
 			byline: 'audio',
 			duration: attachment.duration ?? undefined,
-			filename: attachment.filename ?? undefined
+			filename: attachment.filename ?? undefined,
+			...(attachment.cw ? { cw: true } : {})
 		};
 	}
 
