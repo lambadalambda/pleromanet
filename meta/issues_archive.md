@@ -92,3 +92,4 @@
 - [x] [92 Remove the double seam at thread endings](issues/92-remove-the-double-seam-at-thread-endings.md)
 - [x] [93 Stabilize stale-thread navigation coverage](issues/93-stabilize-stale-thread-navigation-coverage.md)
 - [x] [94 Render custom emoji in reply previews](issues/94-render-custom-emoji-in-reply-previews.md)
+- [x] [95 Reliably catch up timeline streams](issues/95-reliably-catch-up-timeline-streams.md)

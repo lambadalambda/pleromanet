@@ -133,8 +133,9 @@ const emitStreamUpdate = async (page: Page, status: unknown) => {
 	await page.evaluate((nextStatus) => {
 		type MockSocket = { onmessage: ((event: { data: string }) => void) | null };
 		const testWindow = window as typeof window & { __pleromanetSockets?: MockSocket[] };
-		const socket = testWindow.__pleromanetSockets?.at(-1);
-		socket?.onmessage?.({ data: JSON.stringify({ event: 'update', payload: JSON.stringify(nextStatus) }) });
+		for (const socket of testWindow.__pleromanetSockets ?? []) {
+			socket.onmessage?.({ data: JSON.stringify({ event: 'update', payload: JSON.stringify(nextStatus) }) });
+		}
 	}, status);
 };
 
@@ -3062,6 +3063,7 @@ test('home timeline fallback backfills gaps behind streamed posts', async ({ pag
 
 		if (sinceId === 'status-1') {
 			await fulfillHome(route, [
+				statusWithText('status-4', 'missed newest post'),
 				statusWithText('status-3', 'streamed newest post'),
 				statusWithText('status-2', 'missed gap post')
 			]);
@@ -3083,9 +3085,273 @@ test('home timeline fallback backfills gaps behind streamed posts', async ({ pag
 
 	await page.getByRole('button', { name: /\d+ new posts/ }).click();
 	await expect(list).toContainText('streamed newest post');
+	await expect(list).toContainText('missed newest post');
 	await expect(list).toContainText('missed gap post');
+	const renderedStatusIds = await page.locator('[data-status-id]').evaluateAll((nodes) => nodes.slice(0, 4).map((node) => node.getAttribute('data-status-id')));
+	expect(renderedStatusIds).toEqual(['status-4', 'status-3', 'status-2', 'status-1']);
+});
+
+test('home timeline fallback retrieves every newer page before advancing its watermark', async ({ page }) => {
+	await authenticate(page);
+	const requestedCursors: Array<{ sinceId: string | null; maxId: string | null }> = [];
+	await mockHomeTimeline(page, async (route) => {
+		const url = new URL(route.request().url());
+		const cursor = { sinceId: url.searchParams.get('since_id'), maxId: url.searchParams.get('max_id') };
+		requestedCursors.push(cursor);
+
+		if (cursor.sinceId === 'status-1' && cursor.maxId === 'status-4') {
+			await fulfillHome(route, [
+				statusWithText('status-3', 'second catch-up page newest'),
+				statusWithText('status-2', 'second catch-up page oldest')
+			]);
+			return;
+		}
+		if (cursor.sinceId === 'status-1') {
+			await fulfillHome(route, [
+				statusWithText('status-5', 'first catch-up page newest'),
+				statusWithText('status-4', 'first catch-up page oldest')
+			], 200, {
+				link: '<https://pleroma.example/api/v1/timelines/home?max_id=status-4>; rel="next"'
+			});
+			return;
+		}
+
+		await fulfillHome(route, [statusWithText('status-1', 'multi-page baseline')]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await expect(page.getByTestId('home-timeline-list')).toContainText('multi-page baseline');
+	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
+	await expect.poll(() => requestedCursors).toEqual([
+		{ sinceId: null, maxId: null },
+		{ sinceId: 'status-1', maxId: null },
+		{ sinceId: 'status-1', maxId: 'status-4' }
+	]);
+
+	await page.getByRole('button', { name: '4 new posts' }).click();
+	const renderedStatusIds = await page.locator('[data-status-id]').evaluateAll((nodes) => nodes.slice(0, 5).map((node) => node.getAttribute('data-status-id')));
+	expect(renderedStatusIds).toEqual(['status-5', 'status-4', 'status-3', 'status-2', 'status-1']);
+});
+
+test('empty home timeline catches up through REST after a stream failure', async ({ page }) => {
+	await authenticate(page);
+	let requests = 0;
+	await mockHomeTimeline(page, async (route) => {
+		requests += 1;
+		await fulfillHome(route, requests === 1 ? [] : [statusWithText('status-empty-recovery', 'post missed while empty')]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await expect(page.getByText('No posts yet')).toBeVisible();
+	await emitStreamError(page);
+
+	await expect.poll(() => requests).toBe(2);
+	await page.getByRole('button', { name: '1 new posts' }).click();
+	await expect(page.getByTestId('home-timeline-list')).toContainText('post missed while empty');
+});
+
+test('empty home catch-up keeps concurrent stream order and older-page cursor', async ({ page }) => {
+	await authenticate(page);
+	let releaseCatchUp: () => void = () => undefined;
+	let markCatchUpStarted: () => void = () => undefined;
+	const catchUpStarted = new Promise<void>((resolve) => {
+		markCatchUpStarted = resolve;
+	});
+	const catchUpPending = new Promise<void>((resolve) => {
+		releaseCatchUp = resolve;
+	});
+	const requestedMaxIds: Array<string | null> = [];
+	let requests = 0;
+	await mockHomeTimeline(page, async (route) => {
+		requests += 1;
+		const maxId = new URL(route.request().url()).searchParams.get('max_id');
+		requestedMaxIds.push(maxId);
+		if (maxId === 'status-empty-gap') {
+			await fulfillHome(route, [statusWithText('status-empty-older', 'older post after empty catch-up')]);
+			return;
+		}
+		if (requests === 1) {
+			await fulfillHome(route, []);
+			return;
+		}
+		markCatchUpStarted();
+		await catchUpPending;
+		await fulfillHome(route, [statusWithText('status-empty-gap', 'REST post missed while empty')], 200, {
+			link: '<https://pleroma.example/api/v1/timelines/home?max_id=status-empty-gap>; rel="next"'
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await expect(page.getByText('No posts yet')).toBeVisible();
+	await expect.poll(() => page.evaluate(() => ((window as typeof window & { __pleromanetSockets?: unknown[] }).__pleromanetSockets ?? []).length)).toBeGreaterThanOrEqual(1);
+	await page.getByRole('button', { name: 'Timeline settings' }).click();
+	await page.getByRole('switch', { name: 'Automatically add new posts at the top' }).click();
+	await page.keyboard.press('Escape');
+	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
+	await catchUpStarted;
+	await emitStreamUpdate(page, statusWithText('status-empty-stream', 'newer streamed post during catch-up'));
+	await expect(page.getByRole('button', { name: '1 new posts' })).toBeVisible();
+	await releaseCatchUp();
+
+	await expect(page.getByTestId('home-timeline-list')).toContainText('REST post missed while empty');
+	const renderedStatusIds = await page.locator('[data-status-id]').evaluateAll((nodes) => nodes.slice(0, 2).map((node) => node.getAttribute('data-status-id')));
+	expect(renderedStatusIds).toEqual(['status-empty-stream', 'status-empty-gap']);
+	await expect(page.getByRole('button', { name: /new posts/ })).toHaveCount(0);
+	await page.getByRole('button', { name: 'Load more' }).click();
+	await expect(page.getByTestId('home-timeline-list')).toContainText('older post after empty catch-up');
+	expect(requestedMaxIds).toEqual([null, null, 'status-empty-gap']);
+});
+
+test('composing a home post does not skip unseen posts during catch-up', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	const requestedSinceIds: Array<string | null> = [];
+	await mockHomeTimeline(page, async (route) => {
+		const sinceId = new URL(route.request().url()).searchParams.get('since_id');
+		requestedSinceIds.push(sinceId);
+		if (sinceId === 'status-1') {
+			await fulfillHome(route, [
+				statusWithText('status-4', 'newer unseen post after composition'),
+				statusWithText('status-3', 'own composed post'),
+				statusWithText('status-2', 'unseen post before composition')
+			]);
+			return;
+		}
+		await fulfillHome(route, sinceId ? [] : [statusWithText('status-1', 'composer watermark baseline')]);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		await fulfillHome(route, statusWithText('status-3', 'own composed post'));
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await page.getByRole('textbox', { name: 'Post text' }).fill('own composed post');
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+	await expect(page.locator('[data-status-id="status-3"]')).toBeVisible();
+	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
+
+	await expect.poll(() => requestedSinceIds).toEqual([null, 'status-1']);
+	await expect(page.getByTestId('home-timeline-list')).toContainText('unseen post before composition');
+	let renderedStatusIds = await page.locator('[data-status-id]').evaluateAll((nodes) => nodes.slice(0, 3).map((node) => node.getAttribute('data-status-id')));
+	expect(renderedStatusIds).toEqual(['status-3', 'status-2', 'status-1']);
+	await page.getByRole('button', { name: '1 new posts' }).click();
+	renderedStatusIds = await page.locator('[data-status-id]').evaluateAll((nodes) => nodes.slice(0, 4).map((node) => node.getAttribute('data-status-id')));
+	expect(renderedStatusIds).toEqual(['status-4', 'status-3', 'status-2', 'status-1']);
+});
+
+test('home catch-up keeps a composed post omitted by REST ahead of older gaps', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	let catchUpRequests = 0;
+	await mockHomeTimeline(page, async (route) => {
+		const sinceId = new URL(route.request().url()).searchParams.get('since_id');
+		if (sinceId === 'status-1') {
+			catchUpRequests += 1;
+			await fulfillHome(route, [statusWithText('status-2', 'older gap omitted before local post')]);
+			return;
+		}
+		await fulfillHome(route, [statusWithText('status-1', 'no-overlap composer baseline')]);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		await fulfillHome(route, statusWithText('status-3', 'local post omitted from catch-up'));
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await page.getByRole('textbox', { name: 'Post text' }).fill('local post omitted from catch-up');
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
+
+	await expect.poll(() => catchUpRequests).toBe(1);
+	await expect(page.getByTestId('home-timeline-list')).toContainText('older gap omitted before local post');
 	const renderedStatusIds = await page.locator('[data-status-id]').evaluateAll((nodes) => nodes.slice(0, 3).map((node) => node.getAttribute('data-status-id')));
 	expect(renderedStatusIds).toEqual(['status-3', 'status-2', 'status-1']);
+});
+
+test('home catch-up reconciles streamed posts before automatic insertion', async ({ page }) => {
+	await authenticate(page);
+	let releaseCatchUp: () => void = () => undefined;
+	let markCatchUpStarted: () => void = () => undefined;
+	const catchUpStarted = new Promise<void>((resolve) => {
+		markCatchUpStarted = resolve;
+	});
+	const catchUpPending = new Promise<void>((resolve) => {
+		releaseCatchUp = resolve;
+	});
+	await mockHomeTimeline(page, async (route) => {
+		const sinceId = new URL(route.request().url()).searchParams.get('since_id');
+		if (sinceId === 'status-1') {
+			markCatchUpStarted();
+			await catchUpPending;
+			await fulfillHome(route, [
+				statusWithText('status-4', 'REST newest during automatic catch-up'),
+				statusWithText('status-3', 'REST oldest during automatic catch-up')
+			]);
+			return;
+		}
+		await fulfillHome(route, [statusWithText('status-1', 'automatic catch-up baseline')]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await expect(page.getByTestId('home-timeline-list')).toContainText('automatic catch-up baseline');
+	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
+	await catchUpStarted;
+	await emitStreamUpdate(page, statusWithText('status-5', 'streamed post during automatic catch-up'));
+	await expect(page.getByTestId('home-timeline-list')).not.toContainText('streamed post during automatic catch-up');
+	await expect(page.getByRole('button', { name: '1 new posts' })).toBeVisible();
+	await expect(page.getByRole('button', { name: '1 new posts' })).toBeDisabled();
+	await page.getByRole('button', { name: 'Timeline settings' }).click();
+	await page.getByRole('switch', { name: 'Automatically add new posts at the top' }).click();
+	await page.keyboard.press('Escape');
+	await expect(page.getByTestId('home-timeline-list')).not.toContainText('streamed post during automatic catch-up');
+	await releaseCatchUp();
+
+	await expect(page.getByTestId('home-timeline-list')).toContainText('REST oldest during automatic catch-up');
+	const renderedStatusIds = await page.locator('[data-status-id]').evaluateAll((nodes) => nodes.slice(0, 4).map((node) => node.getAttribute('data-status-id')));
+	expect(renderedStatusIds).toEqual(['status-5', 'status-4', 'status-3', 'status-1']);
+	await expect(page.getByRole('button', { name: /new posts/ })).toHaveCount(0);
+});
+
+test('failed home catch-up releases suppressed automatic stream posts', async ({ page }) => {
+	await authenticate(page);
+	let releaseCatchUp: () => void = () => undefined;
+	let markCatchUpStarted: () => void = () => undefined;
+	const catchUpStarted = new Promise<void>((resolve) => {
+		markCatchUpStarted = resolve;
+	});
+	const catchUpPending = new Promise<void>((resolve) => {
+		releaseCatchUp = resolve;
+	});
+	await mockHomeTimeline(page, async (route) => {
+		const sinceId = new URL(route.request().url()).searchParams.get('since_id');
+		if (sinceId === 'status-1') {
+			markCatchUpStarted();
+			await catchUpPending;
+			await fulfillHome(route, { error: 'temporary catch-up failure' }, 503);
+			return;
+		}
+		await fulfillHome(route, [statusWithText('status-1', 'failed automatic catch-up baseline')]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await expect(page.getByTestId('home-timeline-list')).toContainText('failed automatic catch-up baseline');
+	await page.getByRole('button', { name: 'Timeline settings' }).click();
+	await page.getByRole('switch', { name: 'Automatically add new posts at the top' }).click();
+	await page.keyboard.press('Escape');
+	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
+	await catchUpStarted;
+	await emitStreamUpdate(page, statusWithText('status-2', 'streamed post released after catch-up failure'));
+	await expect(page.getByTestId('home-timeline-list')).not.toContainText('streamed post released after catch-up failure');
+	await expect(page.getByRole('button', { name: '1 new posts' })).toBeDisabled();
+	await releaseCatchUp();
+
+	await expect(page.getByTestId('home-timeline-list')).toContainText('streamed post released after catch-up failure');
+	await expect(page.getByRole('button', { name: /new posts/ })).toHaveCount(0);
 });
 
 test('home timeline keeps loaded posts when the user stream cannot open', async ({ page }) => {

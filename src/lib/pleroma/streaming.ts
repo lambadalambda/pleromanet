@@ -30,6 +30,7 @@ type TimelineStreamOptions = {
 	onOpen?: (event: unknown) => void;
 	onError?: (error: unknown) => void;
 	onClose?: (event: unknown) => void;
+	openTimeoutMs?: number;
 };
 
 const parsePayload = (payload: unknown) => {
@@ -116,7 +117,8 @@ export const openPleromaTimelineStream = ({
 	onNotification,
 	onOpen,
 	onError,
-	onClose
+	onClose,
+	openTimeoutMs
 }: TimelineStreamOptions) => {
 	const SocketImpl = WebSocketImpl ?? globalThis.WebSocket as unknown as WebSocketFactory | undefined;
 	if (!SocketImpl) {
@@ -126,6 +128,8 @@ export const openPleromaTimelineStream = ({
 
 	let socket: WebSocketLike;
 	let closed = false;
+	let opened = false;
+	let openTimer: ReturnType<typeof setTimeout> | null = null;
 	try {
 		socket = new SocketImpl(buildPleromaStreamingUrl({ instanceUrl, accessToken, stream }));
 	} catch (error) {
@@ -133,8 +137,38 @@ export const openPleromaTimelineStream = ({
 		return { close: () => undefined };
 	}
 
+	const clearOpenTimer = () => {
+		if (openTimer === null) return;
+		clearTimeout(openTimer);
+		openTimer = null;
+	};
+	const detachSocket = () => {
+		socket.onopen = null;
+		socket.onmessage = null;
+		socket.onerror = null;
+		socket.onclose = null;
+	};
+	const closeSocket = () => {
+		if (closed) return;
+		closed = true;
+		clearOpenTimer();
+		detachSocket();
+		socket.close();
+	};
+
+	if (openTimeoutMs && openTimeoutMs > 0) {
+		openTimer = setTimeout(() => {
+			if (closed || opened) return;
+			closeSocket();
+			onError?.(new Error('WebSocket connection timed out before opening.'));
+		}, openTimeoutMs);
+	}
+
 	socket.onopen = (event) => {
-		if (!closed) onOpen?.(event);
+		if (closed) return;
+		opened = true;
+		clearOpenTimer();
+		onOpen?.(event);
 	};
 	socket.onmessage = (event) => {
 		if (closed) return;
@@ -152,18 +186,14 @@ export const openPleromaTimelineStream = ({
 		if (!closed) onError?.(event);
 	};
 	socket.onclose = (event) => {
-		if (!closed) onClose?.(event);
+		if (closed) return;
+		closed = true;
+		clearOpenTimer();
+		detachSocket();
+		onClose?.(event);
 	};
 
 	return {
-		close: () => {
-			if (closed) return;
-			closed = true;
-			socket.onopen = null;
-			socket.onmessage = null;
-			socket.onerror = null;
-			socket.onclose = null;
-			socket.close();
-		}
+		close: closeSocket
 	};
 };

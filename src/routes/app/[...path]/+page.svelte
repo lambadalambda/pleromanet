@@ -56,10 +56,12 @@
 	import { NOTIFICATION_POLL_EVENT, NOTIFICATION_POLL_INTERVAL_MS, readNotificationLastSeenAt, writeNotificationLastSeenAt } from '$lib/pleroma/notifications';
 	import { PLEROMA_SESSION_KEY, readPleromaSession, signOutPleroma, writePleromaSession } from '$lib/pleroma/session';
 	import { openPleromaTimelineStream } from '$lib/pleroma/streaming';
+	import { loadTimelineCatchUp } from '$lib/pleroma/timeline-catch-up';
 	import {
 		mergeTimelineItems,
 		prependTimelineItems,
 		queueNewerTimelineItems,
+		reconcileTimelineCatchUp,
 		type PaginatedTimelineBaseState,
 		type PaginatedTimelineState,
 		type PaginatedTimelineSuccess
@@ -188,6 +190,7 @@
 	const HOME_TIMELINE_FALLBACK_INTERVAL_MS = 60_000;
 	const HOME_TIMELINE_STREAM_RECONNECT_MS = HOME_TIMELINE_FALLBACK_INTERVAL_MS;
 	const APP_PUBLIC_TIMELINE_STREAM_RECONNECT_MS = HOME_TIMELINE_FALLBACK_INTERVAL_MS;
+	const TIMELINE_STREAM_OPEN_TIMEOUT_MS = 30_000;
 	const NOTIFICATION_STREAM_RECONNECT_MS = NOTIFICATION_POLL_INTERVAL_MS;
 	const HEADER_SEARCH_DEBOUNCE_MS = 160;
 	const SEARCH_PAGE_DEBOUNCE_MS = 260;
@@ -318,6 +321,7 @@
 	let homeTimelineRequestId = 0;
 	let homeTimelineNewPostsRequestId = 0;
 	let appPublicTimelineRequestId = 0;
+	let appPublicTimelineNewPostsRequestId = 0;
 	let appPublicTimelineActionGenerationId = 0;
 	let threadRequestId = 0;
 	let threadHistoryScroll: { statusId: string; y: number } | null = null;
@@ -350,6 +354,11 @@
 	let loadedSuggestionsKey = '';
 	let loadedComposerCustomEmojiKey = '';
 	let homeTimelineFallbackSinceId: string | null = null;
+	let appPublicTimelineFallbackSinceIds: Record<AppPublicTimelineRoute, string | null> = { local: null, federated: null };
+	let homeTimelineCatchUpKey = $state('');
+	let appPublicTimelineCatchUpKey = $state('');
+	let homeTimelineCatchUpPending = false;
+	let appPublicTimelineCatchUpPending = false;
 	let homeTimelineStreamKey = '';
 	let homeTimelineStreamReadyKey = '';
 	let closeHomeTimelineStream: (() => void) | null = null;
@@ -453,6 +462,8 @@
 	const invalidateHomeTimelineRequests = () => {
 		homeTimelineRequestId += 1;
 		homeTimelineNewPostsRequestId += 1;
+		homeTimelineCatchUpKey = '';
+		homeTimelineCatchUpPending = false;
 		homePostSubmitRequestId += 1;
 		homePostSubmitState = 'idle';
 		homePostSubmitError = null;
@@ -465,6 +476,10 @@
 	};
 	const invalidateAppPublicTimelineRequests = () => {
 		appPublicTimelineRequestId += 1;
+		appPublicTimelineNewPostsRequestId += 1;
+		appPublicTimelineCatchUpKey = '';
+		appPublicTimelineCatchUpPending = false;
+		appPublicTimelineFallbackSinceIds = { local: null, federated: null };
 		appPublicTimelineActionGenerationId += 1;
 		loadedAppPublicTimelineKeys = { local: '', federated: '' };
 		appPublicTimelineStates = { local: { status: 'idle' }, federated: { status: 'idle' } };
@@ -506,6 +521,9 @@
 		const timelineRoute = activeAppPublicTimelineRoute;
 		if (!timelineRoute) return;
 		appPublicTimelineRequestId += 1;
+		appPublicTimelineNewPostsRequestId += 1;
+		appPublicTimelineCatchUpKey = '';
+		appPublicTimelineCatchUpPending = false;
 		appPublicTimelineActionGenerationId += 1;
 		const timelineState = appPublicTimelineStates[timelineRoute];
 		if (timelineState.status === 'loading') {
@@ -2018,7 +2036,6 @@
 
 			upsertAccountCache(accountsFromPleromaStatus(status));
 			const createdPost = adaptPleromaStatus(status, { timelines: ['home'] });
-			homeTimelineFallbackSinceId = String(createdPost.id);
 			if (homeTimelineState.status === 'success') {
 				homeTimelineState = {
 					...homeTimelineState,
@@ -3599,7 +3616,7 @@
 				newerPosts: queueNewerTimelineItems(homeTimelineState.newerPosts, homeTimelineState.data, posts),
 				newPostsStatus: 'idle'
 			};
-			if (autoInsertTimelinePosts && timelineAtTop) showNewHomePosts(false);
+			if (autoInsertTimelinePosts && timelineAtTop && !homeTimelineCatchUpKey) showNewHomePosts(false);
 			return;
 		}
 
@@ -3612,7 +3629,7 @@
 				newerPosts: posts,
 				newPostsStatus: 'idle'
 			};
-			if (autoInsertTimelinePosts && timelineAtTop) showNewHomePosts(false);
+			if (autoInsertTimelinePosts && timelineAtTop && !homeTimelineCatchUpKey) showNewHomePosts(false);
 		}
 	};
 	const scheduleHomeTimelineStreamReconnect = (session: PleromaSession, requestSessionKey: string) => {
@@ -3650,10 +3667,13 @@
 			onUpdate: (status) => queueStreamedHomeStatus(requestSessionKey, status),
 			onNotification: (notification) => applyStreamedNotification(requestSessionKey, notification),
 			onOpen: () => {
-				if (homeTimelineStreamKey === requestSessionKey && isCurrentSessionRequest(requestSessionKey)) homeTimelineStreamReadyKey = requestSessionKey;
+				if (homeTimelineStreamKey !== requestSessionKey || !isCurrentSessionRequest(requestSessionKey)) return;
+				homeTimelineStreamReadyKey = requestSessionKey;
+				void checkHomeTimelineForNewPosts();
 			},
 			onError: () => handleHomeTimelineStreamFailure(session, requestSessionKey),
-			onClose: () => handleHomeTimelineStreamFailure(session, requestSessionKey)
+			onClose: () => handleHomeTimelineStreamFailure(session, requestSessionKey),
+			openTimeoutMs: TIMELINE_STREAM_OPEN_TIMEOUT_MS
 		});
 		if (homeTimelineStreamKey === requestSessionKey) closeHomeTimelineStream = stream.close;
 		else stream.close();
@@ -3673,7 +3693,7 @@
 				...timelineState,
 				newerPosts: queueNewerTimelineItems(timelineState.newerPosts, timelineState.data, posts)
 			};
-			if (autoInsertTimelinePosts && timelineAtTop) showNewAppPublicPosts(false);
+			if (autoInsertTimelinePosts && timelineAtTop && !appPublicTimelineCatchUpKey) showNewAppPublicPosts(false);
 			return;
 		}
 
@@ -3685,7 +3705,7 @@
 				loadMoreStatus: 'idle',
 				newerPosts: posts
 			};
-			if (autoInsertTimelinePosts && timelineAtTop) showNewAppPublicPosts(false);
+			if (autoInsertTimelinePosts && timelineAtTop && !appPublicTimelineCatchUpKey) showNewAppPublicPosts(false);
 		}
 	};
 	const scheduleAppPublicTimelineStreamReconnect = (session: PleromaSession, timelineRoute: AppPublicTimelineRoute, requestSessionKey: string) => {
@@ -3704,6 +3724,7 @@
 		appPublicTimelineStreamKey = '';
 		if (route !== timelineRoute) return;
 
+		void checkAppPublicTimelineForNewPosts(timelineRoute);
 		scheduleAppPublicTimelineStreamReconnect(session, timelineRoute, requestSessionKey);
 	};
 	const connectAppPublicTimelineStreaming = (session: PleromaSession, timelineRoute: AppPublicTimelineRoute) => {
@@ -3720,8 +3741,13 @@
 			accessToken: session.accessToken,
 			stream: appPublicTimelineStreamName(timelineRoute),
 			onUpdate: (status) => queueStreamedAppPublicStatus(requestSessionKey, streamKey, timelineRoute, status),
+			onOpen: () => {
+				if (appPublicTimelineStreamKey !== streamKey || !isCurrentSessionRequest(requestSessionKey)) return;
+				void checkAppPublicTimelineForNewPosts(timelineRoute);
+			},
 			onError: () => handleAppPublicTimelineStreamFailure(session, timelineRoute, requestSessionKey, streamKey),
-			onClose: () => handleAppPublicTimelineStreamFailure(session, timelineRoute, requestSessionKey, streamKey)
+			onClose: () => handleAppPublicTimelineStreamFailure(session, timelineRoute, requestSessionKey, streamKey),
+			openTimeoutMs: TIMELINE_STREAM_OPEN_TIMEOUT_MS
 		});
 		if (appPublicTimelineStreamKey === streamKey) closeAppPublicTimelineStream = stream.close;
 		else stream.close();
@@ -3778,6 +3804,7 @@
 
 			upsertAccountCache(accountsFromPleromaStatuses(timelinePage.items));
 			const posts = adaptPleromaStatuses(timelinePage.items, { timelines: [timelineRoute] });
+			appPublicTimelineFallbackSinceIds[timelineRoute] = posts[0]?.id ?? null;
 			appPublicTimelineStates[timelineRoute] = posts.length > 0
 				? { status: 'success', data: posts, nextCursor: timelinePage.cursors.next, loadMoreStatus: 'idle', newerPosts: [] }
 				: { status: 'empty' };
@@ -4158,14 +4185,24 @@
 	};
 	const checkHomeTimelineForNewPosts = async () => {
 		const session = currentSession;
-		if (!session || homeTimelineState.status !== 'success' || homeTimelineState.newPostsStatus === 'checking') return;
+		if (!session || route !== 'home' || (homeTimelineState.status !== 'success' && homeTimelineState.status !== 'empty')) return;
+		if (homeTimelineCatchUpKey) {
+			homeTimelineCatchUpPending = true;
+			return;
+		}
 
 		const sinceId = homeTimelineFallbackSinceId;
-
+		const baselineIndex = homeTimelineState.status === 'success' && sinceId ? homeTimelineState.data.findIndex((post) => String(post.id) === sinceId) : -1;
+		const startDataIds = new Set(homeTimelineState.status === 'success'
+			? homeTimelineState.data.slice(baselineIndex >= 0 ? baselineIndex : sinceId ? 0 : homeTimelineState.data.length).map((post) => post.id)
+			: []);
+		const startQueuedIds = new Set(homeTimelineState.status === 'success' ? homeTimelineState.newerPosts.map((post) => post.id) : []);
 		const requestSessionKey = sessionKey(session);
+		const catchUpKey = `${requestSessionKey}\n${sinceId ?? ''}`;
 		const requestId = homeTimelineNewPostsRequestId + 1;
 		homeTimelineNewPostsRequestId = requestId;
-		homeTimelineState = { ...homeTimelineState, newPostsStatus: 'checking' };
+		homeTimelineCatchUpKey = catchUpKey;
+		if (homeTimelineState.status === 'success') homeTimelineState = { ...homeTimelineState, newPostsStatus: 'checking' };
 
 		try {
 			const client = createPleromaClient({
@@ -4173,29 +4210,37 @@
 				accessToken: session.accessToken,
 				fetch: window.fetch.bind(window)
 			});
-			const timelinePage = await client.getHomeTimelinePage(sinceId ? { sinceId } : undefined);
-			if (requestId !== homeTimelineNewPostsRequestId || !isCurrentSessionRequest(requestSessionKey) || homeTimelineState.status !== 'success') return;
+			const catchUp = await loadTimelineCatchUp({
+				sinceId,
+				loadPage: (cursor) => client.getHomeTimelinePage(cursor)
+			});
+			if (requestId !== homeTimelineNewPostsRequestId || !isCurrentSessionRequest(requestSessionKey) || route !== 'home') return;
 
-			upsertAccountCache(accountsFromPleromaStatuses(timelinePage.items));
-			const posts = adaptPleromaStatuses(timelinePage.items, { timelines: ['home'] });
-			homeTimelineFallbackSinceId = posts[0]?.id ?? homeTimelineFallbackSinceId;
-			if (!sinceId && homeTimelineState.newerPosts.length === 0) {
+			upsertAccountCache(accountsFromPleromaStatuses(catchUp.items));
+			const posts = adaptPleromaStatuses(catchUp.items, { timelines: ['home'] });
+			homeTimelineFallbackSinceId = catchUp.newestId ?? homeTimelineFallbackSinceId;
+			if (homeTimelineState.status === 'empty') {
+				if (posts.length === 0) return;
+				const reconciled = reconcileTimelineCatchUp([], [], posts, startDataIds, startQueuedIds, autoInsertTimelinePosts && timelineAtTop);
 				homeTimelineState = {
-					...homeTimelineState,
-					data: mergeTimelineItems(posts, homeTimelineState.data),
-					nextCursor: timelinePage.cursors.next,
+					status: 'success',
+					data: reconciled.data,
+					nextCursor: catchUp.nextCursor,
+					loadMoreStatus: 'idle',
+					newerPosts: reconciled.newerPosts,
 					newPostsStatus: 'idle'
 				};
-				return;
+			} else if (homeTimelineState.status === 'success') {
+				const insertImmediately = autoInsertTimelinePosts && timelineAtTop || !sinceId && homeTimelineState.newerPosts.length === 0;
+				const reconciled = reconcileTimelineCatchUp(homeTimelineState.data, homeTimelineState.newerPosts, posts, startDataIds, startQueuedIds, insertImmediately);
+				homeTimelineState = {
+					...homeTimelineState,
+					data: reconciled.data,
+					nextCursor: sinceId ? homeTimelineState.nextCursor : catchUp.nextCursor,
+					newerPosts: reconciled.newerPosts,
+					newPostsStatus: 'idle'
+				};
 			}
-
-			homeTimelineState = {
-				...homeTimelineState,
-				nextCursor: sinceId ? homeTimelineState.nextCursor : timelinePage.cursors.next,
-				newerPosts: queueNewerTimelineItems(homeTimelineState.newerPosts, homeTimelineState.data, posts),
-				newPostsStatus: 'idle'
-			};
-			if (autoInsertTimelinePosts && timelineAtTop) showNewHomePosts(false);
 		} catch (error) {
 			if (requestId !== homeTimelineNewPostsRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
@@ -4208,6 +4253,89 @@
 
 			if (homeTimelineState.status !== 'success') return;
 			homeTimelineState = { ...homeTimelineState, newPostsStatus: 'idle' };
+		} finally {
+			if (requestId === homeTimelineNewPostsRequestId && homeTimelineCatchUpKey === catchUpKey) {
+				homeTimelineCatchUpKey = '';
+				if (homeTimelineCatchUpPending) {
+					homeTimelineCatchUpPending = false;
+					void checkHomeTimelineForNewPosts();
+				} else flushNewTimelinePostsAtTop();
+			}
+		}
+	};
+	const checkAppPublicTimelineForNewPosts = async (timelineRoute: AppPublicTimelineRoute) => {
+		const session = currentSession;
+		const timelineState = appPublicTimelineStates[timelineRoute];
+		if (!session || route !== timelineRoute || (timelineState.status !== 'success' && timelineState.status !== 'empty')) return;
+		if (appPublicTimelineCatchUpKey) {
+			appPublicTimelineCatchUpPending = true;
+			return;
+		}
+
+		const sinceId = appPublicTimelineFallbackSinceIds[timelineRoute];
+		const baselineIndex = timelineState.status === 'success' && sinceId ? timelineState.data.findIndex((post) => String(post.id) === sinceId) : -1;
+		const startDataIds = new Set(timelineState.status === 'success'
+			? timelineState.data.slice(baselineIndex >= 0 ? baselineIndex : sinceId ? 0 : timelineState.data.length).map((post) => post.id)
+			: []);
+		const startQueuedIds = new Set(timelineState.status === 'success' ? timelineState.newerPosts.map((post) => post.id) : []);
+		const requestSessionKey = sessionKey(session);
+		const catchUpKey = `${requestSessionKey}\n${timelineRoute}\n${sinceId ?? ''}`;
+		const requestId = appPublicTimelineNewPostsRequestId + 1;
+		appPublicTimelineNewPostsRequestId = requestId;
+		appPublicTimelineCatchUpKey = catchUpKey;
+
+		try {
+			const client = createPleromaClient({
+				instanceUrl: session.instanceUrl,
+				accessToken: session.accessToken,
+				fetch: window.fetch.bind(window)
+			});
+			const catchUp = await loadTimelineCatchUp({
+				sinceId,
+				loadPage: (cursor) => timelineRoute === 'local' ? client.getLocalTimelinePage(cursor) : client.getFederatedTimelinePage(cursor)
+			});
+			if (requestId !== appPublicTimelineNewPostsRequestId || !isCurrentSessionRequest(requestSessionKey) || route !== timelineRoute) return;
+
+			upsertAccountCache(accountsFromPleromaStatuses(catchUp.items));
+			const posts = adaptPleromaStatuses(catchUp.items, { timelines: [timelineRoute] });
+			appPublicTimelineFallbackSinceIds[timelineRoute] = catchUp.newestId ?? appPublicTimelineFallbackSinceIds[timelineRoute];
+			const currentTimelineState = appPublicTimelineStates[timelineRoute];
+			if (currentTimelineState.status === 'empty') {
+				if (posts.length === 0) return;
+				const reconciled = reconcileTimelineCatchUp([], [], posts, startDataIds, startQueuedIds, autoInsertTimelinePosts && timelineAtTop);
+				appPublicTimelineStates[timelineRoute] = {
+					status: 'success',
+					data: reconciled.data,
+					nextCursor: catchUp.nextCursor,
+					loadMoreStatus: 'idle',
+					newerPosts: reconciled.newerPosts
+				};
+			} else if (currentTimelineState.status === 'success') {
+				const insertImmediately = autoInsertTimelinePosts && timelineAtTop || !sinceId && currentTimelineState.newerPosts.length === 0;
+				const reconciled = reconcileTimelineCatchUp(currentTimelineState.data, currentTimelineState.newerPosts, posts, startDataIds, startQueuedIds, insertImmediately);
+				appPublicTimelineStates[timelineRoute] = {
+					...currentTimelineState,
+					data: reconciled.data,
+					nextCursor: sinceId ? currentTimelineState.nextCursor : catchUp.nextCursor,
+					newerPosts: reconciled.newerPosts
+				};
+			}
+		} catch (error) {
+			if (requestId !== appPublicTimelineNewPostsRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+
+			const normalized = normalizePleromaRequestError(error);
+			if (normalized.reauthRequired) {
+				signOutPleroma(localStorage);
+				redirectToLanding();
+			}
+		} finally {
+			if (requestId === appPublicTimelineNewPostsRequestId && appPublicTimelineCatchUpKey === catchUpKey) {
+				appPublicTimelineCatchUpKey = '';
+				if (appPublicTimelineCatchUpPending) {
+					appPublicTimelineCatchUpPending = false;
+					void checkAppPublicTimelineForNewPosts(timelineRoute);
+				} else flushNewTimelinePostsAtTop();
+			}
 		}
 	};
 	const showNewHomePosts = (scrollToTop = true) => {
@@ -4235,8 +4363,8 @@
 	};
 	const flushNewTimelinePostsAtTop = () => {
 		if (!autoInsertTimelinePosts || !timelineAtTop) return;
-		if (route === 'home') showNewHomePosts(false);
-		else if (route === 'local' || route === 'federated') showNewAppPublicPosts(false);
+		if (route === 'home' && !homeTimelineCatchUpKey) showNewHomePosts(false);
+		else if ((route === 'local' || route === 'federated') && !appPublicTimelineCatchUpKey) showNewAppPublicPosts(false);
 	};
 	onNavigate(({ to, type }) => {
 		if (!to || !stripBasePath(to.url.pathname).startsWith('/app/thread')) {
@@ -4325,8 +4453,9 @@
 		updateTimelineTop();
 		mounted = true;
 
-		const triggerHomeTimelineCheck = () => {
+		const triggerTimelineCheck = () => {
 			if (route === 'home') void checkHomeTimelineForNewPosts();
+			else if (appPublicTimelineRoute) void checkAppPublicTimelineForNewPosts(appPublicTimelineRoute);
 		};
 		const syncStoredSession = (event: StorageEvent) => {
 			if (event.key === PLEROMA_SESSION_KEY || event.key === null) readSessionOrRedirect({ optional: route === 'profile' });
@@ -4357,13 +4486,13 @@
 		const closeMobilePanelsOutsideMobile = (event: MediaQueryListEvent) => {
 			if (!event.matches) closeMobilePanels();
 		};
-		window.addEventListener(HOME_TIMELINE_CHECK_EVENT, triggerHomeTimelineCheck);
+		window.addEventListener(HOME_TIMELINE_CHECK_EVENT, triggerTimelineCheck);
 		window.addEventListener(NOTIFICATION_POLL_EVENT, pollNotifications);
 		window.addEventListener('storage', syncStoredSession);
 		window.addEventListener('scroll', updateTimelineTop, { passive: true });
 		colorSchemeMedia.addEventListener('change', applySystemTheme);
 		mobileNavigationMedia.addEventListener('change', closeMobilePanelsOutsideMobile);
-		const checkInterval = window.setInterval(triggerHomeTimelineCheck, HOME_TIMELINE_FALLBACK_INTERVAL_MS);
+		const checkInterval = window.setInterval(triggerTimelineCheck, HOME_TIMELINE_FALLBACK_INTERVAL_MS);
 		const notificationInterval = window.setInterval(pollNotifications, NOTIFICATION_POLL_INTERVAL_MS);
 
 		return () => {
@@ -4375,7 +4504,7 @@
 			invalidateSearchRequests();
 			invalidateComposerAutocompleteRequests();
 			closeHomeTimelineStreaming();
-			window.removeEventListener(HOME_TIMELINE_CHECK_EVENT, triggerHomeTimelineCheck);
+			window.removeEventListener(HOME_TIMELINE_CHECK_EVENT, triggerTimelineCheck);
 			window.removeEventListener(NOTIFICATION_POLL_EVENT, pollNotifications);
 			window.removeEventListener('storage', syncStoredSession);
 			window.removeEventListener('scroll', updateTimelineTop);
@@ -4807,7 +4936,7 @@
 							<span class="tab-spacer"></span>
 							<div class="timeline-tab-actions" data-testid="timeline-header-actions">
 								{#if homeTimelineState.status === 'success'}
-									<TimelineNewPostsIndicator count={homeTimelineState.newerPosts.length} onActivate={showNewHomePosts} />
+									<TimelineNewPostsIndicator count={homeTimelineState.newerPosts.length} onActivate={showNewHomePosts} disabled={Boolean(homeTimelineCatchUpKey)} />
 								{/if}
 								<TimelineSettings autoInsertAtTop={autoInsertTimelinePosts} onAutoInsertChange={setAutoInsertTimelinePosts} />
 							</div>
@@ -4941,7 +5070,7 @@
 							<span class="tab-spacer"></span>
 							<div class="timeline-tab-actions" data-testid="timeline-header-actions">
 								{#if appPublicTimelineState.status === 'success'}
-									<TimelineNewPostsIndicator count={appPublicTimelineState.newerPosts.length} onActivate={showNewAppPublicPosts} />
+									<TimelineNewPostsIndicator count={appPublicTimelineState.newerPosts.length} onActivate={showNewAppPublicPosts} disabled={Boolean(appPublicTimelineCatchUpKey)} />
 								{/if}
 								<TimelineSettings autoInsertAtTop={autoInsertTimelinePosts} onAutoInsertChange={setAutoInsertTimelinePosts} />
 							</div>

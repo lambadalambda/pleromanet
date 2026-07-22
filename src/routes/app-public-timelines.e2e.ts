@@ -116,6 +116,17 @@ const emitStreamError = async (page: Page, stream: 'public' | 'public:local') =>
 	}, stream);
 };
 
+const emitStreamOpen = async (page: Page, stream: 'public' | 'public:local') => {
+	await page.evaluate((streamName) => {
+		type MockSocket = { url: string; onopen: ((event: Event) => void) | null };
+		const testWindow = window as typeof window & { __pleromanetSockets?: MockSocket[] };
+		const socket = testWindow.__pleromanetSockets
+			?.filter((candidate) => new URL(candidate.url).searchParams.get('stream') === streamName)
+			.at(-1);
+		socket?.onopen?.(new Event('open'));
+	}, stream);
+};
+
 test('authenticated local and federated app timelines load public data through the API client', async ({ page }) => {
 	await authenticate(page);
 	const requests: Array<{ local: string | null; authorization: string | null }> = [];
@@ -225,8 +236,13 @@ test('timeline auto-insert preference applies across local and federated streams
 test('app public timeline reconnects streams after failures', async ({ page }) => {
 	await page.clock.install();
 	await authenticate(page);
-	await mockAppPublicTimeline(page, async (route) => {
-		await fulfillTimeline(route, [statusWithText('status-local-reconnect', 'local reconnect baseline')]);
+	const requestedSinceIds: Array<string | null> = [];
+	await mockAppPublicTimeline(page, async (route, url) => {
+		const sinceId = url.searchParams.get('since_id');
+		requestedSinceIds.push(sinceId);
+		await fulfillTimeline(route, sinceId
+			? [statusWithText('status-local-catch-up', 'local post missed during outage')]
+			: [statusWithText('status-local-reconnect', 'local reconnect baseline')]);
 	});
 
 	await setViewport(page, 'desktop');
@@ -236,9 +252,211 @@ test('app public timeline reconnects streams after failures', async ({ page }) =
 	await expect.poll(async () => (await streamSockets(page, 'public:local')).length).toBe(1);
 	await emitStreamError(page, 'public:local');
 	await expect.poll(async () => (await streamSockets(page, 'public:local'))[0]?.closeCalled).toBe(true);
+	await expect.poll(() => requestedSinceIds).toEqual([null, 'status-local-reconnect']);
+	await page.getByRole('button', { name: '1 new posts' }).click();
+	await expect(page.getByTestId('app-public-timeline-list')).toContainText('local post missed during outage');
 
 	await page.clock.fastForward(60_000);
 	await expect.poll(async () => (await streamSockets(page, 'public:local')).length).toBe(2);
+	await emitStreamOpen(page, 'public:local');
+	await expect.poll(() => requestedSinceIds.length).toBeGreaterThanOrEqual(3);
+	expect(requestedSinceIds.slice(0, 2)).toEqual([null, 'status-local-reconnect']);
+	expect(requestedSinceIds.slice(2).every((sinceId) => sinceId === 'status-local-catch-up')).toBe(true);
+});
+
+test('app public timeline rechecks after reconnect opens during catch-up', async ({ page }) => {
+	await page.clock.install();
+	await authenticate(page);
+	let releaseFirstCatchUp: () => void = () => undefined;
+	let markFirstCatchUpStarted: () => void = () => undefined;
+	const firstCatchUpStarted = new Promise<void>((resolve) => {
+		markFirstCatchUpStarted = resolve;
+	});
+	const firstCatchUpPending = new Promise<void>((resolve) => {
+		releaseFirstCatchUp = resolve;
+	});
+	const requestedSinceIds: Array<string | null> = [];
+	await mockAppPublicTimeline(page, async (route, url) => {
+		const sinceId = url.searchParams.get('since_id');
+		requestedSinceIds.push(sinceId);
+		if (sinceId === 'status-local-race-baseline') {
+			markFirstCatchUpStarted();
+			await firstCatchUpPending;
+			await fulfillTimeline(route, [statusWithText('status-local-race-2', 'post at stream failure')]);
+			return;
+		}
+		if (sinceId === 'status-local-race-2') {
+			await fulfillTimeline(route, [statusWithText('status-local-race-3', 'post before reconnect opened')]);
+			return;
+		}
+		await fulfillTimeline(route, [statusWithText('status-local-race-baseline', 'reconnect race baseline')]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/local');
+	await expect.poll(async () => (await streamSockets(page, 'public:local')).length).toBe(1);
+	await emitStreamError(page, 'public:local');
+	await firstCatchUpStarted;
+	await page.clock.fastForward(60_000);
+	await expect.poll(async () => (await streamSockets(page, 'public:local')).length).toBeGreaterThanOrEqual(2);
+	await emitStreamOpen(page, 'public:local');
+	await releaseFirstCatchUp();
+
+	await expect.poll(() => requestedSinceIds).toEqual([null, 'status-local-race-baseline', 'status-local-race-2']);
+	await page.getByRole('button', { name: '2 new posts' }).click();
+	const list = page.getByTestId('app-public-timeline-list');
+	await expect(list).toContainText('post at stream failure');
+	await expect(list).toContainText('post before reconnect opened');
+	const renderedStatusIds = await page.locator('[data-status-id]').evaluateAll((nodes) => nodes.slice(0, 3).map((node) => node.getAttribute('data-status-id')));
+	expect(renderedStatusIds).toEqual(['status-local-race-3', 'status-local-race-2', 'status-local-race-baseline']);
+});
+
+test('app public timeline retries a failed catch-up while the stream remains open', async ({ page }) => {
+	await page.clock.install();
+	await authenticate(page);
+	let catchUpAttempts = 0;
+	await mockAppPublicTimeline(page, async (route, url) => {
+		const sinceId = url.searchParams.get('since_id');
+		if (sinceId) {
+			catchUpAttempts += 1;
+			if (catchUpAttempts === 1) {
+				await fulfillTimeline(route, { error: 'temporary outage' }, 503);
+				return;
+			}
+			await fulfillTimeline(route, [statusWithText('status-local-retry-catch-up', 'post recovered after catch-up retry')]);
+			return;
+		}
+		await fulfillTimeline(route, [statusWithText('status-local-retry-baseline', 'catch-up retry baseline')]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/local');
+	await expect(page.getByTestId('app-public-timeline-list')).toContainText('catch-up retry baseline');
+	await expect.poll(async () => (await streamSockets(page, 'public:local')).length).toBe(1);
+	await emitStreamError(page, 'public:local');
+	await expect.poll(() => catchUpAttempts).toBe(1);
+	await page.clock.fastForward(60_000);
+
+	await expect.poll(() => catchUpAttempts).toBeGreaterThanOrEqual(2);
+	await page.getByRole('button', { name: '1 new posts' }).click();
+	await expect(page.getByTestId('app-public-timeline-list')).toContainText('post recovered after catch-up retry');
+});
+
+test('app public timeline replaces a stream that never opens', async ({ page }) => {
+	await page.clock.install();
+	await authenticate(page);
+	await mockAppPublicTimeline(page, async (route) => {
+		await fulfillTimeline(route, [statusWithText('status-local-stalled', 'local stalled baseline')]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/local');
+	await expect.poll(async () => (await streamSockets(page, 'public:local')).length).toBe(1);
+
+	await page.clock.fastForward(30_000);
+	await expect.poll(async () => (await streamSockets(page, 'public:local'))[0]?.closeCalled).toBe(true);
+	await page.clock.fastForward(60_000);
+	await expect.poll(async () => (await streamSockets(page, 'public:local')).length).toBe(2);
+});
+
+test('app public timeline catches up after returning to a retained route', async ({ page }) => {
+	await authenticate(page);
+	const localSinceIds: Array<string | null> = [];
+	await mockAppPublicTimeline(page, async (route, url) => {
+		const isLocal = url.searchParams.get('local') === 'true';
+		const sinceId = url.searchParams.get('since_id');
+		if (isLocal) localSinceIds.push(sinceId);
+		if (isLocal && sinceId) {
+			await fulfillTimeline(route, [statusWithText('status-local-returned', 'local post missed on another route')]);
+			return;
+		}
+		await fulfillTimeline(route, [isLocal
+			? statusWithText('status-local-retained', 'local retained baseline')
+			: statusWithText('status-federated-away', 'federated route baseline')]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/local');
+	await expect(page.getByTestId('app-public-timeline-list')).toContainText('local retained baseline');
+	await page.getByRole('tab', { name: 'Federated' }).click();
+	await expect(page.getByTestId('app-public-timeline-list')).toContainText('federated route baseline');
+	await page.goBack();
+	await emitStreamOpen(page, 'public:local');
+
+	await expect.poll(() => localSinceIds).toEqual([null, 'status-local-retained']);
+	await page.getByRole('button', { name: '1 new posts' }).click();
+	await expect(page.getByTestId('app-public-timeline-list')).toContainText('local post missed on another route');
+});
+
+test('stale local catch-up cannot consume a federated reconnect recheck', async ({ page }) => {
+	await authenticate(page);
+	let releaseLocalCatchUp: () => void = () => undefined;
+	let markLocalCatchUpStarted: () => void = () => undefined;
+	let releaseFederatedCatchUp: () => void = () => undefined;
+	let markFederatedCatchUpStarted: () => void = () => undefined;
+	const localCatchUpStarted = new Promise<void>((resolve) => {
+		markLocalCatchUpStarted = resolve;
+	});
+	const localCatchUpPending = new Promise<void>((resolve) => {
+		releaseLocalCatchUp = resolve;
+	});
+	const federatedCatchUpStarted = new Promise<void>((resolve) => {
+		markFederatedCatchUpStarted = resolve;
+	});
+	const federatedCatchUpPending = new Promise<void>((resolve) => {
+		releaseFederatedCatchUp = resolve;
+	});
+	const federatedSinceIds: Array<string | null> = [];
+	await mockAppPublicTimeline(page, async (route, url) => {
+		const isLocal = url.searchParams.get('local') === 'true';
+		const sinceId = url.searchParams.get('since_id');
+		if (isLocal && sinceId) {
+			markLocalCatchUpStarted();
+			await localCatchUpPending;
+			await fulfillTimeline(route, [statusWithText('status-stale-local', 'stale local catch-up result')]);
+			return;
+		}
+		if (!isLocal) federatedSinceIds.push(sinceId);
+		if (sinceId === 'status-federated-race-baseline') {
+			markFederatedCatchUpStarted();
+			await federatedCatchUpPending;
+			await fulfillTimeline(route, [statusWithText('status-federated-race-2', 'federated first recovery')]);
+			return;
+		}
+		if (sinceId === 'status-federated-race-2') {
+			await fulfillTimeline(route, [statusWithText('status-federated-race-3', 'federated reconnect recovery')]);
+			return;
+		}
+		await fulfillTimeline(route, [isLocal
+			? statusWithText('status-local-race-route', 'local route race baseline')
+			: statusWithText('status-federated-race-baseline', 'federated route race baseline')]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/local');
+	await expect(page.getByTestId('app-public-timeline-list')).toContainText('local route race baseline');
+	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
+	await localCatchUpStarted;
+	await page.getByRole('tab', { name: 'Federated' }).click();
+	await expect(page.getByTestId('app-public-timeline-list')).toContainText('federated route race baseline');
+	await page.evaluate(() => window.dispatchEvent(new Event('pleromanet:check-home-timeline')));
+	await federatedCatchUpStarted;
+	await emitStreamOpen(page, 'public');
+	const staleLocalResponsePromise = page.waitForResponse((response) => {
+		const url = new URL(response.url());
+		return url.pathname === '/api/v1/timelines/public' && url.searchParams.get('local') === 'true' && Boolean(url.searchParams.get('since_id'));
+	});
+	await releaseLocalCatchUp();
+	const staleLocalResponse = await staleLocalResponsePromise;
+	await staleLocalResponse.finished();
+	await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+	await releaseFederatedCatchUp();
+
+	await expect.poll(() => federatedSinceIds).toEqual([null, 'status-federated-race-baseline', 'status-federated-race-2']);
+	await page.getByRole('button', { name: '2 new posts' }).click();
+	const list = page.getByTestId('app-public-timeline-list');
+	await expect(list).toContainText('federated first recovery');
+	await expect(list).toContainText('federated reconnect recovery');
 });
 
 test('app public timeline new-post header action fits mobile', async ({ page }) => {

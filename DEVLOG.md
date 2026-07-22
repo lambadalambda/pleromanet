@@ -1,5 +1,9 @@
 # Devlog
 
+## 2026-07-22
+
+- Home, local, and federated streams now reconnect stalled sockets and page through REST catch-up from stable watermarks after failures, successful reconnects, and retained-route returns without skipping, duplicating, or reordering concurrent posts.
+
 ## 2026-07-21
 
 - GitHub Actions now gates Pages deployment on type checks, the complete mocked Playwright suite, and the dockerized Pleroma integration suite, with failure diagnostics retained as artifacts.

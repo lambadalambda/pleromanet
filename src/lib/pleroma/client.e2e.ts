@@ -244,7 +244,7 @@ test('Pleroma streaming helpers build WebSocket URLs and parse user stream event
 	expect(parsePleromaStreamingMessage('not json')).toBeNull();
 });
 
-test('Pleroma streaming lifecycle handles unavailable and closed sockets', () => {
+test('Pleroma streaming lifecycle handles unavailable and closed sockets', async () => {
 	const originalWebSocket = globalThis.WebSocket;
 	try {
 		let unavailableError: unknown;
@@ -335,7 +335,7 @@ test('Pleroma streaming lifecycle handles unavailable and closed sockets', () =>
 		const retainedClose = socket.onclose;
 		stream.close();
 		stream.close();
-		expect(socket.closeCount).toBe(1);
+		expect(socket.closeCount).toBe(0);
 		expect(socket.onmessage).toBeNull();
 		expect(socket.onopen).toBeNull();
 		expect(socket.onerror).toBeNull();
@@ -347,6 +347,23 @@ test('Pleroma streaming lifecycle handles unavailable and closed sockets', () =>
 		expect(updates).toEqual(['status-open']);
 		expect(errorCount).toBe(1);
 		expect(closeCount).toBe(1);
+
+		let closeBeforeOpenCount = 0;
+		let timeoutAfterCloseCount = 0;
+		openPleromaTimelineStream({
+			instanceUrl: 'https://pleroma.example',
+			accessToken: 'access-token',
+			WebSocketImpl: SocketImpl,
+			openTimeoutMs: 5,
+			onClose: () => (closeBeforeOpenCount += 1),
+			onError: () => (timeoutAfterCloseCount += 1)
+		});
+		const closingSocket = sockets[1];
+		closingSocket.onclose?.(new Event('close'));
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		expect(closeBeforeOpenCount).toBe(1);
+		expect(timeoutAfterCloseCount).toBe(0);
+		expect(closingSocket.closeCount).toBe(0);
 	} finally {
 		Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: originalWebSocket });
 	}
