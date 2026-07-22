@@ -21,6 +21,27 @@ const authenticate = async (page: Page) => {
 		await fulfillJson(route, pleromaFixtures.customEmojis);
 	});
 	await page.addInitScript((storedSession) => {
+		type MockSocket = {
+			onmessage: ((event: { data: string }) => void) | null;
+			onopen: ((event: Event) => void) | null;
+			onerror: ((event: Event) => void) | null;
+			onclose: ((event: Event) => void) | null;
+			close: () => void;
+		};
+		const testWindow = window as typeof window & { __pleromanetSockets?: MockSocket[] };
+		testWindow.__pleromanetSockets = [];
+		const MockWebSocket = function () {
+			const socket: MockSocket = {
+				onmessage: null,
+				onopen: null,
+				onerror: null,
+				onclose: null,
+				close: () => undefined
+			};
+			testWindow.__pleromanetSockets?.push(socket);
+			return socket;
+		} as unknown as typeof WebSocket;
+		Object.defineProperty(window, 'WebSocket', { configurable: true, value: MockWebSocket });
 		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
 	}, session);
 };
@@ -132,6 +153,17 @@ const mockThread = async (
 	await page.route('https://pleroma.example/api/v1/statuses/status-1/context', async (route) => {
 		await fulfillJson(route, { ancestors, descendants });
 	});
+};
+
+const emitStreamUpdate = async (page: Page, status: PleromaStatus, socketIndex?: number) => {
+	await page.evaluate(({ nextStatus, targetSocketIndex }) => {
+		type MockSocket = { onmessage: ((event: { data: string }) => void) | null };
+		const sockets = (window as typeof window & { __pleromanetSockets?: MockSocket[] }).__pleromanetSockets ?? [];
+		const targets = targetSocketIndex == null ? sockets : sockets.slice(targetSocketIndex, targetSocketIndex + 1);
+		for (const socket of targets) {
+			socket.onmessage?.({ data: JSON.stringify({ event: 'update', payload: JSON.stringify(nextStatus) }) });
+		}
+	}, { nextStatus: status, targetSocketIndex: socketIndex });
 };
 
 const expectThreadRailBridge = async (page: Page, expectedLineCount: number) => {
@@ -913,6 +945,169 @@ test('real thread route inline reply composer submits below an expanded nested r
 	await expect(reloadedNested).toBeVisible();
 	await reloadedNested.getByRole('button', { name: 'Show 1 reply' }).click();
 	await expect(page.getByText('replying inline to a nested reply')).toBeVisible();
+});
+
+test('real thread route streams new descendant replies once into the open thread', async ({ page }) => {
+	await authenticate(page);
+	await mockThread(page);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+	await expect(page.getByTestId('thread-reply-count')).toContainText('3 replies');
+
+	const directReply = statusWithText('streamed-thread-reply', 'a newly streamed thread reply', {
+		in_reply_to_id: 'status-1',
+		in_reply_to_account_id: 'account-1',
+		replies_count: 0,
+		reblogs_count: 0,
+		favourites_count: 0
+	});
+	await emitStreamUpdate(page, directReply);
+	await expect(page.getByTestId('thread-reply-count')).toContainText('4 replies');
+	await expect(page.getByText('a newly streamed thread reply')).toHaveCount(1);
+
+	await emitStreamUpdate(page, directReply);
+	await expect(page.getByTestId('thread-reply-count')).toContainText('4 replies');
+	await expect(page.getByText('a newly streamed thread reply')).toHaveCount(1);
+
+	await emitStreamUpdate(page, statusWithText('streamed-nested-thread-reply', 'a newly streamed nested reply', {
+		in_reply_to_id: directReply.id,
+		in_reply_to_account_id: directReply.account.id,
+		replies_count: 0,
+		reblogs_count: 0,
+		favourites_count: 0
+	}));
+	await expect(page.getByTestId('thread-reply-count')).toContainText('5 replies');
+	const streamedReply = page.getByTestId('thread-reply').filter({ hasText: 'a newly streamed thread reply' });
+	await expect(streamedReply.getByRole('button', { name: 'Reply 1' })).toBeVisible();
+	await expect(streamedReply.locator('.nested-replies')).toContainText('a newly streamed nested reply');
+
+	await emitStreamUpdate(page, statusWithText('unrelated-streamed-reply', 'an unrelated streamed reply', {
+		in_reply_to_id: 'other-status',
+		in_reply_to_account_id: 'other-account',
+		replies_count: 0,
+		reblogs_count: 0,
+		favourites_count: 0
+	}));
+	await expect(page.getByTestId('thread-reply-count')).toContainText('5 replies');
+	await expect(page.getByText('an unrelated streamed reply')).toHaveCount(0);
+});
+
+test('real thread route replays streamed replies received while context is loading', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	let releaseThread: () => void = () => undefined;
+	const threadPending = new Promise<void>((resolve) => {
+		releaseThread = resolve;
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-1', async (route) => {
+		await threadPending;
+		await fulfillJson(route, threadStatus);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-1/context', async (route) => {
+		await threadPending;
+		await fulfillJson(route, { ancestors: [threadAncestor], descendants: [threadReply, nestedThreadReply, secondThreadReply] });
+	});
+	await page.goto('/app/thread/status-1');
+	await expect(page.getByRole('status', { name: 'Loading thread' })).toBeVisible();
+
+	await emitStreamUpdate(page, statusWithText('streamed-during-load', 'a reply streamed during thread loading', {
+		in_reply_to_id: 'status-1',
+		in_reply_to_account_id: 'account-1',
+		replies_count: 0,
+		reblogs_count: 0,
+		favourites_count: 0
+	}));
+	releaseThread();
+
+	await expect(page.getByTestId('thread-reply-count')).toContainText('4 replies');
+	await expect(page.getByText('a reply streamed during thread loading')).toBeVisible();
+});
+
+test('real thread route reconciles replies to a boosted descendant by source identity', async ({ page }) => {
+	await authenticate(page);
+	const boostedSource = { ...threadReply, id: 'boosted-reply-source' };
+	const boostedReply = statusWithText('boosted-reply-wrapper', 'boost wrapper', {
+		account: accountWithName('booster', 'signal booster', 'booster@example.social'),
+		in_reply_to_id: null,
+		in_reply_to_account_id: null,
+		reblog: boostedSource
+	});
+	await mockThread(page, threadStatus, [boostedReply]);
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		await fulfillJson(route, statusWithText('reply-to-boosted-source', 'replying to the boosted descendant', {
+			in_reply_to_id: boostedSource.id,
+			in_reply_to_account_id: boostedSource.account.id,
+			replies_count: 0,
+			reblogs_count: 0,
+			favourites_count: 0
+		}));
+	});
+	await page.goto('/app/thread/status-1');
+
+	const reply = page.getByTestId('thread-reply').filter({ hasText: 'we used to log off. when did that stop being a thing.' });
+	await reply.getByRole('button', { name: 'Reply 0' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @datagram' });
+	await replyForm.getByRole('textbox', { name: 'Reply text' }).fill('replying to the boosted descendant');
+	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
+
+	await expect(page.getByTestId('thread-reply-count')).toContainText('2 replies');
+	await expect(reply.getByText('replying to the boosted descendant')).toBeVisible();
+});
+
+test('real thread route isolates streamed replies across navigation and session changes', async ({ page }) => {
+	await authenticate(page);
+	const secondStatus = statusWithText('status-2', 'a different streamed thread', { replies_count: 0 });
+	await mockInstance(page);
+	await page.route('https://pleroma.example/api/v1/statuses/status-1', async (route) => {
+		await fulfillJson(route, threadStatus);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-1/context', async (route) => {
+		await fulfillJson(route, { ancestors: [threadAncestor], descendants: [threadReply, nestedThreadReply, secondThreadReply] });
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-2', async (route) => {
+		await fulfillJson(route, secondStatus);
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-2/context', async (route) => {
+		await fulfillJson(route, { ancestors: [], descendants: [] });
+	});
+	await page.goto('/app/thread/status-1');
+	await expect(page.getByTestId('thread-reply-count')).toContainText('3 replies');
+
+	await page.evaluate(() => {
+		window.history.pushState({}, '', '/app/thread/status-2');
+		window.dispatchEvent(new PopStateEvent('popstate'));
+	});
+	await expect(page.getByTestId('focused-post')).toContainText('a different streamed thread');
+	await emitStreamUpdate(page, statusWithText('old-thread-stream', 'a reply from the previous thread', {
+		in_reply_to_id: 'status-1',
+		in_reply_to_account_id: 'account-1'
+	}));
+	await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+	await expect(page.getByText('a reply from the previous thread')).toHaveCount(0);
+
+	await emitStreamUpdate(page, statusWithText('current-thread-stream', 'a reply for the current thread', {
+		in_reply_to_id: 'status-2',
+		in_reply_to_account_id: secondStatus.account.id
+	}));
+	await expect(page.getByText('a reply for the current thread')).toBeVisible();
+
+	const nextSession = { ...session, accessToken: 'fresh-token', createdAt: session.createdAt + 1 };
+	await page.evaluate((storedSession) => {
+		window.localStorage.setItem('pleromanet.session', JSON.stringify(storedSession));
+		window.dispatchEvent(new StorageEvent('storage', {
+			key: 'pleromanet.session',
+			newValue: JSON.stringify(storedSession),
+			storageArea: window.localStorage
+		}));
+	}, nextSession);
+	await expect(page.getByTestId('focused-post')).toContainText('a different streamed thread');
+	await expect(page.getByText('a reply for the current thread')).toHaveCount(0);
+	await emitStreamUpdate(page, statusWithText('stale-session-stream', 'a reply from the stale session', {
+		in_reply_to_id: 'status-2',
+		in_reply_to_account_id: secondStatus.account.id
+	}), 0);
+	await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+	await expect(page.getByText('a reply from the stale session')).toHaveCount(0);
 });
 
 test('real thread route nested inline reply composer autocompletes mentions and custom emoji', async ({ page }) => {

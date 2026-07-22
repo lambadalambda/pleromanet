@@ -3,6 +3,7 @@
 ## 2026-07-22
 
 - Home, local, and federated streams now reconnect stalled sockets and page through REST catch-up from stable watermarks after failures, successful reconnects, and retained-route returns without skipping, duplicating, or reordering concurrent posts.
+- Open threads now reconcile locally created and user-stream replies immediately, preserving canonical boosted-status identity, nesting, counts, deduplication, loading races, and route/session isolation.
 
 ## 2026-07-21
 

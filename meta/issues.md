@@ -1,2 +1,1 @@
 - [ ] [96 Audit custom emoji rendering across app surfaces](issues/96-audit-custom-emoji-rendering-across-app-surfaces.md)
-- [ ] [97 Reconcile replies into open threads](issues/97-reconcile-replies-into-open-threads.md)

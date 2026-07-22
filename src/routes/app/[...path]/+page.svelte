@@ -324,6 +324,7 @@
 	let appPublicTimelineNewPostsRequestId = 0;
 	let appPublicTimelineActionGenerationId = 0;
 	let threadRequestId = 0;
+	let pendingThreadStreamStatuses: Array<{ requestId: number; sessionKey: string; statusId: string; status: PleromaStatus }> = [];
 	let threadHistoryScroll: { statusId: string; y: number } | null = null;
 	let profileRouteRequestId = 0;
 	let notificationRequestId = 0;
@@ -492,6 +493,7 @@
 	};
 	const invalidateThreadRequests = () => {
 		threadRequestId += 1;
+		pendingThreadStreamStatuses = [];
 		threadHistoryScroll = null;
 		loadedThreadKey = '';
 		threadState = { status: 'idle' };
@@ -968,7 +970,10 @@
 	const emptyProfileData = (profile: ProfileData['profile']): ProfileData => ({ profile, posts: [], replies: [], pinned: [], media: [] });
 	const threadRepliesForRebuild = (focusedStatusId: string, descendants: PleromaStatusView[]) => {
 		const posts: ThreadViewPost[] = descendants.map((post) => ({ ...threadPostForRebuild(post), nestedReplies: [] }));
-		const byId = new Map(posts.map((post) => [String(post.id), post]));
+		const byId = new Map(posts.flatMap((post) => [
+			[String(post.id), post] as const,
+			[statusReplyTargetId(post), post] as const
+		]));
 		const roots: ThreadViewPost[] = [];
 
 		descendants.forEach((status, index) => {
@@ -1085,6 +1090,15 @@
 
 		return null;
 	};
+	const findPostByReplyTarget = <PostType extends RebuildPost & { nestedReplies?: PostType[] }>(posts: PostType[], targetId: string): PostType | null => {
+		for (const post of posts) {
+			if (matchesStatusReplyTarget(post, targetId)) return post;
+			const nested = post.nestedReplies ? findPostByReplyTarget(post.nestedReplies, targetId) : null;
+			if (nested) return nested;
+		}
+
+		return null;
+	};
 	const findThreadPost = (postId: string | number) => {
 		if (threadState.status !== 'success') return null;
 		if (String(threadState.focused.id) === String(postId)) return threadState.focused;
@@ -1100,7 +1114,7 @@
 		const nextExpanded = { ...expandedThreadReplyIds };
 		const expandIn = (posts: ThreadViewPost[]): boolean => {
 			for (const post of posts) {
-				if (String(post.id) === postId) {
+				if (matchesStatusReplyTarget(post, postId)) {
 					nextExpanded[String(post.id)] = true;
 					return true;
 				}
@@ -1203,23 +1217,36 @@
 	};
 	const insertNestedThreadReply = (posts: ThreadViewPost[], parentId: string, reply: ThreadViewPost[]): ThreadViewPost[] =>
 		posts.map((post) => {
-			if (String(post.id) === parentId) return { ...post, nestedReplies: [...(post.nestedReplies ?? []), ...reply] };
+			if (matchesStatusReplyTarget(post, parentId)) return { ...post, nestedReplies: [...(post.nestedReplies ?? []), ...reply] };
 
 			return post.nestedReplies ? { ...post, nestedReplies: insertNestedThreadReply(post.nestedReplies, parentId, reply) } : post;
 		});
-	const insertThreadReply = (parentId: string, status: PleromaStatus) => {
-		if (threadState.status !== 'success') return;
+	const reconcileThreadReply = (status: PleromaStatus, expectedParentId?: string) => {
+		if (route !== 'thread' || threadState.status !== 'success') return false;
+
+		const adapted = adaptPleromaStatus(status);
+		const statusId = statusReplyTargetId(adapted);
+		const parentId = String(adapted.inReplyToId ?? expectedParentId ?? '');
+		const statusPresent = matchesStatusReplyTarget(threadState.focused, statusId)
+			|| findPostByReplyTarget(threadState.ancestors, statusId) !== null
+			|| findPostByReplyTarget(threadState.replies, statusId) !== null;
+		if (!parentId || statusPresent) return false;
+
+		const parentIsFocused = matchesStatusReplyTarget(threadState.focused, parentId);
+		if (!parentIsFocused && !findPostByReplyTarget(threadState.replies, parentId)) return false;
 
 		upsertAccountCache(accountsFromPleromaStatus(status));
-		const reply = [{ ...threadPostForRebuild(adaptPleromaStatus(status)), nestedReplies: [] }];
-		threadState = String(threadState.focused.id) === parentId
+		applyReplyCountUpdate(parentId);
+		const reply = [{ ...threadPostForRebuild(adapted), nestedReplies: [] }];
+		if (threadState.status !== 'success') return false;
+		threadState = parentIsFocused
 			? { ...threadState, replies: [...threadState.replies, ...reply] }
 			: {
 				...threadState,
-				ancestors: insertNestedThreadReply(threadState.ancestors, parentId, reply),
 				replies: insertNestedThreadReply(threadState.replies, parentId, reply)
 			};
-		if (String(threadState.focused.id) !== parentId) expandThreadReplyPath(parentId);
+		if (!parentIsFocused) expandThreadReplyPath(parentId);
+		return true;
 	};
 	const clearStatusActionPending = (pendingKey: string, requestId: number) => {
 		if (statusActionPending[pendingKey] !== requestId) return;
@@ -2191,9 +2218,11 @@
 			if (requestId !== inlineReplyRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 			if (!inlineReplyTarget || inlineReplyTarget.route !== target.route || inlineReplyTarget.targetId !== target.targetId) return;
 
-			upsertAccountCache(accountsFromPleromaStatus(status));
-			applyReplyCountUpdate(target.targetId);
-			if (target.route === 'thread') insertThreadReply(target.targetId, status);
+			if (target.route === 'thread') reconcileThreadReply(status, target.targetId);
+			else {
+				upsertAccountCache(accountsFromPleromaStatus(status));
+				applyReplyCountUpdate(target.targetId);
+			}
 			clearInlineReply();
 		} catch (error) {
 			if (requestId !== inlineReplyRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
@@ -3503,6 +3532,17 @@
 		const merged = mergeNotificationViews(notificationState.status === 'success' ? notificationState.data : [], adapted);
 		notificationState = merged.length > 0 ? { status: 'success', data: merged } : { status: 'empty' };
 	};
+	const applyStreamedThreadStatus = (requestSessionKey: string, status: PleromaStatus) => {
+		if (route !== 'thread' || !isCurrentSessionRequest(requestSessionKey)) return;
+		if (threadState.status === 'loading') {
+			pendingThreadStreamStatuses = [
+				...pendingThreadStreamStatuses,
+				{ requestId: threadRequestId, sessionKey: requestSessionKey, statusId: threadStatusId, status }
+			];
+			return;
+		}
+		reconcileThreadReply(status);
+	};
 	const scheduleNotificationStreamReconnect = (session: PleromaSession, requestSessionKey: string) => {
 		clearNotificationStreamReconnect();
 		notificationStreamReconnectTimer = window.setTimeout(() => {
@@ -3535,6 +3575,7 @@
 		const stream = openPleromaTimelineStream({
 			instanceUrl: session.instanceUrl,
 			accessToken: session.accessToken,
+			onUpdate: (status) => applyStreamedThreadStatus(requestSessionKey, status),
 			onNotification: (notification) => applyStreamedNotification(requestSessionKey, notification),
 			onOpen: () => {
 				if (notificationStreamKey === requestSessionKey && isCurrentSessionRequest(requestSessionKey)) notificationStreamReadyKey = requestSessionKey;
@@ -3846,6 +3887,7 @@
 		const requestSessionKey = sessionKey(session);
 		const requestId = threadRequestId + 1;
 		threadRequestId = requestId;
+		pendingThreadStreamStatuses = [];
 
 		if (!statusId) {
 			threadState = {
@@ -3876,15 +3918,22 @@
 			if (route !== 'thread' || requestId !== threadRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			upsertAccountCache(accountsFromPleromaStatuses([status, ...context.ancestors, ...context.descendants]));
+			const adaptedStatus = adaptPleromaStatus(status);
 			threadState = {
 				status: 'success',
-				focused: threadPostForRebuild(adaptPleromaStatus(status)),
+				focused: threadPostForRebuild(adaptedStatus),
 				ancestors: adaptPleromaStatuses(context.ancestors).map(threadPostForRebuild),
-				replies: threadRepliesForRebuild(status.id, adaptPleromaStatuses(context.descendants))
+				replies: threadRepliesForRebuild(statusReplyTargetId(adaptedStatus), adaptPleromaStatuses(context.descendants))
 			};
+			const pendingStatuses = pendingThreadStreamStatuses
+				.filter((pending) => pending.requestId === requestId && pending.sessionKey === requestSessionKey && pending.statusId === statusId)
+				.map((pending) => pending.status);
+			pendingThreadStreamStatuses = pendingThreadStreamStatuses.filter((pending) => pending.requestId !== requestId);
+			for (const pendingStatus of pendingStatuses) reconcileThreadReply(pendingStatus);
 			await scrollToFocusedThreadPost(requestId, statusId);
 		} catch (error) {
 			if (requestId !== threadRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
+			pendingThreadStreamStatuses = pendingThreadStreamStatuses.filter((pending) => pending.requestId !== requestId);
 
 			const normalized = normalizePleromaRequestError(error);
 			if (normalized.reauthRequired) {
