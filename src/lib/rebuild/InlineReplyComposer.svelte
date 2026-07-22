@@ -12,6 +12,7 @@
 
 	export type InlineReplyComposerProps = {
 		id?: string;
+		targetRenderId?: string;
 		targetHandle: string;
 		targetName?: string;
 		targetAvClass?: string;
@@ -47,6 +48,7 @@
 
 	let {
 		id,
+		targetRenderId,
 		targetHandle,
 		targetName,
 		targetAvClass,
@@ -152,7 +154,7 @@
 
 </script>
 
-<form {id} class="thread-inline-reply" aria-label={formLabel} onsubmit={(event) => { event.preventDefault(); onSubmit(); }} onpaste={handlePaste} ondragover={handleDragOver} ondragleave={handleDragLeave} ondrop={handleDrop}>
+<form {id} class="thread-inline-reply" data-inline-reply-render-id={targetRenderId} aria-label={formLabel} onsubmit={(event) => { event.preventDefault(); onSubmit(); }} onpaste={handlePaste} ondragover={handleDragOver} ondragleave={handleDragLeave} ondrop={handleDrop}>
 	<Avatar
 		post={targetAvatar}
 		alt={avatarAlt}

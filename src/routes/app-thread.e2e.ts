@@ -1526,9 +1526,162 @@ test('real thread nested inline reply composer remains usable on mobile', async 
 	await cappedNested.getByRole('button', { name: 'Reply 0' }).click();
 	const replyForm = page.getByRole('form', { name: 'Inline reply to @wavelet' });
 	await expect(replyForm).toBeVisible();
+	await expect(replyForm).toHaveAttribute('data-inline-reply-render-id', cappedNestedReply.id);
 	await expect(replyForm.getByRole('textbox', { name: 'Reply text' })).toHaveText('@wavelet@tiny.social ');
 	await expect(replyForm.getByRole('button', { name: 'Reply', exact: true })).toBeEnabled();
+	await expect.poll(async () => replyForm.evaluate((form) => {
+		const top = window.visualViewport?.offsetTop ?? 0;
+		const bottom = top + (window.visualViewport?.height ?? window.innerHeight);
+		const bounds = form.getBoundingClientRect();
+		return bounds.top >= top - 1 && bounds.bottom <= bottom + 1;
+	})).toBe(true);
 	await expectNoHorizontalOverflow(page);
+});
+
+test('real thread scrolls the last reply composer fully into view when opened', async ({ page }) => {
+	await authenticate(page);
+	await mockThread(page);
+	await page.setViewportSize({ width: 900, height: 480 });
+	await page.goto('/app/thread/status-1');
+
+	const lastReply = page.getByTestId('thread-reply').filter({ hasText: 'this is the energy i needed today.' });
+	await lastReply.evaluate((element) => element.scrollIntoView({ block: 'end' }));
+	await lastReply.getByRole('button', { name: 'Reply 0' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @lumen' });
+	await expect(replyForm.getByRole('textbox', { name: 'Reply text' })).toBeFocused();
+	await expect.poll(async () => replyForm.evaluate((form) => {
+		const top = window.visualViewport?.offsetTop ?? 0;
+		const bottom = top + (window.visualViewport?.height ?? window.innerHeight);
+		const bounds = form.getBoundingClientRect();
+		return bounds.top >= top - 1 && bounds.bottom <= bottom + 1;
+	})).toBe(true);
+});
+
+test('real thread does not scroll when an opened reply composer already fits', async ({ page }) => {
+	await authenticate(page);
+	await mockThread(page);
+	await page.setViewportSize({ width: 900, height: 1400 });
+	await page.goto('/app/thread/status-1');
+	const focused = page.getByTestId('focused-post');
+	await focused.scrollIntoViewIfNeeded();
+	const initialScroll = await page.evaluate(() => window.scrollY);
+
+	await focused.getByRole('button', { name: 'Reply 2' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
+	await expect(replyForm).toBeVisible();
+	await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+	expect(await page.evaluate(() => window.scrollY)).toBe(initialScroll);
+});
+
+test('real thread keeps the last reply composer visible when the mobile visual viewport shrinks', async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await authenticate(page);
+	await page.addInitScript(() => {
+		class MockVisualViewport extends EventTarget {
+			offsetTop = 0;
+			height = 568;
+			listenerCounts = { resize: 0, scroll: 0 };
+
+			override addEventListener(type: string, callback: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions) {
+				if (type === 'resize' || type === 'scroll') this.listenerCounts[type] += 1;
+				super.addEventListener(type, callback, options);
+			}
+
+			override removeEventListener(type: string, callback: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions) {
+				if ((type === 'resize' || type === 'scroll') && this.listenerCounts[type] > 0) this.listenerCounts[type] -= 1;
+				super.removeEventListener(type, callback, options);
+			}
+		}
+		const viewport = new MockVisualViewport();
+		const testWindow = window as typeof window & {
+			__setVisualViewport?: (height: number, offsetTop: number, eventType?: 'resize' | 'scroll') => void;
+			__visualViewportListenerCounts?: () => { resize: number; scroll: number };
+			__replyScrollBehaviors?: ScrollBehavior[];
+		};
+		Object.defineProperty(window, 'visualViewport', { configurable: true, value: viewport });
+		testWindow.__setVisualViewport = (height, offsetTop, eventType = 'resize') => {
+			viewport.height = height;
+			viewport.offsetTop = offsetTop;
+			document.body.style.paddingBottom = `${Math.max(0, 568 - height)}px`;
+			viewport.dispatchEvent(new Event(eventType));
+		};
+		testWindow.__visualViewportListenerCounts = () => ({ ...viewport.listenerCounts });
+		testWindow.__replyScrollBehaviors = [];
+		const scrollBy = window.scrollBy.bind(window);
+		window.scrollBy = ((options: ScrollToOptions) => {
+			testWindow.__replyScrollBehaviors?.push(options.behavior ?? 'auto');
+			scrollBy(options);
+		}) as typeof window.scrollBy;
+	});
+	await mockThread(page);
+	await page.setViewportSize({ width: 390, height: 568 });
+	await page.goto('/app/thread/status-1');
+
+	const lastReply = page.getByTestId('thread-reply').filter({ hasText: 'this is the energy i needed today.' });
+	await lastReply.evaluate((element) => element.scrollIntoView({ block: 'end' }));
+	await lastReply.getByRole('button', { name: 'Reply 0' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @lumen' });
+	await expect(replyForm.getByRole('textbox', { name: 'Reply text' })).toBeFocused();
+	await page.evaluate(() => {
+		(window as typeof window & { __setVisualViewport?: (height: number, offsetTop: number, eventType?: 'resize' | 'scroll') => void }).__setVisualViewport?.(420, 20);
+	});
+
+	await expect.poll(async () => replyForm.evaluate((form) => {
+		const top = window.visualViewport?.offsetTop ?? 0;
+		const bottom = top + (window.visualViewport?.height ?? window.innerHeight);
+		const bounds = form.getBoundingClientRect();
+		return bounds.top >= top - 1 && bounds.bottom <= bottom + 1;
+	})).toBe(true);
+	await page.evaluate(() => {
+		(window as typeof window & { __setVisualViewport?: (height: number, offsetTop: number, eventType?: 'resize' | 'scroll') => void }).__setVisualViewport?.(360, 20, 'scroll');
+	});
+	await expect.poll(async () => replyForm.evaluate((form) => {
+		const top = window.visualViewport?.offsetTop ?? 0;
+		const bottom = top + (window.visualViewport?.height ?? window.innerHeight);
+		const bounds = form.getBoundingClientRect();
+		return bounds.top >= top - 1 && bounds.bottom <= bottom + 1;
+	})).toBe(true);
+	expect(await page.evaluate(() => (window as typeof window & { __replyScrollBehaviors?: ScrollBehavior[] }).__replyScrollBehaviors?.at(-1))).toBe('instant');
+	const activeListenerCounts = await page.evaluate(() => (window as typeof window & { __visualViewportListenerCounts?: () => { resize: number; scroll: number } }).__visualViewportListenerCounts?.() ?? { resize: 0, scroll: 0 });
+	expect(activeListenerCounts.resize).toBeGreaterThan(0);
+	expect(activeListenerCounts.scroll).toBeGreaterThan(0);
+	const scrollCount = await page.evaluate(() => (window as typeof window & { __replyScrollBehaviors?: ScrollBehavior[] }).__replyScrollBehaviors?.length ?? 0);
+	await replyForm.getByRole('button', { name: 'Cancel' }).click();
+	await page.evaluate(() => {
+		window.visualViewport?.dispatchEvent(new Event('resize'));
+		window.visualViewport?.dispatchEvent(new Event('scroll'));
+	});
+	await page.waitForTimeout(300);
+	expect(await page.evaluate(() => (window as typeof window & { __replyScrollBehaviors?: ScrollBehavior[] }).__replyScrollBehaviors?.length ?? 0)).toBe(scrollCount);
+	const cancelledListenerCounts = await page.evaluate(() => (window as typeof window & { __visualViewportListenerCounts?: () => { resize: number; scroll: number } }).__visualViewportListenerCounts?.() ?? { resize: 0, scroll: 0 });
+	expect(cancelledListenerCounts.resize).toBeLessThan(activeListenerCounts.resize);
+	expect(cancelledListenerCounts.scroll).toBeLessThan(activeListenerCounts.scroll);
+});
+
+test('real thread ignores deferred scrolling for a superseded reply target', async ({ page }) => {
+	await authenticate(page);
+	await mockThread(page);
+	await page.setViewportSize({ width: 900, height: 480 });
+	await page.goto('/app/thread/status-1');
+	await page.getByTestId('thread-reply').last().evaluate((element) => element.scrollIntoView({ block: 'end' }));
+
+	await page.getByTestId('thread-reply').evaluateAll((replies) => {
+		const firstReplyButton = replies[0]?.querySelector<HTMLButtonElement>('button[aria-label^="Reply"]');
+		const lastReplyButton = replies.at(-1)?.querySelector<HTMLButtonElement>('button[aria-label^="Reply"]');
+		firstReplyButton?.click();
+		lastReplyButton?.click();
+	});
+
+	await expect(page.getByRole('form', { name: 'Inline reply to @datagram' })).toHaveCount(0);
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @lumen' });
+	await expect(replyForm).toHaveAttribute('data-inline-reply-render-id', secondThreadReply.id);
+	await expect(replyForm.getByRole('textbox', { name: 'Reply text' })).toBeFocused();
+	await expect.poll(async () => replyForm.evaluate((form) => {
+		const top = window.visualViewport?.offsetTop ?? 0;
+		const bottom = top + (window.visualViewport?.height ?? window.innerHeight);
+		const bounds = form.getBoundingClientRect();
+		return bounds.top >= top - 1 && bounds.bottom <= bottom + 1;
+	})).toBe(true);
 });
 
 test('real thread route renders the focused post emoji reaction row and toggles reactions', async ({ page }) => {

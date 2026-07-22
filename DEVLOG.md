@@ -4,6 +4,7 @@
 
 - Home, local, and federated streams now reconnect stalled sockets and page through REST catch-up from stable watermarks after failures, successful reconnects, and retained-route returns without skipping, duplicating, or reordering concurrent posts.
 - Open threads now reconcile locally created and user-stream replies immediately, preserving canonical boosted-status identity, nesting, counts, deduplication, loading races, and route/session isolation.
+- Thread reply composers now scroll fully into view when opened near the viewport edge and continue tracking mobile visual-viewport changes without moving already-visible forms.
 
 ## 2026-07-21
 

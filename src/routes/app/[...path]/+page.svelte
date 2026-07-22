@@ -299,6 +299,7 @@
 	let inlineReplyPoll = $state<ComposerPollDraft | null>(null);
 	let inlineReplySubmitState = $state<'idle' | 'submitting'>('idle');
 	let inlineReplySubmitError = $state<PleromaRequestErrorView | null>(null);
+	let clearThreadReplyViewportReveal: (() => void) | null = null;
 	let statusActionErrors = $state<StatusActionErrorState[]>([]);
 	let statusActionPending = $state<Record<string, number>>({});
 	let postControlMessage = $state('');
@@ -421,6 +422,10 @@
 	};
 	const accountStat = (value: number | null | undefined) => accountStatFormatter.format(Math.max(0, value ?? 0));
 	const clearInlineReply = (route?: StatusActionOrigin) => {
+		if (!route || route === 'thread') {
+			clearThreadReplyViewportReveal?.();
+			clearThreadReplyViewportReveal = null;
+		}
 		const pendingMatches = Boolean(pendingInlineReplyOpen && (!route || pendingInlineReplyOpen.route === route));
 		const targetMatches = Boolean(inlineReplyTarget && (!route || inlineReplyTarget.route === route));
 		if (route && !pendingMatches && !targetMatches) return;
@@ -2117,6 +2122,54 @@
 	const toggleComposerPoll = () => {
 		composerPoll = composerPoll ? null : createComposerPollDraft();
 	};
+	const revealThreadInlineReply = async (requestId: number, renderId: string) => {
+		clearThreadReplyViewportReveal?.();
+		clearThreadReplyViewportReveal = null;
+		await tick();
+		await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+		if (requestId !== inlineReplyRequestId || route !== 'thread' || inlineReplyTarget?.renderId !== renderId) return;
+
+		const viewport = window.visualViewport;
+		let idleTimer: number | null = null;
+		let maxTimer: number | null = null;
+		const cleanup = () => {
+			if (idleTimer !== null) window.clearTimeout(idleTimer);
+			if (maxTimer !== null) window.clearTimeout(maxTimer);
+			viewport?.removeEventListener('resize', handleViewportChange);
+			viewport?.removeEventListener('scroll', handleViewportChange);
+			if (clearThreadReplyViewportReveal === cleanup) clearThreadReplyViewportReveal = null;
+		};
+		const reveal = () => {
+			if (requestId !== inlineReplyRequestId || route !== 'thread' || inlineReplyTarget?.renderId !== renderId) {
+				cleanup();
+				return false;
+			}
+			const composer = [...document.querySelectorAll<HTMLElement>('.thread-view .thread-inline-reply')]
+				.find((form) => form.dataset.inlineReplyRenderId === renderId);
+			if (!composer) {
+				cleanup();
+				return false;
+			}
+			const viewportTop = viewport?.offsetTop ?? 0;
+			const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
+			const overflow = composer.getBoundingClientRect().bottom - viewportBottom;
+			if (overflow > 0) window.scrollBy({ top: overflow + 16, behavior: 'instant' });
+			return true;
+		};
+		function handleViewportChange() {
+			if (!reveal()) return;
+			if (idleTimer !== null) window.clearTimeout(idleTimer);
+			idleTimer = window.setTimeout(cleanup, 250);
+		}
+
+		if (viewport) {
+			viewport.addEventListener('resize', handleViewportChange);
+			viewport.addEventListener('scroll', handleViewportChange);
+			maxTimer = window.setTimeout(cleanup, 1_000);
+			clearThreadReplyViewportReveal = cleanup;
+		}
+		reveal();
+	};
 	const openInlineReply = async (post: RebuildPost, targetRoute: StatusActionOrigin) => {
 		if (inlineReplySubmitState === 'submitting') return;
 
@@ -2172,6 +2225,7 @@
 		inlineReplySpoilerText = '';
 		inlineReplySensitive = false;
 		inlineReplyPoll = null;
+		if (targetRoute === 'thread') await revealThreadInlineReply(requestId, nextTarget.renderId);
 	};
 	const clearInlineReplySpoiler = () => {
 		inlineReplySpoilerActive = false;
@@ -3377,6 +3431,7 @@
 		composerInsertRequest = { id: composerInsertRequestId, item };
 	};
 	const inlineReplyComposerProps = $derived<InlineReplyComposerData | null>(inlineReplyTarget ? {
+		targetRenderId: inlineReplyTarget.renderId,
 		targetHandle: inlineReplyTarget.handle,
 		targetName: inlineReplyTarget.name,
 		targetAvClass: inlineReplyTarget.avClass,
@@ -4545,6 +4600,8 @@
 		const notificationInterval = window.setInterval(pollNotifications, NOTIFICATION_POLL_INTERVAL_MS);
 
 		return () => {
+			clearThreadReplyViewportReveal?.();
+			clearThreadReplyViewportReveal = null;
 			invalidateHomeTimelineRequests();
 			invalidateAppPublicTimelineRequests();
 			invalidateProfileRouteRequests();
