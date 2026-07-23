@@ -257,6 +257,7 @@ const expectThreadRailBridge = async (page: Page, expectedLineCount: number) => 
 
 test('real thread route loads focused status, ancestors, and replies from Pleroma', async ({ page }) => {
 	await authenticate(page);
+	await page.addInitScript(() => window.localStorage.setItem('pleromanet.timeline.fit-images', 'true'));
 	await mockThread(page);
 	await setViewport(page, 'desktop');
 	await page.goto('/app/thread/status-1');
@@ -280,7 +281,9 @@ test('real thread route loads focused status, ancestors, and replies from Plerom
 	await expect(page.getByTestId('thread-line')).toBeVisible();
 	await expect(page.getByTestId('focused-post')).toContainText('4:18 PM · May 11, 2026');
 	await expect(page.getByTestId('focused-post')).toContainText('Pleroma Web');
-	await expect(page.getByTestId('focused-post').locator('.post-photos img[alt="thread photo"]')).toHaveAttribute('src', 'https://cdn.example/thread-photo.jpg');
+	const threadPhoto = page.getByTestId('focused-post').locator('.post-photos img[alt="thread photo"]');
+	await expect(threadPhoto).toHaveAttribute('src', 'https://cdn.example/thread-photo.jpg');
+	await expect(threadPhoto).toHaveCSS('object-fit', 'cover');
 	await expect(page.getByTestId('focused-engagement')).toContainText('Boost');
 	await expect(page.getByRole('form', { name: 'Thread reply' })).toHaveCount(0);
 	await expect(page.getByTestId('thread-reply-count')).toContainText('3 replies');

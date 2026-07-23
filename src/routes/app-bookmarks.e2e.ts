@@ -32,10 +32,14 @@ const bookmarkStatus = (id: string, text: string): PleromaStatus => ({
 
 test('bookmarks route lists saved posts from the API', async ({ page }) => {
 	await authenticate(page);
+	await page.addInitScript(() => window.localStorage.setItem('pleromanet.timeline.fit-images', 'true'));
 	let authorization: string | undefined;
 	await page.route('https://pleroma.example/api/v1/bookmarks**', async (route: Route) => {
 		authorization = route.request().headers().authorization;
-		await fulfillJson(route, [bookmarkStatus('bm-1', 'saved for later'), bookmarkStatus('bm-2', 'another keeper')]);
+		await fulfillJson(route, [{
+			...bookmarkStatus('bm-1', 'saved for later'),
+			media_attachments: [{ id: 'bookmark-image', type: 'image', url: 'https://cdn.example/bookmark-image.jpg', description: 'saved image' }]
+		}, bookmarkStatus('bm-2', 'another keeper')]);
 	});
 
 	await setViewport(page, 'wide');
@@ -47,6 +51,7 @@ test('bookmarks route lists saved posts from the API', async ({ page }) => {
 	const list = page.getByTestId('bookmarks-list');
 	await expect(list).toContainText('saved for later');
 	await expect(list).toContainText('another keeper');
+	await expect(list.locator('[data-status-id="bm-1"] .ph-raw')).toHaveCSS('object-fit', 'cover');
 	expect(authorization).toBe('Bearer access-token');
 });
 

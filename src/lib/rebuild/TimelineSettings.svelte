@@ -5,9 +5,11 @@
 	type Props = {
 		autoInsertAtTop: boolean;
 		onAutoInsertChange: (value: boolean) => void;
+		fitImages: boolean;
+		onFitImagesChange: (value: boolean) => void;
 	};
 
-	let { autoInsertAtTop, onAutoInsertChange }: Props = $props();
+	let { autoInsertAtTop, onAutoInsertChange, fitImages, onFitImagesChange }: Props = $props();
 	let open = $state(false);
 	let root = $state<HTMLDivElement | null>(null);
 	let trigger = $state<HTMLButtonElement | null>(null);
@@ -48,6 +50,13 @@
 					<div class="timeline-settings-description">Insert incoming posts automatically while you are at the top.</div>
 				</div>
 				<Toggle checked={autoInsertAtTop} onchange={onAutoInsertChange} ariaLabel="Automatically add new posts at the top" />
+			</div>
+			<div class="timeline-settings-row">
+				<div class="timeline-settings-copy">
+					<div class="timeline-settings-label">Fit images</div>
+					<div class="timeline-settings-description">Show complete images without cropping their edges.</div>
+				</div>
+				<Toggle checked={fitImages} onchange={onFitImagesChange} ariaLabel="Fit images" />
 			</div>
 		</div>
 	{/if}

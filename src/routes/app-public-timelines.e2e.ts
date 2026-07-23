@@ -79,6 +79,17 @@ const statusWithText = (id: string, text: string) => ({
 	}
 });
 
+const statusWithImage = (id: string, text: string) => ({
+	...statusWithText(id, text),
+	media_attachments: [{
+		id: `${id}-image`,
+		type: 'image',
+		url: `https://cdn.example/media/${id}.jpg`,
+		preview_url: `https://cdn.example/media/${id}-preview.jpg`,
+		description: `${text} image`
+	}]
+});
+
 const mockAppPublicTimeline = async (page: Page, handler: (route: Route, url: URL) => Promise<void>) => {
 	await page.route(`${timelineUrl}**`, async (route) => {
 		await handler(route, new URL(route.request().url()));
@@ -231,6 +242,30 @@ test('timeline auto-insert preference applies across local and federated streams
 	await emitStreamUpdate(page, 'public', statusWithText('federated-queued', 'queued federated post'));
 	await expect(list).not.toContainText('queued federated post');
 	await expect(page.getByRole('button', { name: '1 new posts' })).toBeVisible();
+});
+
+test('fit-images preference applies across local and federated timelines', async ({ page }) => {
+	await authenticate(page);
+	await mockAppPublicTimeline(page, async (route, url) => {
+		const scope = url.searchParams.get('local') === 'true' ? 'local' : 'federated';
+		await fulfillTimeline(route, [statusWithImage(`${scope}-fit-image`, `${scope} fitted image`)]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/local');
+	let list = page.getByTestId('app-public-timeline-list');
+	let image = list.locator('[data-status-id="local-fit-image"] .ph-raw');
+	await expect(image).toHaveCSS('object-fit', 'cover');
+	await page.getByRole('button', { name: 'Timeline settings' }).click();
+	await page.getByRole('switch', { name: 'Fit images' }).click();
+	await expect(image).toHaveCSS('object-fit', 'contain');
+
+	await page.getByRole('tab', { name: 'Federated' }).click();
+	list = page.getByTestId('app-public-timeline-list');
+	image = list.locator('[data-status-id="federated-fit-image"] .ph-raw');
+	await expect(image).toHaveCSS('object-fit', 'contain');
+	await page.getByRole('tab', { name: 'Local' }).click();
+	await expect(page.getByTestId('app-public-timeline-list').locator('[data-status-id="local-fit-image"] .ph-raw')).toHaveCSS('object-fit', 'contain');
 });
 
 test('app public timeline reconnects streams after failures', async ({ page }) => {

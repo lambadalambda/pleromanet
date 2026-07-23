@@ -98,3 +98,4 @@
 - [x] [98 Scroll thread reply form into view](issues/98-scroll-thread-reply-form-into-view.md)
 - [x] [99 Unify compact media previews](issues/99-unify-compact-media-previews.md)
 - [x] [100 Expand compact image previews](issues/100-expand-compact-image-previews.md)
+- [x] [101 Add fit-images timeline setting](issues/101-add-fit-images-timeline-setting.md)

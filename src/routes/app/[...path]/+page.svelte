@@ -214,6 +214,7 @@
 
 	const publicInstanceUrl = env.PUBLIC_PLEROMA_INSTANCE_URL ?? 'https://pleroma.social';
 	const TIMELINE_AUTO_INSERT_KEY = 'pleromanet.timeline.auto-insert-at-top';
+	const TIMELINE_FIT_IMAGES_KEY = 'pleromanet.timeline.fit-images';
 	const THREAD_FROM_TIMELINE_STATE_KEY = 'pleromanetThreadFromTimeline';
 	const TIMELINE_TOP_THRESHOLD = 8;
 
@@ -262,6 +263,7 @@
 	let userMenuOpen = $state(false);
 	let userMenuTrigger = $state<HTMLButtonElement | null>(null);
 	let autoInsertTimelinePosts = $state(false);
+	let fitTimelineImages = $state(false);
 	let timelineAtTop = $state(true);
 	let activeTheme = $state<ThemeName>('cream');
 	let themePreferences = $state<ThemePreferences>({ ...DEFAULT_THEME_PREFERENCES });
@@ -4498,6 +4500,10 @@
 		localStorage.setItem(TIMELINE_AUTO_INSERT_KEY, String(value));
 		flushNewTimelinePostsAtTop();
 	};
+	const setFitTimelineImages = (value: boolean) => {
+		fitTimelineImages = value;
+		localStorage.setItem(TIMELINE_FIT_IMAGES_KEY, String(value));
+	};
 	const retryHomeTimeline = () => {
 		if (currentSession) void loadHomeTimeline(currentSession);
 	};
@@ -4561,6 +4567,7 @@
 		applyResolvedTheme();
 		searchRecents = readSearchRecents();
 		autoInsertTimelinePosts = localStorage.getItem(TIMELINE_AUTO_INSERT_KEY) === 'true';
+		fitTimelineImages = localStorage.getItem(TIMELINE_FIT_IMAGES_KEY) === 'true';
 		updateTimelineTop();
 		mounted = true;
 
@@ -5051,7 +5058,7 @@
 								{#if homeTimelineState.status === 'success'}
 									<TimelineNewPostsIndicator count={homeTimelineState.newerPosts.length} onActivate={showNewHomePosts} disabled={Boolean(homeTimelineCatchUpKey)} />
 								{/if}
-								<TimelineSettings autoInsertAtTop={autoInsertTimelinePosts} onAutoInsertChange={setAutoInsertTimelinePosts} />
+								<TimelineSettings autoInsertAtTop={autoInsertTimelinePosts} onAutoInsertChange={setAutoInsertTimelinePosts} fitImages={fitTimelineImages} onFitImagesChange={setFitTimelineImages} />
 							</div>
 						</div>
 
@@ -5153,7 +5160,7 @@
 								{/if}
 							</div>
 						{:else if homeTimelineState.status === 'success'}
-							<div data-testid="home-timeline-list">
+							<div data-testid="home-timeline-list" class:timeline-fit-images={fitTimelineImages}>
 								{#each timelinePosts as post (post.id)}
 									<Post {post} replyExpanded={inlineReplyOpenFor('home', post)} replyControlsId={inlineReplyOpenFor('home', post) ? inlineReplyComposerId('home', post) : undefined} onOpen={() => openThread(post)} onAction={(key) => handlePostAction(post, key)} onReact={(anchor) => openReactionPicker(post, 'home', anchor)} onVote={(pollId, choice) => votePollForPost(post, pollId, choice, 'home')} canManage={Boolean(currentSession)} />
 									{#if inlineReplyOpenFor('home', post) && inlineReplyComposerProps}
@@ -5185,7 +5192,7 @@
 								{#if appPublicTimelineState.status === 'success'}
 									<TimelineNewPostsIndicator count={appPublicTimelineState.newerPosts.length} onActivate={showNewAppPublicPosts} disabled={Boolean(appPublicTimelineCatchUpKey)} />
 								{/if}
-								<TimelineSettings autoInsertAtTop={autoInsertTimelinePosts} onAutoInsertChange={setAutoInsertTimelinePosts} />
+								<TimelineSettings autoInsertAtTop={autoInsertTimelinePosts} onAutoInsertChange={setAutoInsertTimelinePosts} fitImages={fitTimelineImages} onFitImagesChange={setFitTimelineImages} />
 							</div>
 						</div>
 
@@ -5212,7 +5219,7 @@
 								{/if}
 							</div>
 						{:else if appPublicTimelineState.status === 'success' && appPublicTimelineRoute}
-							<div data-testid="app-public-timeline-list">
+							<div data-testid="app-public-timeline-list" class:timeline-fit-images={fitTimelineImages}>
 								{#each appPublicTimelinePosts as post (post.id)}
 									<Post {post} replyExpanded={inlineReplyOpenFor(appPublicTimelineRoute, post)} replyControlsId={inlineReplyOpenFor(appPublicTimelineRoute, post) ? inlineReplyComposerId(appPublicTimelineRoute, post) : undefined} onOpen={() => openThread(post)} onAction={(key) => handleAppPublicPostAction(post, key)} onReact={(anchor) => appPublicTimelineRoute && openReactionPicker(post, appPublicTimelineRoute, anchor)} onVote={(pollId, choice) => appPublicTimelineRoute && votePollForPost(post, pollId, choice, appPublicTimelineRoute)} canManage={Boolean(currentSession)} />
 									{#if inlineReplyOpenFor(appPublicTimelineRoute, post) && inlineReplyComposerProps}

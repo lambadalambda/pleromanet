@@ -1764,6 +1764,11 @@ body[data-theme='simoun'] .pill {
 	align-items: center;
 	gap: 18px;
 }
+.timeline-settings-row + .timeline-settings-row {
+	margin-top: 12px;
+	padding-top: 12px;
+	border-top: 1px solid var(--border);
+}
 .timeline-settings-copy { flex: 1; min-width: 0; }
 .timeline-settings-label { font-size: 13px; font-weight: 600; color: var(--ink); }
 .timeline-settings-description { margin-top: 3px; font-size: 11px; line-height: 1.45; color: var(--muted); }
@@ -3581,6 +3586,10 @@ a.suggest-name:hover { color: var(--accent-ink); }
 	height: 100%;
 	object-fit: cover;
 }
+.timeline-fit-images .ph-img,
+.timeline-fit-images .media-hero-photo img,
+.timeline-fit-images .media-strip-tile.mst-photo img,
+.timeline-fit-images .quoted-hero > img { object-fit: contain; }
 .ph-duotone {
 	position: absolute;
 	inset: 0;

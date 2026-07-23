@@ -3211,6 +3211,100 @@ test('timeline settings auto-insert incoming posts only while scrolled to the to
 	await expect(autoInsert).toHaveAttribute('aria-checked', 'false');
 });
 
+test('timeline settings fit images without cropping and persist the preference', async ({ page }) => {
+	await authenticate(page);
+	const quotedBase = statusWithText('fit-quoted-status', 'quoted fitted image');
+	const quotedStatus = {
+		...quotedBase,
+		media_attachments: [{
+			id: 'fit-quoted-image',
+			type: 'image',
+			url: 'https://cdn.example/media/fit-quoted-image.jpg',
+			preview_url: 'https://cdn.example/media/fit-quoted-image-preview.jpg',
+			description: 'quoted tall image'
+		}],
+		pleroma: { ...quotedBase.pleroma, quote: null, quote_visible: false }
+	};
+	const quoteWrapperBase = statusWithText('status-fit-quote', 'quote fitting preference');
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, [
+			{
+				...statusWithText('status-fit-image', 'image fitting preference'),
+				media_attachments: [{
+					id: 'fit-image',
+					type: 'image',
+					url: 'https://cdn.example/media/fit-image.jpg',
+					preview_url: 'https://cdn.example/media/fit-image-preview.jpg',
+					description: 'a tall image'
+				}]
+			},
+			{
+				...statusWithText('status-fit-mixed', 'mixed image fitting preference'),
+				media_attachments: [
+					{ id: 'fit-video', type: 'video', url: 'https://cdn.example/media/fit-video.mp4', description: 'a short video' },
+					{ id: 'fit-mixed-image', type: 'image', url: 'https://cdn.example/media/fit-mixed-image.jpg', description: 'a mixed tall image' }
+				]
+			},
+			{
+				...quoteWrapperBase,
+				pleroma: {
+					...quoteWrapperBase.pleroma,
+					quote: quotedStatus,
+					quote_id: quotedStatus.id,
+					quote_url: quotedStatus.url,
+					quote_visible: true
+				}
+			}
+		]);
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	const list = page.getByTestId('home-timeline-list');
+	const images = list.locator('[data-status-id="status-fit-image"] .ph-img');
+	const mixedPost = list.locator('[data-status-id="status-fit-mixed"]');
+	const mixedThumbnail = mixedPost.locator('.media-strip-tile.mst-photo');
+	await mixedThumbnail.click();
+	const mixedHeroImage = mixedPost.locator('.media-hero-photo img');
+	const mixedThumbnailImages = mixedThumbnail.locator('img');
+	const quotedImage = list.locator('[data-status-id="status-fit-quote"] .quoted-hero > img');
+	await expect(images).toHaveCount(2);
+	await expect(images.first()).toHaveCSS('object-fit', 'cover');
+	await expect(mixedHeroImage).toHaveCSS('object-fit', 'cover');
+	await expect(mixedThumbnailImages.first()).toHaveCSS('object-fit', 'cover');
+	await expect(quotedImage).toHaveCSS('object-fit', 'cover');
+
+	const settingsButton = page.getByRole('button', { name: 'Timeline settings' });
+	await settingsButton.click();
+	const fitImages = page.getByRole('switch', { name: 'Fit images' });
+	await expect(fitImages).toHaveAttribute('aria-checked', 'false');
+	await fitImages.press('Space');
+	await expect(fitImages).toHaveAttribute('aria-checked', 'true');
+	await expect(images.first()).toHaveCSS('object-fit', 'contain');
+	await expect(images.last()).toHaveCSS('object-fit', 'contain');
+	await expect(mixedHeroImage).toHaveCSS('object-fit', 'contain');
+	await expect(mixedThumbnailImages.first()).toHaveCSS('object-fit', 'contain');
+	await expect(quotedImage).toHaveCSS('object-fit', 'contain');
+
+	await fitImages.press('Space');
+	await expect(images.first()).toHaveCSS('object-fit', 'cover');
+	await expect(mixedHeroImage).toHaveCSS('object-fit', 'cover');
+	await expect(quotedImage).toHaveCSS('object-fit', 'cover');
+	await fitImages.press('Space');
+	await page.keyboard.press('Escape');
+	await page.reload();
+	await expect(list).toContainText('image fitting preference');
+	await expect(images.first()).toHaveCSS('object-fit', 'contain');
+	await expect(quotedImage).toHaveCSS('object-fit', 'contain');
+	await settingsButton.click();
+	await expect(fitImages).toHaveAttribute('aria-checked', 'true');
+	await fitImages.press('Space');
+	await expect(images.first()).toHaveCSS('object-fit', 'cover');
+	await page.reload();
+	await settingsButton.click();
+	await expect(fitImages).toHaveAttribute('aria-checked', 'false');
+});
+
 test('timeline auto-insert applies to fallback checks while at the top', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page, async (route) => {

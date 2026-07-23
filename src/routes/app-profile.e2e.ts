@@ -188,7 +188,15 @@ const mockProfileSearchAndStatuses = async (page: Page) => {
 
 test('profile route loads the canonical account timeline surface', async ({ page }) => {
 	await authenticate(page);
-	await mockProfileApis(page);
+	await page.addInitScript(() => window.localStorage.setItem('pleromanet.timeline.fit-images', 'true'));
+	const profileImagePost = statusForProfile('soft-post-image', 'profile image stays cropped', {
+		media_attachments: [{ id: 'profile-post-image', type: 'image', url: 'https://cdn.example/profile-post-image.webp', description: 'profile post image' }]
+	});
+	await mockProfileApis(page, profileAccount, pinnedStatuses, {
+		posts: [...postStatuses, profileImagePost],
+		replies: replyStatuses,
+		media: mediaStatuses
+	});
 	await page.route('https://pleroma.example/api/v1/accounts/relationships**', async (route: Route) => {
 		const url = new URL(route.request().url());
 		expect(url.searchParams.getAll('id[]')).toEqual([profileAccount.id]);
@@ -214,13 +222,16 @@ test('profile route loads the canonical account timeline surface', async ({ page
 	await profile.getByRole('button', { name: 'Show all (2)' }).click();
 	await expect(profile).toContainText('mute liberally');
 	await expect(profile.getByTestId('profile-posts')).toContainText("rain recording from this morning's walk");
+	await expect(profile.getByTestId('profile-posts').locator('[data-status-id="soft-post-image"] .ph-raw')).toHaveCSS('object-fit', 'cover');
 
 	await profile.getByRole('tab', { name: /Posts & Replies/ }).click();
 	await expect(profile.getByTestId('profile-posts')).toContainText('reply from the margins');
 
 	await profile.getByRole('tab', { name: /Media/ }).click();
 	await expect(profile.getByTestId('profile-media-grid')).toContainText('AUDIO');
-	await expect(profile.getByAltText('door with cat at dusk')).toBeVisible();
+	const profileImage = profile.getByAltText('door with cat at dusk');
+	await expect(profileImage).toBeVisible();
+	await expect(profileImage).toHaveCSS('object-fit', 'cover');
 	await expect(profile.getByAltText('hidden sensitive frame')).toHaveCount(0);
 
 	const rail = page.getByTestId('right-rail');
