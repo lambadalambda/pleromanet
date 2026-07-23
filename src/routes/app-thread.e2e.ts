@@ -878,6 +878,91 @@ test('real thread route inline reply composer submits for the focused post', asy
 	expect(params.get('visibility')).toBe('public');
 });
 
+test('real thread route inserts an inline reply to an ancestor without reloading', async ({ page }) => {
+	await authenticate(page);
+	const descendants = [threadReply, nestedThreadReply, secondThreadReply];
+	const ancestors = [threadAncestor];
+	await mockThread(page, threadStatus, descendants, ancestors);
+	let createBody = '';
+	const createdReply = statusWithText('created-ancestor-inline-reply', 'replying inline to an ancestor', {
+		in_reply_to_id: 'ancestor-1',
+		in_reply_to_account_id: 'gridwave',
+		replies_count: 0,
+		reblogs_count: 0,
+		favourites_count: 0
+	});
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createBody = route.request().postData() ?? '';
+		await fulfillJson(route, createdReply);
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	const ancestor = page.getByTestId('thread-ancestor');
+	await ancestor.getByRole('button', { name: 'Reply 1' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @gridwave' });
+	await replyForm.getByRole('textbox', { name: 'Reply text' }).fill('replying inline to an ancestor');
+	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
+
+	await expect(page.getByRole('form', { name: /Inline reply/ })).toHaveCount(0);
+	await expect(page.getByTestId('thread-reply-count')).toContainText('4 replies');
+	await expect(ancestor.getByRole('button', { name: 'Reply 2' })).toBeVisible();
+	await expect(page.getByText('replying inline to an ancestor')).toHaveCount(1);
+	const rootReplies = page.locator('.thread-replies > [data-testid="thread-reply"]');
+	await expect(rootReplies.last()).toContainText('replying inline to an ancestor');
+	await page.getByRole('button', { name: 'Newest' }).click();
+	await expect(rootReplies.first()).toContainText('replying inline to an ancestor');
+	await page.getByRole('button', { name: 'Top', exact: true }).click();
+	await emitStreamUpdate(page, createdReply);
+	await expect(page.getByTestId('thread-reply-count')).toContainText('4 replies');
+	await expect(page.getByText('replying inline to an ancestor')).toHaveCount(1);
+	const params = new URLSearchParams(createBody);
+	expect(params.get('status')).toBe('replying inline to an ancestor');
+	expect(params.get('in_reply_to_id')).toBe('ancestor-1');
+
+	ancestors.splice(0, ancestors.length, { ...threadAncestor, replies_count: 2 });
+	descendants.push(createdReply);
+	await page.reload();
+	await expect(page.getByTestId('thread-reply-count')).toContainText('4 replies');
+	await expect(page.getByTestId('thread-ancestor').getByRole('button', { name: 'Reply 2' })).toBeVisible();
+	await expect(page.getByText('replying inline to an ancestor')).toHaveCount(1);
+	await expect(rootReplies.last()).toContainText('replying inline to an ancestor');
+});
+
+test('real thread route reconciles replies to a boosted ancestor by source identity', async ({ page }) => {
+	await authenticate(page);
+	const boostedSource = { ...threadAncestor, id: 'boosted-ancestor-source' };
+	const boostedAncestor = statusWithText('boosted-ancestor-wrapper', 'boosted ancestor wrapper', {
+		account: accountWithName('ancestor-booster', 'ancestor booster', 'ancestor-booster@example.social'),
+		in_reply_to_id: null,
+		in_reply_to_account_id: null,
+		reblog: boostedSource
+	});
+	await mockThread(page, threadStatus, [threadReply, nestedThreadReply, secondThreadReply], [boostedAncestor]);
+	let createBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createBody = route.request().postData() ?? '';
+		await fulfillJson(route, statusWithText('reply-to-boosted-ancestor', 'replying to the boosted ancestor', {
+			in_reply_to_id: boostedSource.id,
+			in_reply_to_account_id: boostedSource.account.id,
+			replies_count: 0,
+			reblogs_count: 0,
+			favourites_count: 0
+		}));
+	});
+	await page.goto('/app/thread/status-1');
+
+	const ancestor = page.getByTestId('thread-ancestor');
+	await ancestor.getByRole('button', { name: 'Reply 1' }).click();
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @gridwave' });
+	await replyForm.getByRole('textbox', { name: 'Reply text' }).fill('replying to the boosted ancestor');
+	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
+
+	await expect(page.getByTestId('thread-reply-count')).toContainText('4 replies');
+	await expect(page.getByText('replying to the boosted ancestor')).toHaveCount(1);
+	expect(new URLSearchParams(createBody).get('in_reply_to_id')).toBe(boostedSource.id);
+});
+
 test('real thread route inline reply composer opens below a targeted reply and cancels', async ({ page }) => {
 	await authenticate(page);
 	await mockThread(page);
@@ -1027,6 +1112,33 @@ test('real thread route streams new descendant replies once into the open thread
 	}));
 	await expect(page.getByTestId('thread-reply-count')).toContainText('5 replies');
 	await expect(page.getByText('an unrelated streamed reply')).toHaveCount(0);
+
+	const oldAncestorReply = statusWithText('old-ancestor-reply', 'an old boosted ancestor reply', {
+		in_reply_to_id: threadAncestor.id,
+		in_reply_to_account_id: threadAncestor.account.id,
+		replies_count: 0,
+		reblogs_count: 0,
+		favourites_count: 0
+	});
+	await emitStreamUpdate(page, statusWithText('old-ancestor-reply-boost', 'boost wrapper', {
+		account: accountWithName('old-reply-booster', 'old reply booster', 'old-reply-booster@example.social'),
+		in_reply_to_id: null,
+		in_reply_to_account_id: null,
+		reblog: oldAncestorReply
+	}));
+	await expect(page.getByTestId('thread-reply-count')).toContainText('5 replies');
+	await expect(page.getByText('an old boosted ancestor reply')).toHaveCount(0);
+
+	await emitStreamUpdate(page, statusWithText('streamed-ancestor-reply', 'a newly streamed ancestor reply', {
+		in_reply_to_id: threadAncestor.id,
+		in_reply_to_account_id: threadAncestor.account.id,
+		replies_count: 0,
+		reblogs_count: 0,
+		favourites_count: 0
+	}));
+	await expect(page.getByTestId('thread-reply-count')).toContainText('6 replies');
+	await expect(page.getByTestId('thread-ancestor').getByRole('button', { name: 'Reply 2' })).toBeVisible();
+	await expect(page.getByText('a newly streamed ancestor reply')).toHaveCount(1);
 });
 
 test('real thread route replays streamed replies received while context is loading', async ({ page }) => {

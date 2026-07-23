@@ -5,6 +5,7 @@
 - Compact notification and reply-context images now expand into viewport-contained original-image previews on hover or keyboard focus while preserving sensitive/CW privacy across live notification refreshes.
 - Notification image excerpts have twice the previous vertical room and preserve full aspect ratios; reply previews and notification excerpts retain accessible, non-nested navigation controls around the new image interactions.
 - Authenticated timeline settings now offer a persisted Fit images preference that contains complete standard, mixed, strip, and quoted images across home, local, and federated feeds without changing other post surfaces.
+- Replies to ancestor/context posts now appear immediately in open threads with refresh-consistent placement, canonical boosted-post targeting, accurate counts, and streamed-boost filtering.
 
 ## 2026-07-22
 

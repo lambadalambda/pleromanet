@@ -1236,7 +1236,7 @@
 			return post.nestedReplies ? { ...post, nestedReplies: insertNestedThreadReply(post.nestedReplies, parentId, reply) } : post;
 		});
 	const reconcileThreadReply = (status: PleromaStatus, expectedParentId?: string) => {
-		if (route !== 'thread' || threadState.status !== 'success') return false;
+		if (route !== 'thread' || threadState.status !== 'success' || status.reblog) return false;
 
 		const adapted = adaptPleromaStatus(status);
 		const statusId = statusReplyTargetId(adapted);
@@ -1247,19 +1247,21 @@
 		if (!parentId || statusPresent) return false;
 
 		const parentIsFocused = matchesStatusReplyTarget(threadState.focused, parentId);
-		if (!parentIsFocused && !findPostByReplyTarget(threadState.replies, parentId)) return false;
+		const parentIsAncestor = findPostByReplyTarget(threadState.ancestors, parentId) !== null;
+		const parentIsReply = findPostByReplyTarget(threadState.replies, parentId) !== null;
+		if (!parentIsFocused && !parentIsAncestor && !parentIsReply) return false;
 
 		upsertAccountCache(accountsFromPleromaStatus(status));
 		applyReplyCountUpdate(parentId);
 		const reply = [{ ...threadPostForRebuild(adapted), nestedReplies: [] }];
 		if (threadState.status !== 'success') return false;
-		threadState = parentIsFocused
+		threadState = parentIsFocused || parentIsAncestor
 			? { ...threadState, replies: [...threadState.replies, ...reply] }
 			: {
 				...threadState,
 				replies: insertNestedThreadReply(threadState.replies, parentId, reply)
 			};
-		if (!parentIsFocused) expandThreadReplyPath(parentId);
+		if (parentIsReply) expandThreadReplyPath(parentId);
 		return true;
 	};
 	const clearStatusActionPending = (pendingKey: string, requestId: number) => {

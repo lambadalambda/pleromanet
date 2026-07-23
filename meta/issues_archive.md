@@ -99,3 +99,4 @@
 - [x] [99 Unify compact media previews](issues/99-unify-compact-media-previews.md)
 - [x] [100 Expand compact image previews](issues/100-expand-compact-image-previews.md)
 - [x] [101 Add fit-images timeline setting](issues/101-add-fit-images-timeline-setting.md)
+- [x] [102 Insert replies to thread context posts](issues/102-insert-replies-to-thread-context-posts.md)
