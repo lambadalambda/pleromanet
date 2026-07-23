@@ -24,5 +24,5 @@ Let users show complete post images in authenticated timelines instead of croppi
 
 - Added an accessible Fit images switch beside the existing timeline preference and persisted it with the same local-storage pattern.
 - Scoped aspect-ratio-preserving containment to standard, mixed-media, strip-thumbnail, and quoted images in authenticated home, local, and federated timeline lists.
-- Preserved the existing cropped default and kept thread, profile, bookmark, and signed-out public post images unchanged.
+- Preserved the existing cropped default and kept profile, bookmark, and signed-out public post images unchanged; issue 103 later extended the shared preference to threads.
 - Added Playwright coverage for immediate toggling, keyboard use, reload persistence, cross-timeline reuse, alternate image layouts, and non-timeline isolation.

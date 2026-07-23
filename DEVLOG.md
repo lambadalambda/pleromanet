@@ -6,6 +6,7 @@
 - Notification image excerpts have twice the previous vertical room and preserve full aspect ratios; reply previews and notification excerpts retain accessible, non-nested navigation controls around the new image interactions.
 - Authenticated timeline settings now offer a persisted Fit images preference that contains complete standard, mixed, strip, and quoted images across home, local, and federated feeds without changing other post surfaces.
 - Replies to ancestor/context posts now appear immediately in open threads with refresh-consistent placement, canonical boosted-post targeting, accurate counts, and streamed-boost filtering.
+- Thread headers now expose the same persisted Fit images preference as timeline settings, keeping both controls synchronized while fitting every thread photo layout on desktop and mobile.
 
 ## 2026-07-22
 

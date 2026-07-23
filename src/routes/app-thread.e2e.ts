@@ -283,7 +283,7 @@ test('real thread route loads focused status, ancestors, and replies from Plerom
 	await expect(page.getByTestId('focused-post')).toContainText('Pleroma Web');
 	const threadPhoto = page.getByTestId('focused-post').locator('.post-photos img[alt="thread photo"]');
 	await expect(threadPhoto).toHaveAttribute('src', 'https://cdn.example/thread-photo.jpg');
-	await expect(threadPhoto).toHaveCSS('object-fit', 'cover');
+	await expect(threadPhoto).toHaveCSS('object-fit', 'contain');
 	await expect(page.getByTestId('focused-engagement')).toContainText('Boost');
 	await expect(page.getByRole('form', { name: 'Thread reply' })).toHaveCount(0);
 	await expect(page.getByTestId('thread-reply-count')).toContainText('3 replies');
@@ -297,6 +297,133 @@ test('real thread route loads focused status, ancestors, and replies from Plerom
 	await setViewport(page, 'desktop');
 	await page.getByRole('button', { name: 'Show 1 reply' }).click();
 	await expect(page.getByText('around the time the algorithm replaced the timeline.')).toBeVisible();
+});
+
+test('thread and timeline fit-images switches share one persisted preference', async ({ page }) => {
+	await authenticate(page);
+	await page.route('https://pleroma.example/api/v1/timelines/home**', async (route) => {
+		await fulfillJson(route, [threadStatus]);
+	});
+	await mockThread(page);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const timelineImage = page.getByTestId('home-timeline-list').locator('[data-status-id="status-1"] .ph-raw');
+	await expect(timelineImage).toHaveCSS('object-fit', 'cover');
+	await page.getByRole('button', { name: 'Timeline settings' }).click();
+	let fitImages = page.getByRole('switch', { name: 'Fit images' });
+	await expect(fitImages).toHaveAttribute('aria-checked', 'false');
+	await fitImages.click();
+	await expect(timelineImage).toHaveCSS('object-fit', 'contain');
+	await page.keyboard.press('Escape');
+
+	await page.locator('[data-status-id="status-1"] .post-body').click();
+	await expect(page).toHaveURL('/app/thread/status-1');
+	const threadImage = page.getByTestId('focused-post').locator('.ph-raw');
+	await expect(threadImage).toHaveCSS('object-fit', 'contain');
+	const threadSettings = page.getByRole('button', { name: 'Thread settings' });
+	await threadSettings.focus();
+	await threadSettings.press('Enter');
+	fitImages = page.getByRole('switch', { name: 'Fit images' });
+	await expect(fitImages).toHaveAttribute('aria-checked', 'true');
+	await page.keyboard.press('Escape');
+	await expect(threadSettings).toBeFocused();
+
+	await page.reload();
+	await expect(threadImage).toHaveCSS('object-fit', 'contain');
+	await threadSettings.press('Enter');
+	await expect(fitImages).toHaveAttribute('aria-checked', 'true');
+	await fitImages.press('Space');
+	await expect(fitImages).toHaveAttribute('aria-checked', 'false');
+	await expect(threadImage).toHaveCSS('object-fit', 'cover');
+	await page.keyboard.press('Escape');
+	await expect(threadSettings).toBeFocused();
+
+	await page.getByRole('button', { name: 'Back to home timeline' }).click();
+	await expect(page).toHaveURL('/app/home');
+	await expect(timelineImage).toHaveCSS('object-fit', 'cover');
+	await page.getByRole('button', { name: 'Timeline settings' }).click();
+	await expect(page.getByRole('switch', { name: 'Fit images' })).toHaveAttribute('aria-checked', 'false');
+	await expect.poll(() => page.evaluate(() => localStorage.getItem('pleromanet.timeline.fit-images'))).toBe('false');
+});
+
+test('thread fit-images covers ancestor, mixed, nested, and quoted photos', async ({ page }) => {
+	await authenticate(page);
+	const photoAncestor = statusWithText('ancestor-photo', 'ancestor with a photo', {
+		media_attachments: [{ id: 'ancestor-photo-media', type: 'image', url: 'https://cdn.example/thread-ancestor.jpg', description: 'thread ancestor image' }]
+	});
+	const mixedFocused = statusWithText('status-1', 'focused mixed media', {
+		media_attachments: [
+			{ id: 'focused-video', type: 'video', url: 'https://cdn.example/thread-video.mp4', description: 'thread video' },
+			{ id: 'focused-photo', type: 'image', url: 'https://cdn.example/thread-focused.jpg', description: 'thread focused image' }
+		]
+	});
+	const photoReply = statusWithText('reply-photo', 'root reply with a photo', {
+		in_reply_to_id: 'status-1',
+		in_reply_to_account_id: 'account-1',
+		replies_count: 1,
+		media_attachments: [{ id: 'reply-photo-media', type: 'image', url: 'https://cdn.example/thread-reply.jpg', description: 'thread reply image' }]
+	});
+	const nestedPhotoReply = statusWithText('reply-photo-nested', 'nested reply with a photo', {
+		in_reply_to_id: photoReply.id,
+		in_reply_to_account_id: photoReply.account.id,
+		media_attachments: [{ id: 'nested-photo-media', type: 'image', url: 'https://cdn.example/thread-nested.jpg', description: 'thread nested image' }]
+	});
+	const quoteSource = statusWithText('thread-quote-source', 'quoted photo source', {
+		media_attachments: [{ id: 'quote-photo-media', type: 'image', url: 'https://cdn.example/thread-quote.jpg', description: 'thread quoted image' }]
+	});
+	const quoteWrapperBase = statusWithText('thread-quote-wrapper', 'root reply with a quote', {
+		in_reply_to_id: 'status-1',
+		in_reply_to_account_id: 'account-1'
+	});
+	const quoteWrapper = {
+		...quoteWrapperBase,
+		pleroma: {
+			...quoteWrapperBase.pleroma,
+			quote: quoteSource,
+			quote_id: quoteSource.id,
+			quote_url: quoteSource.url,
+			quote_visible: true
+		}
+	};
+	await mockThread(page, mixedFocused, [photoReply, nestedPhotoReply, quoteWrapper], [photoAncestor]);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-1');
+
+	const thread = page.getByTestId('thread-view');
+	const mixedThumbnail = thread.locator('.media-strip-tile.mst-photo');
+	await mixedThumbnail.click();
+	await thread.getByRole('button', { name: 'Show 1 reply' }).click();
+	const images = [
+		thread.getByAltText('thread ancestor image'),
+		thread.locator('.media-hero-photo img'),
+		mixedThumbnail.locator('img').first(),
+		thread.getByAltText('thread reply image'),
+		thread.getByAltText('thread nested image'),
+		thread.getByAltText('thread quoted image')
+	];
+	for (const image of images) await expect(image).toHaveCSS('object-fit', 'cover');
+
+	const threadSettings = page.getByRole('button', { name: 'Thread settings' });
+	await threadSettings.click();
+	const fitImages = page.getByRole('switch', { name: 'Fit images' });
+	await fitImages.click();
+	for (const image of images) await expect(image).toHaveCSS('object-fit', 'contain');
+	await fitImages.click();
+	for (const image of images) await expect(image).toHaveCSS('object-fit', 'cover');
+	await page.keyboard.press('Escape');
+
+	await page.setViewportSize({ width: 320, height: 568 });
+	await threadSettings.click();
+	const popover = page.getByRole('region', { name: 'Thread settings' });
+	await expect.poll(async () => Promise.all([thread.boundingBox(), popover.boundingBox()]).then(([threadBounds, popoverBounds]) => Boolean(
+		threadBounds && popoverBounds
+		&& popoverBounds.x >= threadBounds.x
+		&& popoverBounds.x + popoverBounds.width <= threadBounds.x + threadBounds.width
+		&& popoverBounds.y >= threadBounds.y
+		&& popoverBounds.y + popoverBounds.height <= 568
+	))).toBe(true);
+	await expectNoHorizontalOverflow(page);
 });
 
 test('real thread route shows animated loading feedback while thread requests are pending', async ({ page }) => {

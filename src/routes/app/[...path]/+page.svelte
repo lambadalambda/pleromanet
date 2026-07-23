@@ -5289,10 +5289,11 @@
 						</div>
 					</section>
 				{:else if route === 'thread'}
-					<section class="card thread-view" data-testid="thread-view">
+					<section class="card thread-view" class:timeline-fit-images={fitTimelineImages} data-testid="thread-view">
 						<div class="thread-head-title">
 							<button type="button" class="thread-back" aria-label="Back to home timeline" onclick={returnFromThread}><Icon name="arrowL" width={15} height={15} /></button>
 							<h1>Thread</h1>
+							<TimelineSettings autoInsertAtTop={autoInsertTimelinePosts} onAutoInsertChange={setAutoInsertTimelinePosts} fitImages={fitTimelineImages} onFitImagesChange={setFitTimelineImages} showAutoInsert={false} settingsLabel="Thread settings" />
 						</div>
 						{#each threadStatusActionErrors as actionError (`${actionError.targetId}:${actionError.key}`)}
 							<div class="status-action-error" role="alert">
