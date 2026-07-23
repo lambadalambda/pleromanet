@@ -211,7 +211,7 @@ test('real notifications route renders mocked API notifications and navigates by
 	await expect(page.getByTestId('notifications-list').getByRole('button', { name: /relay bot sent a notification/ })).toHaveCount(0);
 	await expect(notificationBadge(page)).toHaveText('6');
 
-	await page.getByTestId('notifications-list').getByText('orbit mentioned you').click();
+	await page.getByTestId('notifications-list').getByRole('button', { name: /Open post: hey @quietadmin/ }).click();
 	await expect(page).toHaveURL('/app/thread/status-mention');
 	await expect(page.getByTestId('focused-post')).toContainText('hey @quietadmin');
 
@@ -483,7 +483,12 @@ test('notification polling pauses after the session is removed', async ({ page }
 
 test('notification rows render name custom emoji and media-only excerpts', async ({ page }) => {
 	await authenticate(page);
+	let fullImageRequests = 0;
 	await page.route(/^https:\/\/cdn\.example\/only(?:-2)?-thumb\.png$/, async (route) => {
+		await route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64') });
+	});
+	await page.route(/^https:\/\/cdn\.example\/only(?:-2)?\.png$/, async (route) => {
+		fullImageRequests += 1;
 		await route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64') });
 	});
 	const emojiActor: PleromaAccount = {
@@ -510,11 +515,12 @@ test('notification rows render name custom emoji and media-only excerpts', async
 		sensitive: true,
 		media_attachments: [{ id: 'media-4', type: 'image', url: 'https://cdn.example/sensitive.png', preview_url: 'https://cdn.example/sensitive-thumb.png', description: 'private image' }]
 	};
-	await mockNotifications(page, () => [
+	let currentNotifications = [
 		notification('notif-emoji-fav', 'favourite', emojiActor, '2026-05-18T12:03:00.000Z', imageOnlyStatus),
 		notification('notif-video-boost', 'reblog', boostActor, '2026-05-18T12:02:00.000Z', videoOnlyStatus),
 		notification('notif-sensitive-fav', 'favourite', favActor, '2026-05-18T12:01:00.000Z', sensitiveStatus)
-	]);
+	];
+	await mockNotifications(page, () => currentNotifications);
 	await setViewport(page, 'desktop');
 	await page.goto('/app/notifications');
 
@@ -528,9 +534,76 @@ test('notification rows render name custom emoji and media-only excerpts', async
 	await expect(favRow.locator('.compact-media-preview img')).toHaveCount(2);
 	await expect(favRow.locator('.compact-media-preview img').first()).toHaveAttribute('src', 'https://cdn.example/only-thumb.png');
 	await expect(favRow.locator('.compact-media-item').filter({ hasText: '[attachment]' })).toBeVisible();
-	await expect(favRow).toHaveAttribute('aria-describedby', /notification-post/);
-	await expect(favRow).toHaveAccessibleDescription(/Image preview.*attachment/i);
+	const openNotification = favRow.getByRole('button', { name: /James Randson.*favorited your post/ });
+	await expect(openNotification).toHaveAttribute('aria-describedby', /notification-post/);
+	await expect(openNotification).toHaveAccessibleDescription(/Image preview.*attachment/i);
 	await expect(favRow.locator('.compact-media-preview')).toHaveAttribute('role', 'group');
+	const firstImage = favRow.getByRole('button', { name: 'View full image: Image preview' }).first();
+	await expect(firstImage).toBeVisible();
+	await expect(firstImage.locator('img')).toHaveCSS('object-fit', 'contain');
+	await expect.poll(async () => firstImage.locator('..').evaluate((element) => Math.round(element.getBoundingClientRect().height))).toBe(104);
+	expect(fullImageRequests).toBe(0);
+	await firstImage.hover();
+	const fullImagePreview = page.getByRole('img', { name: 'Full image: Image preview' });
+	await expect(fullImagePreview).toBeVisible();
+	await expect(fullImagePreview.locator('img')).toHaveAttribute('src', 'https://cdn.example/only.png');
+	await expect.poll(() => fullImageRequests).toBe(1);
+	await expect.poll(async () => Promise.all([firstImage.boundingBox(), fullImagePreview.boundingBox()]).then(([thumb, floating]) => Boolean(
+		thumb && floating && floating.x >= 12 && floating.y >= 12 && floating.x + floating.width <= 1268 && floating.y + floating.height <= 888 &&
+		(floating.x + floating.width <= thumb.x || floating.x >= thumb.x + thumb.width || floating.y + floating.height <= thumb.y || floating.y >= thumb.y + thumb.height)
+	))).toBe(true);
+	await page.keyboard.press('Escape');
+	await expect(fullImagePreview).toHaveCount(0);
+	await favRow.locator('.notif-names').hover();
+	const secondImage = favRow.getByRole('button', { name: 'View full image: Image preview' }).nth(1);
+	await secondImage.hover();
+	await expect(fullImagePreview.locator('img')).toHaveAttribute('src', 'https://cdn.example/only-2.png');
+	await firstImage.focus();
+	await expect(fullImagePreview).toBeVisible();
+	await expect(fullImagePreview.locator('img')).toHaveAttribute('src', 'https://cdn.example/only.png');
+	await favRow.locator('.notif-names').hover();
+	await expect(fullImagePreview).toBeVisible();
+	await page.setViewportSize({ width: 390, height: 844 });
+	await expect.poll(async () => fullImagePreview.evaluate((element) => {
+		const bounds = element.getBoundingClientRect();
+		return bounds.left >= 12 && bounds.top >= 12 && bounds.right <= window.innerWidth - 12 && bounds.bottom <= window.innerHeight - 12;
+	})).toBe(true);
+	currentNotifications = [
+		notification('notif-emoji-fav', 'favourite', emojiActor, '2026-05-18T12:03:00.000Z', {
+			...imageOnlyStatus,
+			media_attachments: imageOnlyStatus.media_attachments.map((attachment) =>
+				attachment && typeof attachment === 'object' ? { ...attachment } : attachment
+			)
+		}),
+		...currentNotifications.slice(1)
+	];
+	await page.evaluate((eventName) => window.dispatchEvent(new Event(eventName)), NOTIFICATION_POLL_EVENT);
+	await expect(fullImagePreview).toBeVisible();
+	await expect(fullImagePreview.locator('img')).toHaveAttribute('src', 'https://cdn.example/only.png');
+	await secondImage.hover();
+	await expect(fullImagePreview.locator('img')).toHaveAttribute('src', 'https://cdn.example/only-2.png');
+	currentNotifications = [
+		notification('notif-emoji-fav', 'favourite', emojiActor, '2026-05-18T12:03:00.000Z', {
+			...imageOnlyStatus,
+			media_attachments: imageOnlyStatus.media_attachments.map((attachment, index) =>
+				attachment && typeof attachment === 'object' ? { ...attachment, ...(index === 0 ? { cw: true } : {}) } : attachment
+			)
+		}),
+		...currentNotifications.slice(1)
+	];
+	await page.evaluate((eventName) => window.dispatchEvent(new Event(eventName)), NOTIFICATION_POLL_EVENT);
+	await expect(fullImagePreview.locator('img')).toHaveAttribute('src', 'https://cdn.example/only-2.png');
+	await favRow.locator('.notif-names').hover();
+	await expect(fullImagePreview).toHaveCount(0);
+	await favRow.getByRole('button', { name: 'View full image: Image preview' }).focus();
+	await expect(fullImagePreview.locator('img')).toHaveAttribute('src', 'https://cdn.example/only-2.png');
+	currentNotifications = [
+		notification('notif-emoji-fav', 'favourite', emojiActor, '2026-05-18T12:03:00.000Z', { ...imageOnlyStatus, sensitive: true }),
+		...currentNotifications.slice(1)
+	];
+	await page.evaluate((eventName) => window.dispatchEvent(new Event(eventName)), NOTIFICATION_POLL_EVENT);
+	await expect(fullImagePreview).toHaveCount(0);
+	await expect(favRow.locator('.compact-media-hidden')).toContainText('Sensitive media');
 	const boostRow = list.locator('.notif-row').filter({ hasText: 'boosted your post' });
 	const videoPreview = boostRow.locator('.compact-media-preview video');
 	await expect(videoPreview).toHaveAttribute('src', 'https://cdn.example/clip.mp4');
@@ -549,7 +622,6 @@ test('notification rows render name custom emoji and media-only excerpts', async
 	const sensitiveRow = list.locator('.notif-row').filter({ hasText: 'kestrel' });
 	await expect(sensitiveRow.locator('.compact-media-hidden')).toContainText('Sensitive media');
 	await expect(sensitiveRow.locator('img[src*="sensitive"], video[src*="sensitive"]')).toHaveCount(0);
-	await setViewport(page, 'mobile');
 	await expectNoHorizontalOverflow(page);
 });
 

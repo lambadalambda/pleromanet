@@ -878,7 +878,7 @@ test('signed-out public profiles load replied-to previews without authorization'
 	await view.getByRole('tab', { name: /Posts & Replies/ }).click();
 	await page.locator('[data-status-id="public-profile-reply"] .post-pinged-l').hover();
 
-	const preview = page.getByRole('tooltip');
+	const preview = page.getByRole('dialog', { name: 'Parent post preview' });
 	await expect(preview).toContainText('Public Parent');
 	await expect(preview).toContainText('public parent context');
 });

@@ -27,6 +27,7 @@
 	let replyContext = $state<HTMLElement | null>(null);
 	let previewCard = $state<HTMLDivElement | null>(null);
 	let previewStyle = $state('');
+	let closeTimer: number | null = null;
 	const componentId = $props.id();
 	const previewId = `${componentId}-reply-preview`;
 
@@ -58,6 +59,8 @@
 	};
 	const openPreview = async (event: MouseEvent | FocusEvent) => {
 		if (!parentStatusId || !loadReplyPreview) return;
+		if (closeTimer !== null) window.clearTimeout(closeTimer);
+		closeTimer = null;
 		replyContext = event.currentTarget as HTMLElement;
 		previewOpen = true;
 		void positionPreview();
@@ -74,7 +77,17 @@
 		void positionPreview();
 	};
 	const closePreview = () => {
+		if (closeTimer !== null) window.clearTimeout(closeTimer);
+		closeTimer = null;
 		previewOpen = false;
+	};
+	const cancelClose = () => {
+		if (closeTimer !== null) window.clearTimeout(closeTimer);
+		closeTimer = null;
+	};
+	const scheduleClose = () => {
+		cancelClose();
+		closeTimer = window.setTimeout(closePreview, 120);
 	};
 	const handleKeydown = (event: KeyboardEvent) => {
 		if (event.key !== 'Escape') return;
@@ -89,6 +102,7 @@
 		return () => {
 			window.removeEventListener('resize', reposition);
 			window.removeEventListener('scroll', reposition, true);
+			cancelClose();
 		};
 	});
 </script>
@@ -104,7 +118,7 @@
 {#if parent}
 	<div class="post-pinged {focused ? 'focused-pinged' : ''}" role="group" aria-label="Reply context">
 		{#if canPreview}
-			<button class="post-pinged-l" type="button" aria-expanded={previewOpen} aria-controls={previewOpen ? previewId : undefined} aria-describedby={previewOpen ? previewId : undefined} onmouseenter={openPreview} onmouseleave={closePreview} onfocus={openPreview} onblur={closePreview} onkeydown={handleKeydown} onclick={openPreview}>Replying to</button>
+			<button class="post-pinged-l" type="button" aria-haspopup="dialog" aria-expanded={previewOpen} aria-controls={previewOpen ? previewId : undefined} onmouseenter={openPreview} onmouseleave={scheduleClose} onfocus={openPreview} onblur={scheduleClose} onkeydown={handleKeydown} onclick={openPreview}>Replying to</button>
 		{:else}
 			<span class="post-pinged-l">Replying to</span>
 		{/if}
@@ -112,7 +126,7 @@
 			{#if staticMode}
 				<span class="post-pinged-chip-parent" title={parent}>{@render parentChipContents()}</span>
 			{:else}
-				<a class="post-pinged-chip-parent" title={parent} aria-label={`Open profile for ${parent}`} aria-describedby={previewOpen ? previewId : undefined} href={profileHref(parent) ?? undefined} onmouseenter={openPreview} onmouseleave={closePreview} onfocus={openPreview} onblur={closePreview} onkeydown={handleKeydown}>{@render parentChipContents()}</a>
+				<a class="post-pinged-chip-parent" title={parent} aria-label={`Open profile for ${parent}`} aria-haspopup="dialog" aria-expanded={previewOpen} aria-controls={previewOpen ? previewId : undefined} href={profileHref(parent) ?? undefined} onmouseenter={openPreview} onmouseleave={scheduleClose} onfocus={openPreview} onblur={scheduleClose} onkeydown={handleKeydown}>{@render parentChipContents()}</a>
 			{/if}
 			{#if cc.length > 0}
 				<span class="post-pinged-also">· also</span>
@@ -121,12 +135,12 @@
 				{#if staticMode}
 					<span class="post-pinged-chip" title={address}>{shortHandle(address)}</span>
 				{:else}
-					<a class="post-pinged-chip" title={address} aria-label={`Open profile for ${address}`} href={profileHref(address) ?? undefined}>{shortHandle(address)}</a>
+					<a class="post-pinged-chip" title={address} aria-label={`Open profile for ${address}`} href={profileHref(address) ?? undefined} onmouseenter={cancelClose} onmouseleave={scheduleClose} onfocus={cancelClose} onblur={scheduleClose}>{shortHandle(address)}</a>
 				{/if}
 			{/each}
 		</span>
 		{#if previewOpen}
-			<div bind:this={previewCard} id={previewId} class="reply-preview" role="tooltip" aria-live="polite" style={previewStyle}>
+			<div bind:this={previewCard} id={previewId} class="reply-preview" role="dialog" aria-label="Parent post preview" aria-live="polite" tabindex="-1" data-post-ignore style={previewStyle} onmouseenter={cancelClose} onmouseleave={scheduleClose} onfocusin={cancelClose} onfocusout={scheduleClose} onkeydown={handleKeydown}>
 				{#if previewState === 'ready' && preview}
 					<div class="reply-preview-head">
 						<Avatar avatarUrl={preview.avatarUrl} avClass={preview.avClass} alt={`${preview.name} avatar`} size={36} variant="plain" element="span" profileHref="" className="reply-preview-avatar" />

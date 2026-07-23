@@ -41,31 +41,26 @@
 	let rowClass = $derived(`notif-row ${n.read ? '' : 'unread '}${dense ? 'dense ' : ''}${actionable ? 'actionable ' : ''}k-${n.kind}`);
 	let openLabel = $derived(`${namedActors.map((actor) => actor.name).join(', ')} ${n.kind === 'reaction' && n.reactionEmoji ? `reacted with ${n.reactionEmoji.name} to your post` : kind.label}`.trim());
 
-	const openRow = (event: MouseEvent | KeyboardEvent) => {
-		if (!onOpen || !actionable) return;
-		const target = event.target;
-		if (target instanceof HTMLElement && target.closest('button, a')) return;
-		onOpen(n);
-	};
-	const handleKeydown = (event: KeyboardEvent) => {
-		if (event.key !== 'Enter' && event.key !== ' ') return;
-		const target = event.target;
-		if (target instanceof HTMLElement && target.closest('button, a')) return;
-		event.preventDefault();
-		openRow(event);
-	};
 </script>
 
-<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-<div
-	class={rowClass}
-	role={actionable ? 'button' : undefined}
-	tabindex={actionable ? 0 : undefined}
-	aria-label={actionable ? openLabel : undefined}
-	aria-describedby={actionable && n.post ? postRefId : undefined}
-	onclick={openRow}
-	onkeydown={handleKeydown}
->
+{#snippet notificationText()}
+	<span class="notif-names">
+		{#each namedActors as actor, i}
+			<span><b><RichText text={actor.name} emojis={actor.emojis} linkMentions={false} /></b>{#if i === 0 && n.who.length > 1}, {' '}{/if}</span>
+		{/each}
+		{#if otherCount > 0}
+			<span class="notif-others"> and {otherCount} other{otherCount > 1 ? 's' : ''}</span>
+		{/if}
+	</span>
+	{#if n.kind === 'reaction' && n.reactionEmoji}
+		<span class="notif-action"> reacted with {#if n.reactionEmoji.url}<img class="notif-reaction-emoji" src={n.reactionEmoji.url} alt={n.reactionEmoji.name} title={n.reactionEmoji.name} loading="lazy" decoding="async" />{:else}<span class="notif-reaction-glyph">{n.reactionEmoji.name}</span>{/if} to your post</span>
+	{:else}
+		<span class="notif-action"> {kind.label}</span>
+	{/if}
+	<span class="notif-time">· {n.time}</span>
+{/snippet}
+
+<div class={rowClass}>
 	<div class="notif-row-icon" style={`--kind-tint: ${kind.tint};`}>
 		<NotifIcon name={kind.icon} />
 	</div>
@@ -78,22 +73,11 @@
 				<span class="notif-more">+{more}</span>
 			{/if}
 		</div>
-		<div class="notif-row-text">
-			<span class="notif-names">
-				{#each namedActors as actor, i}
-					<span><b><RichText text={actor.name} emojis={actor.emojis} linkMentions={false} /></b>{#if i === 0 && n.who.length > 1}, {' '}{/if}</span>
-				{/each}
-				{#if otherCount > 0}
-					<span class="notif-others"> and {otherCount} other{otherCount > 1 ? 's' : ''}</span>
-				{/if}
-			</span>
-			{#if n.kind === 'reaction' && n.reactionEmoji}
-				<span class="notif-action"> reacted with {#if n.reactionEmoji.url}<img class="notif-reaction-emoji" src={n.reactionEmoji.url} alt={n.reactionEmoji.name} title={n.reactionEmoji.name} loading="lazy" decoding="async" />{:else}<span class="notif-reaction-glyph">{n.reactionEmoji.name}</span>{/if} to your post</span>
-			{:else}
-				<span class="notif-action"> {kind.label}</span>
-			{/if}
-			<span class="notif-time">· {n.time}</span>
-		</div>
+		{#if actionable}
+			<button type="button" class="notif-row-text" aria-label={openLabel} aria-describedby={n.post ? postRefId : undefined} onclick={() => onOpen?.(n)}>{@render notificationText()}</button>
+		{:else}
+			<div class="notif-row-text">{@render notificationText()}</div>
+		{/if}
 		{#if n.on}
 			<div class="notif-row-on">
 				<span class="notif-on-l">on</span>
@@ -103,8 +87,17 @@
 		{#if n.post}
 			<div id={postRefId} class="notif-row-quote static {n.post.mediaOnly ? 'media-only' : ''}">
 				{#if !n.post.mediaOnly}
-					<span class="notif-quote-mark">&quot;</span>
-					<span class="notif-quote-t"><RichText text={n.post.excerpt} emojis={n.post.emojis} linkMentions={false} /></span>
+					{#if actionable}
+						<button type="button" class="notif-quote-open" aria-label={`Open post: ${n.post.excerpt}`} onclick={() => onOpen?.(n)}>
+							<span class="notif-quote-mark">&quot;</span>
+							<span class="notif-quote-t"><RichText text={n.post.excerpt} emojis={n.post.emojis} linkMentions={false} /></span>
+						</button>
+					{:else}
+						<div class="notif-quote-open">
+							<span class="notif-quote-mark">&quot;</span>
+							<span class="notif-quote-t"><RichText text={n.post.excerpt} emojis={n.post.emojis} linkMentions={false} /></span>
+						</div>
+					{/if}
 				{/if}
 				{#if n.post.attachments?.length || n.post.mediaFallbackItems?.length}
 					<CompactMediaPreview attachments={n.post.attachments} hidden={n.post.mediaHidden} fallback={n.post.mediaFallback} fallbackItems={n.post.mediaFallbackItems} />

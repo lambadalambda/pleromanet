@@ -97,3 +97,4 @@
 - [x] [97 Reconcile replies into open threads](issues/97-reconcile-replies-into-open-threads.md)
 - [x] [98 Scroll thread reply form into view](issues/98-scroll-thread-reply-form-into-view.md)
 - [x] [99 Unify compact media previews](issues/99-unify-compact-media-previews.md)
+- [x] [100 Expand compact image previews](issues/100-expand-compact-image-previews.md)

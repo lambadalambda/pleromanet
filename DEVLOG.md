@@ -1,5 +1,10 @@
 # Devlog
 
+## 2026-07-23
+
+- Compact notification and reply-context images now expand into viewport-contained original-image previews on hover or keyboard focus while preserving sensitive/CW privacy across live notification refreshes.
+- Notification image excerpts have twice the previous vertical room and preserve full aspect ratios; reply previews and notification excerpts retain accessible, non-nested navigation controls around the new image interactions.
+
 ## 2026-07-22
 
 - Home, local, and federated streams now reconnect stalled sockets and page through REST catch-up from stable watermarks after failures, successful reconnects, and retained-route returns without skipping, duplicating, or reordering concurrent posts.

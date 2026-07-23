@@ -2018,7 +2018,7 @@ test('reply context lazily previews and caches the parent post on hover and focu
 	expect(previewRequests).toBe(0);
 
 	await replyContext.locator('.post-pinged-l').hover();
-	const preview = page.getByRole('tooltip');
+	const preview = page.getByRole('dialog', { name: 'Parent post preview' });
 	await expect(preview).toBeVisible();
 	await expect(preview).toHaveAttribute('aria-live', 'polite');
 	await expect(preview).toContainText('Mischievous @home Tomato');
@@ -2033,7 +2033,7 @@ test('reply context lazily previews and caches the parent post on hover and focu
 	await expect(previewReplyContext).not.toContainText('@cc');
 	await expect(previewReplyContext.getByRole('button')).toHaveCount(0);
 	await expect(previewReplyContext.getByRole('link')).toHaveCount(0);
-	await expect(page.getByRole('tooltip')).toHaveCount(1);
+	await expect(page.getByRole('dialog', { name: 'Parent post preview' })).toHaveCount(1);
 	await expect(preview.locator('.reply-preview-context')).toHaveCount(0);
 	await expect(preview.locator('.reply-preview-body')).toHaveText('the original post lives here');
 	await expect(preview.locator('.reply-preview-body img[alt=":blobcat:"]')).toHaveAttribute('src', 'https://cdn.example/emoji/blobcat.png');
@@ -2073,8 +2073,13 @@ test('reply context lazily previews and caches the parent post on hover and focu
 
 test('reply context renders compact media for an image-only parent post', async ({ page }) => {
 	let attachmentCwRequests = 0;
+	let fullImageRequests = 0;
 	await authenticate(page);
 	await page.route('https://cdn.example/media/parent-image-thumb.jpg', async (route) => {
+		await route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64') });
+	});
+	await page.route('https://cdn.example/media/parent-image.jpg', async (route) => {
+		fullImageRequests += 1;
 		await route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64') });
 	});
 	await page.route('https://cdn.example/media/parent-cw-thumb.jpg', async (route) => {
@@ -2135,14 +2140,42 @@ test('reply context renders compact media for an image-only parent post', async 
 	await page.goto('/app/home');
 	await page.locator('[data-status-id="status-image-preview-reply"] .post-pinged-l').hover();
 
-	const preview = page.getByRole('tooltip');
+	const preview = page.getByRole('dialog', { name: 'Parent post preview' });
 	await expect(preview).not.toContainText('Media post');
 	await expect(preview.locator('.compact-media-preview img')).toHaveCount(1);
 	await expect(preview.locator('.compact-media-preview img')).toHaveAttribute('src', 'https://cdn.example/media/parent-image-thumb.jpg');
 	await expect(preview.locator('.compact-media-preview img')).toHaveAttribute('alt', 'a cat watching rain');
+	await expect(preview.locator('.compact-media-preview img')).toHaveCSS('object-fit', 'contain');
 	await expect(preview.locator('.compact-media-item').filter({ hasText: 'Content warning media' })).toHaveCount(2);
 	await expect(preview.locator('.compact-media-preview video')).toHaveCount(0);
 	expect(attachmentCwRequests).toBe(0);
+	expect(fullImageRequests).toBe(0);
+	const imageTrigger = preview.getByRole('button', { name: 'View full image: a cat watching rain' });
+	await imageTrigger.hover();
+	const fullImagePreview = page.getByRole('img', { name: 'Full image: a cat watching rain' });
+	await expect(preview).toBeVisible();
+	await expect(fullImagePreview.locator('img')).toHaveAttribute('src', 'https://cdn.example/media/parent-image.jpg');
+	await expect(fullImagePreview).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+	await expect(fullImagePreview).toHaveCSS('border-top-width', '0px');
+	await expect(fullImagePreview).toHaveCSS('padding-top', '0px');
+	await expect(fullImagePreview.locator('img')).toHaveCSS('object-fit', 'contain');
+	await expect.poll(async () => Promise.all([fullImagePreview.boundingBox(), fullImagePreview.locator('img').boundingBox()]).then(([frame, image]) => Boolean(
+		frame && image && Math.abs(frame.width - image.width) <= 1 && Math.abs(frame.height - image.height) <= 1
+	))).toBe(true);
+	await expect.poll(() => fullImageRequests).toBe(1);
+	await expect.poll(async () => fullImagePreview.evaluate((element) => {
+		const bounds = element.getBoundingClientRect();
+		return bounds.left >= 12 && bounds.top >= 12 && bounds.right <= window.innerWidth - 12 && bounds.bottom <= window.innerHeight - 12;
+	})).toBe(true);
+	await page.keyboard.press('Escape');
+	await expect(fullImagePreview).toHaveCount(0);
+	await page.getByTestId('app-header').hover();
+	await expect(preview).toHaveCount(0);
+	await page.locator('[data-status-id="status-image-preview-reply"] .post-pinged-l').focus();
+	await imageTrigger.focus();
+	await expect(fullImagePreview).toBeVisible();
+	await imageTrigger.blur();
+	await expect(fullImagePreview).toHaveCount(0);
 });
 
 test('reply context conceals sensitive parent media', async ({ page }) => {
@@ -2185,7 +2218,7 @@ test('reply context conceals sensitive parent media', async ({ page }) => {
 	await page.goto('/app/home');
 	await page.locator('[data-status-id="status-sensitive-preview-reply"] .post-pinged-l').hover();
 
-	const preview = page.getByRole('tooltip');
+	const preview = page.getByRole('dialog', { name: 'Parent post preview' });
 	await expect(preview.locator('.compact-media-hidden')).toContainText('Sensitive media');
 	await expect(preview.locator('.compact-media-preview img, .compact-media-preview video')).toHaveCount(0);
 	expect(hiddenMediaRequests).toBe(0);
@@ -2246,7 +2279,7 @@ test('reply parent previews do not expose content hidden by a content warning', 
 	await page.goto('/app/home');
 	await page.locator('[data-status-id="status-cw-preview-reply"] .post-pinged-l').hover();
 
-	const preview = page.getByRole('tooltip');
+	const preview = page.getByRole('dialog', { name: 'Parent post preview' });
 	const fallbackContext = preview.locator('.post-pinged');
 	await expect(fallbackContext).toContainText('Replying to a parent post');
 	await expect(fallbackContext.getByRole('button')).toHaveCount(0);
@@ -2288,7 +2321,7 @@ test('reply parent previews degrade safely when the parent is unavailable', asyn
 	const post = page.locator('[data-status-id="status-missing-parent-reply"]');
 	await post.locator('.post-pinged-l').hover();
 
-	await expect(page.getByRole('tooltip')).toContainText('Parent post unavailable');
+	await expect(page.getByRole('dialog', { name: 'Parent post preview' })).toContainText('Parent post unavailable');
 	await expect(post.locator('.post-body')).toHaveText('the reply remains readable');
 	await expect(post.getByRole('link', { name: 'Open profile for @missing@pleroma.example' })).toHaveAttribute('href', '/app/profiles/missing%40pleroma.example');
 });
@@ -2343,11 +2376,11 @@ test('reply preview cache stays stable through account hydration and isolates sa
 	await expect.poll(async () => page.evaluate(() => JSON.parse(window.localStorage.getItem('pleromanet.session') ?? '{}').account?.id)).toBe(pleromaFixtures.account.id);
 	await expect.poll(() => previewAuthorizations).toHaveLength(1);
 	releaseFirstParent();
-	await expect(page.getByRole('tooltip')).toContainText('first session parent');
-	await expect(page.getByRole('tooltip')).not.toContainText('Replying to');
+	await expect(page.getByRole('dialog', { name: 'Parent post preview' })).toContainText('first session parent');
+	await expect(page.getByRole('dialog', { name: 'Parent post preview' })).not.toContainText('Replying to');
 	await page.getByTestId('app-header').hover();
 	await replyLabel.hover();
-	await expect(page.getByRole('tooltip')).toContainText('first session parent');
+	await expect(page.getByRole('dialog', { name: 'Parent post preview' })).toContainText('first session parent');
 	await expect.poll(() => previewAuthorizations).toHaveLength(1);
 
 	await page.evaluate((storedSession) => {
@@ -2358,8 +2391,8 @@ test('reply preview cache stays stable through account hydration and isolates sa
 	await page.locator('[data-status-id="status-session-preview-reply"] .post-pinged-l').hover();
 
 	await expect.poll(() => previewAuthorizations).toEqual(['Bearer access-token', 'Bearer second-token']);
-	await expect(page.getByRole('tooltip')).toContainText('second session parent');
-	await expect(page.getByRole('tooltip')).not.toContainText('first session parent');
+	await expect(page.getByRole('dialog', { name: 'Parent post preview' })).toContainText('second session parent');
+	await expect(page.getByRole('dialog', { name: 'Parent post preview' })).not.toContainText('first session parent');
 });
 
 test('stale reply preview responses cannot replace a new session preview', async ({ page }) => {
@@ -2422,8 +2455,8 @@ test('stale reply preview responses cannot replace a new session preview', async
 	releaseOldParent();
 	const oldResponse = await oldResponsePending;
 	await oldResponse.finished();
-	await expect(page.getByRole('tooltip')).toContainText('Loading parent post…');
-	await expect(page.getByRole('tooltip')).not.toContainText('stale first-session parent');
+	await expect(page.getByRole('dialog', { name: 'Parent post preview' })).toContainText('Loading parent post…');
+	await expect(page.getByRole('dialog', { name: 'Parent post preview' })).not.toContainText('stale first-session parent');
 	const newResponsePending = page.waitForResponse((response) =>
 		response.url() === 'https://pleroma.example/api/v1/statuses/stale-preview-parent'
 		&& response.request().headers().authorization === 'Bearer second-token'
@@ -2431,8 +2464,8 @@ test('stale reply preview responses cannot replace a new session preview', async
 	releaseNewParent();
 	const newResponse = await newResponsePending;
 	await newResponse.finished();
-	await expect(page.getByRole('tooltip')).toContainText('current second-session parent');
-	await expect(page.getByRole('tooltip')).not.toContainText('stale first-session parent');
+	await expect(page.getByRole('dialog', { name: 'Parent post preview' })).toContainText('current second-session parent');
+	await expect(page.getByRole('dialog', { name: 'Parent post preview' })).not.toContainText('stale first-session parent');
 });
 
 test('home timeline post menu copies raw post JSON for bug reports', async ({ page }) => {
