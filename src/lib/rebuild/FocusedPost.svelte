@@ -5,6 +5,7 @@
 	import PostMedia from './PostMedia.svelte';
 	import PostPinged from './PostPinged.svelte';
 	import PostReactions from './PostReactions.svelte';
+	import PostVisibility from './PostVisibility.svelte';
 	import QuotedPost from './QuotedPost.svelte';
 	import RichText from './RichText.svelte';
 	import { profileHref } from './profile-links';
@@ -33,6 +34,7 @@
 		own?: boolean;
 		authorHandle?: string;
 		statusUrl?: string;
+		visibility?: string;
 		replies: number;
 		boosts: number;
 		favs: number;
@@ -163,6 +165,10 @@
 		<span>{post.fullTime || '4:18 PM · May 11, 2026'}</span>
 		<span class="dot">·</span>
 		<span>{post.source || 'Pleroma'}</span>
+		{#if post.visibility}
+			<span class="dot">·</span>
+			<PostVisibility visibility={post.visibility} />
+		{/if}
 		{#if post.views}
 			<span class="dot">·</span>
 			<span><strong>{post.views}</strong> views</span>

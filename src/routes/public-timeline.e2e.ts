@@ -37,6 +37,7 @@ test('anonymous public route loads local and federated timelines through the API
 	const requests: Array<{ local: string | null; authorization: string | null }> = [];
 	const localStatus = {
 		...pleromaFixtures.status,
+		visibility: 'unlisted' as const,
 		media_attachments: [{ id: 'public-image', type: 'image', url: 'https://cdn.example/public-image.jpg', description: 'public image' }]
 	};
 	await page.addInitScript(() => window.localStorage.setItem('pleromanet.timeline.fit-images', 'true'));
@@ -51,6 +52,7 @@ test('anonymous public route loads local and federated timelines through the API
 	await expect(page.getByRole('heading', { name: 'Public timeline' })).toBeVisible();
 	await expect(page.getByRole('tab', { name: 'Local' })).toHaveAttribute('aria-selected', 'true');
 	await expect(page.getByTestId('public-timeline-list')).toContainText('quiet CSS can still carry the voice.');
+	await expect(page.getByTestId('public-timeline-list').getByLabel('Visibility: Unlisted')).toBeVisible();
 	await expect(page.getByTestId('public-timeline-list').getByRole('img', { name: 'quiet admin avatar' })).toHaveAttribute('src', 'https://pleroma.example/avatar.png');
 	await expect(page.getByTestId('public-timeline-list').locator('.ph-raw')).toHaveCSS('object-fit', 'cover');
 	await expect(requests[0]).toEqual({ local: 'true', authorization: null });

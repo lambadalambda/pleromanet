@@ -23,6 +23,7 @@
 		handle: string;
 		time: string;
 		createdAt?: string;
+		visibility?: PleromaStatusView['visibility'];
 		avClass?: string;
 		avBanner?: BannerVariant;
 		avatarUrl?: string | null;
@@ -58,6 +59,7 @@
 		handle: post.handle,
 		time: post.time,
 		createdAt: post.createdAt,
+		visibility: post.visibility,
 		avClass: avatarClass(post.avatar),
 		avatarUrl: post.avatarUrl,
 		cw: post.cw,

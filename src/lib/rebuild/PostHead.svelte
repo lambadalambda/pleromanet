@@ -2,6 +2,7 @@
 	import type { CustomEmoji } from '$lib/social/types';
 	import RelativeTime from './RelativeTime.svelte';
 	import RichText from './RichText.svelte';
+	import PostVisibility from './PostVisibility.svelte';
 	import { profileHref } from './profile-links';
 
 	type Props = {
@@ -10,7 +11,7 @@
 		handle?: string;
 		time?: string;
 		createdAt?: string;
-		post?: { name?: string; nameEmojis?: CustomEmoji[]; handle?: string; time?: string; createdAt?: string };
+		post?: { name?: string; nameEmojis?: CustomEmoji[]; handle?: string; time?: string; createdAt?: string; visibility?: string };
 	};
 
 	let { name, nameEmojis, handle, time, createdAt, post }: Props = $props();
@@ -29,5 +30,6 @@
 	{:else}
 		<span class="post-handle" title={h}>{h}</span>
 	{/if}
+	<PostVisibility visibility={post?.visibility} />
 	<span class="post-time"><RelativeTime createdAt={created} fallback={t} /></span>
 </div>

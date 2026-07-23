@@ -3616,6 +3616,7 @@
 		targetAvClass: inlineReplyTarget.avClass,
 		targetAvBanner: inlineReplyTarget.avBanner,
 		targetAvatarUrl: inlineReplyTarget.avatarUrl,
+		visibility: inlineReplyTarget.visibility,
 		draft: inlineReplyDraft,
 		remaining: inlineReplyRemaining,
 		submitting: inlineReplySubmitState === 'submitting',

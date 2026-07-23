@@ -51,6 +51,7 @@ test('bookmarks route lists saved posts from the API', async ({ page }) => {
 	const list = page.getByTestId('bookmarks-list');
 	await expect(list).toContainText('saved for later');
 	await expect(list).toContainText('another keeper');
+	await expect(list.getByLabel('Visibility: Public').first()).toBeVisible();
 	await expect(list.locator('[data-status-id="bm-1"] .ph-raw')).toHaveCSS('object-fit', 'cover');
 	expect(authorization).toBe('Bearer access-token');
 });

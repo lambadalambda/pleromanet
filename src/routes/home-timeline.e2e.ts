@@ -1091,6 +1091,7 @@ test('home timeline inline reply composer creates a reply for the selected post'
 	await expect(replyButton).toHaveAttribute('aria-controls', await replyForm.getAttribute('id') ?? 'missing-inline-reply-id');
 	await expect(replyForm).toContainText('Replying to');
 	await expect(replyForm).toContainText('@quietadmin');
+	await expect(replyForm.getByLabel('Reply visibility: Unlisted')).toBeVisible();
 	await expect(replyForm.getByRole('img', { name: 'quiet admin avatar' })).toHaveAttribute('src', 'https://pleroma.example/avatar.png');
 	await replyForm.getByRole('textbox', { name: 'Reply text' }).fill('timeline inline reply body');
 	await replyForm.getByRole('textbox', { name: 'Reply text' }).press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
@@ -1102,6 +1103,58 @@ test('home timeline inline reply composer creates a reply for the selected post'
 	expect(params.get('status')).toBe('timeline inline reply body');
 	expect(params.get('in_reply_to_id')).toBe('status-inline-reply');
 	expect(params.get('visibility')).toBe('unlisted');
+});
+
+test('home posts show visibility and replies inherit every supported visibility', async ({ page }) => {
+	await authenticate(page);
+	await mockInstance(page);
+	const visibilityCases = [
+		{ value: 'public', label: 'Public' },
+		{ value: 'unlisted', label: 'Unlisted' },
+		{ value: 'private', label: 'Followers only' },
+		{ value: 'direct', label: 'Direct' }
+	] as const;
+	const statuses = visibilityCases.map(({ value, label }) => ({
+		...statusWithText(`status-visibility-${value}`, `${label} visibility post`),
+		visibility: value,
+		replies_count: 0
+	}));
+	await mockHomeTimeline(page, async (route) => {
+		await fulfillHome(route, statuses);
+	});
+	const submittedVisibilities: string[] = [];
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		const params = new URLSearchParams(route.request().postData() ?? '');
+		const visibility = params.get('visibility') ?? 'missing';
+		submittedVisibilities.push(visibility);
+		await fulfillHome(route, {
+			...statusWithText(`created-visibility-${submittedVisibilities.length}`, params.get('status') ?? ''),
+			visibility,
+			in_reply_to_id: params.get('in_reply_to_id')
+		});
+	});
+
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	for (const { value, label } of visibilityCases) {
+		const post = page.locator(`[data-status-id="status-visibility-${value}"]`);
+		await expect(post.getByLabel(`Visibility: ${label}`)).toBeVisible();
+		await post.getByRole('button', { name: 'Reply 0' }).click();
+		const replyForm = page.getByRole('form', { name: 'Inline reply to @quietadmin' });
+		await expect(replyForm.getByLabel(`Reply visibility: ${label}`)).toBeVisible();
+		await replyForm.getByRole('textbox', { name: 'Reply text' }).fill(`reply with ${value} visibility`);
+		await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
+		await expect(replyForm).toHaveCount(0);
+	}
+
+	expect(submittedVisibilities).toEqual(visibilityCases.map(({ value }) => value));
+	await page.setViewportSize({ width: 320, height: 568 });
+	const privatePost = page.locator('[data-status-id="status-visibility-private"]');
+	await expect(privatePost.getByLabel('Visibility: Followers only')).toBeVisible();
+	await expect(privatePost.locator('.post-name')).toBeVisible();
+	await expect(privatePost.locator('.post-time')).toBeVisible();
+	await expectNoHorizontalOverflow(page);
 });
 
 test('home timeline replies mention the author and every status participant', async ({ page }) => {
@@ -1240,24 +1293,43 @@ test('home timeline replies to boosts mention original participants instead of t
 	await mockInstance(page);
 	const source = {
 		...statusWithText('boosted-reply-source', 'the original conversation'),
+		visibility: 'direct' as const,
 		account: { ...pleromaFixtures.account, id: 'datagram', username: 'datagram', acct: 'datagram@retro.social', display_name: 'datagram' },
 		mentions: [{ id: 'soft-hertz', username: 'soft.hertz', acct: 'soft.hertz@kolektiva.social' }],
 		replies_count: 0
 	};
 	const boost = {
 		...statusWithText('boosted-reply-wrapper', ''),
+		visibility: 'public' as const,
 		account: { ...pleromaFixtures.account, id: 'booster', username: 'booster', acct: 'booster', display_name: 'booster' },
 		reblog: source
 	};
 	await mockHomeTimeline(page, async (route) => {
 		await fulfillHome(route, [boost]);
 	});
+	let createBody = '';
+	await page.route('https://pleroma.example/api/v1/statuses', async (route) => {
+		createBody = route.request().postData() ?? '';
+		await fulfillHome(route, {
+			...statusWithText('created-boosted-direct-reply', 'private reply to boosted source'),
+			visibility: 'direct',
+			in_reply_to_id: source.id
+		});
+	});
 
 	await page.goto('/app/home');
 	await page.locator('[data-status-id="boosted-reply-wrapper"]').getByRole('button', { name: 'Reply 0' }).click();
-	const editor = page.getByRole('form', { name: 'Inline reply to @datagram' }).getByRole('textbox', { name: 'Reply text' });
+	const replyForm = page.getByRole('form', { name: 'Inline reply to @datagram' });
+	await expect(replyForm.getByLabel('Reply visibility: Direct')).toBeVisible();
+	const editor = replyForm.getByRole('textbox', { name: 'Reply text' });
 	await expect(editor).toHaveText('@datagram@retro.social @soft.hertz@kolektiva.social ');
 	await expect(editor).not.toContainText('@booster');
+	await editor.fill('private reply to boosted source');
+	await replyForm.getByRole('button', { name: 'Reply', exact: true }).click();
+	await expect(replyForm).toHaveCount(0);
+	const params = new URLSearchParams(createBody);
+	expect(params.get('in_reply_to_id')).toBe(source.id);
+	expect(params.get('visibility')).toBe('direct');
 });
 
 test('home timeline inline reply composer submits content warnings', async ({ page }) => {

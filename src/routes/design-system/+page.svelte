@@ -374,6 +374,7 @@
 		targetAvClass: threadInlineReplyTarget.avClass,
 		targetAvBanner: threadInlineReplyTarget.avBanner,
 		targetAvatarUrl: threadInlineReplyTarget.avatarUrl,
+		visibility: 'public',
 		draft: threadInlineReplyDraft,
 		remaining: threadInlineReplyRemaining,
 		onDraftInput: (value: string) => (threadInlineReplyDraft = value),

@@ -29,6 +29,7 @@
 		own?: boolean;
 		authorHandle?: string;
 		statusUrl?: string;
+		visibility?: string;
 		addressees?: string[];
 		inReplyToId?: string | null;
 		quotedPost?: Record<string, unknown>;

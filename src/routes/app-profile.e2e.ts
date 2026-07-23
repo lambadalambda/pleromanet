@@ -223,6 +223,7 @@ test('profile route loads the canonical account timeline surface', async ({ page
 	await profile.getByRole('button', { name: 'Show all (2)' }).click();
 	await expect(profile).toContainText('mute liberally');
 	await expect(profile.getByTestId('profile-posts')).toContainText("rain recording from this morning's walk");
+	await expect(profile.getByTestId('profile-posts').getByLabel('Visibility: Public').first()).toBeVisible();
 	await expect(profile.getByTestId('profile-posts').locator('[data-status-id="soft-post-image"] .ph-raw')).toHaveCSS('object-fit', 'cover');
 
 	await profile.getByRole('tab', { name: /Posts & Replies/ }).click();
@@ -847,6 +848,7 @@ test('signed-out visitors can view a public profile with sign-in prompts', async
 	await expect(view.getByText("thinking about how the slow web isn't really slow — it's just the pace at which a person can actually pay attention.")).toBeVisible();
 	await expect(view.getByRole('button', { name: 'Sign in to follow' })).toBeVisible();
 	await expect(view.getByRole('button', { name: 'Add reaction' })).toHaveCount(0);
+	await expect(view.getByTestId('profile-posts').getByLabel('Visibility: Public').first()).toBeVisible();
 	await expect(page.getByTestId('app-header')).toHaveCount(0);
 	await expect(page.getByTestId('public-profile-shell')).toBeVisible();
 	expect(relationshipRequests).toBe(0);

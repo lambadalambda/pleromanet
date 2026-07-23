@@ -19,7 +19,7 @@ test('shows converted canonical design-system sections and switches themes', asy
 	await expect(page.getByRole('heading', { name: 'Surfaces' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Navigation' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Mobile' })).toBeVisible();
-	await expect(page.locator('.ds-nav-foot')).toContainText('19 shared primitives');
+	await expect(page.locator('.ds-nav-foot')).toContainText('20 shared primitives');
 
 	await expect(page.locator('#controls')).toContainText('Button · primary');
 	await expect(page.locator('#attachments')).toContainText('pickAttachmentLayout →');

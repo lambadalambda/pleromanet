@@ -102,3 +102,4 @@
 - [x] [102 Insert replies to thread context posts](issues/102-insert-replies-to-thread-context-posts.md)
 - [x] [103 Share fit-images with thread view](issues/103-share-fit-images-with-thread-view.md)
 - [x] [104 Reconcile post counts from notifications](issues/104-reconcile-post-counts-from-notifications.md)
+- [x] [105 Show post visibility and inherit it in replies](issues/105-show-post-visibility-and-inherit-it-in-replies.md)

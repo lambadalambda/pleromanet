@@ -8,6 +8,7 @@
 - Replies to ancestor/context posts now appear immediately in open threads with refresh-consistent placement, canonical boosted-post targeting, accurate counts, and streamed-boost filtering.
 - Thread headers now expose the same persisted Fit images preference as timeline settings, keeping both controls synchronized while fitting every thread photo layout on desktop and mobile.
 - Notification status snapshots now reconcile favorite, boost, and reply counts across loaded and concurrently loading post surfaces without losing canonical boost identity or optimistic action state.
+- Posts now expose public, unlisted, followers-only, and direct visibility across app and public surfaces; inline replies show and submit the exact canonical source visibility.
 
 ## 2026-07-22
 

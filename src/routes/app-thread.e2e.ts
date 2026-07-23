@@ -270,12 +270,15 @@ test('real thread route loads focused status, ancestors, and replies from Plerom
 	expect(await threadTitle.evaluate((node) => Number.parseFloat(getComputedStyle(node).fontSize))).toBeLessThanOrEqual(14);
 	await expect(page.getByTestId('thread-ancestor')).toContainText('gridwave');
 	await expect(page.getByTestId('thread-ancestor')).toContainText('the earlier context from gridwave');
+	await expect(page.getByTestId('thread-ancestor').getByLabel('Visibility: Public')).toBeVisible();
 	await expect(page.getByTestId('focused-post')).toContainText('quiet CSS can still carry the voice.');
+	await expect(page.getByTestId('focused-post').getByLabel('Visibility: Public')).toBeVisible();
 	await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
 	expect(await page.evaluate(() => window.scrollY)).toBeLessThanOrEqual(1);
 	await page.getByTestId('thread-ancestor').getByRole('button', { name: 'Reply 1' }).click();
 	const ancestorReplyForm = page.getByRole('form', { name: 'Inline reply to @gridwave' });
 	await expect(ancestorReplyForm).toBeVisible();
+	await expect(ancestorReplyForm.getByLabel('Reply visibility: Public')).toBeVisible();
 	await ancestorReplyForm.getByRole('button', { name: 'Cancel' }).click();
 	await expect(ancestorReplyForm).toHaveCount(0);
 	await expect(page.getByTestId('thread-line')).toBeVisible();
@@ -288,6 +291,7 @@ test('real thread route loads focused status, ancestors, and replies from Plerom
 	await expect(page.getByRole('form', { name: 'Thread reply' })).toHaveCount(0);
 	await expect(page.getByTestId('thread-reply-count')).toContainText('3 replies');
 	await expect(page.getByTestId('thread-reply').first()).toContainText('we used to log off. when did that stop being a thing.');
+	await expect(page.getByTestId('thread-reply').first().getByLabel('Visibility: Public')).toBeVisible();
 	await expect(page.getByTestId('thread-reply').nth(1)).toContainText('this is the energy i needed today.');
 	await expect(page.getByText('around the time the algorithm replaced the timeline.')).toBeHidden();
 	await expectThreadRailBridge(page, 1);

@@ -37,6 +37,7 @@
 			own?: boolean;
 			authorHandle?: string;
 			statusUrl?: string;
+			visibility?: string;
 			replies: number;
 			boosts: number;
 			favs: number;

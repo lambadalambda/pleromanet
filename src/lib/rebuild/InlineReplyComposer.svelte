@@ -6,6 +6,7 @@
 	import ComposerPollPanel from './ComposerPollPanel.svelte';
 	import EmojiPicker from './EmojiPicker.svelte';
 	import Icon from './Icon.svelte';
+	import PostVisibility from './PostVisibility.svelte';
 	import type { PleromaRequestErrorView } from '$lib/pleroma/ui';
 	import type { BannerVariant } from './attachments';
 	import { type ComposerEmoji, type ComposerMentionAccount, type ComposerPollDraft, type ComposerUpload } from './composer';
@@ -18,6 +19,7 @@
 		targetAvClass?: string;
 		targetAvBanner?: BannerVariant;
 		targetAvatarUrl?: string | null;
+		visibility: string;
 		draft: string;
 		remaining: number;
 		submitting?: boolean;
@@ -54,6 +56,7 @@
 		targetAvClass,
 		targetAvBanner,
 		targetAvatarUrl,
+		visibility,
 		draft,
 		remaining,
 		submitting = false,
@@ -168,6 +171,7 @@
 				<Icon name="reply" width={10} height={10} />
 				{targetHandle}
 			</span>
+			<PostVisibility {visibility} context="reply" />
 		</div>
 		<ComposerMentionEditor
 			value={draft}

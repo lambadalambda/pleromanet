@@ -3064,6 +3064,21 @@ a.suggest-name:hover { color: var(--accent-ink); }
 	font-family: var(--mono);
 	white-space: nowrap;
 }
+.post-visibility {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	flex: 0 0 auto;
+	padding: 1px 5px;
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	color: var(--ink-2);
+	font-family: var(--mono);
+	font-size: 9.5px;
+	font-weight: 500;
+	line-height: 1.35;
+	white-space: nowrap;
+}
 .post-body {
 	margin: 6px 0 0;
 	color: var(--ink-2);
@@ -5174,7 +5189,9 @@ button.post-pinged-l:focus-visible { color: var(--accent-ink); }
 	letter-spacing: 0.1em;
 	text-transform: uppercase;
 	color: var(--muted);
+	flex-wrap: wrap;
 }
+.thread-inline-reply-addr .reply-visibility { margin-left: auto; }
 .thread-inline-reply-addr-chip {
 	display: inline-flex;
 	align-items: center;
