@@ -83,10 +83,15 @@
 	type ProfileSettings = PleromaProfileSettingsView;
 	type ReplySort = 'top' | 'newest';
 	type StatusActionKey = 'boost' | 'fav';
-	type StatusActionOrigin = 'home' | 'local' | 'federated' | 'thread' | 'profile';
+	type StatusActionOrigin = 'home' | 'local' | 'federated' | 'thread' | 'profile' | 'bookmarks';
 	type StatusActionScope = StatusActionOrigin | 'all';
 	type StatusActionOriginSnapshot = { route: StatusActionOrigin; requestId: number };
 	type StatusActionValue = { active: boolean; count: number };
+	type StatusEngagementSnapshot = { replies: number; boosts: number; favorites: number };
+	type StoredStatusEngagement = Partial<Record<keyof StatusEngagementSnapshot, { value: number; revision: number }>> & {
+		favoriteActive?: { value: boolean; revision: number };
+		boostActive?: { value: boolean; revision: number };
+	};
 	type StatusVisibility = PleromaStatus['visibility'];
 	type InlineReplyTarget = {
 		route: StatusActionOrigin;
@@ -304,6 +309,7 @@
 	let clearThreadReplyViewportReveal: (() => void) | null = null;
 	let statusActionErrors = $state<StatusActionErrorState[]>([]);
 	let statusActionPending = $state<Record<string, number>>({});
+	let statusActionPendingValues: Record<string, boolean> = {};
 	let postControlMessage = $state('');
 	let postControlMessageId = 0;
 	let bookmarksState = $state<PaginatedTimelineState<PleromaStatusView, PleromaRequestErrorView>>({ status: 'idle' });
@@ -335,6 +341,12 @@
 	let headerSearchRequestId = 0;
 	let trendsRequestId = 0;
 	let statusActionRequestId = 0;
+	let statusEngagementRevision = 0;
+	let statusEngagementNotificationRevisions: Record<string, Partial<Record<StatusActionKey, number>>> = {};
+	let statusEngagementNotificationArrivals: Record<string, number> = {};
+	let statusEngagementSnapshots: Record<string, StoredStatusEngagement> = {};
+	let notificationEngagementSignatures: Record<string, string> = {};
+	let seenNotificationEngagementSignatures: Record<string, string> = {};
 	let inlineReplyRequestId = 0;
 	let homePostSubmitRequestId = 0;
 	let profileAccountRequestId = 0;
@@ -465,6 +477,13 @@
 	const invalidateStatusActionRequests = () => {
 		statusActionRequestId += 1;
 		statusActionPending = {};
+		statusActionPendingValues = {};
+		statusEngagementRevision = 0;
+		statusEngagementNotificationRevisions = {};
+		statusEngagementNotificationArrivals = {};
+		statusEngagementSnapshots = {};
+		notificationEngagementSignatures = {};
+		seenNotificationEngagementSignatures = {};
 		clearStatusActionErrors();
 	};
 	const invalidateHomeTimelineRequests = () => {
@@ -613,6 +632,7 @@
 		bookmarksRequestId += 1;
 		loadedBookmarksKey = '';
 		bookmarksState = { status: 'idle' };
+		clearStatusActionErrors('bookmarks');
 	};
 	const invalidateChatsRequests = () => {
 		chatsRequestId += 1;
@@ -1006,10 +1026,16 @@
 	const threadPostCount = (posts: ThreadViewPost[]): number => posts.reduce((total, post) => total + 1 + threadPostCount(post.nestedReplies ?? []), 0);
 	const actionStateKey = (key: StatusActionKey) => key === 'fav' ? 'favorite' : 'boost';
 	const statusActionPendingKey = (targetId: string, key: string) => `${targetId}:${key}`;
+	const statusEngagementNotificationRevision = (targetId: string, key: StatusActionKey) => statusEngagementNotificationRevisions[targetId]?.[key] ?? 0;
+	const storedStatusActionActive = (targetId: string, key: StatusActionKey, fallback: boolean) => {
+		const stored = statusEngagementSnapshots[targetId];
+		return (key === 'fav' ? stored?.favoriteActive : stored?.boostActive)?.value ?? fallback;
+	};
 	const statusActionOriginRequestId = (originRoute: StatusActionOrigin) =>
 		originRoute === 'home' ? homeTimelineRequestId :
 		originRoute === 'local' || originRoute === 'federated' ? appPublicTimelineActionGenerationId :
 		originRoute === 'thread' ? threadRequestId :
+		originRoute === 'bookmarks' ? bookmarksRequestId :
 		profileRouteRequestId;
 	const statusActionOriginActive = (origin: StatusActionOriginSnapshot) =>
 		origin.route === 'home'
@@ -1018,8 +1044,10 @@
 				? route === origin.route && appPublicTimelineActionGenerationId === origin.requestId
 			: origin.route === 'thread'
 				? route === 'thread' && threadRequestId === origin.requestId
+				: origin.route === 'bookmarks'
+					? route === 'bookmarks' && bookmarksRequestId === origin.requestId
 				: route === 'profile' && profileRouteRequestId === origin.requestId;
-	const statusActionOriginRetained = (origin: StatusActionOriginSnapshot) => origin.route === 'home' || origin.route === 'local' || origin.route === 'federated';
+	const statusActionOriginRetained = (origin: StatusActionOriginSnapshot) => origin.route === 'home' || origin.route === 'local' || origin.route === 'federated' || origin.route === 'bookmarks';
 	const statusActionTargetId = (post: { id?: string | number; actionStatusId?: string }) => String(post.actionStatusId ?? post.id ?? '');
 	const statusReplyTargetId = (post: { id?: string | number; actionStatusId?: string; threadStatusId?: string }) => String(post.threadStatusId ?? post.actionStatusId ?? post.id ?? '');
 	const inlineReplyTargetHandle = (handle = '') => {
@@ -1155,7 +1183,7 @@
 				newerPosts: updateStatusViewsByActionTarget(homeTimelineState.newerPosts, targetId, statusUpdate)
 			};
 		}
-		if ((scope === 'home' || scope === 'all') && bookmarksState.status === 'success') {
+		if ((scope === 'bookmarks' || scope === 'all') && bookmarksState.status === 'success') {
 			bookmarksState = {
 				...bookmarksState,
 				data: updateStatusViewsByActionTarget(bookmarksState.data, targetId, statusUpdate)
@@ -1191,6 +1219,116 @@
 			};
 		}
 	};
+	const statusEngagementFromStatus = (status: PleromaStatus) => {
+		const adapted = adaptPleromaStatus(status);
+		const targetId = statusActionTargetId(adapted);
+		if (!targetId) return null;
+
+		const snapshot: StatusEngagementSnapshot = {
+			replies: adapted.replies,
+			boosts: adapted.boosts,
+			favorites: adapted.favorites
+		};
+		return { targetId, snapshot };
+	};
+	const rememberStatusEngagement = (targetId: string, snapshot: Partial<StatusEngagementSnapshot>, actions: Partial<Record<StatusActionKey, boolean>> = {}) => {
+		const revision = statusEngagementRevision + 1;
+		statusEngagementRevision = revision;
+		const stored = { ...statusEngagementSnapshots[targetId] };
+		for (const key of ['replies', 'boosts', 'favorites'] as const) {
+			if (snapshot[key] !== undefined) stored[key] = { value: snapshot[key], revision };
+		}
+		if (actions.fav !== undefined) stored.favoriteActive = { value: actions.fav, revision };
+		if (actions.boost !== undefined) stored.boostActive = { value: actions.boost, revision };
+		statusEngagementSnapshots = { ...statusEngagementSnapshots, [targetId]: stored };
+	};
+	const engagementAfterRequest = (targetId: string, snapshot: StatusEngagementSnapshot, requestRevision: number) => {
+		const stored = statusEngagementSnapshots[targetId];
+		const rawKeys = (['replies', 'boosts', 'favorites'] as const).filter((key) => !stored?.[key] || stored[key].revision <= requestRevision);
+		return {
+			snapshot: {
+				replies: stored?.replies && stored.replies.revision > requestRevision ? stored.replies.value : snapshot.replies,
+				boosts: stored?.boosts && stored.boosts.revision > requestRevision ? stored.boosts.value : snapshot.boosts,
+				favorites: stored?.favorites && stored.favorites.revision > requestRevision ? stored.favorites.value : snapshot.favorites
+			},
+			rawKeys
+		};
+	};
+	const applyStatusEngagement = (targetId: string, snapshot: StatusEngagementSnapshot) => {
+		applyStatusActionUpdate(
+			'all',
+			targetId,
+			(post) => ({ ...post, ...snapshot }),
+			(post) => ({ ...post, replies: snapshot.replies, boosts: snapshot.boosts, favs: snapshot.favorites })
+		);
+	};
+	const reconcileNotificationEngagement = (notifications: PleromaNotification[], requestRevision = statusEngagementRevision, arrivalsAtRequestStart?: Record<string, number>) => {
+		for (const notification of notifications) {
+			if (!notification.status) continue;
+			const engagement = statusEngagementFromStatus(notification.status);
+			if (!engagement) continue;
+			const signature = `${engagement.targetId}\n${engagement.snapshot.replies}\n${engagement.snapshot.boosts}\n${engagement.snapshot.favorites}`;
+			const arrivalChanged = arrivalsAtRequestStart !== undefined
+				&& (statusEngagementNotificationArrivals[engagement.targetId] ?? 0) !== (arrivalsAtRequestStart[engagement.targetId] ?? 0);
+			statusEngagementNotificationArrivals = {
+				...statusEngagementNotificationArrivals,
+				[engagement.targetId]: (statusEngagementNotificationArrivals[engagement.targetId] ?? 0) + 1
+			};
+			if (notificationEngagementSignatures[notification.id] === signature || seenNotificationEngagementSignatures[notification.id] === signature) {
+				continue;
+			}
+			seenNotificationEngagementSignatures = { ...seenNotificationEngagementSignatures, [notification.id]: signature };
+			const merged = engagementAfterRequest(engagement.targetId, engagement.snapshot, arrivalChanged ? Number.NEGATIVE_INFINITY : requestRevision);
+			const snapshot = merged.snapshot;
+			const acceptedSnapshot: Partial<StatusEngagementSnapshot> = {};
+			for (const key of merged.rawKeys) acceptedSnapshot[key] = snapshot[key];
+			if (merged.rawKeys.length > 0) rememberStatusEngagement(engagement.targetId, acceptedSnapshot);
+			if (merged.rawKeys.length === 3) {
+				notificationEngagementSignatures = { ...notificationEngagementSignatures, [notification.id]: signature };
+			}
+			if (merged.rawKeys.length > 0) {
+				const current = statusEngagementNotificationRevisions[engagement.targetId] ?? {};
+				statusEngagementNotificationRevisions = {
+					...statusEngagementNotificationRevisions,
+					[engagement.targetId]: {
+						...current,
+						...(merged.rawKeys.includes('favorites') ? { fav: (current.fav ?? 0) + 1 } : {}),
+						...(merged.rawKeys.includes('boosts') ? { boost: (current.boost ?? 0) + 1 } : {})
+					}
+				};
+			}
+			applyStatusEngagement(engagement.targetId, snapshot);
+		}
+	};
+	const publishLoadedStatusEngagement = <PostType extends PleromaStatusView>(post: PostType, requestRevision: number): PostType => {
+		const targetId = statusActionTargetId(post);
+		const stored = statusEngagementSnapshots[targetId];
+		const merged = engagementAfterRequest(targetId, { replies: post.replies, boosts: post.boosts, favorites: post.favorites }, requestRevision);
+		const snapshot = merged.snapshot;
+		const storedFavoriteIsNewer = Boolean(stored?.favoriteActive && stored.favoriteActive.revision > requestRevision);
+		const storedBoostIsNewer = Boolean(stored?.boostActive && stored.boostActive.revision > requestRevision);
+		const favoriteActive = storedFavoriteIsNewer ? stored?.favoriteActive?.value ?? post.actions.favorite : post.actions.favorite;
+		const boostActive = storedBoostIsNewer ? stored?.boostActive?.value ?? post.actions.boost : post.actions.boost;
+		const acceptedSnapshot: Partial<StatusEngagementSnapshot> = {};
+		for (const key of merged.rawKeys) acceptedSnapshot[key] = snapshot[key];
+		rememberStatusEngagement(targetId, acceptedSnapshot, {
+			...(!storedFavoriteIsNewer ? { fav: favoriteActive } : {}),
+			...(!storedBoostIsNewer ? { boost: boostActive } : {})
+		});
+		return {
+			...post,
+			...snapshot,
+			actions: {
+				...post.actions,
+				favorite: statusActionPendingValues[statusActionPendingKey(targetId, 'fav')] ?? favoriteActive,
+				boost: statusActionPendingValues[statusActionPendingKey(targetId, 'boost')] ?? boostActive
+			}
+		};
+	};
+	const adaptLoadedPleromaStatus = (status: PleromaStatus, requestRevision: number, options?: Parameters<typeof adaptPleromaStatus>[1]) =>
+		publishLoadedStatusEngagement(adaptPleromaStatus(status, options), requestRevision);
+	const adaptLoadedPleromaStatuses = (statuses: PleromaStatus[], requestRevision: number, options?: Parameters<typeof adaptPleromaStatuses>[1]) =>
+		adaptPleromaStatuses(statuses, options).map((post) => publishLoadedStatusEngagement(post, requestRevision));
 	const applyReplyCountUpdate = (targetId: string) => {
 		localHomePosts = updateRebuildPostsByReplyTarget(localHomePosts, targetId, incrementRebuildPostReplies);
 		if (homeTimelineState.status === 'success') {
@@ -1267,7 +1405,9 @@
 	const clearStatusActionPending = (pendingKey: string, requestId: number) => {
 		if (statusActionPending[pendingKey] !== requestId) return;
 		const { [pendingKey]: _cleared, ...rest } = statusActionPending;
+		const { [pendingKey]: _clearedValue, ...restValues } = statusActionPendingValues;
 		statusActionPending = rest;
+		statusActionPendingValues = restValues;
 	};
 	const mutateStatusAction = (targetId: string, key: StatusActionKey, previous: StatusActionValue, originRoute: StatusActionOrigin) => {
 		const session = currentSession;
@@ -1277,11 +1417,14 @@
 
 		const requestSessionKey = sessionKey(session);
 		const origin = { route: originRoute, requestId: statusActionOriginRequestId(originRoute) };
+		const engagementRevision = statusEngagementNotificationRevision(targetId, key);
 		const requestId = statusActionRequestId + 1;
 		statusActionRequestId = requestId;
 		statusActionPending = { ...statusActionPending, [pendingKey]: requestId };
 		removeStatusActionError(targetId, key);
 		const optimistic = { active: !previous.active, count: previous.count };
+		statusActionPendingValues = { ...statusActionPendingValues, [pendingKey]: optimistic.active };
+		rememberStatusEngagement(targetId, key === 'fav' ? { favorites: previous.count } : { boosts: previous.count });
 		applyStatusActionUpdate(originRoute, targetId, (post) => setStatusViewAction(post, key, optimistic), (post) => setRebuildPostAction(post, key, optimistic));
 
 		void (async () => {
@@ -1300,7 +1443,18 @@
 				upsertAccountCache(accountsFromPleromaStatus(status));
 				const serverPost = adaptPleromaStatus(status);
 				const reconciled = statusViewActionValue(serverPost, key);
-				applyStatusActionUpdate('all', targetId, (post) => setStatusViewAction(post, key, reconciled), (post) => setRebuildPostAction(post, key, reconciled));
+				const notificationUpdatedCounts = statusEngagementNotificationRevision(targetId, key) !== engagementRevision;
+				rememberStatusEngagement(
+					targetId,
+					notificationUpdatedCounts ? {} : key === 'fav' ? { favorites: reconciled.count } : { boosts: reconciled.count },
+					{ [key]: reconciled.active }
+				);
+				applyStatusActionUpdate(
+					'all',
+					targetId,
+					(post) => setStatusViewAction(post, key, notificationUpdatedCounts ? { ...reconciled, count: statusViewActionValue(post, key).count } : reconciled),
+					(post) => setRebuildPostAction(post, key, notificationUpdatedCounts ? { ...reconciled, count: rebuildPostActionValue(post, key).count } : reconciled)
+				);
 				clearStatusActionPending(pendingKey, requestId);
 			} catch (error) {
 				if (!isCurrentSessionRequest(requestSessionKey)) return;
@@ -1316,9 +1470,20 @@
 
 				clearStatusActionPending(pendingKey, requestId);
 				const originActive = statusActionOriginActive(origin);
+				const canonicalActive = storedStatusActionActive(targetId, key, previous.active);
+				applyStatusActionUpdate(
+					'all',
+					targetId,
+					(post) => setStatusViewAction(post, key, { active: canonicalActive, count: statusViewActionValue(post, key).count }),
+					(post) => setRebuildPostAction(post, key, { active: canonicalActive, count: rebuildPostActionValue(post, key).count })
+				);
+				applyStatusActionUpdate(
+					origin.route,
+					targetId,
+					(post) => setStatusViewAction(post, key, { ...previous, count: statusViewActionValue(post, key).count }),
+					(post) => setRebuildPostAction(post, key, { ...previous, count: rebuildPostActionValue(post, key).count })
+				);
 				if (!originActive && !statusActionOriginRetained(origin)) return;
-
-				applyStatusActionUpdate(origin.route, targetId, (post) => setStatusViewAction(post, key, previous), (post) => setRebuildPostAction(post, key, previous));
 				if (originActive) addStatusActionError({ targetId, key, route: origin.route, error: normalized });
 			}
 		})();
@@ -2304,11 +2469,12 @@
 		}
 	};
 	const handlePostAction = (clickedPost: RebuildPost, key: string) => {
+		const originRoute: StatusActionOrigin = route === 'bookmarks' ? 'bookmarks' : 'home';
 		if (key.startsWith('reaction:')) {
-			handleReactionAction(clickedPost, key, 'home');
+			handleReactionAction(clickedPost, key, originRoute);
 			return;
 		}
-		if (handleManageAction(clickedPost, key, 'home')) return;
+		if (handleManageAction(clickedPost, key, originRoute)) return;
 		if (key !== 'reply' && key !== 'boost' && key !== 'fav') return;
 		if (key === 'reply') {
 			openInlineReply(clickedPost, 'home');
@@ -2316,7 +2482,7 @@
 		}
 
 		const targetId = statusActionTargetId(clickedPost);
-		if (targetId) mutateStatusAction(targetId, key, rebuildPostActionValue(clickedPost, key), 'home');
+		if (targetId) mutateStatusAction(targetId, key, rebuildPostActionValue(clickedPost, key), originRoute);
 	};
 	const handleAppPublicPostAction = (clickedPost: RebuildPost, key: string) => {
 		const targetRoute = appPublicTimelineRoute;
@@ -2875,6 +3041,7 @@
 	};
 	const loadBookmarks = async (session: PleromaSession) => {
 		const requestSessionKey = sessionKey(session);
+		const engagementRevisionAtStart = statusEngagementRevision;
 		const requestId = bookmarksRequestId + 1;
 		bookmarksRequestId = requestId;
 		bookmarksState = { status: 'loading' };
@@ -2885,7 +3052,7 @@
 			if (requestId !== bookmarksRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			upsertAccountCache(accountsFromPleromaStatuses(timelinePage.items));
-			const posts = adaptPleromaStatuses(timelinePage.items);
+			const posts = adaptLoadedPleromaStatuses(timelinePage.items, engagementRevisionAtStart);
 			bookmarksState = posts.length > 0
 				? { status: 'success', data: posts, nextCursor: timelinePage.cursors.next, loadMoreStatus: 'idle' }
 				: { status: 'empty' };
@@ -2913,6 +3080,7 @@
 		if (!session || bookmarksState.status !== 'success' || !bookmarksState.nextCursor || bookmarksState.loadMoreStatus === 'loading') return;
 
 		const requestSessionKey = sessionKey(session);
+		const engagementRevisionAtStart = statusEngagementRevision;
 		const nextCursor = bookmarksState.nextCursor;
 		bookmarksState = { ...bookmarksState, loadMoreStatus: 'loading', loadMoreError: undefined };
 
@@ -2924,7 +3092,7 @@
 			upsertAccountCache(accountsFromPleromaStatuses(timelinePage.items));
 			bookmarksState = {
 				...bookmarksState,
-				data: mergeTimelineItems(bookmarksState.data, adaptPleromaStatuses(timelinePage.items)),
+				data: mergeTimelineItems(bookmarksState.data, adaptLoadedPleromaStatuses(timelinePage.items, engagementRevisionAtStart)),
 				nextCursor: timelinePage.cursors.next,
 				loadMoreStatus: 'idle',
 				loadMoreError: undefined
@@ -3510,6 +3678,8 @@
 		if (!session.account) return Promise.resolve();
 
 		const requestSessionKey = sessionKey(session);
+		const engagementRevisionAtStart = statusEngagementRevision;
+		const engagementArrivalsAtStart = { ...statusEngagementNotificationArrivals };
 		const notificationLoadFresh = Date.now() - notificationLoadStartedAt < NOTIFICATION_POLL_INTERVAL_MS;
 		if (notificationLoadPromise && notificationLoadPromiseKey === requestSessionKey && options.background && notificationLoadFresh) return notificationLoadPromise;
 		if (notificationLoadPromise) {
@@ -3532,6 +3702,7 @@
 				if (requestId !== notificationRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 				upsertAccountCache(accountsFromPleromaNotifications(notifications));
+				reconcileNotificationEngagement(notifications, engagementRevisionAtStart, engagementArrivalsAtStart);
 				const adapted = adaptNotificationsForSession(session, notifications);
 				const merged = notificationState.status === 'success' ? mergeNotificationViews(notificationState.data, adapted) : adapted;
 				notificationState = merged.length > 0 ? { status: 'success', data: merged } : { status: 'empty' };
@@ -3581,7 +3752,8 @@
 	const pollNotifications = () => {
 		const session = readPleromaSession(localStorage);
 		if (!session) {
-			invalidateNotificationRequests();
+			if (currentSession) redirectToLanding();
+			else invalidateNotificationRequests();
 			return;
 		}
 		if (!session.account) return;
@@ -3594,6 +3766,7 @@
 		if (!session?.account || !isCurrentSessionRequest(requestSessionKey)) return;
 
 		upsertAccountCache(accountsFromPleromaNotifications([notification]));
+		reconcileNotificationEngagement([notification]);
 		const adapted = adaptNotificationsForSession(session, [notification]);
 		const merged = mergeNotificationViews(notificationState.status === 'success' ? notificationState.data : [], adapted);
 		notificationState = merged.length > 0 ? { status: 'success', data: merged } : { status: 'empty' };
@@ -3861,6 +4034,7 @@
 	};
 	const loadHomeTimeline = async (session: PleromaSession) => {
 		const requestSessionKey = sessionKey(session);
+		const engagementRevisionAtStart = statusEngagementRevision;
 		const requestId = homeTimelineRequestId + 1;
 		homeTimelineRequestId = requestId;
 		homeTimelineState = { status: 'loading' };
@@ -3875,7 +4049,7 @@
 			if (route !== 'home' || requestId !== homeTimelineRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			upsertAccountCache(accountsFromPleromaStatuses(timelinePage.items));
-			const posts = adaptPleromaStatuses(timelinePage.items, { timelines: ['home'] });
+			const posts = adaptLoadedPleromaStatuses(timelinePage.items, engagementRevisionAtStart, { timelines: ['home'] });
 			homeTimelineFallbackSinceId = posts[0]?.id ?? null;
 			homeTimelineState = posts.length > 0
 				? { status: 'success', data: posts, nextCursor: timelinePage.cursors.next, loadMoreStatus: 'idle', newerPosts: [], newPostsStatus: 'idle' }
@@ -3896,6 +4070,7 @@
 	};
 	const loadAppPublicTimeline = async (session: PleromaSession, timelineRoute: AppPublicTimelineRoute) => {
 		const requestSessionKey = sessionKey(session);
+		const engagementRevisionAtStart = statusEngagementRevision;
 		const requestId = appPublicTimelineRequestId + 1;
 		appPublicTimelineRequestId = requestId;
 		appPublicTimelineStates[timelineRoute] = { status: 'loading' };
@@ -3910,7 +4085,7 @@
 			if (route !== timelineRoute || requestId !== appPublicTimelineRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			upsertAccountCache(accountsFromPleromaStatuses(timelinePage.items));
-			const posts = adaptPleromaStatuses(timelinePage.items, { timelines: [timelineRoute] });
+			const posts = adaptLoadedPleromaStatuses(timelinePage.items, engagementRevisionAtStart, { timelines: [timelineRoute] });
 			appPublicTimelineFallbackSinceIds[timelineRoute] = posts[0]?.id ?? null;
 			appPublicTimelineStates[timelineRoute] = posts.length > 0
 				? { status: 'success', data: posts, nextCursor: timelinePage.cursors.next, loadMoreStatus: 'idle', newerPosts: [] }
@@ -3951,6 +4126,7 @@
 	};
 	const loadThread = async (session: PleromaSession, statusId: string) => {
 		const requestSessionKey = sessionKey(session);
+		const engagementRevisionAtStart = statusEngagementRevision;
 		const requestId = threadRequestId + 1;
 		threadRequestId = requestId;
 		pendingThreadStreamStatuses = [];
@@ -3984,12 +4160,12 @@
 			if (route !== 'thread' || requestId !== threadRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
 
 			upsertAccountCache(accountsFromPleromaStatuses([status, ...context.ancestors, ...context.descendants]));
-			const adaptedStatus = adaptPleromaStatus(status);
+			const adaptedStatus = adaptLoadedPleromaStatus(status, engagementRevisionAtStart);
 			threadState = {
 				status: 'success',
 				focused: threadPostForRebuild(adaptedStatus),
-				ancestors: adaptPleromaStatuses(context.ancestors).map(threadPostForRebuild),
-				replies: threadRepliesForRebuild(statusReplyTargetId(adaptedStatus), adaptPleromaStatuses(context.descendants))
+				ancestors: adaptLoadedPleromaStatuses(context.ancestors, engagementRevisionAtStart).map(threadPostForRebuild),
+				replies: threadRepliesForRebuild(statusReplyTargetId(adaptedStatus), adaptLoadedPleromaStatuses(context.descendants, engagementRevisionAtStart))
 			};
 			const pendingStatuses = pendingThreadStreamStatuses
 				.filter((pending) => pending.requestId === requestId && pending.sessionKey === requestSessionKey && pending.statusId === statusId)
@@ -4103,6 +4279,7 @@
 	};
 	const loadProfileRoute = async (session: PleromaSession | null, handle: string) => {
 		const requestSessionKey = sessionKey(session);
+		let engagementRevisionAtStart = statusEngagementRevision;
 		const requestId = profileRouteRequestId + 1;
 		profileRouteRequestId = requestId;
 		profileFollowPending = false;
@@ -4158,9 +4335,11 @@
 				upsertAccountCache([account], { relationship: 'replace' });
 				const profile = adaptPleromaProfile(account, { instanceUrl: profileInstanceUrl, currentAccountId });
 				profileRouteState = { status: 'success', data: emptyProfileData(profile), timelineStatus: 'loading' };
+				engagementRevisionAtStart = statusEngagementRevision;
 				[postsPage, repliesPage, mediaPage, pinnedStatuses] = await statusPages(account.id);
 			} else {
 				const relationshipPromise = session ? accountWithFetchedRelationship(client, resolvedAccount, currentAccountId) : Promise.resolve(resolvedAccount);
+				engagementRevisionAtStart = statusEngagementRevision;
 				const statusesPromise = statusPages(resolvedAccount.id);
 				account = await relationshipPromise;
 				if (route !== 'profile' || requestId !== profileRouteRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
@@ -4181,10 +4360,10 @@
 			upsertAccountCache([account], { relationship: 'replace' });
 			const profile = adaptPleromaProfile(account, { instanceUrl: profileInstanceUrl, currentAccountId });
 			upsertAccountCache(accountsFromPleromaStatuses([...postsPage.items, ...repliesPage.items, ...mediaPage.items, ...pinnedStatuses]));
-			const posts = adaptPleromaStatuses(postsPage.items).map(profilePostForRebuild);
-			const replies = adaptPleromaStatuses(repliesPage.items).map(profilePostForRebuild);
-			const mediaStatuses = adaptPleromaStatuses(mediaPage.items);
-			const pinned = adaptPleromaStatuses(pinnedStatuses).map(profilePostForRebuild);
+			const posts = adaptLoadedPleromaStatuses(postsPage.items, engagementRevisionAtStart).map(profilePostForRebuild);
+			const replies = adaptLoadedPleromaStatuses(repliesPage.items, engagementRevisionAtStart).map(profilePostForRebuild);
+			const mediaStatuses = adaptLoadedPleromaStatuses(mediaPage.items, engagementRevisionAtStart);
+			const pinned = adaptLoadedPleromaStatuses(pinnedStatuses, engagementRevisionAtStart).map(profilePostForRebuild);
 			profileRouteState = {
 				status: 'success',
 				data: {
@@ -4214,6 +4393,7 @@
 		if (!session || homeTimelineState.status !== 'success' || !homeTimelineState.nextCursor || homeTimelineState.loadMoreStatus === 'loading') return;
 
 		const requestSessionKey = sessionKey(session);
+		const engagementRevisionAtStart = statusEngagementRevision;
 		const requestId = homeTimelineRequestId + 1;
 		homeTimelineRequestId = requestId;
 		const nextCursor = homeTimelineState.nextCursor;
@@ -4229,7 +4409,7 @@
 			if (requestId !== homeTimelineRequestId || !isCurrentSessionRequest(requestSessionKey) || homeTimelineState.status !== 'success') return;
 
 			upsertAccountCache(accountsFromPleromaStatuses(timelinePage.items));
-			const posts = adaptPleromaStatuses(timelinePage.items, { timelines: ['home'] });
+			const posts = adaptLoadedPleromaStatuses(timelinePage.items, engagementRevisionAtStart, { timelines: ['home'] });
 			homeTimelineState = {
 				...homeTimelineState,
 				data: mergeTimelineItems(homeTimelineState.data, posts),
@@ -4259,6 +4439,7 @@
 		if (timelineState.status !== 'success' || !timelineState.nextCursor || timelineState.loadMoreStatus === 'loading') return;
 
 		const requestSessionKey = sessionKey(session);
+		const engagementRevisionAtStart = statusEngagementRevision;
 		const requestId = appPublicTimelineRequestId + 1;
 		appPublicTimelineRequestId = requestId;
 		const nextCursor = timelineState.nextCursor;
@@ -4275,7 +4456,7 @@
 			if (route !== timelineRoute || requestId !== appPublicTimelineRequestId || !isCurrentSessionRequest(requestSessionKey) || currentTimelineState.status !== 'success') return;
 
 			upsertAccountCache(accountsFromPleromaStatuses(timelinePage.items));
-			const posts = adaptPleromaStatuses(timelinePage.items, { timelines: [timelineRoute] });
+			const posts = adaptLoadedPleromaStatuses(timelinePage.items, engagementRevisionAtStart, { timelines: [timelineRoute] });
 			appPublicTimelineStates[timelineRoute] = {
 				...currentTimelineState,
 				data: mergeTimelineItems(currentTimelineState.data, posts),
@@ -4313,6 +4494,7 @@
 			: []);
 		const startQueuedIds = new Set(homeTimelineState.status === 'success' ? homeTimelineState.newerPosts.map((post) => post.id) : []);
 		const requestSessionKey = sessionKey(session);
+		const engagementRevisionAtStart = statusEngagementRevision;
 		const catchUpKey = `${requestSessionKey}\n${sinceId ?? ''}`;
 		const requestId = homeTimelineNewPostsRequestId + 1;
 		homeTimelineNewPostsRequestId = requestId;
@@ -4332,7 +4514,7 @@
 			if (requestId !== homeTimelineNewPostsRequestId || !isCurrentSessionRequest(requestSessionKey) || route !== 'home') return;
 
 			upsertAccountCache(accountsFromPleromaStatuses(catchUp.items));
-			const posts = adaptPleromaStatuses(catchUp.items, { timelines: ['home'] });
+			const posts = adaptLoadedPleromaStatuses(catchUp.items, engagementRevisionAtStart, { timelines: ['home'] });
 			homeTimelineFallbackSinceId = catchUp.newestId ?? homeTimelineFallbackSinceId;
 			if (homeTimelineState.status === 'empty') {
 				if (posts.length === 0) return;
@@ -4394,6 +4576,7 @@
 			: []);
 		const startQueuedIds = new Set(timelineState.status === 'success' ? timelineState.newerPosts.map((post) => post.id) : []);
 		const requestSessionKey = sessionKey(session);
+		const engagementRevisionAtStart = statusEngagementRevision;
 		const catchUpKey = `${requestSessionKey}\n${timelineRoute}\n${sinceId ?? ''}`;
 		const requestId = appPublicTimelineNewPostsRequestId + 1;
 		appPublicTimelineNewPostsRequestId = requestId;
@@ -4412,7 +4595,7 @@
 			if (requestId !== appPublicTimelineNewPostsRequestId || !isCurrentSessionRequest(requestSessionKey) || route !== timelineRoute) return;
 
 			upsertAccountCache(accountsFromPleromaStatuses(catchUp.items));
-			const posts = adaptPleromaStatuses(catchUp.items, { timelines: [timelineRoute] });
+			const posts = adaptLoadedPleromaStatuses(catchUp.items, engagementRevisionAtStart, { timelines: [timelineRoute] });
 			appPublicTimelineFallbackSinceIds[timelineRoute] = catchUp.newestId ?? appPublicTimelineFallbackSinceIds[timelineRoute];
 			const currentTimelineState = appPublicTimelineStates[timelineRoute];
 			if (currentTimelineState.status === 'empty') {

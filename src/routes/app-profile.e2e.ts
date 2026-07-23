@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { pleromaFixtures } from '../lib/pleroma/fixtures';
+import { NOTIFICATION_POLL_EVENT } from '../lib/pleroma/notifications';
 import type { PleromaAccount, PleromaRelationship, PleromaStatus } from '../lib/pleroma/types';
 import { expectNoHorizontalOverflow, fulfillJson, mockRightRailApis, setViewport } from '../test/playwright';
 
@@ -849,6 +850,9 @@ test('signed-out visitors can view a public profile with sign-in prompts', async
 	await expect(page.getByTestId('app-header')).toHaveCount(0);
 	await expect(page.getByTestId('public-profile-shell')).toBeVisible();
 	expect(relationshipRequests).toBe(0);
+	await page.evaluate((eventName) => window.dispatchEvent(new Event(eventName)), NOTIFICATION_POLL_EVENT);
+	await page.waitForTimeout(50);
+	await expect(page).toHaveURL('/app/profiles/datagram@retro.social');
 
 	await view.getByRole('button', { name: 'Sign in to follow' }).click();
 	await page.waitForURL('/');

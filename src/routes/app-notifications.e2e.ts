@@ -126,9 +126,9 @@ const fulfillJson = async (route: Route, body: unknown, status = 200) => {
 	});
 };
 
-const mockHomeTimeline = async (page: Page) => {
+const mockHomeTimeline = async (page: Page, statuses = pleromaFixtures.timelines.home) => {
 	await page.route('https://pleroma.example/api/v1/timelines/home**', async (route) => {
-		await fulfillJson(route, pleromaFixtures.timelines.home);
+		await fulfillJson(route, statuses);
 	});
 };
 
@@ -157,11 +157,15 @@ const mockOwnAccount = async (page: Page) => {
 	});
 };
 
-const openLatestStream = async (page: Page) => {
+const waitForLatestStream = async (page: Page) => {
 	await expect.poll(() => page.evaluate(() => {
 		const testWindow = window as typeof window & { __pleromanetSockets?: unknown[] };
 		return testWindow.__pleromanetSockets?.length ?? 0;
 	})).toBeGreaterThan(0);
+};
+
+const openLatestStream = async (page: Page) => {
+	await waitForLatestStream(page);
 	await page.evaluate(() => {
 		type MockSocket = { onopen: ((event: Event) => void) | null };
 		const testWindow = window as typeof window & { __pleromanetSockets?: MockSocket[] };
@@ -364,6 +368,418 @@ test('websocket notification updates the badge and popover without polling', asy
 	await expect(page.getByTestId('header-notifications-popover')).toContainText('nova mentioned you');
 });
 
+test('streamed notification snapshots reconcile canonical timeline counts idempotently', async ({ page }) => {
+	await authenticate(page);
+	const source = statusWithText('status-count-source', 'counts should follow the source status.');
+	const wrapper = { ...statusWithText('status-count-wrapper', ''), reblog: source };
+	const unrelated = statusWithText('status-count-unrelated', 'this post should not change.');
+	await mockHomeTimeline(page, [wrapper, unrelated]);
+	await mockNotifications(page, () => []);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const boostedPost = page.locator('[data-status-id="status-count-wrapper"]');
+	const unrelatedPost = page.locator('[data-status-id="status-count-unrelated"]');
+	await expect(boostedPost.getByRole('button', { name: 'Favorite 9' })).toBeVisible();
+	await openLatestStream(page);
+	const snapshot = { ...source, favourites_count: 12, reblogs_count: 7, replies_count: 5 };
+	const nextNotification = notification('notif-count-stream', 'favourite', favActor, '2026-05-18T12:06:00.000Z', snapshot);
+	await emitStreamNotification(page, nextNotification);
+
+	await expect(boostedPost.getByRole('button', { name: 'Favorite 12' })).toBeVisible();
+	await expect(boostedPost.getByRole('button', { name: 'Boost 7' })).toBeVisible();
+	await expect(boostedPost.getByRole('button', { name: 'Reply 5' })).toBeVisible();
+	await expect(unrelatedPost.getByRole('button', { name: 'Favorite 9' })).toBeVisible();
+
+	await emitStreamNotification(page, nextNotification);
+	await page.waitForTimeout(50);
+	await expect(boostedPost.getByRole('button', { name: 'Favorite 12' })).toBeVisible();
+});
+
+test('notification REST loads reconcile visible timeline counts', async ({ page }) => {
+	await authenticate(page);
+	const visibleStatus = statusWithText('status-count-poll', 'polling should refresh these counts.');
+	await mockHomeTimeline(page, [visibleStatus]);
+	let response: PleromaNotification[] = [];
+	const requests = await mockNotifications(page, () => response);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('[data-status-id="status-count-poll"]');
+	await expect(post.getByRole('button', { name: 'Favorite 9' })).toBeVisible();
+	response = [notification(
+		'notif-count-poll',
+		'reblog',
+		boostActor,
+		'2026-05-18T12:07:00.000Z',
+		{ ...visibleStatus, favourites_count: 14, reblogs_count: 8, replies_count: 6 }
+	)];
+	await page.evaluate((eventName) => window.dispatchEvent(new Event(eventName)), NOTIFICATION_POLL_EVENT);
+
+	await expect(post.getByRole('button', { name: 'Favorite 14' })).toBeVisible();
+	await expect(post.getByRole('button', { name: 'Boost 8' })).toBeVisible();
+	await expect(post.getByRole('button', { name: 'Reply 6' })).toBeVisible();
+	expect(requests()).toBe(2);
+
+	response = [notification(
+		'notif-count-foreground',
+		'favourite',
+		favActor,
+		'2026-05-18T12:08:00.000Z',
+		{ ...visibleStatus, favourites_count: 16, reblogs_count: 10, replies_count: 8 }
+	)];
+	await page.getByTestId('left-sidebar').getByRole('link', { name: /Notifications/ }).click();
+	await expect.poll(requests).toBe(3);
+	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Home' }).click();
+	await expect(post.getByRole('button', { name: 'Favorite 16' })).toBeVisible();
+	await expect(post.getByRole('button', { name: 'Boost 10' })).toBeVisible();
+	await expect(post.getByRole('button', { name: 'Reply 8' })).toBeVisible();
+});
+
+test('a streamed snapshot wins over an older notification REST request', async ({ page }) => {
+	await authenticate(page);
+	const visibleStatus = statusWithText('status-count-rest-race', 'stream counts should win this race.');
+	await mockHomeTimeline(page, [visibleStatus]);
+	let releaseNotifications: () => void = () => undefined;
+	let releaseBookmarks: () => void = () => undefined;
+	let notificationRequests = 0;
+	let bookmarkRequests = 0;
+	let completedRequests = 0;
+	const notificationsPending = new Promise<void>((resolve) => {
+		releaseNotifications = resolve;
+	});
+	const bookmarksPending = new Promise<void>((resolve) => {
+		releaseBookmarks = resolve;
+	});
+	await mockNotifications(page, async () => {
+		notificationRequests += 1;
+		if (notificationRequests === 1) return [];
+		await notificationsPending;
+		completedRequests += 1;
+		return [notification(
+			'notif-count-rest-older',
+			'favourite',
+			favActor,
+			'2026-05-18T12:07:00.000Z',
+			{ ...visibleStatus, favourites_count: 10, reblogs_count: 5, replies_count: 3 }
+		)];
+	});
+	await page.route('https://pleroma.example/api/v1/bookmarks**', async (route) => {
+		bookmarkRequests += 1;
+		await bookmarksPending;
+		await fulfillJson(route, [{ ...visibleStatus, favourites_count: 15, reblogs_count: 9, replies_count: 7 }]);
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('[data-status-id="status-count-rest-race"]');
+	await expect(post.getByRole('button', { name: 'Favorite 9' })).toBeVisible();
+	await expect.poll(() => notificationRequests).toBe(1);
+	await waitForLatestStream(page);
+	const streamedSnapshot = notification(
+		'notif-count-stream-newer',
+		'favourite',
+		favActor,
+		'2026-05-18T12:08:00.000Z',
+		{ ...visibleStatus, favourites_count: 12, reblogs_count: 7, replies_count: 5 }
+	);
+	await emitStreamNotification(page, streamedSnapshot);
+	await expect(post.getByRole('button', { name: 'Favorite 12' })).toBeVisible();
+	await page.evaluate((eventName) => window.dispatchEvent(new Event(eventName)), NOTIFICATION_POLL_EVENT);
+	await expect.poll(() => notificationRequests).toBe(2);
+	await emitStreamNotification(page, streamedSnapshot);
+	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Bookmarks' }).click();
+	await expect.poll(() => bookmarkRequests).toBe(1);
+
+	releaseNotifications();
+	await expect.poll(() => completedRequests).toBe(1);
+	releaseBookmarks();
+	const bookmarkedPost = page.locator('[data-status-id="status-count-rest-race"]');
+	await expect(bookmarkedPost.getByRole('button', { name: 'Favorite 15' })).toBeVisible();
+	await expect(bookmarkedPost.getByRole('button', { name: 'Boost 9' })).toBeVisible();
+	await expect(bookmarkedPost.getByRole('button', { name: 'Reply 7' })).toBeVisible();
+	await page.evaluate((eventName) => window.dispatchEvent(new Event(eventName)), NOTIFICATION_POLL_EVENT);
+	await expect.poll(() => notificationRequests).toBe(3);
+	await page.waitForTimeout(50);
+	await expect(bookmarkedPost.getByRole('button', { name: 'Favorite 15' })).toBeVisible();
+});
+
+test('notification snapshots survive until a matching timeline finishes loading', async ({ page }) => {
+	await authenticate(page);
+	const visibleStatus = statusWithText('status-count-load-race', 'loading should not discard this snapshot.');
+	let releaseTimeline: () => void = () => undefined;
+	const timelinePending = new Promise<void>((resolve) => {
+		releaseTimeline = resolve;
+	});
+	await page.route('https://pleroma.example/api/v1/timelines/home**', async (route) => {
+		await timelinePending;
+		await fulfillJson(route, [visibleStatus]);
+	});
+	await mockNotifications(page, () => [notification(
+		'notif-count-load-race',
+		'favourite',
+		favActor,
+		'2026-05-18T12:08:00.000Z',
+		{ ...visibleStatus, favourites_count: 13, reblogs_count: 8, replies_count: 6 }
+	)]);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+	await expect(notificationBadge(page)).toHaveText('1');
+
+	releaseTimeline();
+	const post = page.locator('[data-status-id="status-count-load-race"]');
+	await expect(post.getByRole('button', { name: 'Favorite 13' })).toBeVisible();
+	await expect(post.getByRole('button', { name: 'Boost 8' })).toBeVisible();
+	await expect(post.getByRole('button', { name: 'Reply 6' })).toBeVisible();
+});
+
+test('a surface request started after a snapshot can return newer counts', async ({ page }) => {
+	await authenticate(page);
+	const visibleStatus = statusWithText('status-count-newer-surface', 'newer surfaces should supersede retained snapshots.');
+	await mockHomeTimeline(page, [visibleStatus]);
+	await mockNotifications(page, () => []);
+	let releaseBookmarks: () => void = () => undefined;
+	let bookmarkRequests = 0;
+	const bookmarksPending = new Promise<void>((resolve) => {
+		releaseBookmarks = resolve;
+	});
+	await page.route('https://pleroma.example/api/v1/bookmarks**', async (route) => {
+		bookmarkRequests += 1;
+		await bookmarksPending;
+		await fulfillJson(route, [{ ...visibleStatus, favourites_count: 15, reblogs_count: 9, replies_count: 7 }]);
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const homePost = page.locator('[data-status-id="status-count-newer-surface"]');
+	await openLatestStream(page);
+	const snapshot = notification(
+		'notif-count-before-bookmarks',
+		'favourite',
+		favActor,
+		'2026-05-18T12:08:00.000Z',
+		{ ...visibleStatus, favourites_count: 12, reblogs_count: 7, replies_count: 5 }
+	);
+	await emitStreamNotification(page, snapshot);
+	await expect(homePost.getByRole('button', { name: 'Favorite 12' })).toBeVisible();
+
+	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Bookmarks' }).click();
+	await expect.poll(() => bookmarkRequests).toBe(1);
+	await waitForLatestStream(page);
+	await emitStreamNotification(page, snapshot);
+	releaseBookmarks();
+	const bookmarkedPost = page.locator('[data-status-id="status-count-newer-surface"]');
+	await expect(bookmarkedPost.getByRole('button', { name: 'Favorite 15' })).toBeVisible();
+	await expect(bookmarkedPost.getByRole('button', { name: 'Boost 9' })).toBeVisible();
+	await expect(bookmarkedPost.getByRole('button', { name: 'Reply 7' })).toBeVisible();
+});
+
+test('a pending action overlays only its counter onto a concurrent surface response', async ({ page }) => {
+	await authenticate(page);
+	const visibleStatus = statusWithText('status-count-field-race', 'counter revisions stay independent.');
+	await mockHomeTimeline(page, [visibleStatus]);
+	await mockNotifications(page, () => []);
+	let releaseFavorite: () => void = () => undefined;
+	let releaseBookmarks: () => void = () => undefined;
+	let bookmarkRequests = 0;
+	let favoriteResponses = 0;
+	const favoritePending = new Promise<void>((resolve) => {
+		releaseFavorite = resolve;
+	});
+	const bookmarksPending = new Promise<void>((resolve) => {
+		releaseBookmarks = resolve;
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-count-field-race/favourite', async (route) => {
+		await favoritePending;
+		await fulfillJson(route, { ...visibleStatus, favourited: true, favourites_count: 15 });
+		favoriteResponses += 1;
+	});
+	await page.route('https://pleroma.example/api/v1/bookmarks**', async (route) => {
+		bookmarkRequests += 1;
+		await bookmarksPending;
+		await fulfillJson(route, [{ ...visibleStatus, favourited: false, favourites_count: 14, reblogs_count: 9, replies_count: 8 }]);
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const homePost = page.locator('[data-status-id="status-count-field-race"]');
+	await openLatestStream(page);
+	await emitStreamNotification(page, notification(
+		'notif-count-field-race',
+		'favourite',
+		favActor,
+		'2026-05-18T12:08:00.000Z',
+		{ ...visibleStatus, favourites_count: 12, reblogs_count: 7, replies_count: 5 }
+	));
+	await homePost.getByRole('button', { name: 'Favorite 12' }).click();
+	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Bookmarks' }).click();
+	await expect.poll(() => bookmarkRequests).toBe(1);
+	releaseFavorite();
+	await expect.poll(() => favoriteResponses).toBe(1);
+	releaseBookmarks();
+
+	const bookmarkedPost = page.locator('[data-status-id="status-count-field-race"]');
+	await expect(bookmarkedPost.getByRole('button', { name: 'Favorite 15' })).toHaveAttribute('aria-pressed', 'true');
+	await expect(bookmarkedPost.getByRole('button', { name: 'Boost 9' })).toBeVisible();
+	await expect(bookmarkedPost.getByRole('button', { name: 'Reply 8' })).toBeVisible();
+});
+
+test('streamed notification snapshots reconcile canonical focused thread counts', async ({ page }) => {
+	await authenticate(page);
+	const source = statusWithText('status-thread-count-source', 'thread counts should follow the source status.');
+	const wrapper = { ...statusWithText('status-thread-count-wrapper', ''), reblog: source };
+	await mockThread(page, wrapper);
+	await mockNotifications(page, () => []);
+	await setViewport(page, 'desktop');
+	await page.goto('/app/thread/status-thread-count-wrapper');
+
+	const focused = page.getByTestId('focused-post');
+	await expect(focused.getByRole('button', { name: 'Favorite 9' })).toBeVisible();
+	await openLatestStream(page);
+	await emitStreamNotification(page, notification(
+		'notif-thread-count-stream',
+		'favourite',
+		favActor,
+		'2026-05-18T12:08:00.000Z',
+		{ ...source, favourites_count: 15, reblogs_count: 9, replies_count: 7 }
+	));
+
+	await expect(focused.getByRole('button', { name: 'Favorite 15' })).toBeVisible();
+	await expect(focused.getByRole('button', { name: 'Boost 9' })).toBeVisible();
+	await expect(focused.getByRole('button', { name: 'Reply 7' })).toBeVisible();
+});
+
+test('notification snapshots preserve a pending favorite through a stale action response', async ({ page }) => {
+	await authenticate(page);
+	const visibleStatus = statusWithText('status-count-pending', 'pending actions keep their local state.');
+	await mockHomeTimeline(page, [visibleStatus]);
+	await mockNotifications(page, () => []);
+	let releaseFavorite: () => void = () => undefined;
+	let releaseBookmarks: () => void = () => undefined;
+	let bookmarkRequests = 0;
+	let favoriteResponses = 0;
+	const favoritePending = new Promise<void>((resolve) => {
+		releaseFavorite = resolve;
+	});
+	const bookmarksPending = new Promise<void>((resolve) => {
+		releaseBookmarks = resolve;
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-count-pending/favourite', async (route) => {
+		await favoritePending;
+		await fulfillJson(route, { ...visibleStatus, favourited: true, favourites_count: 10 });
+		favoriteResponses += 1;
+	});
+	await page.route('https://pleroma.example/api/v1/bookmarks**', async (route) => {
+		bookmarkRequests += 1;
+		await bookmarksPending;
+		await fulfillJson(route, [{ ...visibleStatus, favourited: false, favourites_count: 12 }]);
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('[data-status-id="status-count-pending"]');
+	await openLatestStream(page);
+	await post.getByRole('button', { name: 'Favorite 9' }).click();
+	await expect(post.getByRole('button', { name: 'Favorite 10' })).toHaveAttribute('aria-pressed', 'true');
+	await emitStreamNotification(page, notification(
+		'notif-count-pending',
+		'favourite',
+		favActor,
+		'2026-05-18T12:09:00.000Z',
+		{ ...visibleStatus, favourites_count: 12 }
+	));
+
+	await expect(post.getByRole('button', { name: 'Favorite 13' })).toHaveAttribute('aria-pressed', 'true');
+	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Bookmarks' }).click();
+	await expect.poll(() => bookmarkRequests).toBe(1);
+	releaseBookmarks();
+	const bookmarkedPost = page.locator('[data-status-id="status-count-pending"]');
+	await expect(bookmarkedPost.getByRole('button', { name: 'Favorite 13' })).toHaveAttribute('aria-pressed', 'true');
+	releaseFavorite();
+	await expect.poll(() => favoriteResponses).toBe(1);
+	await expect(bookmarkedPost.getByRole('button', { name: 'Favorite 13' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('a duplicate snapshot does not suppress a newer pending action response', async ({ page }) => {
+	await authenticate(page);
+	const visibleStatus = statusWithText('status-count-duplicate-pending', 'duplicate snapshots stay inert.');
+	await mockHomeTimeline(page, [visibleStatus]);
+	await mockNotifications(page, () => []);
+	let releaseFavorite: () => void = () => undefined;
+	let favoriteResponses = 0;
+	const favoritePending = new Promise<void>((resolve) => {
+		releaseFavorite = resolve;
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-count-duplicate-pending/favourite', async (route) => {
+		await favoritePending;
+		await fulfillJson(route, { ...visibleStatus, favourited: true, favourites_count: 15 });
+		favoriteResponses += 1;
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	const post = page.locator('[data-status-id="status-count-duplicate-pending"]');
+	await openLatestStream(page);
+	const snapshot = notification(
+		'notif-count-duplicate-pending',
+		'favourite',
+		favActor,
+		'2026-05-18T12:10:00.000Z',
+		{ ...visibleStatus, favourites_count: 12 }
+	);
+	await emitStreamNotification(page, snapshot);
+	await expect(post.getByRole('button', { name: 'Favorite 12' })).toBeVisible();
+	await post.getByRole('button', { name: 'Favorite 12' }).click();
+	await expect(post.getByRole('button', { name: 'Favorite 13' })).toHaveAttribute('aria-pressed', 'true');
+	await emitStreamNotification(page, snapshot);
+
+	releaseFavorite();
+	await expect.poll(() => favoriteResponses).toBe(1);
+	await expect(post.getByRole('button', { name: 'Favorite 15' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('a failed home action preserves newer canonical bookmark state', async ({ page }) => {
+	await authenticate(page);
+	const visibleStatus = statusWithText('status-count-pending-failure', 'failed pending state rolls back everywhere it appeared.');
+	await mockHomeTimeline(page, [visibleStatus]);
+	await mockNotifications(page, () => []);
+	let releaseFavorite: () => void = () => undefined;
+	let releaseBookmarks: () => void = () => undefined;
+	let bookmarkRequests = 0;
+	let favoriteResponses = 0;
+	const favoritePending = new Promise<void>((resolve) => {
+		releaseFavorite = resolve;
+	});
+	const bookmarksPending = new Promise<void>((resolve) => {
+		releaseBookmarks = resolve;
+	});
+	await page.route('https://pleroma.example/api/v1/statuses/status-count-pending-failure/favourite', async (route) => {
+		await favoritePending;
+		await fulfillJson(route, { error: 'favorite failed' }, 503);
+		favoriteResponses += 1;
+	});
+	await page.route('https://pleroma.example/api/v1/bookmarks**', async (route) => {
+		bookmarkRequests += 1;
+		await bookmarksPending;
+		await fulfillJson(route, [{ ...visibleStatus, favourited: true, favourites_count: 10 }]);
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/home');
+
+	await page.locator('[data-status-id="status-count-pending-failure"]').getByRole('button', { name: 'Favorite 9' }).click();
+	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Bookmarks' }).click();
+	await expect.poll(() => bookmarkRequests).toBe(1);
+	releaseBookmarks();
+	const bookmarkedPost = page.locator('[data-status-id="status-count-pending-failure"]');
+	await expect(bookmarkedPost.getByRole('button', { name: 'Favorite 10' })).toHaveAttribute('aria-pressed', 'true');
+
+	releaseFavorite();
+	await expect.poll(() => favoriteResponses).toBe(1);
+	await expect(bookmarkedPost.getByRole('button', { name: 'Favorite 10' })).toHaveAttribute('aria-pressed', 'true');
+	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Home' }).click();
+	await expect(page.locator('[data-status-id="status-count-pending-failure"]').getByRole('button', { name: 'Favorite 9' })).toHaveAttribute('aria-pressed', 'false');
+});
+
 test('notification polling fallback refreshes after the websocket closes', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page);
@@ -478,6 +894,7 @@ test('notification polling pauses after the session is removed', async ({ page }
 	await page.waitForTimeout(50);
 
 	expect(requests()).toBe(beforeSignOutPoll);
+	await expect(page).toHaveURL('/');
 	await expect(notificationBadge(page)).toHaveCount(0);
 });
 
