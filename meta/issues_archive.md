@@ -103,3 +103,4 @@
 - [x] [103 Share fit-images with thread view](issues/103-share-fit-images-with-thread-view.md)
 - [x] [104 Reconcile post counts from notifications](issues/104-reconcile-post-counts-from-notifications.md)
 - [x] [105 Show post visibility and inherit it in replies](issues/105-show-post-visibility-and-inherit-it-in-replies.md)
+- [x] [106 Move visibility badge out of the post title](issues/106-move-visibility-badge-out-of-the-post-title.md)

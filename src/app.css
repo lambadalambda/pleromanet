@@ -3059,10 +3059,16 @@ a.suggest-name:hover { color: var(--accent-ink); }
 .post-time {
 	flex: 0 0 auto;
 	color: var(--muted);
-	margin-left: auto;
 	font-size: 12px;
 	font-family: var(--mono);
 	white-space: nowrap;
+}
+.post-head-meta {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	flex: 0 0 auto;
+	margin-left: auto;
 }
 .post-visibility {
 	display: inline-flex;

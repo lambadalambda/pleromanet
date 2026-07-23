@@ -30,6 +30,8 @@
 	{:else}
 		<span class="post-handle" title={h}>{h}</span>
 	{/if}
-	<PostVisibility visibility={post?.visibility} />
-	<span class="post-time"><RelativeTime createdAt={created} fallback={t} /></span>
+	<span class="post-head-meta">
+		<PostVisibility visibility={post?.visibility} />
+		<span class="post-time"><RelativeTime createdAt={created} fallback={t} /></span>
+	</span>
 </div>

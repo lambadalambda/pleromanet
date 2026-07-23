@@ -9,6 +9,7 @@
 - Thread headers now expose the same persisted Fit images preference as timeline settings, keeping both controls synchronized while fitting every thread photo layout on desktop and mobile.
 - Notification status snapshots now reconcile favorite, boost, and reply counts across loaded and concurrently loading post surfaces without losing canonical boost identity or optimistic action state.
 - Posts now expose public, unlisted, followers-only, and direct visibility across app and public surfaces; inline replies show and submit the exact canonical source visibility.
+- Standard post headers group visibility with the timestamp at the right edge, keeping author identity visually uninterrupted.
 
 ## 2026-07-22
 

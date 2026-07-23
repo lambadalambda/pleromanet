@@ -1136,6 +1136,12 @@ test('home posts show visibility and replies inherit every supported visibility'
 
 	await setViewport(page, 'desktop');
 	await page.goto('/app/home');
+	const publicPost = page.locator('[data-status-id="status-visibility-public"]');
+	await expect.poll(async () => {
+		const badge = await publicPost.getByLabel('Visibility: Public').boundingBox();
+		const timestamp = await publicPost.locator('.post-time').boundingBox();
+		return badge && timestamp ? Math.abs(timestamp.x - (badge.x + badge.width)) : Number.POSITIVE_INFINITY;
+	}).toBeLessThanOrEqual(8);
 
 	for (const { value, label } of visibilityCases) {
 		const post = page.locator(`[data-status-id="status-visibility-${value}"]`);
