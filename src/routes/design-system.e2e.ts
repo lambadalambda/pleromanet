@@ -304,6 +304,39 @@ test('opens the attachment lightbox from the design-system specimen', async ({ p
 	await expect(page.getByRole('dialog', { name: 'Attachment lightbox' })).toBeHidden();
 });
 
+test('desktop lightbox uses tall viewport height while preserving horizontal bounds', async ({ page }) => {
+	await page.setViewportSize({ width: 1440, height: 1200 });
+	await page.goto('/design-system');
+	await page.locator('#attachments').getByRole('button', { name: 'Open lightbox →' }).click();
+
+	const dialog = page.getByRole('dialog', { name: 'Attachment lightbox' });
+	await dialog.getByTitle('door with cat').click();
+	const photo = dialog.locator('.lightbox-photo');
+	await expect.poll(async () => photo.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+	const bounds = await dialog.evaluate((element) => {
+		const viewer = element.querySelector<HTMLElement>('.lightbox-viewer');
+		const image = element.querySelector<HTMLImageElement>('.lightbox-photo');
+		if (!viewer || !image) return null;
+		const dialogBounds = element.getBoundingClientRect();
+		const viewerBounds = viewer.getBoundingClientRect();
+		const imageBounds = image.getBoundingClientRect();
+		return { dialogBounds, viewerBounds, imageBounds };
+	});
+
+	expect(bounds).not.toBeNull();
+	expect(bounds?.dialogBounds.top).toBeCloseTo(24, 0);
+	expect(bounds?.dialogBounds.bottom).toBeCloseTo(1176, 0);
+	expect(bounds?.dialogBounds.left).toBeCloseTo(180, 0);
+	expect(bounds?.dialogBounds.right).toBeCloseTo(1260, 0);
+	expect(bounds?.dialogBounds.width).toBeCloseTo(1080, 0);
+	expect(bounds?.imageBounds.width ?? 0).toBeGreaterThan(0);
+	expect(bounds?.imageBounds.height ?? 0).toBeGreaterThan(0);
+	expect(bounds?.imageBounds.top ?? 0).toBeGreaterThanOrEqual(bounds?.viewerBounds.top ?? 0);
+	expect(bounds?.imageBounds.bottom ?? 0).toBeLessThanOrEqual(bounds?.viewerBounds.bottom ?? 0);
+	expect(bounds?.imageBounds.left ?? 0).toBeGreaterThanOrEqual(bounds?.viewerBounds.left ?? 0);
+	expect(bounds?.imageBounds.right ?? 0).toBeLessThanOrEqual(bounds?.viewerBounds.right ?? 0);
+});
+
 test('mobile image lightbox contains media and removes desktop-only hints', async ({ page }) => {
 	await setViewport(page, 'mobile');
 	await page.goto('/design-system');

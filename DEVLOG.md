@@ -4,6 +4,7 @@
 
 - The standalone notifications route now matches the canonical handoff with inbox totals, keyboard-accessible type tabs, live time buckets, responsive list and filter surfaces, computed weekly activity, and a full empty state.
 - Notification clearing now uses Pleroma's clear endpoint and generation-safe stream replacement with forced post-subscription catch-up, preventing stale resurrection and missed notifications across concurrent streams and navigation.
+- Desktop attachment lightboxes now use the viewport height inside their existing 24px inset instead of stopping at 720px, giving tall images substantially more room without changing horizontal bounds or mobile behavior.
 
 ## 2026-07-23
 

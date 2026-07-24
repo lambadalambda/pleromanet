@@ -4065,8 +4065,8 @@ a.suggest-name:hover { color: var(--accent-ink); }
 	position: relative;
 	width: 100%;
 	max-width: 1080px;
-	height: 100%;
-	max-height: 720px;
+	height: calc(100dvh - 48px);
+	max-height: none;
 	background: linear-gradient(180deg, #1a1538 0%, #0c0a1a 100%);
 	border-radius: 6px;
 	display: grid;
