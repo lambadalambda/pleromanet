@@ -16,8 +16,8 @@
 	import InlineReplyComposer, { type InlineReplyComposerProps } from '$lib/rebuild/InlineReplyComposer.svelte';
 	import ChatRow from '$lib/rebuild/ChatRow.svelte';
 	import ChatThread from '$lib/rebuild/ChatThread.svelte';
-	import NotifRow from '$lib/rebuild/NotifRow.svelte';
 	import NotifsPopover from '$lib/rebuild/NotifsPopover.svelte';
+	import NotificationsPage from '$lib/rebuild/NotificationsPage.svelte';
 	import Post from '$lib/rebuild/Post.svelte';
 	import ProfileMini from '$lib/rebuild/ProfileMini.svelte';
 	import ProfileSideRail from '$lib/rebuild/ProfileSideRail.svelte';
@@ -235,6 +235,8 @@
 	let profileFollowPending = $state(false);
 	let profileFollowError = $state<PleromaRequestErrorView | null>(null);
 	let notificationState = $state<NotificationState>({ status: 'idle' });
+	let notificationClearState = $state<'idle' | 'clearing'>('idle');
+	let notificationClearError = $state<string | null>(null);
 	let searchState = $state<SearchState>({ status: 'idle' });
 	let headerSearchState = $state<SearchState>({ status: 'idle' });
 	let trendsState = $state<PleromaRequestState<TrendView[]>>({ status: 'idle' });
@@ -384,6 +386,8 @@
 	let appPublicTimelineStreamReconnectTimer: number | null = null;
 	let notificationStreamKey = '';
 	let notificationStreamReadyKey = '';
+	let notificationStreamGeneration = 0;
+	let notificationCatchUpOnHomeOpen = false;
 	let closeNotificationStream: (() => void) | null = null;
 	let notificationStreamReconnectTimer: number | null = null;
 	let notificationLoadPromise: Promise<void> | null = null;
@@ -580,6 +584,9 @@
 		loadedNotificationsKey = '';
 		loadedForegroundNotificationsKey = '';
 		notificationState = { status: 'idle' };
+		notificationClearState = 'idle';
+		notificationClearError = null;
+		notificationCatchUpOnHomeOpen = false;
 	};
 	const clearHeaderSearchDebounce = () => {
 		if (!headerSearchDebounceTimer) return;
@@ -682,6 +689,7 @@
 		notificationStreamReconnectTimer = null;
 	};
 	const closeNotificationStreaming = () => {
+		notificationStreamGeneration += 1;
 		clearNotificationStreamReconnect();
 		closeNotificationStream?.();
 		closeNotificationStream = null;
@@ -3675,14 +3683,15 @@
 		const lastSeenAt = readNotificationLastSeenAt(localStorage, notificationSession);
 		return adaptPleromaNotifications(notifications, { lastSeenAt });
 	};
-	const loadNotifications = (session: PleromaSession, options: { background?: boolean } = {}) => {
+	const loadNotifications = (session: PleromaSession, options: { background?: boolean; replace?: boolean; force?: boolean } = {}) => {
 		if (!session.account) return Promise.resolve();
+		if (options.background && notificationClearState === 'clearing') return Promise.resolve();
 
 		const requestSessionKey = sessionKey(session);
 		const engagementRevisionAtStart = statusEngagementRevision;
 		const engagementArrivalsAtStart = { ...statusEngagementNotificationArrivals };
 		const notificationLoadFresh = Date.now() - notificationLoadStartedAt < NOTIFICATION_POLL_INTERVAL_MS;
-		if (notificationLoadPromise && notificationLoadPromiseKey === requestSessionKey && options.background && notificationLoadFresh) return notificationLoadPromise;
+		if (notificationLoadPromise && notificationLoadPromiseKey === requestSessionKey && options.background && notificationLoadFresh && !options.force) return notificationLoadPromise;
 		if (notificationLoadPromise) {
 			notificationRequestId += 1;
 			clearNotificationLoadPromise(true);
@@ -3705,7 +3714,8 @@
 				upsertAccountCache(accountsFromPleromaNotifications(notifications));
 				reconcileNotificationEngagement(notifications, engagementRevisionAtStart, engagementArrivalsAtStart);
 				const adapted = adaptNotificationsForSession(session, notifications);
-				const merged = notificationState.status === 'success' ? mergeNotificationViews(notificationState.data, adapted) : adapted;
+				const current = notificationState.status === 'success' ? notificationState.data : [];
+				const merged = options.replace ? adapted : current.length > 0 ? mergeNotificationViews(current, adapted) : adapted;
 				notificationState = merged.length > 0 ? { status: 'success', data: merged } : { status: 'empty' };
 			} catch (error) {
 				if (requestId !== notificationRequestId || !isCurrentSessionRequest(requestSessionKey)) return;
@@ -3762,9 +3772,9 @@
 
 		void loadNotifications(session, { background: true });
 	};
-	const applyStreamedNotification = (requestSessionKey: string, notification: PleromaNotification) => {
+	const applyStreamedNotification = (requestSessionKey: string, notification: PleromaNotification, streamActive = true) => {
 		const session = currentSession;
-		if (!session?.account || !isCurrentSessionRequest(requestSessionKey)) return;
+		if (!session?.account || !isCurrentSessionRequest(requestSessionKey) || !streamActive || notificationClearState === 'clearing') return;
 
 		upsertAccountCache(accountsFromPleromaNotifications([notification]));
 		reconcileNotificationEngagement([notification]);
@@ -3802,6 +3812,7 @@
 		if (route !== 'home') scheduleNotificationStreamReconnect(session, requestSessionKey);
 	};
 	const connectNotificationStreaming = (session: PleromaSession) => {
+		if (notificationClearState === 'clearing') return;
 		if (!session.account || route === 'home') {
 			closeNotificationStreaming();
 			return;
@@ -3812,13 +3823,16 @@
 
 		closeNotificationStreaming();
 		notificationStreamKey = requestSessionKey;
+		const streamGeneration = notificationStreamGeneration;
 		const stream = openPleromaTimelineStream({
 			instanceUrl: session.instanceUrl,
 			accessToken: session.accessToken,
 			onUpdate: (status) => applyStreamedThreadStatus(requestSessionKey, status),
-			onNotification: (notification) => applyStreamedNotification(requestSessionKey, notification),
+			onNotification: (notification) => applyStreamedNotification(requestSessionKey, notification, streamGeneration === notificationStreamGeneration),
 			onOpen: () => {
-				if (notificationStreamKey === requestSessionKey && isCurrentSessionRequest(requestSessionKey)) notificationStreamReadyKey = requestSessionKey;
+				if (notificationStreamKey !== requestSessionKey || streamGeneration !== notificationStreamGeneration || !isCurrentSessionRequest(requestSessionKey)) return;
+				notificationStreamReadyKey = requestSessionKey;
+				void loadNotifications(session, { background: true, force: true });
 			},
 			onError: () => handleNotificationStreamFailure(session, requestSessionKey),
 			onClose: () => handleNotificationStreamFailure(session, requestSessionKey)
@@ -3845,6 +3859,45 @@
 			...notificationState,
 			data: notificationState.data.map((notification) => ({ ...notification, read: true }))
 		};
+	};
+	const clearNotifications = () => {
+		const session = currentSession;
+		if (!session?.account || notificationState.status !== 'success' || notificationClearState === 'clearing') return;
+
+		const account = session.account;
+		const requestSessionKey = sessionKey(session);
+		const latestClearedAt = latestNotificationCreatedAt(notificationState.data);
+		notificationRequestId += 1;
+		clearNotificationLoadPromise(true);
+		notificationClearState = 'clearing';
+		notificationClearError = null;
+		closeNotificationStreaming();
+		void (async () => {
+			try {
+				const client = createPleromaClient({ instanceUrl: session.instanceUrl, accessToken: session.accessToken, fetch: window.fetch.bind(window) });
+				await client.clearNotifications();
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+
+				if (latestClearedAt) writeNotificationLastSeenAt(localStorage, { instanceUrl: session.instanceUrl, account }, latestClearedAt);
+				await loadNotifications(session, { replace: true });
+			} catch (error) {
+				if (!isCurrentSessionRequest(requestSessionKey)) return;
+				const normalized = normalizePleromaRequestError(error);
+				if (normalized.reauthRequired) {
+					signOutPleroma(localStorage);
+					redirectToLanding();
+					return;
+				}
+				notificationClearError = `${normalized.title}: ${normalized.message}`;
+			} finally {
+				if (isCurrentSessionRequest(requestSessionKey)) {
+					notificationClearState = 'idle';
+					notificationCatchUpOnHomeOpen = route === 'home' && homeTimelineStreamReadyKey !== requestSessionKey;
+					connectNotificationStreaming(session);
+					void loadNotifications(session, { background: true });
+				}
+			}
+		})();
 	};
 	const openNotification = (notification: SocialNotificationData) => {
 		notificationsMenuOpen = false;
@@ -3946,10 +3999,14 @@
 			instanceUrl: session.instanceUrl,
 			accessToken: session.accessToken,
 			onUpdate: (status) => queueStreamedHomeStatus(requestSessionKey, status),
-			onNotification: (notification) => applyStreamedNotification(requestSessionKey, notification),
+			onNotification: (notification) => applyStreamedNotification(requestSessionKey, notification, homeTimelineStreamKey === requestSessionKey),
 			onOpen: () => {
 				if (homeTimelineStreamKey !== requestSessionKey || !isCurrentSessionRequest(requestSessionKey)) return;
 				homeTimelineStreamReadyKey = requestSessionKey;
+				if (notificationCatchUpOnHomeOpen) {
+					notificationCatchUpOnHomeOpen = false;
+					void loadNotifications(session, { background: true, force: true });
+				}
 				void checkHomeTimelineForNewPosts();
 			},
 			onError: () => handleHomeTimelineStreamFailure(session, requestSessionKey),
@@ -5684,39 +5741,21 @@
 						{/if}
 					</section>
 				{:else if route === 'notifications'}
-					<section class="card app-panel notifications-panel">
-						<div class="notifications-head">
-							<div>
-								<div class="app-page-kicker">Notifications</div>
-								<h1>Notifications</h1>
-								<p>Mentions, follows, favorites, boosts, and Pleroma-specific events from your instance.</p>
-							</div>
-							<button type="button" class="btn-secondary" disabled={unreadNotificationCount === 0} onclick={markNotificationsRead}>Mark all read</button>
-						</div>
-
-						{#if notificationState.status === 'loading' || notificationState.status === 'idle'}
-							<div class="request-state" role="status" aria-label="Request status">Loading notifications</div>
-						{:else if notificationState.status === 'empty'}
-							<div class="request-state request-empty">
-								<h2>No notifications</h2>
-								<p>Your instance has no notifications for this account yet.</p>
-							</div>
-						{:else if notificationState.status === 'error'}
-							<div class="request-state request-error">
-								<h2>{notificationState.error.title}</h2>
-								<p>{notificationState.error.message}</p>
-								{#if notificationState.error.retryable && currentSession}
-									<Button variant="secondary" onclick={retryNotifications}>Retry notifications</Button>
-								{/if}
-							</div>
-						{:else if notificationState.status === 'success'}
-							<div class="notifications-list" data-testid="notifications-list">
-								{#each notificationState.data as notification (notification.id)}
-									<NotifRow n={notification} onOpen={openNotification} onAccept={acceptFollowRequestNotification} onReject={rejectFollowRequestNotification} />
-								{/each}
-							</div>
-						{/if}
-					</section>
+					<NotificationsPage
+						status={notificationState.status === 'idle' ? 'loading' : notificationState.status}
+						notifications={notificationState.status === 'success' ? notificationState.data : []}
+						errorTitle={notificationState.status === 'error' ? notificationState.error.title : undefined}
+						errorMessage={notificationState.status === 'error' ? notificationState.error.message : undefined}
+						retryable={notificationState.status === 'error' && notificationState.error.retryable && Boolean(currentSession)}
+						clearPending={notificationClearState === 'clearing'}
+						clearError={notificationClearError}
+						onRetry={retryNotifications}
+						onMarkAll={markNotificationsRead}
+						onClear={clearNotifications}
+						onOpen={openNotification}
+						onAccept={acceptFollowRequestNotification}
+						onReject={rejectFollowRequestNotification}
+					/>
 				{:else if route === 'settings'}
 					{#if settingsSection === 'appearance'}
 						<ThemePreferencesControls

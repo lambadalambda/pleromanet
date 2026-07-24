@@ -1,5 +1,10 @@
 # Devlog
 
+## 2026-07-24
+
+- The standalone notifications route now matches the canonical handoff with inbox totals, keyboard-accessible type tabs, live time buckets, responsive list and filter surfaces, computed weekly activity, and a full empty state.
+- Notification clearing now uses Pleroma's clear endpoint and generation-safe stream replacement with forced post-subscription catch-up, preventing stale resurrection and missed notifications across concurrent streams and navigation.
+
 ## 2026-07-23
 
 - Compact notification and reply-context images now expand into viewport-contained original-image previews on hover or keyboard focus while preserving sensitive/CW privacy across live notification refreshes.

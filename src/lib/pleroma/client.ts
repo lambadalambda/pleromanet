@@ -525,6 +525,13 @@ export const createPleromaClient = (config: ClientConfig) => {
 				auth: 'required'
 			}),
 
+		clearNotifications: () =>
+			http.request<Record<string, never>>({
+				method: 'POST',
+				path: '/api/v1/notifications/clear',
+				auth: 'required'
+			}),
+
 		search: (query: SearchQuery) =>
 			http.request<PleromaSearchResult>({
 				path: '/api/v2/search',

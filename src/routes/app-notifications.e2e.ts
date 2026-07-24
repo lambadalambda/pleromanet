@@ -237,6 +237,243 @@ test('real notifications route renders mocked API notifications and navigates by
 	await expectNoHorizontalOverflow(page);
 });
 
+test('standalone notifications page matches the handoff composition and interactions', async ({ page }) => {
+	await authenticate(page);
+	const now = Date.now();
+	const atMinutesAgo = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
+	const pageNotifications = [
+		notification('notif-new', 'mention', mentionActor, atMinutesAgo(5), mentionStatus),
+		notification('notif-today', 'reblog', boostActor, atMinutesAgo(120), boostStatus),
+		notification('notif-yesterday', 'favourite', favActor, atMinutesAgo(26 * 60), favStatus),
+		notification('notif-week', 'follow', followActor, atMinutesAgo(3 * 24 * 60)),
+		notification('notif-earlier', 'follow', unknownActor, atMinutesAgo(8 * 24 * 60))
+	];
+	let notificationResponse = pageNotifications;
+	await mockNotifications(page, () => notificationResponse);
+	let clearRequests = 0;
+	await page.route('https://pleroma.example/api/v1/notifications/clear', async (route) => {
+		clearRequests += 1;
+		expect(route.request().method()).toBe('POST');
+		expect(route.request().headers().authorization).toBe('Bearer access-token');
+		notificationResponse = [];
+		await fulfillJson(route, {});
+	});
+	await setViewport(page, 'wide');
+	await page.goto('/app/notifications');
+
+	const notificationPage = page.getByTestId('notifications-page');
+	await expect(notificationPage.getByText('Inbox', { exact: true })).toBeVisible();
+	await expect(notificationPage.getByText('5 unread · 5 total')).toBeVisible();
+	await expect(notificationPage.locator('.notif-page-main')).toHaveCSS('display', 'grid');
+	await expect(notificationPage.locator('.notif-page-title')).toHaveCSS('font-size', '38px');
+	const tabs = notificationPage.getByRole('tablist', { name: 'Notification types' });
+	await expect(tabs.getByRole('tab', { name: /All/ })).toHaveAttribute('aria-selected', 'true');
+	await expect(tabs.getByRole('tab', { name: /Mentions/ })).toContainText('1');
+	await expect(tabs.getByRole('tab', { name: /Boosts/ })).toContainText('1');
+	await expect(tabs.getByRole('tab', { name: /Favorites/ })).toContainText('1');
+	await expect(tabs.getByRole('tab', { name: /Follows/ })).toContainText('2');
+
+	const list = page.getByTestId('notifications-list');
+	const side = page.getByTestId('notifications-side');
+	await expect.poll(async () => Promise.all([list.boundingBox(), side.boundingBox()]).then(([listBox, sideBox]) => Boolean(
+		listBox && sideBox && sideBox.x >= listBox.x + listBox.width
+	))).toBe(true);
+	for (const label of ['New', 'Today', 'Yesterday', 'This week', 'Earlier']) {
+		await expect(list.getByText(label, { exact: true })).toBeVisible();
+	}
+
+	await tabs.getByRole('tab', { name: /Boosts/ }).click();
+	await expect(list).toContainText('lumen boosted your post');
+	await expect(list).not.toContainText('orbit mentioned you');
+
+	await tabs.getByRole('tab', { name: /All/ }).click();
+	await expect(side.getByRole('checkbox', { name: 'From people I follow only' })).toBeDisabled();
+	await expect(side.getByRole('checkbox', { name: 'Mute mentions with keywords' })).toBeDisabled();
+	await side.getByRole('checkbox', { name: 'Hide boosts' }).check();
+	await expect(list).not.toContainText('lumen boosted your post');
+	await expect(side.getByText('Favorites')).toBeVisible();
+	await expect(side.getByText('1', { exact: true }).first()).toBeVisible();
+	await tabs.getByRole('tab', { name: /All/ }).focus();
+	await page.keyboard.press('ArrowRight');
+	await expect(tabs.getByRole('tab', { name: /Mentions/ })).toBeFocused();
+	await expect(tabs.getByRole('tab', { name: /Mentions/ })).toHaveAttribute('aria-selected', 'true');
+
+	await page.setViewportSize({ width: 320, height: 568 });
+	await expect(side).toBeHidden();
+	await expect(tabs).toBeVisible();
+	await tabs.getByRole('tab', { name: /All/ }).click();
+	await expect(list.locator('.notif-row')).toHaveCount(4);
+	await expect(list).toContainText('hey @quietadmin, this carries through notifications.');
+	await expect(notificationPage.getByRole('button', { name: 'Mark all read' })).toBeVisible();
+	await expectNoHorizontalOverflow(page);
+
+	await notificationPage.getByRole('button', { name: 'Clear all' }).click();
+	await expect.poll(() => clearRequests).toBe(1);
+	await expect(notificationPage.getByText('Nothing here yet.')).toBeVisible();
+	await expect(notificationPage.getByText('All caught up. · 0 total')).toBeVisible();
+	await expect(notificationPage.locator('.notif-empty-mark')).toHaveCSS('font-size', '64px');
+	await expectNoHorizontalOverflow(page);
+});
+
+test('clear all reloads authoritatively without losing a notification that arrives in flight', async ({ page }) => {
+	await authenticate(page);
+	const oldNotification = notification('notif-clear-old', 'favourite', favActor, '2026-05-18T12:00:00.000Z', favStatus);
+	const newNotification = notification('notif-clear-new', 'mention', mentionActor, '2026-05-18T12:10:00.000Z', mentionStatus);
+	let response = [oldNotification];
+	await mockNotifications(page, () => response);
+	let releaseClear: () => void = () => undefined;
+	const clearPending = new Promise<void>((resolve) => (releaseClear = resolve));
+	await page.route('https://pleroma.example/api/v1/notifications/clear', async (route) => {
+		await clearPending;
+		response = [newNotification];
+		await fulfillJson(route, {});
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/notifications');
+	await expect(page.getByTestId('notifications-list')).toContainText('kestrel favorited your post');
+	await waitForLatestStream(page);
+
+	await page.getByTestId('notifications-page').getByRole('button', { name: 'Clear all' }).click();
+	await emitStreamNotification(page, newNotification);
+	await expect(page.getByTestId('notifications-list')).not.toContainText('orbit mentioned you');
+	releaseClear();
+
+	await expect(page.getByTestId('notifications-list')).toContainText('orbit mentioned you');
+	await expect(page.getByTestId('notifications-list')).not.toContainText('kestrel favorited your post');
+	await expect(page.getByTestId('notifications-page').getByText('1 unread · 1 total')).toBeVisible();
+});
+
+test('clear all drops delayed pre-clear stream events during its authoritative reload', async ({ page }) => {
+	await authenticate(page);
+	const oldNotification = notification('notif-clear-delayed', 'favourite', favActor, '2026-05-18T12:00:00.000Z', favStatus);
+	let notificationRequests = 0;
+	let releaseReload: () => void = () => undefined;
+	const reloadPending = new Promise<void>((resolve) => (releaseReload = resolve));
+	await page.route('https://pleroma.example/api/v1/notifications**', async (route) => {
+		notificationRequests += 1;
+		if (notificationRequests === 1) {
+			await fulfillJson(route, [oldNotification]);
+			return;
+		}
+		await reloadPending;
+		await fulfillJson(route, []);
+	});
+	await page.route('https://pleroma.example/api/v1/notifications/clear', async (route) => fulfillJson(route, {}));
+	await setViewport(page, 'desktop');
+	await page.goto('/app/notifications');
+	await expect(page.getByTestId('notifications-list')).toContainText('kestrel favorited your post');
+	await waitForLatestStream(page);
+
+	await page.getByTestId('notifications-page').getByRole('button', { name: 'Clear all' }).click();
+	await expect.poll(() => notificationRequests).toBe(2);
+	await emitStreamNotification(page, oldNotification);
+	await expect(page.getByTestId('notifications-list')).not.toContainText('kestrel favorited your post');
+	releaseReload();
+
+	await expect(page.getByTestId('notifications-page').getByText('Nothing here yet.')).toBeVisible();
+	await expect(page.getByTestId('notifications-page').getByText('All caught up. · 0 total')).toBeVisible();
+});
+
+test('clear all catches up notifications created before its replacement stream opens', async ({ page }) => {
+	await authenticate(page);
+	const oldNotification = notification('notif-clear-gap-old', 'favourite', favActor, '2026-05-18T12:00:00.000Z', favStatus);
+	const gapNotification = notification('notif-clear-gap-new', 'mention', mentionActor, '2026-05-18T12:10:00.000Z', mentionStatus);
+	let response = [oldNotification];
+	await mockNotifications(page, () => response);
+	await page.route('https://pleroma.example/api/v1/notifications/clear', async (route) => {
+		response = [];
+		await fulfillJson(route, {});
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/notifications');
+	await expect(page.getByTestId('notifications-list')).toContainText('kestrel favorited your post');
+	await waitForLatestStream(page);
+
+	await page.getByTestId('notifications-page').getByRole('button', { name: 'Clear all' }).click();
+	await expect(page.getByTestId('notifications-page').getByText('All caught up. · 0 total')).toBeVisible();
+	await expect.poll(() => page.evaluate(() => {
+		const testWindow = window as typeof window & { __pleromanetSockets?: unknown[] };
+		return testWindow.__pleromanetSockets?.length ?? 0;
+	})).toBe(2);
+
+	response = [gapNotification];
+	await openLatestStream(page);
+	await expect(page.getByTestId('notifications-list')).toContainText('orbit mentioned you');
+	await expect(page.getByTestId('notifications-page').getByText('1 unread · 1 total')).toBeVisible();
+});
+
+test('clear all catches up through a home stream opened after navigating mid-clear', async ({ page }) => {
+	await authenticate(page);
+	await mockHomeTimeline(page);
+	const oldNotification = notification('notif-clear-home-old', 'favourite', favActor, '2026-05-18T12:00:00.000Z', favStatus);
+	const gapNotification = notification('notif-clear-home-new', 'mention', mentionActor, '2026-05-18T12:10:00.000Z', mentionStatus);
+	let response = [oldNotification];
+	const requests = await mockNotifications(page, () => response);
+	let releaseClear: () => void = () => undefined;
+	const clearPending = new Promise<void>((resolve) => (releaseClear = resolve));
+	await page.route('https://pleroma.example/api/v1/notifications/clear', async (route) => {
+		await clearPending;
+		response = [];
+		await fulfillJson(route, {});
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/notifications');
+	await expect(page.getByTestId('notifications-list')).toContainText('kestrel favorited your post');
+	await waitForLatestStream(page);
+
+	await page.getByTestId('notifications-page').getByRole('button', { name: 'Clear all' }).click();
+	await page.getByTestId('left-sidebar').getByRole('link', { name: 'Home' }).click();
+	await expect.poll(() => page.evaluate(() => {
+		const testWindow = window as typeof window & { __pleromanetSockets?: unknown[] };
+		return testWindow.__pleromanetSockets?.length ?? 0;
+	})).toBe(2);
+	releaseClear();
+	await expect.poll(requests).toBeGreaterThanOrEqual(3);
+
+	response = [gapNotification];
+	await openLatestStream(page);
+	await expect(notificationBadge(page)).toHaveText('1');
+	await expect.poll(requests).toBeGreaterThanOrEqual(4);
+});
+
+test('replacement stream open forces a catch-up newer than an in-flight snapshot', async ({ page }) => {
+	await authenticate(page);
+	const oldNotification = notification('notif-clear-overlap-old', 'favourite', favActor, '2026-05-18T12:00:00.000Z', favStatus);
+	const gapNotification = notification('notif-clear-overlap-new', 'mention', mentionActor, '2026-05-18T12:10:00.000Z', mentionStatus);
+	let response = [oldNotification];
+	let notificationRequests = 0;
+	let immediateSnapshotStarted = false;
+	let releaseImmediateSnapshot: () => void = () => undefined;
+	const immediateSnapshotPending = new Promise<void>((resolve) => (releaseImmediateSnapshot = resolve));
+	await page.route('https://pleroma.example/api/v1/notifications**', async (route) => {
+		notificationRequests += 1;
+		const snapshot = [...response];
+		if (notificationRequests === 3) {
+			immediateSnapshotStarted = true;
+			await immediateSnapshotPending;
+		}
+		await fulfillJson(route, snapshot);
+	});
+	await page.route('https://pleroma.example/api/v1/notifications/clear', async (route) => {
+		response = [];
+		await fulfillJson(route, {});
+	});
+	await setViewport(page, 'desktop');
+	await page.goto('/app/notifications');
+	await expect(page.getByTestId('notifications-list')).toContainText('kestrel favorited your post');
+	await waitForLatestStream(page);
+
+	await page.getByTestId('notifications-page').getByRole('button', { name: 'Clear all' }).click();
+	await expect.poll(() => immediateSnapshotStarted).toBe(true);
+	response = [gapNotification];
+	await openLatestStream(page);
+	await expect.poll(() => notificationRequests).toBe(4);
+	releaseImmediateSnapshot();
+
+	await expect(page.getByTestId('notifications-list')).toContainText('orbit mentioned you');
+	await expect(page.getByTestId('notifications-page').getByText('1 unread · 1 total')).toBeVisible();
+});
+
 test('header bell opens real notifications popover with filters and read actions', async ({ page }) => {
 	await authenticate(page);
 	await mockHomeTimeline(page);
